@@ -9,7 +9,6 @@ export const env = {
   supabaseAnon: () => need('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
   supabaseService: () => need('SUPABASE_SERVICE_ROLE_KEY'),
   appUrl: () => process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-  keySecret: () => need('KEY_ENCRYPTION_SECRET'),
   studioDomains: () => (process.env.STUDIO_EMAIL_DOMAINS || 'lostproperty.studio').split(',').map((d) => d.trim().toLowerCase()),
   figmaToken: () => need('FIGMA_TOKEN'),
   anthropicStudioKey: () => need('ANTHROPIC_API_KEY'),

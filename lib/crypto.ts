@@ -1,8 +1,15 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import { env } from '@/lib/env';
+import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from 'node:crypto';
 
 // AES-256-GCM for clients' AI keys at rest. Output: base64(iv | tag | ciphertext).
-const key = () => { const k = Buffer.from(env.keySecret(), 'base64'); if (k.length !== 32) throw new Error('KEY_ENCRYPTION_SECRET must be 32 bytes, base64'); return k; };
+// Uses KEY_ENCRYPTION_SECRET when set; otherwise derives a key from the Supabase JWT secret Vercel already holds.
+// Note: rotating the Supabase JWT secret without setting KEY_ENCRYPTION_SECRET means clients re-enter their AI key.
+const key = () => {
+  const explicit = process.env.KEY_ENCRYPTION_SECRET;
+  if (explicit) { const k = Buffer.from(explicit, 'base64'); if (k.length !== 32) throw new Error('KEY_ENCRYPTION_SECRET must be 32 bytes, base64'); return k; }
+  const base = process.env.SUPABASE_JWT_SECRET;
+  if (!base) throw new Error('Set KEY_ENCRYPTION_SECRET (or SUPABASE_JWT_SECRET) to store client AI keys.');
+  return Buffer.from(hkdfSync('sha256', base, 'lost-property-brand-platform', 'client-ai-keys', 32));
+};
 
 export function encryptSecret(plain: string): string {
   const iv = randomBytes(12);
