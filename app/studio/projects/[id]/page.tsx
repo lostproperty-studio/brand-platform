@@ -3,11 +3,15 @@ import { notFound, redirect } from 'next/navigation';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { Review, type Item } from '@/components/Review';
 import { ProjectActions } from '@/components/ProjectActions';
+import { FontManager } from '@/components/FontManager';
+import { DeleteProjectButton } from '@/components/DeleteProject';
+import { readFonts } from '@/lib/projects/fonts';
+import { fontState, fontsNeedingLicence } from '@/lib/fonts';
 
-const TABS = [['overview', 'Overview'], ['review', 'Review'], ['deliverables', 'Deliverables']] as const;
+const TABS = [['overview', 'Overview'], ['review', 'Review'], ['typefaces', 'Typefaces'], ['deliverables', 'Deliverables']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
-export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string }> }) {
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
   const st = await requireStaff();
   if (st instanceof Response) redirect('/');
   const { id } = await params;
@@ -26,10 +30,25 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 
   let body: React.ReactNode = null;
   if (tab === 'overview') {
+    const { fonts } = await readFonts(id);
+    const pendingFonts = fontsNeedingLicence(fonts);
+    const { data: scan } = await sb.from('scans').select('id').eq('project_id', id).eq('status', 'done').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    const { data: rv } = scan ? await sb.from('review_items').select('status').eq('scan_id', scan.id) : { data: [] as { status: string }[] };
+    const open = (rv || []).filter((r) => r.status === 'open').length;
+    const total = (rv || []).length;
+    const checks = [
+      { ok: !!scan && open === 0, title: !scan ? 'Figma file not scanned yet' : open ? `Review: ${open} of ${total} items still open` : `Review complete (${total} items)`, note: open ? 'Open items use the suggested option. You can come back to them any time.' : '', href: `?tab=review`, cta: open ? 'Continue review' : 'Open review' },
+      { ok: fonts.length > 0 && pendingFonts.length === 0, title: !fonts.length ? 'No typefaces added' : pendingFonts.length ? `Typefaces: ${pendingFonts.length} still need licensed files` : 'Typefaces: all licensed', note: pendingFonts.map((f) => `${f.name || f.label}: ${fontState(f) === 'none' ? 'no files' : fontState(f) === 'mixed' ? 'some trial files' : 'trial files'}`).join(' · '), href: `?tab=typefaces`, cta: pendingFonts.length ? 'Add licensed files' : 'Open typefaces' },
+      { ok: !!p.repo_full_name, title: p.repo_full_name ? 'Kit built' : 'Kit not built yet', note: '', href: '', cta: '' }
+    ];
     body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>
-      {sp.created ? <div className="card" style={{ background: '#000', color: '#fff' }}>Project created, kit built and portal published.</div> : null}
+      {sp.created ? <div className="card" style={{ background: '#000', color: '#fff' }}>Project created and kit built. The client portal stays in draft until you publish it.{sp.skipped ? ' You skipped the review; pick it up from the checklist below.' : ''}</div> : null}
       <h1 style={{ fontSize: 28, fontWeight: 400, margin: 0 }}>{p.client}</h1>
       <p className="mute" style={{ margin: 0 }}>{p.line}</p>
+      <div className="card">
+        <p style={{ margin: '0 0 4px' }}>Before you publish</p>
+        <div className="ck">{checks.map((c) => <div key={c.title} className="ck-row"><span className={'dot ' + (c.ok ? 'done' : 'warn')} /><div><p>{c.title}</p>{c.note ? <p className="mute">{c.note}</p> : null}</div>{c.href ? <Link className="btn" href={c.href}>{c.cta}</Link> : null}</div>)}</div>
+      </div>
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <p style={{ margin: 0 }}>Portal: <a href={`/p/${p.slug}`}>/p/{p.slug}</a> · <span className={'tag ' + p.status}>{p.status}</span></p>
         <p style={{ margin: 0 }}>Kit repository: {p.repo_full_name ? <a href={`https://github.com/${p.repo_full_name}`} target="_blank" rel="noopener">{p.repo_full_name}</a> : <span className="mute">not built yet</span>} · v{p.kit_version}</p>
@@ -37,6 +56,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <p style={{ margin: 0 }}>Client AI: {p.ai_key_hint ? `connected (key ending ${p.ai_key_hint})` : <span className="mute">not connected; the client adds their key in portal settings</span>}</p>
       </div>
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
+      <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
+    </div>;
+  }
+  if (tab === 'typefaces') {
+    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>
+      <p className="mute" style={{ margin: 0 }}>Upload trial files to design with. When the client buys the licences, use <strong style={{ color: '#000' }}>Replace with licensed files</strong>: each licensed weight replaces its trial file. Only licensed files go into the kit.</p>
+      <FontManager projectId={id} />
     </div>;
   }
   if (tab === 'review') {

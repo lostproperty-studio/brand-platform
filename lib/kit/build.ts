@@ -3,13 +3,15 @@
 // and copied to storage for portal downloads.
 
 export type Colour = { name: string; hex: string; role: string };
-export type Font = { role: 'display' | 'body' | 'caption'; name: string; usage: string; weight: string; size?: number; lineHeight?: string; tracking?: string; textCase?: string; licence?: string };
+export type Font = { role: string; name: string; usage: string; weight: string; size?: number; lineHeight?: string; tracking?: string; textCase?: string; licence?: string; licensed?: boolean; trialInUse?: boolean };
+export type FontBinary = { family: string; name: string; bytes: Uint8Array };
 export type Rule = { chapter: string; title: string; text: string; why?: string; wrong?: string[] };
 export type AssetFile = { path: string; nodeId: string; format: 'svg' | 'png'; description: string; bytes?: Uint8Array };
 export type KitInput = {
   client: string; slug: string; version: string; line: string; portalUrl: string;
   colours: Colour[]; fonts: Font[]; rules: Rule[]; assets: AssetFile[];
   spacing?: Record<string, number>; templates: string[]; figmaUrl?: string;
+  fontFiles?: FontBinary[];
 };
 export type KitFile = { path: string; content: string | Uint8Array; part: 'assets' | 'tokens' | 'guidelines' | 'templates' | 'reference' | 'root' };
 
@@ -130,6 +132,11 @@ export function buildKit(input: KitInput): KitFile[] {
   for (const t of input.templates) files.push({ path: `templates/${t}/index.html`, content: templateHtml(t, input), part: 'templates' });
   files.push({ path: 'assets/manifest.json', content: JSON.stringify(input.assets.map((a) => ({ path: a.path, format: a.format, description: a.description, figmaNode: a.nodeId })), null, 2) + '\n', part: 'assets' });
   for (const a of input.assets) if (a.bytes) files.push({ path: a.path, content: a.bytes, part: 'assets' });
-  files.push({ path: 'assets/fonts/LICENCE.md', content: `# Fonts\n\n${input.fonts.map((f) => `- **${f.name}** (${f.usage}): ${f.licence || 'Licence to be confirmed. Not included until confirmed.'}`).join('\n')}\n`, part: 'assets' });
+  // Only licensed font files are shipped. Trial files are never committed.
+  for (const ff of input.fontFiles || []) files.push({ path: `assets/fonts/${slugify(ff.family)}/${ff.name}`, content: ff.bytes, part: 'assets' });
+  const fontLine = (f: Font) => f.licensed ? `${f.licence || 'Licensed. Check the licence terms before sharing with suppliers.'} Files in \`assets/fonts/${slugify(f.name)}/\`.`
+    : f.trialInUse ? 'Licensed files not supplied yet: the studio is using trial files, which are not included. Buy or confirm the licence, then the files are added here.'
+    : 'No files supplied. Install from the foundry once licensed.';
+  files.push({ path: 'assets/fonts/LICENCE.md', content: `# Fonts\n\n${input.fonts.map((f) => `- **${f.name}** (${f.usage}): ${fontLine(f)}`).join('\n')}\n`, part: 'assets' });
   return files;
 }

@@ -38,7 +38,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const part = f.part === 'root' ? 'guidelines' : f.part;
     const storagePath = `${id}/${input.version}/${f.path}`;
     const body = typeof f.content === 'string' ? new TextEncoder().encode(f.content) : f.content;
-    await sb.storage.from('kits').upload(storagePath, body, { upsert: true, contentType: f.path.endsWith('.svg') ? 'image/svg+xml' : f.path.endsWith('.png') ? 'image/png' : f.path.endsWith('.json') ? 'application/json' : f.path.endsWith('.html') ? 'text/html' : 'text/plain' });
+    await sb.storage.from('kits').upload(storagePath, body, { upsert: true, contentType: /\.(woff2?|otf|ttf)$/.test(f.path) ? 'font/' + f.path.split('.').pop() : f.path.endsWith('.svg') ? 'image/svg+xml' : f.path.endsWith('.png') ? 'image/png' : f.path.endsWith('.json') ? 'application/json' : f.path.endsWith('.html') ? 'text/html' : 'text/plain' });
     await sb.from('deliverable_files').upsert({ part_id: partId[part], path: f.path, format: f.path.split('.').pop()?.toUpperCase() || '', storage_path: storagePath, bytes: body.byteLength }, { onConflict: 'part_id,path' });
   }
   return NextResponse.json({ repo, commit: result.commit, pullRequest: result.pr, files: files.length });

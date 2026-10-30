@@ -2,6 +2,8 @@ import { adminClient } from '@/lib/supabase/server';
 import { exportNodes } from '@/lib/figma/scan';
 import { env } from '@/lib/env';
 import type { AssetFile, Colour, Font, KitInput, Rule } from '@/lib/kit/build';
+import type { ProjectFont } from '@/lib/fonts';
+import { FONT_BUCKET } from '@/lib/projects/fonts';
 
 const CH: Record<string, string> = { logo: 'logo', wordmark: 'logo', symbol: 'logo', lockups: 'logo', type: 'type', colour: 'colour', grid: 'layout', layout: 'layout', art: 'imagery', imagery: 'imagery', materials: 'imagery', voice: 'voice' };
 const TPL: [RegExp, string][] = [[/instagram post|4:5/i, 'social-post-4x5'], [/story|9:16/i, 'social-story-9x16'], [/linkedin|1\.91/i, 'social-landscape-1-91x1'], [/poster/i, 'poster-a3'], [/signage/i, 'signage-panel'], [/brochure/i, 'brochure-spread-a4'], [/web/i, 'web-hero'], [/email/i, 'email-header'], [/slide|presentation/i, 'slide-16x9']];
@@ -23,10 +25,11 @@ export async function kitInputFor(projectId: string): Promise<{ input: KitInput;
   if (error) throw error;
   const { data: scan } = await sb.from('scans').select('id').eq('project_id', projectId).eq('status', 'done').order('created_at', { ascending: false }).limit(1).maybeSingle();
   const { data: items } = scan ? await sb.from('review_items').select('chapter, kind, title, proposal, answer, recommend, status, input, node_id').eq('scan_id', scan.id).order('ord') : { data: [] as Item[] };
-  const brand = (p.brand || {}) as { core?: { name: string; hex: string; note?: string }[]; fonts?: { role: Font['role']; name: string; label?: string; weight?: string; size?: string; lh?: string; tracking?: string; caseV?: string }[] };
+  const brand = (p.brand || {}) as { core?: { name: string; hex: string; note?: string }[]; fonts?: (Partial<ProjectFont> & { role: string; name: string; weight?: string; lh?: string; tracking?: string; caseV?: string; licence?: string })[] };
 
   const colours: Colour[] = (brand.core || []).map((c) => ({ name: c.name, hex: c.hex.toUpperCase(), role: c.note || '' }));
-  const fonts: Font[] = (brand.fonts || []).map((f) => ({ role: f.role, name: f.name, usage: f.label || '', weight: f.weight || 'Regular', lineHeight: f.lh, tracking: f.tracking && f.tracking !== 'None' ? f.tracking.replace('+', '') : undefined, textCase: f.caseV }));
+  const fonts: Font[] = (brand.fonts || []).filter((f) => f.name).map((f) => ({ role: f.role, name: f.name, usage: f.label || '', weight: f.weight || 'Regular', lineHeight: f.lh, tracking: f.tracking && f.tracking !== 'None' ? f.tracking.replace('+', '') : undefined, textCase: f.caseV, licence: f.licenceNote ?? f.licence, licensed: (f.files || []).some((x) => x.licence === 'licensed'), trialInUse: (f.files || []).some((x) => x.licence === 'trial') }));
+  const licensedFiles = (brand.fonts || []).filter((f) => f.name).flatMap((f) => (f.files || []).filter((x) => x.licence === 'licensed').map((x) => ({ family: f.name, name: x.name, path: x.path })));
   const list = (items || []) as Item[];
   const rules: Rule[] = list.filter((i) => i.kind !== 'asset' && i.kind !== 'issue' && CH[i.chapter]).map((i) => ({ chapter: CH[i.chapter], title: i.title, text: resolvedText(i) })).filter((r) => r.text);
   const assets: AssetFile[] = list.filter((i) => i.kind === 'asset' && i.status !== 'skipped' && i.node_id).map((i) => {
@@ -37,7 +40,7 @@ export async function kitInputFor(projectId: string): Promise<{ input: KitInput;
   const picked = tplItem ? resolvedText(tplItem).split(/,\s*/).map((a) => TPL.find(([re]) => re.test(a))?.[1]).filter(Boolean) as string[] : [];
   return {
     figmaKey: p.figma_key,
-    input: { client: p.client, slug: p.slug, version: p.kit_version, line: p.line || '', portalUrl: `${env.appUrl()}/p/${p.slug}`, colours, fonts, rules, assets, templates: picked.length ? [...new Set(picked)] : ['social-post-4x5'], figmaUrl: p.figma_key ? `https://www.figma.com/design/${p.figma_key}` : undefined }
+    input: { client: p.client, slug: p.slug, version: p.kit_version, line: p.line || '', portalUrl: `${env.appUrl()}/p/${p.slug}`, colours, fonts, rules, assets, templates: picked.length ? [...new Set(picked)] : ['social-post-4x5'], fontFiles: await Promise.all(licensedFiles.map(async (x) => ({ family: x.family, name: x.name, bytes: new Uint8Array(await (await sb.storage.from(FONT_BUCKET).download(x.path)).data!.arrayBuffer()) }))), figmaUrl: p.figma_key ? `https://www.figma.com/design/${p.figma_key}` : undefined }
   };
 }
 

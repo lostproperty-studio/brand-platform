@@ -2,22 +2,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Review, type Item } from '@/components/Review';
+import { FontManager } from '@/components/FontManager';
 
 type Step = { title: string; desc: string; state: 'waiting' | 'running' | 'done' };
 const STEPS = ['Client', 'Figma file', 'Scan', 'Review', 'Typefaces', 'Create'];
 
-// New project: client → Figma link → live scan → review → typefaces → build the kit and publish.
+// New project: client → Figma link → live scan → review (can be skipped) → typefaces → build the kit.
+// Publishing to the client is a separate step on the project page, after the fonts are licensed.
 export default function NewProject() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [client, setClient] = useState('');
   const [line, setLine] = useState('');
   const [figma, setFigma] = useState('');
-  const [project, setProject] = useState<{ id: string; slug: string } | null>(null);
+  const [project, setProject] = useState<{ id: string; slug: string; figma: string } | null>(null);
   const [scanId, setScanId] = useState<string | null>(null);
   const [scan, setScan] = useState<{ status: string; steps: Step[]; meta: { type?: { font: string }[] }; error?: string; figma_key: string } | null>(null);
   const [items, setItems] = useState<Item[]>([]);
-  const [fonts, setFonts] = useState<{ role: string; name: string; licence: string }[]>([]);
+  const [detected, setDetected] = useState<string[]>([]);
+  const [skippedReview, setSkippedReview] = useState(false);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -25,10 +28,20 @@ export default function NewProject() {
   const figmaOk = /figma\.com\/(file|design|proto)\/[A-Za-z0-9]{10,}/.test(figma);
 
   async function startScan() {
-    setError(''); setBusy('Creating the project…');
-    const r = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client, line, figmaUrl: figma }) });
-    const p = await r.json(); if (!r.ok) { setError(p.error || 'Couldn’t create the project.'); setBusy(''); return; }
-    setProject(p); setStep(2); setBusy('');
+    setError(''); setScan(null); setScanId(null);
+    // Create the project once; going back and scanning again reuses it instead of making a duplicate.
+    let p = project;
+    if (!p || p.figma !== figma) {
+      if (p) await fetch(`/api/projects/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ figmaUrl: figma }) });
+      else {
+        setBusy('Creating the project…');
+        const r = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client, line, figmaUrl: figma }) });
+        const j = await r.json(); if (!r.ok) { setError(j.error || 'Couldn’t create the project.'); setBusy(''); return; }
+        p = { id: j.id, slug: j.slug, figma };
+      }
+      setProject({ ...p, figma });
+    }
+    setStep(2); setBusy('');
     const s = await fetch(`/api/projects/${p.id}/scan`, { method: 'POST' }); const sj = await s.json();
     if (!s.ok) { setError(sj.error || 'The scan couldn’t start.'); return; }
     setScanId(sj.scanId);
@@ -41,8 +54,8 @@ export default function NewProject() {
       const j = await r.json(); setScan(j.scan);
       if (j.scan.status === 'done') {
         setItems(j.items);
-        const detected = [...new Set((j.scan.meta?.type || []).map((t: { font: string }) => t.font.replace(/\s+\d+$/, '')))].slice(0, 3) as string[];
-        setFonts(['display', 'body', 'caption'].map((role, k) => ({ role, name: detected[k] || '', licence: '' })));
+        // Family names from the scan, without weight numbers or "Trial"/"Test" (the trial state lives on the files)
+        setDetected([...new Set((j.scan.meta?.type || []).map((t: { font: string }) => t.font.replace(/\s+\d+$/, '').replace(/\s*\b(trial|test)\b\s*/gi, ' ').replace(/\s+/g, ' ').trim()))].filter(Boolean).slice(0, 3) as string[]);
         if (poll.current) clearInterval(poll.current); setStep(3);
       }
       if (j.scan.status === 'failed' && poll.current) clearInterval(poll.current);
@@ -54,14 +67,10 @@ export default function NewProject() {
   async function create() {
     if (!project) return;
     setError('');
-    setBusy('Saving typefaces…');
-    await fetch(`/api/projects/${project.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand: { fonts: fonts.filter((f) => f.name).map((f) => ({ role: f.role, name: f.name, label: f.role === 'display' ? 'Headlines' : f.role === 'body' ? 'Body copy' : 'Captions', licence: f.licence })) } }) });
     setBusy('Building the kit and the repository…');
     const k = await fetch(`/api/projects/${project.id}/kit?direct=1`, { method: 'POST' });
     if (!k.ok) { setError('The kit build failed: ' + (await k.text()).slice(0, 200)); setBusy(''); return; }
-    setBusy('Publishing the portal…');
-    await fetch(`/api/projects/${project.id}/publish`, { method: 'POST' });
-    router.push(`/studio/projects/${project.id}?created=1`);
+    router.push(`/studio/projects/${project.id}?created=1${skippedReview ? '&skipped=1' : ''}`);
   }
 
   return (
@@ -86,30 +95,31 @@ export default function NewProject() {
         {step === 2 ? <>
           <h1>Reading the Figma file</h1>
           <div className="card"><div className="steps">{(scan?.steps || ([] as Step[])).map((s) => <div key={s.title} className="step"><span className={'dot ' + s.state} /><div><p style={{ margin: 0 }}>{s.title}</p><p className="mute" style={{ margin: 0 }}>{s.desc}</p></div></div>)}{!scan ? <p className="mute">Starting…</p> : null}</div></div>
-          {scan?.status === 'failed' ? <p>The scan failed: {scan.error}</p> : null}
+          {scan?.status === 'failed' ? <><p>The scan failed: {scan.error}</p><div className="row"><button className="btn solid" onClick={startScan}>Try the scan again</button><span className="mute">Uses the same project; nothing is duplicated.</span></div></> : null}
         </> : null}
         {step === 3 && scan ? <>
           <h1>Check what I found</h1>
-          <p className="mute" style={{ maxWidth: 720 }}>Accept what’s right, correct what isn’t, answer the questions. Answers save as you go; anything left open uses the suggested option and is listed in the changelog.</p>
+          <p className="mute" style={{ maxWidth: 720 }}>Accept what’s right, correct what isn’t, answer the questions. Answers save as you go. Short on time? <strong style={{ color: '#000' }}>Skip for now</strong> and finish it later from the project’s Review tab.</p>
           <Review initial={items} figmaKey={scan.figma_key} />
         </> : null}
-        {step === 4 ? <>
+        {step === 4 && project ? <>
           <h1>Typefaces</h1>
-          <p className="mute">Figma can’t hand over font files. Confirm the names, and say what the licence allows; the kit only ships files the licence covers.</p>
-          {fonts.map((f, k) => <div key={f.role} className="card" style={{ display: 'grid', gridTemplateColumns: '100px 1fr 1fr', gap: 8, alignItems: 'center' }}><span className="mute">{f.role}</span><input className="in" aria-label={`${f.role} typeface`} value={f.name} onChange={(e) => setFonts((l) => l.map((x, j) => (j === k ? { ...x, name: e.target.value } : x)))} /><input className="in" aria-label={`${f.role} licence`} placeholder="Licence, e.g. web + desktop, 5 users" value={f.licence} onChange={(e) => setFonts((l) => l.map((x, j) => (j === k ? { ...x, licence: e.target.value } : x)))} /></div>)}
+          <p className="mute">Figma can’t hand over font files, so add them here. Trial files are fine for now: they’re used for previews, never put in the kit, and you’ll be reminded to swap in the licensed files before publishing to the client.</p>
+          <FontManager projectId={project.id} detected={detected} />
         </> : null}
         {step === 5 ? <>
           <h1>Build the first version</h1>
-          <div className="card"><p style={{ margin: 0 }}>{client}</p><p className="mute" style={{ margin: 0 }}>{items.filter((i) => i.status !== 'open').length} of {items.length} review items answered. The rest use the suggested option.</p></div>
-          <p className="mute">This creates the kit repository, exports the assets, writes the tokens, guidelines and templates, and publishes the portal.</p>
+          <div className="card"><p style={{ margin: 0 }}>{client}</p><p className="mute" style={{ margin: 0 }}>{skippedReview ? 'Review skipped for now. ' : ''}{items.filter((i) => i.status !== 'open').length} of {items.length} review items answered. Open items use the suggested option until you answer them in the project’s Review tab.</p></div>
+          <p className="mute">This creates the kit repository, exports the assets and writes the tokens, guidelines and templates. The client portal stays in draft until you publish it from the project page.</p>
         </> : null}
         {busy ? <p className="mute">{busy}</p> : null}
         {error ? <p>{error}</p> : null}
         <div className="wz-nav">
-          <button className="btn" disabled={!!busy || step === 2 || step === 3} onClick={() => (step === 0 ? router.push('/studio') : setStep(step === 3 ? 3 : step - 1))}>{step === 0 ? 'Cancel' : 'Back'}</button>
+          <button className="btn" disabled={!!busy || (step === 2 && scan?.status !== 'failed') || step === 3} onClick={() => (step === 0 ? router.push('/studio') : setStep(step - 1))}>{step === 0 ? 'Cancel' : 'Back'}</button>
           {step === 0 ? <button className="btn solid" disabled={!client.trim()} onClick={() => setStep(1)}>Continue</button> : null}
           {step === 1 ? <button className="btn solid" disabled={!figmaOk || !!busy} onClick={startScan}>Scan the file</button> : null}
-          {step === 3 || step === 4 ? <button className="btn solid" onClick={() => setStep(step + 1)}>Continue</button> : null}
+          {step === 3 ? <div className="row"><button className="btn" onClick={() => { setSkippedReview(true); setStep(4); }}>Skip for now</button><button className="btn solid" onClick={() => { setSkippedReview(false); setStep(4); }}>Continue</button></div> : null}
+          {step === 4 ? <button className="btn solid" onClick={() => setStep(5)}>Continue</button> : null}
           {step === 5 ? <button className="btn pink" disabled={!!busy} onClick={create}>Create project</button> : null}
         </div>
       </div>

@@ -1,17 +1,19 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireStaff, userClient } from '@/lib/supabase/server';
+import { ProjectCard } from '@/components/ProjectCard';
+import { fontsNeedingLicence, type ProjectFont } from '@/lib/fonts';
 
-type Row = { id: string; client: string; name: string; slug: string; status: 'draft' | 'live' | 'archived'; updated_at: string; brand: { core?: { hex: string }[]; logo?: string } };
+type Row = { id: string; client: string; name: string; slug: string; status: 'draft' | 'live' | 'archived'; updated_at: string; repo_full_name: string | null; brand: { core?: { hex: string }[]; logo?: string; fonts?: ProjectFont[] } };
 const FILTERS = [['all', 'All'], ['live', 'Live'], ['draft', 'Draft'], ['archived', 'Archive']] as const;
 
 // Studio dashboard: left panel of filters and clients, grid of project cards.
-export default async function Studio({ searchParams }: { searchParams: Promise<{ f?: string; q?: string }> }) {
+export default async function Studio({ searchParams }: { searchParams: Promise<{ f?: string; q?: string; deleted?: string; repo?: string; repoFailed?: string }> }) {
   const st = await requireStaff();
   if (st instanceof Response) redirect('/');
   const sp = await searchParams;
   const sb = await userClient();
-  const { data } = await sb.from('projects').select('id, client, name, slug, status, updated_at, brand').order('updated_at', { ascending: false });
+  const { data } = await sb.from('projects').select('id, client, name, slug, status, updated_at, brand, repo_full_name').order('updated_at', { ascending: false });
   const all = (data || []) as Row[];
   const f = (sp.f || 'all') as (typeof FILTERS)[number][0];
   const q = (sp.q || '').toLowerCase();
@@ -29,13 +31,9 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
       </aside>
       <main className="db-main">
         <div className="db-top"><h1>{FILTERS.find(([k]) => k === f)?.[1]}</h1><Link className="btn pink" href="/studio/new">New project</Link></div>
+        {sp.deleted ? <div className="card" role="status" style={{ marginBottom: 20 }}>Deleted {sp.deleted}.{sp.repo ? (sp.repoFailed ? <> The GitHub repository <a href={`https://github.com/${sp.repo}`}>{sp.repo}</a> couldn’t be deleted; remove it on GitHub if you don’t need it.</> : <> The kit is still on GitHub at <a href={`https://github.com/${sp.repo}`}>{sp.repo}</a>.</>) : null}</div> : null}
         <div className="db-grid">
-          {list.map((p) => (
-            <Link key={p.id} href={`/studio/projects/${p.id}`} className="db-card">
-              <div className="db-thumb" style={{ background: p.brand?.core?.[1]?.hex || '#111' }}>{p.brand?.logo ? <img src={p.brand.logo} alt="" style={{ maxWidth: '48%', maxHeight: '22%' }} /> : <span style={{ color: '#fff', fontSize: 18 }}>{p.client}</span>}</div>
-              <div className="db-meta"><div><p>{p.client}</p><p className="mute">Edited {new Date(p.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p></div><span className={'tag ' + p.status}>{p.status === 'live' ? 'Live' : p.status === 'draft' ? 'Draft' : 'Archived'}</span></div>
-            </Link>
-          ))}
+          {list.map((p) => <ProjectCard key={p.id} p={{ id: p.id, client: p.client, slug: p.slug, status: p.status, updated_at: p.updated_at, repo_full_name: p.repo_full_name, thumb: p.brand?.core?.[1]?.hex || '#111', logo: p.brand?.logo, trialFonts: fontsNeedingLicence((p.brand?.fonts || []).map((f) => ({ ...f, files: f.files || [] }))).filter((f) => f.files.length).length }} />)}
         </div>
         {!list.length ? <p className="mute" style={{ padding: '40px 0' }}>No projects yet. Start one with New project.</p> : null}
       </main>
