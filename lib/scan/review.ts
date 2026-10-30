@@ -1,6 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { env } from '@/lib/env';
+import { studioAnthropic } from '@/lib/ai/studio';
 import type { FigmaScan } from '@/lib/figma/scan';
 
 // Turns a Figma scan into review items: things Claude found and will put in the kit, plus gaps it needs a person for.
@@ -64,7 +63,7 @@ Produce review items for a studio designer to confirm. Rules:
 Return items via the save_review tool only.`;
 
 export async function claudeItems(scan: FigmaScan, client: string): Promise<ReviewItem[]> {
-  const anthropic = new Anthropic({ apiKey: env.anthropicStudioKey() });
+  const anthropic = studioAnthropic();
   const compact = {
     client, file: scan.fileName, page: scan.pageName,
     chapters: scan.chapters.map((c) => ({ id: c.id, title: c.title, frames: c.frames.map((f) => ({ id: f.id, text: f.texts.map((t) => `[${t.size}px ${t.font}${t.textCase !== 'ORIGINAL' ? ' ' + t.textCase : ''}] ${t.text}`).join(' | ').slice(0, 1800) })) })),

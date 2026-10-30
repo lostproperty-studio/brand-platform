@@ -17,7 +17,11 @@ export async function clientAnthropic(projectId: string) {
 /** Checks a key works before saving it (cheapest possible call). */
 export async function verifyAnthropicKey(apiKey: string) {
   const a = new Anthropic({ apiKey });
-  await a.models.list({ limit: 1 });
+  try { await a.models.list({ limit: 1 }); }
+  catch (e) {
+    if (/not scoped to a workspace/i.test(String((e as Error).message))) throw new Error('This key isn’t tied to a workspace. In the Anthropic console, create a key and choose one workspace for it, then paste that key here.');
+    throw e;
+  }
 }
 
 export type Snapshot = { client: string; line: string; chapters: { id: string; title: string; rules: { title: string; text: string }[] }[]; colours: { name: string; hex: string; role: string }[]; fonts: { role: string; name: string; usage: string }[]; deliverables: { title: string; status: string }[] };
