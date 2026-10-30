@@ -5,10 +5,12 @@ import { Review, type Item } from '@/components/Review';
 import { ProjectActions } from '@/components/ProjectActions';
 import { FontManager } from '@/components/FontManager';
 import { DeleteProjectButton } from '@/components/DeleteProject';
+import { GuideEditor } from '@/components/GuideEditor';
+import type { Guide } from '@/lib/portal/guide';
 import { readFonts } from '@/lib/projects/fonts';
 import { fontState, fontsNeedingLicence } from '@/lib/fonts';
 
-const TABS = [['overview', 'Overview'], ['review', 'Review'], ['typefaces', 'Typefaces'], ['deliverables', 'Deliverables']] as const;
+const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['typefaces', 'Typefaces'], ['deliverables', 'Deliverables']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -18,7 +20,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : 'overview';
   const sb = adminClient();
-  const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, repo_full_name, kit_version, published_at, ai_key_hint').eq('id', id).maybeSingle();
+  const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, repo_full_name, kit_version, published_at, ai_key_hint, content').eq('id', id).maybeSingle();
   if (!p) notFound();
 
   async function setPartStatus(form: FormData) {
@@ -28,6 +30,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     redirect(`/studio/projects/${id}?tab=deliverables`);
   }
 
+  const content = (p.content || {}) as { guide?: Guide };
+  const guide = content.guide || null;
   let body: React.ReactNode = null;
   if (tab === 'overview') {
     const { fonts } = await readFonts(id);
@@ -39,6 +43,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const checks = [
       { ok: !!scan && open === 0, title: !scan ? 'Figma file not scanned yet' : open ? `Review: ${open} of ${total} items still open` : `Review complete (${total} items)`, note: open ? 'Open items use the suggested option. You can come back to them any time.' : '', href: `?tab=review`, cta: open ? 'Continue review' : 'Open review' },
       { ok: fonts.length > 0 && pendingFonts.length === 0, title: !fonts.length ? 'No typefaces added' : pendingFonts.length ? `Typefaces: ${pendingFonts.length} still need licensed files` : 'Typefaces: all licensed', note: pendingFonts.map((f) => `${f.name || f.label}: ${fontState(f) === 'none' ? 'no files' : fontState(f) === 'mixed' ? 'some trial files' : 'trial files'}`).join(' · '), href: `?tab=typefaces`, cta: pendingFonts.length ? 'Add licensed files' : 'Open typefaces' },
+      { ok: !!guide, title: guide ? `Guidelines: ${guide.chapters.filter((c) => !c.hidden).length} chapters` : 'Guidelines not built yet', note: guide ? '' : 'Builds the client’s online guidelines from the Figma page.', href: `?tab=guidelines`, cta: guide ? 'Edit guidelines' : 'Build guidelines' },
       { ok: !!p.repo_full_name, title: p.repo_full_name ? 'Kit built' : 'Kit not built yet', note: '', href: '', cta: '' }
     ];
     body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>
@@ -58,6 +63,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
       <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
     </div>;
+  }
+  if (tab === 'guidelines') {
+    const paths = (guide?.chapters || []).flatMap((c) => c.frames.map((f) => f.path));
+    const { data: signed } = paths.length ? await sb.storage.from('previews').createSignedUrls(paths, 3600) : { data: [] };
+    const thumbs = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
+    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} />;
   }
   if (tab === 'typefaces') {
     body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>

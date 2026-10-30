@@ -12,7 +12,7 @@ type Node = {
 };
 
 export type ScanText = { frameId: string; text: string; font: string; size: number; lineHeight: number | null; tracking: number; textCase: string };
-export type ScanFrame = { id: string; x: number; y: number; w: number; h: number; texts: ScanText[] };
+export type ScanFrame = { id: string; name: string; x: number; y: number; w: number; h: number; texts: ScanText[]; fills: { hex: string; area: number }[] };
 export type ScanChapter = { id: string; title: string; frames: ScanFrame[] };
 export type ScanAsset = { id: string; name: string; w: number; h: number; frameId: string; visibleLayers: number };
 export type FigmaScan = {
@@ -55,10 +55,12 @@ export async function scanFigmaPage(fileKey: string, pageId: string | null): Pro
   const assets: ScanAsset[] = [];
   let textCount = 0;
 
+  const frameFills = new Map<string, Map<string, number>>();
   const walk = (n: Node, frameId: string, out: ScanText[]) => {
     if (n.visible === false) return;
     for (const f of n.fills || []) {
       if (f.type === 'SOLID' && f.visible !== false && f.color) {
+        if (n.type !== 'TEXT' && n.id !== frameId && n.absoluteBoundingBox && (f.opacity ?? 1) > 0.99) { const m = frameFills.get(frameId) || new Map(); const hx = hex(f.color); m.set(hx, (m.get(hx) || 0) + n.absoluteBoundingBox.width * n.absoluteBoundingBox.height); frameFills.set(frameId, m); }
         const k = hex(f.color) + '@' + Math.round((f.opacity ?? 1) * 100);
         const e = colourCount.get(k) || { hex: hex(f.color), opacity: Math.round((f.opacity ?? 1) * 100), count: 0 };
         e.count++; colourCount.set(k, e);
@@ -79,7 +81,7 @@ export async function scanFigmaPage(fileKey: string, pageId: string | null): Pro
     (n.children || []).forEach((c) => walk(c, frameId, out));
   };
 
-  const frames: ScanFrame[] = tops.map((f) => { const texts: ScanText[] = []; walk(f, f.id, texts); const b = f.absoluteBoundingBox!; return { id: f.id, x: b.x, y: b.y, w: b.width, h: b.height, texts }; });
+  const frames: ScanFrame[] = tops.map((f) => { const texts: ScanText[] = []; walk(f, f.id, texts); const b = f.absoluteBoundingBox!; const fills = [...(frameFills.get(f.id) || new Map<string, number>()).entries()].map(([hex, area]) => ({ hex, area: Math.round(area) })).sort((x, y) => y.area - x.area).slice(0, 12); return { id: f.id, name: f.name, x: b.x, y: b.y, w: b.width, h: b.height, texts, fills }; });
 
   // rows → chapters (frames whose top edge is within 40px of each other share a row)
   const slides = frames.filter((f) => f.w >= 800 && f.h >= 450).sort((a, b) => a.y - b.y || a.x - b.x);
@@ -111,11 +113,11 @@ function dedupeAssets(list: ScanAsset[]) {
 }
 
 /** Export layers as SVG/PNG. Returns temporary Figma URLs keyed by node id. */
-export async function exportNodes(fileKey: string, ids: string[], format: 'svg' | 'png', scale = 2) {
+export async function exportNodes(fileKey: string, ids: string[], format: 'svg' | 'png' | 'jpg', scale = 2) {
   const out: Record<string, string | null> = {};
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);
-    const r = await figma<{ images: Record<string, string | null> }>(`/images/${fileKey}?ids=${encodeURIComponent(chunk.join(','))}&format=${format}${format === 'png' ? `&scale=${scale}` : '&svg_include_id=false&svg_simplify_stroke=true'}`);
+    const r = await figma<{ images: Record<string, string | null> }>(`/images/${fileKey}?ids=${encodeURIComponent(chunk.join(','))}&format=${format}${format !== 'svg' ? `&scale=${scale}` : '&svg_include_id=false&svg_simplify_stroke=true'}`);
     Object.assign(out, r.images);
   }
   return out;

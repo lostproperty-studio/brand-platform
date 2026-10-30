@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireProjectAccess } from '@/lib/supabase/server';
-import { projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
+import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
 import { brandSystemPrompt, clientAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
 
 export const maxDuration = 60;
@@ -16,7 +16,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (acc instanceof Response) return acc;
   const body = Body.safeParse(await req.json().catch(() => ({})));
   if (!body.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
-  const snap = await publishedSnapshot(p.id);
+  const snap = acc.staff ? await buildSnapshot(p.id) : await publishedSnapshot(p.id); // studio previews the working copy
   if (!snap) return NextResponse.json({ error: 'This portal hasn’t been published yet.' }, { status: 409 });
   let ai;
   try { ai = await clientAnthropic(p.id); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }

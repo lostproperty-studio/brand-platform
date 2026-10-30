@@ -70,6 +70,9 @@ export default function NewProject() {
     setBusy('Building the kit and the repository…');
     const k = await fetch(`/api/projects/${project.id}/kit?direct=1`, { method: 'POST' });
     if (!k.ok) { setError('The kit build failed: ' + (await k.text()).slice(0, 200)); setBusy(''); return; }
+    setBusy('Building the online guidelines from Figma (a minute or two)…');
+    const g = await fetch(`/api/projects/${project.id}/guide`, { method: 'POST' });
+    if (!g.ok) { setError('The kit is built, but the guidelines didn’t build: ' + ((await g.json().catch(() => ({}))).error || g.status) + '. You can retry from the project’s Guidelines tab.'); setBusy(''); return; }
     router.push(`/studio/projects/${project.id}?created=1${skippedReview ? '&skipped=1' : ''}`);
   }
 
@@ -110,7 +113,7 @@ export default function NewProject() {
         {step === 5 ? <>
           <h1>Build the first version</h1>
           <div className="card"><p style={{ margin: 0 }}>{client}</p><p className="mute" style={{ margin: 0 }}>{skippedReview ? 'Review skipped for now. ' : ''}{items.filter((i) => i.status !== 'open').length} of {items.length} review items answered. Open items use the suggested option until you answer them in the project’s Review tab.</p></div>
-          <p className="mute">This creates the kit repository, exports the assets and writes the tokens, guidelines and templates. The client portal stays in draft until you publish it from the project page.</p>
+          <p className="mute">This creates the kit repository, exports the assets, writes the tokens, guidelines and templates, and builds the client’s online guidelines from the Figma page. The client portal stays in draft until you publish it from the project page.</p>
         </> : null}
         {busy ? <p className="mute">{busy}</p> : null}
         {error ? <p>{error}</p> : null}

@@ -1,0 +1,138 @@
+'use client';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+
+type Tpl = { id: string; label: string; path: string };
+type FontFile = { role: string; name: string; weight: number; style: string; format: string; url: string };
+type Slot = { name: string; kind: 'text' | 'image'; value: string; long: boolean };
+const CSS_FORMAT: Record<string, string> = { woff2: 'woff2', woff: 'woff', otf: 'opentype', ttf: 'truetype' };
+
+// Resolves a path written in a template (e.g. ../../tokens/x.css) against the template's own location.
+function resolve(from: string, rel: string) {
+  if (/^(https?:|data:|blob:|#)/.test(rel)) return rel;
+  const parts = from.split('/').slice(0, -1);
+  for (const seg of rel.split('/')) { if (seg === '..') parts.pop(); else if (seg !== '.') parts.push(seg); }
+  return parts.join('/');
+}
+
+export function Canvas({ slug, templates, resources, images, fontFiles, aiConnected, canConnect }: { slug: string; templates: Tpl[]; resources: Record<string, string>; images: { path: string; url: string }[]; fontFiles: FontFile[]; aiConnected: boolean; canConnect: boolean }) {
+  const [tplId, setTplId] = useState(templates[0].id);
+  const [base, setBase] = useState<{ html: string; w: number; h: number } | null>(null);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [prompt, setPrompt] = useState('');
+  const [aiMsg, setAiMsg] = useState('');
+  const [busy, setBusy] = useState('');
+  const frame = useRef<HTMLIFrameElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.4);
+  const tpl = templates.find((t) => t.id === tplId)!;
+
+  // Brand fonts as @font-face rules inside the template, so the layout renders (and exports) in the real typefaces
+  const fontCss = useMemo(() => fontFiles.map((f) => `@font-face { font-family: "brand-${f.role}"; src: url("${f.url}") format("${CSS_FORMAT[f.format]}"); font-weight: ${f.weight}; font-style: ${f.style}; }`).join('\n')
+    + `\n:root { ${[...new Set(fontFiles.map((f) => f.role))].map((r) => `--font-${r}: "brand-${r}", ${JSON.stringify(fontFiles.find((f) => f.role === r)!.name)}, sans-serif;`).join(' ')} }`, [fontFiles]);
+
+  // Load the template, point its file references at the kit, and read its slots
+  useEffect(() => {
+    let off = false;
+    (async () => {
+      setBase(null); setAiMsg('');
+      const src = await (await fetch(resources[tpl.path])).text();
+      const doc = new DOMParser().parseFromString(src, 'text/html');
+      const logos = Object.keys(resources).filter((p) => /^assets\/logo\/.+\.svg$/.test(p));
+      doc.querySelectorAll('[src],[href]').forEach((el) => {
+        const attr = el.hasAttribute('src') ? 'src' : 'href';
+        const rel = el.getAttribute(attr)!;
+        const path = resolve(tpl.path, rel);
+        let url = resources[path];
+        if (!url && /^assets\/logo\//.test(path) && logos.length) url = resources[logos.find((l) => /dark|black|primary/i.test(l)) || logos[0]];
+        if (url) el.setAttribute(attr, url); else if (el.getAttribute('data-slot') === 'image') el.setAttribute(attr, '');
+      });
+      const style = doc.createElement('style'); style.textContent = fontCss; doc.head.appendChild(style);
+      const c = doc.querySelector('.canvas') as HTMLElement | null;
+      const m = src.match(/(\d{3,4})\s*×\s*(\d{3,4})px/);
+      const w = m ? Number(m[1]) : 1080, h = m ? Number(m[2]) : 1350;
+      const found: Slot[] = [...doc.querySelectorAll('[data-slot]')].map((el) => ({ name: el.getAttribute('data-slot')!, kind: el.tagName === 'IMG' ? 'image' : 'text', value: el.tagName === 'IMG' ? '' : (el.textContent || '').trim(), long: el.tagName === 'P' }));
+      if (off) return;
+      setSlots((prev) => found.map((s) => prev.find((p) => p.name === s.name && p.value) || s));
+      setBase({ html: '<!doctype html>' + doc.documentElement.outerHTML, w: c ? w : 1080, h: c ? h : 1350 });
+    })().catch(() => setAiMsg('This template couldn’t be loaded.'));
+    return () => { off = true; };
+  }, [tpl.path, resources, fontCss]);
+
+  // Push slot values into the rendered template
+  const paint = useCallback(() => {
+    const d = frame.current?.contentDocument; if (!d) return;
+    for (const s of slots) d.querySelectorAll(`[data-slot="${s.name}"]`).forEach((el) => {
+      if (s.kind === 'image') { (el as HTMLImageElement).src = s.value || ''; (el as HTMLElement).style.visibility = s.value ? 'visible' : 'hidden'; }
+      else el.textContent = s.value;
+    });
+  }, [slots]);
+  useEffect(() => { paint(); }, [paint]);
+
+  useEffect(() => {
+    if (!box.current || !base) return;
+    const ro = new ResizeObserver(([e]) => setScale(Math.min(e.contentRect.width / base.w, 640 / base.h, 1)));
+    ro.observe(box.current); return () => ro.disconnect();
+  }, [base]);
+
+  const set = (name: string, value: string) => setSlots((l) => l.map((s) => (s.name === name ? { ...s, value } : s)));
+  const upload = (name: string, file?: File) => { if (!file) return; const r = new FileReader(); r.onload = () => set(name, String(r.result)); r.readAsDataURL(file); };
+
+  async function askClaude() {
+    if (!prompt.trim()) return;
+    setBusy('Claude is writing…'); setAiMsg('');
+    const r = await fetch(`/api/p/${slug}/canvas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, current: Object.fromEntries(slots.filter((s) => s.kind === 'text').map((s) => [s.name, s.value])), templates: templates.map((t) => t.id) }) });
+    setBusy('');
+    if (r.status === 402) { setAiMsg('AI isn’t connected for this portal yet.'); return; }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) { setAiMsg(j.error || 'That didn’t work. Try again.'); return; }
+    if (j.template && templates.some((t) => t.id === j.template) && j.template !== tplId) setTplId(j.template);
+    setSlots((l) => l.map((s) => (s.kind === 'text' && typeof j[s.name] === 'string' ? { ...s, value: j[s.name] } : s)));
+    setAiMsg([j.note, j.image_hint ? `Image: ${j.image_hint}` : ''].filter(Boolean).join(' '));
+  }
+
+  async function download() {
+    const d = frame.current?.contentDocument; const node = d?.querySelector('.canvas') as HTMLElement | null;
+    if (!node || !base) return;
+    setBusy('Preparing the PNG…');
+    try {
+      const { toPng } = await import('html-to-image');
+      // Embed the fonts as data so the export uses the brand typefaces
+      const embedded = await Promise.all(fontFiles.map(async (f) => { const b = await (await fetch(f.url)).blob(); const data = await new Promise<string>((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.readAsDataURL(b); }); return `@font-face { font-family: "brand-${f.role}"; src: url("${data}") format("${CSS_FORMAT[f.format]}"); font-weight: ${f.weight}; font-style: ${f.style}; }`; }));
+      const url = await toPng(node, { width: base.w, height: base.h, pixelRatio: 1, cacheBust: true, fontEmbedCSS: embedded.join('\n') });
+      const a = document.createElement('a'); a.href = url; a.download = `${slug}-${tplId}.png`; a.click();
+    } catch { setAiMsg('The download failed. Try again, or use a screenshot for now.'); }
+    setBusy('');
+  }
+
+  return (
+    <div className="cv">
+      <div className="cv-stage" ref={box}>
+        <div className="row" role="group" aria-label="Format">{templates.map((t) => <button key={t.id} className={'btn' + (t.id === tplId ? ' solid' : '')} onClick={() => setTplId(t.id)}>{t.label}</button>)}</div>
+        <div className="cv-art" style={base ? { width: base.w * scale, height: base.h * scale } : { height: 400 }}>
+          {base ? <iframe ref={frame} title={`${tpl.label} preview`} srcDoc={base.html} onLoad={paint} style={{ width: base.w, height: base.h, transform: `scale(${scale})` }} /> : <p className="mute" style={{ padding: 20 }}>Loading…</p>}
+        </div>
+        {base ? <p className="mute">{tpl.label} · {base.w} × {base.h}px</p> : null}
+      </div>
+      <div className="cv-panel">
+        {slots.map((s) => <div key={s.name} className="cv-f">
+          <label className="mute" htmlFor={`s-${s.name}`}>{s.name[0].toUpperCase() + s.name.slice(1)}</label>
+          {s.kind === 'text' ? (s.long || s.value.length > 60 ? <textarea id={`s-${s.name}`} className="ta" value={s.value} onChange={(e) => set(s.name, e.target.value)} /> : <input id={`s-${s.name}`} className="in" value={s.value} onChange={(e) => set(s.name, e.target.value)} />)
+            : <div className="row">
+              <label className="btn"><input id={`s-${s.name}`} type="file" accept="image/*" hidden onChange={(e) => upload(s.name, e.target.files?.[0])} />Upload image</label>
+              {images.slice(0, 8).map((im) => <button key={im.path} className="cv-thumb" onClick={() => set(s.name, im.url)} aria-label={`Use ${im.path.split('/').pop()}`}><img src={im.url} alt="" /></button>)}
+              {s.value ? <button className="btn" onClick={() => set(s.name, '')}>Remove</button> : null}
+            </div>}
+        </div>)}
+        <div className="cv-ai">
+          <label className="mute" htmlFor="cv-p">Ask Claude to write it</label>
+          <textarea id="cv-p" className="ta" placeholder="e.g. Announce our open studio day on 14 November, friendly but short" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={!aiConnected} />
+          {aiConnected ? <button className="btn solid" disabled={!!busy || !prompt.trim()} onClick={askClaude}>Write it</button>
+            : <p className="mute" style={{ margin: 0 }}>AI isn’t connected yet. {canConnect ? <Link href={`/p/${slug}/settings`}>Connect your Anthropic account</Link> : 'Ask your admin to connect it in Settings.'} You can still fill the layout by hand.</p>}
+        </div>
+        {aiMsg ? <p className="cv-note" role="status">{aiMsg}</p> : null}
+        <div className="row"><button className="btn pink" disabled={!base || !!busy} onClick={download}>Download PNG</button><span className="mute">{busy}</span></div>
+      </div>
+    </div>
+  );
+}
