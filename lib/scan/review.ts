@@ -60,7 +60,7 @@ Produce review items for a studio designer to confirm. Rules:
 - Keep found/proposal to 1–3 sentences each, plain British English, no marketing language. Include a one-line "why" in proposals where useful.
 - Use chapter ids: setup, logo, type, colour, layout, imagery, voice, templates. Templates: one "multi" item listing likely outputs.
 - node_id: the Figma frame or layer id the item refers to, when known.
-Return items via the save_review tool only.`;
+Always answer by calling the save_review tool once with every item. Do not reply in plain text.`;
 
 export async function claudeItems(scan: FigmaScan, client: string): Promise<ReviewItem[]> {
   const anthropic = studioAnthropic();
@@ -74,11 +74,11 @@ export async function claudeItems(scan: FigmaScan, client: string): Promise<Revi
     max_tokens: 16000,
     system: SYSTEM,
     tools: [{ name: 'save_review', description: 'Save the review items.', input_schema: { type: 'object', properties: { items: { type: 'array', items: { type: 'object', properties: { chapter: { type: 'string' }, kind: { type: 'string', enum: ['asset', 'value', 'rule', 'conflict', 'issue', 'question'] }, title: { type: 'string' }, found: { type: 'string' }, proposal: { type: 'string' }, input: { type: 'string', enum: ['confirm', 'choice', 'multi', 'text'] }, options: { type: 'array', items: { type: 'string' } }, recommend: { type: 'string' }, node_id: { type: ['string', 'null'] }, swatches: { type: 'array', items: { type: 'object', properties: { hex: { type: 'string' }, label: { type: 'string' } }, required: ['hex', 'label'] } } }, required: ['chapter', 'kind', 'title', 'found'] } } }, required: ['items'] } }],
-    tool_choice: { type: 'tool', name: 'save_review' },
+    tool_choice: { type: 'auto' },
     messages: [{ role: 'user', content: JSON.stringify(compact) }]
   });
   const call = res.content.find((b) => b.type === 'tool_use');
-  if (!call || call.type !== 'tool_use') throw new Error('Claude returned no review.');
+  if (!call || call.type !== 'tool_use') throw new Error(res.stop_reason === 'max_tokens' ? 'The review was too long to finish in one go. Try again, or split the Figma page.' : 'Claude didn’t return a review. Try the scan again.');
   const parsed = z.object({ items: z.array(ReviewItem) }).safeParse(call.input);
   if (!parsed.success) throw new Error('Claude returned an invalid review: ' + parsed.error.message.slice(0, 300));
   return parsed.data.items;

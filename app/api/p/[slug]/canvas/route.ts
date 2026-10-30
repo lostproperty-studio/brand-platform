@@ -23,9 +23,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
 
   const res = await ai.messages.create({
     model: 'claude-sonnet-5-5', max_tokens: 800,
-    system: brandSystemPrompt(snap) + '\n\nYou fill template slots for on-brand layouts. Follow every rule above exactly; keep headlines within the type rules. Explain any rule you applied in one sentence.',
+    system: brandSystemPrompt(snap) + '\n\nYou fill template slots for on-brand layouts. Follow every rule above exactly; keep headlines within the type rules. Explain any rule you applied in one sentence. Always answer by calling fill_template.',
     tools: [{ name: 'fill_template', description: 'Choose a template and fill its slots.', input_schema: { type: 'object', properties: { template: { type: 'string', enum: body.data.templates }, eyebrow: { type: 'string' }, headline: { type: 'string' }, body: { type: 'string' }, image_hint: { type: 'string', description: 'Which kind of image to use, per the imagery rules' }, note: { type: 'string', description: 'One sentence on what was done and which rule applied' } }, required: ['template', 'headline', 'note'] } }],
-    tool_choice: { type: 'tool', name: 'fill_template' },
+    tool_choice: { type: 'auto' },
     messages: [{ role: 'user', content: `Current layout: ${JSON.stringify(body.data.current || {})}\nRequest: ${body.data.prompt}` }]
   });
   await logUsage(p.id, acc.user.id, 'canvas', res.usage);

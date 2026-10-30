@@ -18,14 +18,15 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
 
   const steps = ['Read the page', 'Read the text', 'Read colours and type', 'Find the assets', 'Check for gaps'].map((title) => ({ title, desc: '', state: 'waiting' }));
   const { data: scan } = await sb.from('scans').insert({ project_id: id, figma_key: p.figma_key, page_id: p.figma_page_id, status: 'running', steps, created_by: user.id }).select('id').single();
-  const step = async (i: number, desc: string) => { steps.forEach((s, j) => { s.state = j < i ? 'done' : j === i ? 'running' : 'waiting'; }); steps[i].desc = desc; await sb.from('scans').update({ steps }).eq('id', scan!.id); };
+  // done(i, desc): step i finished with a note on what it found; the next step shows as running.
+  const done = async (i: number, desc: string, next = '') => { steps.forEach((s, j) => { s.state = j <= i ? 'done' : j === i + 1 ? 'running' : 'waiting'; }); steps[i].desc = desc; if (steps[i + 1] && next) steps[i + 1].desc = next; await sb.from('scans').update({ steps }).eq('id', scan!.id); };
 
   after(async () => { try {
-    await step(0, 'Opening the file');
+    steps[0].state = 'running'; steps[0].desc = 'Opening the file'; await sb.from('scans').update({ steps }).eq('id', scan!.id);
     const result = await scanFigmaPage(p.figma_key, p.figma_page_id);
-    await step(1, `${result.stats.frames} frames on “${result.pageName}”, grouped into ${result.chapters.length} chapters`);
-    await step(2, `${result.stats.texts} text layers read`);
-    await step(3, `${result.colours.length} colours and ${result.type.length} type settings; ${result.styles.length ? result.styles.length + ' styles' : 'no styles in the file'}`);
+    await done(0, `${result.stats.frames} frames on “${result.pageName}”, grouped into ${result.chapters.length} chapters`);
+    await done(1, `${result.stats.texts} text layers read`);
+    await done(2, `${result.colours.length} colours and ${result.type.length} type settings; ${result.styles.length ? result.styles.length + ' styles' : 'no styles in the file'}`, 'Exporting previews');
     const previews = await exportNodes(p.figma_key, result.assets.slice(0, 40).map((a) => a.id), 'png', 1);
     const previewPaths: Record<string, string> = {};
     for (const [nodeId, url] of Object.entries(previews)) {
@@ -35,7 +36,7 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
       await sb.storage.from('previews').upload(path, bytes, { contentType: 'image/png', upsert: true });
       previewPaths[nodeId] = path;
     }
-    await step(4, `${result.assets.length} named asset layers found`);
+    await done(3, `${result.assets.length} named asset layers found`, 'Claude is drafting rules and questions. This takes a minute or two.');
     const items = await buildReview(result, p.client);
     await sb.from('review_items').insert(items.map((it, ord) => ({ ...it, scan_id: scan!.id, ord, preview_path: it.node_id ? previewPaths[it.node_id] ?? null : null })));
     steps.forEach((s) => { s.state = 'done'; }); steps[4].desc = `${items.length} items to review`;
