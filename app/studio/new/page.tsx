@@ -3,9 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Review, type Item } from '@/components/Review';
 import { FontManager } from '@/components/FontManager';
+import { ProgressBar, useProgress, type Phase } from '@/components/Progress';
 
 type Step = { title: string; desc: string; state: 'waiting' | 'running' | 'done' };
 const STEPS = ['Client', 'Figma file', 'Scan', 'Review', 'Typefaces', 'Create'];
+// Typical durations (seconds) of the scan steps, and of building the project at the end
+const SCAN_PHASES: Phase[] = [{ label: 'Opening the Figma file', expected: 6 }, { label: 'Reading the text', expected: 2 }, { label: 'Reading colours and type', expected: 2 }, { label: 'Exporting asset previews', expected: 20 }, { label: 'Claude is drafting rules and questions', expected: 100 }];
+const CREATE_PHASES: Phase[] = [{ label: 'Building the kit and the repository', expected: 45 }, { label: 'Building the online guidelines from Figma', expected: 75 }];
 
 // New project: client → Figma link → live scan → review (can be skipped) → typefaces → build the kit.
 // Publishing to the client is a separate step on the project page, after the fonts are licensed.
@@ -22,9 +26,14 @@ export default function NewProject() {
   const [detected, setDetected] = useState<string[]>([]);
   const [skippedReview, setSkippedReview] = useState(false);
   const [busy, setBusy] = useState('');
+  const [createPhase, setCreatePhase] = useState(-1);
   const [error, setError] = useState('');
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const scanSteps = scan?.steps || [];
+  const scanCurrent = scan ? Math.max(scanSteps.findIndex((x) => x.state === 'running'), scanSteps.some((x) => x.state === 'done') ? scanSteps.filter((x) => x.state === 'done').length : 0) : -1;
+  const scanProgress = useProgress(SCAN_PHASES, scanId ? Math.min(scanCurrent, SCAN_PHASES.length - 1) : -1, scan?.status === 'done');
+  const createProgress = useProgress(CREATE_PHASES, Math.min(createPhase, 1), createPhase >= 2);
   const figmaOk = /figma\.com\/(file|design|proto)\/[A-Za-z0-9]{10,}/.test(figma);
 
   async function startScan() {
@@ -67,12 +76,13 @@ export default function NewProject() {
   async function create() {
     if (!project) return;
     setError('');
-    setBusy('Building the kit and the repository…');
+    setBusy('Building the kit and the repository…'); setCreatePhase(0);
     const k = await fetch(`/api/projects/${project.id}/kit?direct=1`, { method: 'POST' });
-    if (!k.ok) { setError('The kit build failed: ' + (await k.text()).slice(0, 200)); setBusy(''); return; }
-    setBusy('Building the online guidelines from Figma (a minute or two)…');
+    if (!k.ok) { setError('The kit build failed: ' + (await k.text()).slice(0, 200)); setBusy(''); setCreatePhase(-1); return; }
+    setBusy('Building the online guidelines from Figma…'); setCreatePhase(1);
     const g = await fetch(`/api/projects/${project.id}/guide`, { method: 'POST' });
-    if (!g.ok) { setError('The kit is built, but the guidelines didn’t build: ' + ((await g.json().catch(() => ({}))).error || g.status) + '. You can retry from the project’s Guidelines tab.'); setBusy(''); return; }
+    if (!g.ok) { setError('The kit is built, but the guidelines didn’t build: ' + ((await g.json().catch(() => ({}))).error || g.status) + '. You can retry from the project’s Guidelines tab.'); setBusy(''); setCreatePhase(-1); return; }
+    setCreatePhase(2);
     router.push(`/studio/projects/${project.id}?created=1${skippedReview ? '&skipped=1' : ''}`);
   }
 
@@ -97,6 +107,7 @@ export default function NewProject() {
         </> : null}
         {step === 2 ? <>
           <h1>Reading the Figma file</h1>
+          <ProgressBar {...scanProgress} label={scan?.status === 'done' ? 'Done' : scanProgress.label} failed={scan?.status === 'failed'} />
           <div className="card"><div className="steps">{(scan?.steps || ([] as Step[])).map((s) => <div key={s.title} className="step"><span className={'dot ' + s.state} /><div><p style={{ margin: 0 }}>{s.title}</p><p className="mute" style={{ margin: 0 }}>{s.desc}</p></div></div>)}{!scan ? <p className="mute">Starting…</p> : null}</div></div>
           {scan?.status === 'failed' ? <><p>The scan failed: {scan.error}</p><div className="row"><button className="btn solid" onClick={startScan}>Try the scan again</button><span className="mute">Uses the same project; nothing is duplicated.</span></div></> : null}
         </> : null}
@@ -115,7 +126,7 @@ export default function NewProject() {
           <div className="card"><p style={{ margin: 0 }}>{client}</p><p className="mute" style={{ margin: 0 }}>{skippedReview ? 'Review skipped for now. ' : ''}{items.filter((i) => i.status !== 'open').length} of {items.length} review items answered. Open items use the suggested option until you answer them in the project’s Review tab.</p></div>
           <p className="mute">This creates the kit repository, exports the assets, writes the tokens, guidelines and templates, and builds the client’s online guidelines from the Figma page. The client portal stays in draft until you publish it from the project page.</p>
         </> : null}
-        {busy ? <p className="mute">{busy}</p> : null}
+        {step === 5 && createPhase >= 0 ? <ProgressBar {...createProgress} label={createProgress.label || 'Finishing'} /> : busy ? <p className="mute">{busy}</p> : null}
         {error ? <p>{error}</p> : null}
         <div className="wz-nav">
           <button className="btn" disabled={!!busy || (step === 2 && scan?.status !== 'failed') || step === 3} onClick={() => (step === 0 ? router.push('/studio') : setStep(step - 1))}>{step === 0 ? 'Cancel' : 'Back'}</button>

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Guide } from '@/lib/portal/guide';
+import { TimedProgress } from '@/components/Progress';
 
 // Studio editing of the client guidelines: rebuild from Figma, rename chapters, write an intro, hide chapters or pages.
 export function GuideEditor({ projectId, slug, guide: initial, content, thumbs }: { projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string> }) {
@@ -11,7 +12,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs }
   const [busy, setBusy] = useState(false);
 
   async function rebuild() {
-    setBusy(true); setMsg('Reading Figma and exporting every page. This takes a minute or two…');
+    setBusy(true); setMsg('');
     const r = await fetch(`/api/projects/${projectId}/guide`, { method: 'POST' });
     const j = await r.json().catch(() => ({}));
     setBusy(false);
@@ -36,6 +37,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs }
         <a className="btn" href={`/p/${slug}/guidelines`}>Preview as client</a>
         <span className="mute" role="status">{msg}</span>
       </div>
+      <TimedProgress label="Reading Figma and exporting every page" expected={Math.max(30, (initial?.chapters.reduce((n, c) => n + c.frames.length, 0) || 40) * 1.6)} running={busy} />
       <p className="mute" style={{ margin: 0 }}>Each row of frames on the Figma page becomes a chapter, shown exactly as designed, with the review’s rules underneath. Rebuilding picks up Figma changes and keeps your titles, intros and hidden pages.</p>
       {guide?.chapters.map((c, i) => (
         <section key={c.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: c.hidden ? 0.55 : 1 }}>
