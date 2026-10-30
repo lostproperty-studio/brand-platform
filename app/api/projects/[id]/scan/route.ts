@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { exportNodes, scanFigmaPage } from '@/lib/figma/scan';
 import { buildReview } from '@/lib/scan/review';
@@ -19,7 +20,7 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
   const { data: scan } = await sb.from('scans').insert({ project_id: id, figma_key: p.figma_key, page_id: p.figma_page_id, status: 'running', steps, created_by: user.id }).select('id').single();
   const step = async (i: number, desc: string) => { steps.forEach((s, j) => { s.state = j < i ? 'done' : j === i ? 'running' : 'waiting'; }); steps[i].desc = desc; await sb.from('scans').update({ steps }).eq('id', scan!.id); };
 
-  try {
+  after(async () => { try {
     await step(0, 'Opening the file');
     const result = await scanFigmaPage(p.figma_key, p.figma_page_id);
     await step(1, `${result.stats.frames} frames on “${result.pageName}”, grouped into ${result.chapters.length} chapters`);
@@ -39,9 +40,8 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
     await sb.from('review_items').insert(items.map((it, ord) => ({ ...it, scan_id: scan!.id, ord, preview_path: it.node_id ? previewPaths[it.node_id] ?? null : null })));
     steps.forEach((s) => { s.state = 'done'; }); steps[4].desc = `${items.length} items to review`;
     await sb.from('scans').update({ status: 'done', steps, finished_at: new Date().toISOString(), meta: { file: result.fileName, page: result.pageName, chapters: result.chapters.map((c) => ({ id: c.id, title: c.title })), colours: result.colours.slice(0, 12), type: result.type.slice(0, 12) } }).eq('id', scan!.id);
-    return NextResponse.json({ scanId: scan!.id, items: items.length });
   } catch (e) {
     await sb.from('scans').update({ status: 'failed', error: String((e as Error).message || e).slice(0, 500) }).eq('id', scan!.id);
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-  }
+  } });
+  return NextResponse.json({ scanId: scan!.id });
 }
