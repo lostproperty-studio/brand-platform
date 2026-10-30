@@ -1,0 +1,46 @@
+/* Lost Property studio skin. Client portals override the colour and font variables per project. */
+@font-face { font-family: 'KMR Waldenburg'; src: url('/fonts/kmr-waldenburg-buch.woff2') format('woff2'); font-weight: 375; font-display: swap; }
+@font-face { font-family: 'KMR Waldenburg'; src: url('/fonts/kmr-waldenburg-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'KMR Waldenburg'; src: url('/fonts/kmr-waldenburg-halbfett.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'KMR Waldenburg'; src: url('/fonts/kmr-waldenburg-fett.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+:root { --ink: #000; --mute: #767676; --line: #ededed; --fill: #f7f7f7; --fill-2: #efefef; --pink: #F28EE8; --font: 'KMR Waldenburg', 'Helvetica Neue', Arial, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: #fff; color: var(--ink); font-family: var(--font); font-size: 13px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.mute { color: var(--mute); }
+.btn { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 12px; border-radius: 999px; border: 0; background: var(--fill-2); font-size: 12px; cursor: pointer; text-decoration: none; }
+.btn:hover { background: #e4e4e4; }
+.btn.solid { background: #000; color: #fff; }
+.btn.pink { background: var(--pink); }
+.btn:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+.in { height: 30px; border: 0; border-radius: 999px; background: var(--fill-2); padding: 0 12px; font-size: 13px; width: 100%; }
+.in:focus { outline: 2px solid #000; }
+.tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: var(--fill-2); color: #555; }
+.tag.live { background: #000; color: #fff; }
+.tag.draft { background: #fde3fa; color: #7a1f70; }
+
+.db { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+.db-side { border-right: 1px solid var(--line); padding: 6px 10px 10px; display: flex; flex-direction: column; gap: 2px; }
+.db-ws { display: flex; align-items: center; gap: 8px; padding: 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.db-ws img { width: 26px; height: auto; }
+.db-h { padding: 14px 10px 6px; border-top: 1px solid var(--line); margin: 6px 0 0; }
+.db-it { display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 0 10px; border-radius: 8px; text-decoration: none; }
+.db-it:hover { background: var(--fill); }
+.db-it.on { background: var(--fill-2); }
+.db-it .n { margin-left: auto; font-size: 11px; color: var(--mute); }
+.db-main { padding: 36px 48px 80px; min-width: 0; }
+.db-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 28px; }
+.db-top h1 { font-size: 20px; font-weight: 500; margin: 0; }
+.db-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 40px; }
+.db-card { display: flex; flex-direction: column; gap: 12px; text-decoration: none; }
+.db-thumb { aspect-ratio: 4 / 5; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; position: relative; }
+.db-thumb img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.db-meta { display: flex; justify-content: space-between; gap: 8px; }
+.db-meta p { margin: 0; }
+@media (max-width: 760px) { .db { grid-template-columns: 1fr; } .db-side { border-right: 0; border-bottom: 1px solid var(--line); } .db-main { padding: 20px 16px; } .db-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; } }
+
+.auth { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.auth form { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 10px; }
+.auth h1 { font-size: 28px; font-weight: 400; letter-spacing: -.02em; margin: 0 0 6px; }
