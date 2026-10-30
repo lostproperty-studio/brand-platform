@@ -6,7 +6,9 @@ import { ProjectActions } from '@/components/ProjectActions';
 import { FontManager } from '@/components/FontManager';
 import { DeleteProjectButton } from '@/components/DeleteProject';
 import { GuideEditor } from '@/components/GuideEditor';
-import type { Guide } from '@/lib/portal/guide';
+import { guidePaths, normaliseGuide, type Guide } from '@/lib/portal/guide';
+import { signFontUrls } from '@/lib/projects/fonts';
+import { fontFaceCss } from '@/lib/fonts';
 import { readFonts } from '@/lib/projects/fonts';
 import { fontState, fontsNeedingLicence } from '@/lib/fonts';
 
@@ -31,7 +33,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   }
 
   const content = (p.content || {}) as { guide?: Guide };
-  const guide = content.guide || null;
+  const guide = normaliseGuide(content.guide);
   let body: React.ReactNode = null;
   if (tab === 'overview') {
     const { fonts } = await readFonts(id);
@@ -65,10 +67,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     </div>;
   }
   if (tab === 'guidelines') {
-    const paths = (guide?.chapters || []).flatMap((c) => c.frames.map((f) => f.path));
+    const paths = guide ? guidePaths(guide) : [];
     const { data: signed } = paths.length ? await sb.storage.from('previews').createSignedUrls(paths, 3600) : { data: [] };
     const thumbs = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
-    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} />;
+    const { fonts } = await readFonts(id);
+    const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
+    const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.ge-prev.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
+    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} />;
   }
   if (tab === 'typefaces') {
     body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>

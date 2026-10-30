@@ -11,7 +11,7 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
   const { id } = await ctx.params;
   try {
     const guide = await buildGuide(id);
-    return NextResponse.json({ ok: true, chapters: guide.chapters.length, frames: guide.chapters.reduce((n, c) => n + c.frames.length, 0), colours: guide.colours.length });
+    return NextResponse.json({ ok: true, chapters: guide.chapters.length, frames: guide.chapters.reduce((n, c) => n + c.blocks.filter((b) => b.source).length, 0), colours: guide.colours.length });
   } catch (e) {
     return NextResponse.json({ error: String((e as Error).message || e).slice(0, 300) }, { status: 500 });
   }

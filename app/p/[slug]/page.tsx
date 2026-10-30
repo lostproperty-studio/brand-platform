@@ -1,5 +1,9 @@
 import Link from 'next/link';
 import { chapterNum, chapterSlug, portalContext, signFrames } from '@/lib/portal/context';
+import type { GuideChapter } from '@/lib/portal/guide';
+
+// The picture that stands for a chapter: its divider's backdrop, first image, or the slide itself
+const thumbOf = (c: GuideChapter) => { for (const b of c.blocks) { const m = b.backdrop || b.media?.[0]; if (m) return { path: m.path, w: m.w, h: m.h }; if (b.original) return { path: b.original, w: 16, h: 9 }; } return null; };
 
 // Portal home: the cover of the guidelines, the chapters, and the ways into the kit.
 export default async function PortalHome({ params }: { params: Promise<{ slug: string }> }) {
@@ -7,8 +11,8 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
   const ctx = (await portalContext(slug))!;
   const guide = ctx.snap?.guide;
   const chapters = guide?.chapters || [];
-  const cover = chapters.find((c) => c.frames.length)?.frames[0];
-  const thumbs = await signFrames([...(cover ? [cover.path] : []), ...chapters.map((c) => c.frames[0]?.path).filter(Boolean) as string[]]);
+  const cover = chapters.map(thumbOf).find(Boolean) || null;
+  const thumbs = await signFrames([...(cover ? [cover.path] : []), ...chapters.map((c) => thumbOf(c)?.path).filter(Boolean) as string[]]);
   const base = `/p/${slug}`;
   return (
     <div className="pt-page">
@@ -30,9 +34,9 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
       {chapters.length ? <section aria-labelledby="h-ch">
         <h2 id="h-ch" className="pt-h2">Chapters</h2>
         <div className="pt-chgrid">
-          {chapters.map((c, i) => { const t = c.frames[0]; return (
+          {chapters.map((c, i) => { const t = thumbOf(c); return (
             <Link key={c.id} href={`${base}/guidelines/${chapterSlug(c.id)}`} className="pt-chcard">
-              <div className="pt-chthumb" style={t ? { aspectRatio: `${t.w} / ${t.h}` } : undefined}>{t && thumbs[t.path] ? <img src={thumbs[t.path]} alt="" loading="lazy" /> : <span>{c.title}</span>}</div>
+              <div className="pt-chthumb">{t && thumbs[t.path] ? <img src={thumbs[t.path]} alt="" loading="lazy" /> : <span>{c.title}</span>}</div>
               <p><span className="pt-n">{chapterNum(i)}</span>{c.title}</p>
             </Link>); })}
         </div>

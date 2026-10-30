@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { chapterNum, chapterSlug, downloadUrl, portalContext, signFrames } from '@/lib/portal/context';
 import { CopyHex, TypeTester } from '@/components/portal/Interactive';
 import { fontState } from '@/lib/fonts';
+import { GuideBlock } from '@/components/portal/GuideBlock';
 
 const textOn = (hex: string) => { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#000' : '#fff'; };
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB ${n >> 16} ${(n >> 8) & 255} ${n & 255}`; };
@@ -16,7 +17,8 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   const idx = chapters.findIndex((c) => chapterSlug(c.id) === chapter);
   if (idx < 0) notFound();
   const c = chapters[idx];
-  const urls = await signFrames(c.frames.map((f) => f.path));
+  const urls = await signFrames(c.blocks.flatMap((b) => [b.original, b.backdrop?.path, ...(b.media || []).map((m) => m.path)]).filter(Boolean) as string[]);
+  const hasCover = c.blocks[0]?.kind === 'cover' && !c.blocks[0].hidden;
   const dl = c.key && DOWNLOADS[c.key] ? ctx.files.filter((f) => DOWNLOADS[c.key!][0].test(f.path) && !/LICENCE|manifest/.test(f.path)) : [];
   const dlLinks = await Promise.all(dl.slice(0, 24).map(async (f) => ({ ...f, href: await downloadUrl(f, ctx.preview) })));
   const prev = chapters[idx - 1], next = chapters[idx + 1];
@@ -26,7 +28,7 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
     <article className="pt-page">
       <header className="pt-chhead">
         <p className="mute"><span className="pt-n">{chapterNum(idx)}</span>{c.kicker || 'Chapter'}</p>
-        <h1 className="pt-display">{c.title}</h1>
+        <h1 className={hasCover ? 'sr' : 'pt-display'}>{c.title}</h1>
         {c.lede ? <p className="pt-lede">{c.lede}</p> : null}
       </header>
 
@@ -40,12 +42,7 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
         <TypeTester fonts={ctx.fonts.filter((f) => f.name).map((f) => ({ role: f.role, label: f.label, name: f.name, hasFiles: f.files.length > 0, licensed: fontState(f) === 'licensed', weights: [...new Set(f.files.map((x) => x.weight))].sort() }))} />
       </section> : null}
 
-      <div className="pt-frames">
-        {c.frames.map((f, k) => <figure key={f.nodeId} className="pt-frame">
-          {urls[f.path] ? <img src={urls[f.path]} alt={f.text.slice(0, 6).join(' · ') || `${c.title}, page ${k + 1}`} loading={k < 2 ? 'eager' : 'lazy'} style={{ aspectRatio: `${f.w} / ${f.h}` }} /> : null}
-          {f.text.length ? <details className="pt-text"><summary>Read as text</summary>{f.text.map((t, j) => <p key={j}>{t}</p>)}</details> : null}
-        </figure>)}
-      </div>
+      <div className="pt-blocks">{c.blocks.map((b, k) => <GuideBlock key={b.id} b={b} urls={urls} headingLevel={k === 0 && hasCover ? 2 : 3} />)}</div>
 
       {c.rules.length ? <section className="pt-blk" aria-labelledby="h-r">
         <h2 id="h-r" className="pt-h2">The rules</h2>

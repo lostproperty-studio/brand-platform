@@ -41,15 +41,20 @@ const hex = (c: { r: number; g: number; b: number }) => '#' + [c.r, c.g, c.b].ma
 const ASSET_NAME = /(logo|wordmark|symbol|lockup|monogram|icon|pattern|texture|mascot|creature)/i;
 const GENERIC = /^(frame|group|rectangle|vector|image|ellipse|line|union)\s*\d*$/i;
 
-export async function scanFigmaPage(fileKey: string, pageId: string | null): Promise<FigmaScan> {
+/** The guidelines page with its full layer tree. */
+export async function fetchPage(fileKey: string, pageId: string | null) {
   const meta = await figma<{ name: string; lastModified: string; document: Node; styles: Record<string, { name: string; styleType: string }> }>(`/files/${fileKey}?depth=1`);
   const pages = meta.document.children || [];
   const page = (pageId && pages.find((p) => p.id === pageId)) || pages.find((p) => /brand\s*guide/i.test(p.name)) || pages[0];
   if (!page) throw new Error('The file has no pages.');
   const full = await figma<{ nodes: Record<string, { document: Node }> }>(`/files/${fileKey}/nodes?ids=${encodeURIComponent(page.id)}`);
-  const root = full.nodes[page.id].document;
+  return { meta, page, root: full.nodes[page.id].document };
+}
 
-  const tops = (root.children || []).filter((n) => n.visible !== false && n.absoluteBoundingBox);
+export async function scanFigmaPage(fileKey: string, pageId: string | null, fetched?: Awaited<ReturnType<typeof fetchPage>>): Promise<FigmaScan> {
+  const { meta, page, root } = fetched || await fetchPage(fileKey, pageId);
+
+  const tops = (root.children || []).filter((n) => n.visible !== false && n.absoluteBoundingBox && ['FRAME', 'GROUP', 'COMPONENT', 'INSTANCE', 'SECTION'].includes(n.type));
   const colourCount = new Map<string, { hex: string; opacity: number; count: number }>();
   const typeCount = new Map<string, FigmaScan['type'][number]>();
   const assets: ScanAsset[] = [];
