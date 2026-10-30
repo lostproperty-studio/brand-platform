@@ -9,7 +9,7 @@ export function PortalNav({ slug, client, logoUrl, chapters, showSettings }: { s
   const [open, setOpen] = useState(false);
   const base = `/p/${slug}`;
   const items = [
-    ['Home', base], ['Guidelines', `${base}/guidelines`], ['Downloads', `${base}/downloads`], ['Canvas', `${base}/canvas`], ['Ask', `${base}/ask`],
+    ['Home', base], ['Guidelines', `${base}/guidelines`], ['Tools', `${base}/tools`], ['Downloads', `${base}/downloads`],
     ...(showSettings ? [['Settings', `${base}/settings`]] : [])
   ] as const;
   const isOn = (href: string) => (href === base ? path === base : path.startsWith(href));

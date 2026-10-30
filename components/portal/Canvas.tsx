@@ -15,7 +15,7 @@ function resolve(from: string, rel: string) {
   return parts.join('/');
 }
 
-export function Canvas({ slug, templates, resources, images, fontFiles, aiConnected, canConnect }: { slug: string; templates: Tpl[]; resources: Record<string, string>; images: { path: string; url: string }[]; fontFiles: FontFile[]; aiConnected: boolean; canConnect: boolean }) {
+export function Canvas({ slug, toolId, templates, resources, images, fontFiles, aiConnected, canConnect }: { slug: string; toolId: string; templates: Tpl[]; resources: Record<string, string>; images: { path: string; url: string }[]; fontFiles: FontFile[]; aiConnected: boolean; canConnect: boolean }) {
   const [tplId, setTplId] = useState(templates[0].id);
   const [base, setBase] = useState<{ html: string; w: number; h: number } | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -26,6 +26,20 @@ export function Canvas({ slug, templates, resources, images, fontFiles, aiConnec
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.4);
   const tpl = templates.find((t) => t.id === tplId)!;
+  // Each person's saved layouts
+  type Saved = { id: string; title: string; data: { template?: string; slots?: Record<string, string> }; updated_at: string };
+  const [saved, setSaved] = useState<Saved[]>([]);
+  const restoringRef = useRef<Record<string, string> | null>(null);
+  const setRestoring = (r: Record<string, string>) => { restoringRef.current = r; };
+  const loadSaved = useCallback(async () => { const r = await fetch(`/api/p/${slug}/creations?tool=${toolId}`); if (r.ok) setSaved((await r.json()).creations); }, [slug, toolId]);
+  useEffect(() => { loadSaved(); }, [loadSaved]);
+  async function saveLayout() {
+    const title = window.prompt('Name this layout', slots.find((s) => s.name === 'headline')?.value.slice(0, 40) || tpl.label); if (!title) return;
+    const keep = Object.fromEntries(slots.filter((s) => !s.value.startsWith('data:')).map((s) => [s.name, s.value]));
+    const r = await fetch(`/api/p/${slug}/creations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ toolId, title, data: { template: tplId, slots: keep } }) });
+    if (r.ok) { loadSaved(); setAiMsg('Saved to your layouts.' + (slots.some((s) => s.value.startsWith('data:')) ? ' Uploaded images aren’t saved; add them again when you reopen it.' : '')); }
+  }
+  function openSaved(c: Saved) { const r = c.data.slots || {}; if (c.data.template && c.data.template !== tplId && templates.some((t) => t.id === c.data.template)) { setRestoring(r); setTplId(c.data.template); } else setSlots((l) => l.map((s) => (r[s.name] !== undefined ? { ...s, value: r[s.name] } : s))); }
 
   // Brand fonts as @font-face rules inside the template, so the layout renders (and exports) in the real typefaces
   const fontCss = useMemo(() => fontFiles.map((f) => `@font-face { font-family: "brand-${f.role}"; src: url("${f.url}") format("${CSS_FORMAT[f.format]}"); font-weight: ${f.weight}; font-style: ${f.style}; }`).join('\n')
@@ -53,7 +67,8 @@ export function Canvas({ slug, templates, resources, images, fontFiles, aiConnec
       const w = m ? Number(m[1]) : 1080, h = m ? Number(m[2]) : 1350;
       const found: Slot[] = [...doc.querySelectorAll('[data-slot]')].map((el) => ({ name: el.getAttribute('data-slot')!, kind: el.tagName === 'IMG' ? 'image' : 'text', value: el.tagName === 'IMG' ? '' : (el.textContent || '').trim(), long: el.tagName === 'P' }));
       if (off) return;
-      setSlots((prev) => found.map((s) => prev.find((p) => p.name === s.name && p.value) || s));
+      const r = restoringRef.current; restoringRef.current = null;
+      setSlots((prev) => found.map((s) => (r && r[s.name] !== undefined ? { ...s, value: r[s.name] } : prev.find((p) => p.name === s.name && p.value) || s)));
       setBase({ html: '<!doctype html>' + doc.documentElement.outerHTML, w: c ? w : 1080, h: c ? h : 1350 });
     })().catch(() => setAiMsg('This template couldn’t be loaded.'));
     return () => { off = true; };
@@ -131,7 +146,8 @@ export function Canvas({ slug, templates, resources, images, fontFiles, aiConnec
             : <p className="mute" style={{ margin: 0 }}>AI isn’t connected yet. {canConnect ? <Link href={`/p/${slug}/settings`}>Connect your Anthropic account</Link> : 'Ask your admin to connect it in Settings.'} You can still fill the layout by hand.</p>}
         </div>
         {aiMsg ? <p className="cv-note" role="status">{aiMsg}</p> : null}
-        <div className="row"><button className="btn pink" disabled={!base || !!busy} onClick={download}>Download PNG</button><span className="mute">{busy}</span></div>
+        <div className="row"><button className="btn pink" disabled={!base || !!busy} onClick={download}>Download PNG</button><button className="btn" disabled={!base} onClick={saveLayout}>Save</button><span className="mute">{busy}</span></div>
+        {saved.length ? <div className="cv-f"><label className="mute">My saved layouts</label>{saved.map((c) => <div key={c.id} className="dock-h"><button onClick={() => openSaved(c)}><span>{c.title}</span><span className="mute">{new Date(c.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></button><button className="fm-x" aria-label={`Delete ${c.title}`} onClick={async () => { await fetch(`/api/p/${slug}/creations/${c.id}`, { method: 'DELETE' }); loadSaved(); }}>×</button></div>)}</div> : null}
       </div>
     </div>
   );

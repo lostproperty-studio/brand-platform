@@ -27,8 +27,8 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
         <h2 id="h-ways" className="sr">Get started</h2>
         <Link href={`${base}/guidelines`} className="pt-way"><span className="pt-n">01</span><strong>Read the guidelines</strong><span className="mute">{chapters.length} chapters, the rules and why they matter.</span></Link>
         <Link href={`${base}/downloads`} className="pt-way"><span className="pt-n">02</span><strong>Download the kit</strong><span className="mute">Logos, colours, fonts, templates and the guidelines as files.</span></Link>
-        <Link href={`${base}/canvas`} className="pt-way"><span className="pt-n">03</span><strong>Make a layout</strong><span className="mute">Fill a template with your copy and image. The brand rules are built in.</span></Link>
-        <Link href={`${base}/ask`} className="pt-way"><span className="pt-n">04</span><strong>Ask a question</strong><span className="mute">“Can I put the logo on a photo?” Answers come from these guidelines.</span></Link>
+        <Link href={`${base}/tools`} className="pt-way"><span className="pt-n">03</span><strong>Make something</strong><span className="mute">Tools for on-brand layouts, plus Claude skills for decks and documents.</span></Link>
+        <div className="pt-way"><span className="pt-n">04</span><strong>Ask anything</strong><span className="mute">Use the bar at the bottom of any page. It knows what you’re looking at.</span></div>
       </section>
 
       {chapters.length ? <section aria-labelledby="h-ch">

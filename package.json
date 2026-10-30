@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "0.52.0",
     "@supabase/ssr": "0.6.1",
     "@supabase/supabase-js": "2.49.4",
+    "fflate": "^0.8.2",
     "html-to-image": "^1.11.11",
     "next": "15.3.9",
     "octokit": "4.1.3",

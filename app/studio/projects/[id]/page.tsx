@@ -6,13 +6,15 @@ import { ProjectActions } from '@/components/ProjectActions';
 import { FontManager } from '@/components/FontManager';
 import { DeleteProjectButton } from '@/components/DeleteProject';
 import { GuideEditor } from '@/components/GuideEditor';
+import { TeamManager } from '@/components/TeamManager';
+import { ToolManager } from '@/components/ToolManager';
 import { guidePaths, normaliseGuide, type Guide } from '@/lib/portal/guide';
 import { signFontUrls } from '@/lib/projects/fonts';
 import { fontFaceCss } from '@/lib/fonts';
 import { readFonts } from '@/lib/projects/fonts';
 import { fontState, fontsNeedingLicence } from '@/lib/fonts';
 
-const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['typefaces', 'Typefaces'], ['deliverables', 'Deliverables']] as const;
+const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['typefaces', 'Typefaces'], ['tools', 'Tools'], ['deliverables', 'Deliverables'], ['team', 'Client team']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -74,6 +76,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
     const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.ge-prev.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
     body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} />;
+  }
+  if (tab === 'tools') body = <ToolManager projectId={id} slug={p.slug} />;
+  if (tab === 'team') {
+    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>
+      <p className="mute" style={{ margin: 0 }}>Invite the client’s main contact as an Admin. They can add the rest of their team from the portal’s Settings. Each person has their own sign-in, conversations and saved work.</p>
+      <TeamManager slug={p.slug} studio />
+    </div>;
   }
   if (tab === 'typefaces') {
     body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>

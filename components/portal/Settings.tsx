@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { TeamManager } from '@/components/TeamManager';
 
 // Client admin settings: connect their own Anthropic key (route 1) and get a connector for their own Claude (route 3).
 export function PortalSettings({ slug, hint }: { slug: string; hint: string | null }) {
@@ -19,6 +20,11 @@ export function PortalSettings({ slug, hint }: { slug: string; hint: string | nu
   async function connector() { const r = await fetch(`/api/p/${slug}/connector`, { method: 'POST' }); if (r.ok) setConn(await r.json()); }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 640 }}>
+      <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <h2 className="pt-h2" style={{ margin: 0 }}>Your team</h2>
+        <p className="mute" style={{ margin: 0 }}>Everyone signs in with their own email, so their questions and saved work stay their own.</p>
+        <TeamManager slug={slug} />
+      </section>
       <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <h2 className="pt-h2" style={{ margin: 0 }}>Connect AI</h2>
         <p className="mute" style={{ margin: 0 }}>Canvas and Ask run on your own Anthropic account, so usage is billed to you and you set the limit.</p>
