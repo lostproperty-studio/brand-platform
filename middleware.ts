@@ -8,7 +8,7 @@ export async function middleware(req: NextRequest) {
     cookies: { getAll: () => req.cookies.getAll(), setAll: (list) => list.forEach(({ name, value, options }) => res.cookies.set(name, value, options)) }
   });
   const { data } = await sb.auth.getUser();
-  const open = req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/auth') || req.nextUrl.pathname.startsWith('/api/mcp');
+  const open = req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/auth') || req.nextUrl.pathname.startsWith('/api/mcp') || req.nextUrl.pathname === '/api/health';
   if (!data.user && !open) {
     const url = req.nextUrl.clone(); url.pathname = '/login'; url.searchParams.set('next', req.nextUrl.pathname);
     return NextResponse.redirect(url);
