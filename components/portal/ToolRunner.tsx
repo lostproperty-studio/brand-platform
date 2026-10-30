@@ -6,7 +6,7 @@ type Msg = { role: 'user' | 'assistant'; content: string };
 type Creation = { id: string; title: string; data: { values?: Record<string, unknown>; storage?: Record<string, string> }; updated_at: string };
 
 // Runs an uploaded HTML tool inside the portal, with a panel to drive it by chat and to save your work.
-export function ToolRunner({ slug, toolId, name, html, aiEnabled, aiConnected, canConnect }: { slug: string; toolId: string; name: string; html: string; aiEnabled: boolean; aiConnected: boolean; canConnect: boolean }) {
+export function ToolRunner({ slug, toolId, name, html, aiEnabled, aiConnected, canConnect, head }: { slug: string; toolId: string; name: string; html: string; aiEnabled: boolean; aiConnected: boolean; canConnect: boolean; head: React.ReactNode }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const pending = useRef(new Map<number, (d: Record<string, unknown>) => void>());
   const seq = useRef(0);
@@ -19,6 +19,10 @@ export function ToolRunner({ slug, toolId, name, html, aiEnabled, aiConnected, c
   const [saved, setSaved] = useState<Creation[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
   const storageKey = `lp-tool-${toolId}`;
+  // The side panel (AI and saved versions) can be closed so the tool takes the whole width
+  const [panel, setPanel] = useState(true);
+  useEffect(() => { try { const v = localStorage.getItem('lp-tool-panel'); if (v === '0' || window.innerWidth < 1000) setPanel(false); } catch { /* ignore */ } }, []);
+  const togglePanel = () => setPanel((v) => { try { localStorage.setItem('lp-tool-panel', v ? '0' : '1'); } catch { /* ignore */ } return !v; });
 
   // Messages from the tool: replies to our requests, and its browser storage (kept for this person on this device)
   useEffect(() => {
@@ -70,11 +74,18 @@ export function ToolRunner({ slug, toolId, name, html, aiEnabled, aiConnected, c
   async function remove(c: Creation) { if (!confirm(`Delete “${c.title}”?`)) return; await fetch(`/api/p/${slug}/creations/${c.id}`, { method: 'DELETE' }); if (current === c.id) setCurrent(null); loadSaved(); }
 
   return (
-    <div className="tr">
+    <div className="tl-full">
+    <header className="tl-bar">
+      {head}
+      <span style={{ flex: 1 }} />
+      {saved.length ? <span className="mute tl-desc">{saved.length} saved</span> : null}
+      <button className={'btn' + (panel ? ' solid' : '')} aria-expanded={panel} aria-controls="tr-panel" onClick={togglePanel}>{aiEnabled ? (panel ? 'Hide AI & saved' : 'AI & saved') : (panel ? 'Hide saved' : 'Saved')}</button>
+    </header>
+    <div className={'tr' + (panel ? '' : ' closed')}>
       <div className="tr-stage">
         <iframe ref={frame} title={name} srcDoc={html} sandbox="allow-scripts allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals" allow="clipboard-write" />
       </div>
-      <aside className="tr-panel" aria-label={`${name} assistant`}>
+      <aside id="tr-panel" className="tr-panel" aria-label={`${name} assistant`} hidden={!panel}>
         <div className="row tr-tabs" role="tablist">
           {aiEnabled ? <button role="tab" aria-selected={tab === 'chat'} className={'btn' + (tab === 'chat' ? ' solid' : '')} onClick={() => setTab('chat')}>Make it with AI</button> : null}
           <button role="tab" aria-selected={tab === 'saved'} className={'btn' + (tab === 'saved' ? ' solid' : '')} onClick={() => setTab('saved')}>My saved ({saved.length})</button>
@@ -96,6 +107,7 @@ export function ToolRunner({ slug, toolId, name, html, aiEnabled, aiConnected, c
           {saved.map((c) => <div key={c.id} className="dock-h"><button onClick={() => restore(c)} aria-current={current === c.id}><span>{c.title}{current === c.id ? ' · open' : ''}</span><span className="mute">{new Date(c.updated_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></button><button className="fm-x" aria-label={`Delete ${c.title}`} onClick={() => remove(c)}>×</button></div>)}
         </div>}
       </aside>
+    </div>
     </div>
   );
 }
