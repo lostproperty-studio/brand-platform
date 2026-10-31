@@ -1,3 +1,4 @@
+import { getPlaybook } from '@/lib/playbookStore';
 import { z } from 'zod';
 import { studioAnthropic } from '@/lib/ai/studio';
 import type { FigmaScan } from '@/lib/figma/scan';
@@ -54,7 +55,7 @@ const SYSTEM = `You prepare a brand kit that people and AI tools will follow exa
 You are given a structured scan of a Figma brand guidelines page (text per frame grouped into chapters, colours, type usage, named asset layers).
 Produce review items for a studio designer to confirm. Rules:
 - Every rule you propose must be measurable and executable: numbers, minimums, ratios, exact values. Never "give it room to breathe".
-- Prefer reading values from the scan. When the file doesn't define something the kit needs (clear space, minimum size, grid, line height, tone of voice rules), add a kind "rule" item with a concrete proposed number and say it was not found.
+- Prefer reading values from the scan. When the file doesn't define something the kit needs (logo in use: which file on which background, position and scale on the canvas, minimum size; line height; grid), add a kind "rule" item with a concrete proposal and say it was not found. Don't propose clear space rules; Lost Property describes the logo in use instead. Never propose tone of voice or other strategy; flag it as a question if it's missing.
 - Flag contradictions between copy and specimens as kind "conflict" with choice options.
 - List each real logo/asset layer as kind "asset" with a proposed file name: <client>-<asset>-<layout>-<version>.<ext>, lowercase, hyphens.
 - Keep found/proposal to 1–3 sentences each, plain British English, no marketing language. Include a one-line "why" in proposals where useful.
@@ -72,7 +73,7 @@ export async function claudeItems(scan: FigmaScan, client: string): Promise<Revi
   const res = await anthropic.messages.create({
     model: 'claude-sonnet-5-5',
     max_tokens: 16000,
-    system: SYSTEM,
+    system: SYSTEM + `\n\nTHE STUDIO PLAYBOOK (how Lost Property writes guidelines; word proposals in this style)\n${(await getPlaybook()).house}`,
     tools: [{ name: 'save_review', description: 'Save the review items.', input_schema: { type: 'object', properties: { items: { type: 'array', items: { type: 'object', properties: { chapter: { type: 'string' }, kind: { type: 'string', enum: ['asset', 'value', 'rule', 'conflict', 'issue', 'question'] }, title: { type: 'string' }, found: { type: 'string' }, proposal: { type: 'string' }, input: { type: 'string', enum: ['confirm', 'choice', 'multi', 'text'] }, options: { type: 'array', items: { type: 'string' } }, recommend: { type: 'string' }, node_id: { type: ['string', 'null'] }, swatches: { type: 'array', items: { type: 'object', properties: { hex: { type: 'string' }, label: { type: 'string' } }, required: ['hex', 'label'] } } }, required: ['chapter', 'kind', 'title', 'found'] } } }, required: ['items'] } }],
     tool_choice: { type: 'auto' },
     messages: [{ role: 'user', content: JSON.stringify(compact) }]

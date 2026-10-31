@@ -25,7 +25,7 @@ function Paras({ text, className }: { text?: string; className?: string }) {
 }
 
 export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter, edit }: { b: Block; urls: Record<string, string>; headingLevel?: 2 | 3; number?: string; anchor?: string; chapter?: string; edit?: EditKit }) {
-  if (b.hidden && !edit) return null;
+  if ((b.hidden || b.draft) && !edit) return null;
   const H = (headingLevel === 2 ? 'h2' : 'h3') as 'h2';
   const back = b.backdrop && urls[b.backdrop.path];
   const bg = b.bg && /^#[0-9A-F]{6}$/i.test(b.bg) ? b.bg : undefined;

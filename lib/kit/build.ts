@@ -1,3 +1,4 @@
+import { aiRulesMd } from '@/lib/aiRules';
 // Builds the kit of parts from a project: open, standard files any tool or person can use.
 // Output is a flat list of files (path → content) that is committed to the project's repository
 // and copied to storage for portal downloads.
@@ -12,6 +13,8 @@ export type KitInput = {
   colours: Colour[]; fonts: Font[]; rules: Rule[]; assets: AssetFile[];
   spacing?: Record<string, number>; templates: string[]; figmaUrl?: string;
   fontFiles?: FontBinary[];
+  /** From the studio playbook: the fixed don'ts every kit gives AI */
+  aiDonts?: string[];
 };
 export type KitFile = { path: string; content: string | Uint8Array; part: 'assets' | 'tokens' | 'guidelines' | 'templates' | 'reference' | 'root' };
 
@@ -70,6 +73,8 @@ This repository is the master reference for the ${input.client} brand. Read it b
 3. To make a layout, start from a template in \`templates/\`. Only change elements marked \`data-slot\`. Never move, resize or recolour the logo.
 4. Use logo files from \`assets/logo/\` as supplied. Pick the version for the background as the logo rules say.
 5. If a request breaks a rule, follow the rule and say which rule you followed.
+
+${aiRulesMd({ client: input.client, files: input.assets.map((a) => a.path), watchouts: input.rules.flatMap((r) => r.wrong || []), donts: input.aiDonts })}
 
 Version ${input.version}. Changes are listed in CHANGELOG.md.
 `;

@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { Review, type Item } from '@/components/Review';
 import { FontManager } from '@/components/FontManager';
 import { ProgressBar, useProgress, type Phase } from '@/components/Progress';
+import { TierCards } from '@/components/TierPicker';
+import type { Tier } from '@/lib/playbook';
 
 type Step = { title: string; desc: string; state: 'waiting' | 'running' | 'done' };
 const STEPS = ['Client', 'Figma file', 'Scan', 'Review', 'Typefaces', 'Create'];
@@ -19,6 +21,7 @@ export default function NewProject() {
   const [client, setClient] = useState('');
   const [line, setLine] = useState('');
   const [figma, setFigma] = useState('');
+  const [tier, setTier] = useState<Tier | undefined>();
   const [project, setProject] = useState<{ id: string; slug: string; figma: string } | null>(null);
   const [scanId, setScanId] = useState<string | null>(null);
   const [scan, setScan] = useState<{ status: string; steps: Step[]; meta: { type?: { font: string }[] }; error?: string; figma_key: string } | null>(null);
@@ -44,7 +47,7 @@ export default function NewProject() {
       if (p) await fetch(`/api/projects/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ figmaUrl: figma }) });
       else {
         setBusy('Creating the project…');
-        const r = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client, line, figmaUrl: figma }) });
+        const r = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client, line, figmaUrl: figma, tier }) });
         const j = await r.json(); if (!r.ok) { setError(j.error || 'Couldn’t create the project.'); setBusy(''); return; }
         p = { id: j.id, slug: j.slug, figma };
       }
@@ -99,6 +102,8 @@ export default function NewProject() {
           <h1>Who is the client?</h1>
           <label className="mute" htmlFor="c">Client name</label><input id="c" className="in" style={{ height: 38, fontSize: 18 }} value={client} onChange={(e) => setClient(e.target.value)} placeholder="e.g. Tileyard" />
           <label className="mute" htmlFor="l">One line about the brand</label><input id="l" className="in" value={line} onChange={(e) => setLine(e.target.value)} />
+          <p className="mute" style={{ margin: '12px 0 0' }}>Guide tier: how deep the guidelines go. You can change it later.</p>
+          <TierCards value={tier} onChange={setTier} />
         </> : null}
         {step === 1 ? <>
           <h1>Link the Figma file</h1>
@@ -131,7 +136,7 @@ export default function NewProject() {
         {error ? <p>{error}</p> : null}
         <div className="wz-nav">
           <button className="btn" disabled={!!busy || (step === 2 && scan?.status !== 'failed') || step === 3} onClick={() => (step === 0 ? router.push('/studio') : setStep(step - 1))}>{step === 0 ? 'Cancel' : 'Back'}</button>
-          {step === 0 ? <button className="btn solid" disabled={!client.trim()} onClick={() => setStep(1)}>Continue</button> : null}
+          {step === 0 ? <button className="btn solid" disabled={!client.trim() || !tier} onClick={() => setStep(1)}>Continue</button> : null}
           {step === 1 ? <button className="btn solid" disabled={!figmaOk || !!busy} onClick={startScan}>Scan the file</button> : null}
           {step === 3 ? <div className="row"><button className="btn" onClick={() => { setSkippedReview(true); setStep(4); }}>Skip for now</button><button className="btn solid" onClick={() => { setSkippedReview(false); setStep(4); }}>Continue</button></div> : null}
           {step === 4 ? <button className="btn solid" onClick={() => setStep(5)}>Continue</button> : null}

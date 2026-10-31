@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
 import { TimedProgress } from '@/components/Progress';
+import { tierLabel, type Tier } from '@/lib/playbook';
 
 const KINDS: [BlockKind, string][] = [['cover', 'Cover'], ['divider', 'Subsection start'], ['text', 'Text'], ['split', 'Text + image'], ['media', 'Images'], ['swatches', 'Colour swatches']];
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -27,7 +28,7 @@ function Editable({ value, onSave, tag, className, placeholder, multiline }: { v
 }
 
 // The studio's guidelines editor: the client's view, editable in place.
-export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss }: { projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string }) {
+export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, tier }: { projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; tier?: Tier }) {
   const router = useRouter();
   const [guide, setGuide] = useState(initial);
   const [urls, setUrls] = useState(thumbs);
@@ -49,14 +50,29 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const r = await fetch(`/api/projects/${projectId}/guide`, { method: 'POST' });
     const j = await r.json().catch(() => ({}));
     setBusy(false);
-    setMsg(r.ok ? `Rebuilt ${j.chapters} chapters from ${j.frames} Figma slides. Your edits were kept.` : 'The rebuild didn’t finish: ' + (j.error || r.status) + ' Try again in a minute; Figma is sometimes busy.');
+    setMsg(r.ok ? `Rebuilt ${j.chapters} chapters from ${j.frames} Figma slides. Your edits were kept.${gapText(j.gaps)}` : 'The rebuild didn’t finish: ' + (j.error || r.status) + ' Try again in a minute; Figma is sometimes busy.');
     router.refresh();
+  }
+  const gapText = (x?: { tier: string | null; drafts: number; missing: number; error?: string }) => !x ? '' : x.error ? ' The tier check didn’t run: ' + x.error : !x.tier ? ' Set a tier on the Overview to have gaps drafted.' : ` ${x.drafts} draft section${x.drafts === 1 ? '' : 's'} and ${x.missing} missing item${x.missing === 1 ? '' : 's'} for the ${tierLabel(x.tier as Tier)} tier.`;
+  async function checkGaps() {
+    setBusy(true); setMsg('Checking against the tier and drafting the gaps…');
+    const r = await fetch(`/api/projects/${projectId}/guide/drafts`, { method: 'POST' });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    setMsg(r.ok ? 'Checked.' + gapText(j) : j.error || 'The check didn’t finish.');
+    router.refresh();
+  }
+  const [dismissed, setDismissed] = useState<string[]>((content.dismissedSlots as string[]) || []);
+  async function dismissSlot(slot?: string) {
+    if (!slot) return;
+    const next = [...new Set([...dismissed, slot])]; setDismissed(next);
+    await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { dismissedSlots: next } }) });
   }
   function commit(next: Guide) {
     setGuide(next); latest.current = next; setMsg('Saving…');
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
-      const r = await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { ...content, guide: latest.current } }) });
+      const r = await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { guide: latest.current } }) });
       setMsg(r.ok ? 'Saved · publish to show the client' : 'Couldn’t save. Check your connection.');
     }, 600);
   }
@@ -118,6 +134,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
 
   const subsIdx = (id: string) => { const subs = ch ? ch.blocks.filter((b) => b.kind === 'divider' && !b.hidden) : []; const k = subs.findIndex((b) => b.id === id); return k >= 0 ? String(k + 1).padStart(2, '0') : undefined; };
   const hiddenCount = ch ? ch.blocks.filter((b) => b.hidden).length : 0;
+  const all = g.chapters.flatMap((c) => c.blocks);
+  const nDraft = all.filter((b) => b.draft === 'draft').length, nMissing = all.filter((b) => b.draft === 'missing').length;
+  const chDrafts = (c: GuideChapter) => c.blocks.filter((b) => b.draft).length;
+  const accept = (b: Block) => editBlock(b.id, { draft: undefined, draftNote: undefined });
+  const removeBlock = (b: Block) => ch && setBlocks(ch.blocks.filter((x) => x.id !== b.id));
 
   return (
     <div className="ve">
@@ -127,6 +148,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         <button className="btn solid" disabled={busy} onClick={rebuild}>Rebuild from Figma</button>
         <a className="btn" href={`/p/${slug}/guidelines`} target="_blank" rel="noopener">Preview as client ↗</a>
         <label className="row mute"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Show hidden{hiddenCount ? ` (${hiddenCount})` : ''}</label>
+        <span className="ve-tier">{tier ? `${tierLabel(tier)} tier` : 'No tier set'}{nDraft || nMissing ? ` · ${[nDraft ? `${nDraft} draft${nDraft === 1 ? '' : 's'} to check` : '', nMissing ? `${nMissing} missing` : ''].filter(Boolean).join(' · ')}` : ''}</span>
+        {tier ? <button className="btn" disabled={busy} onClick={checkGaps}>Check for gaps</button> : <a className="btn" href="?tab=overview">Set a tier</a>}
         <span className="mute" role="status">{msg}</span>
       </div>
       {(g.version || 1) < 2 ? <div className="card" role="status" style={{ borderColor: '#000' }}><p style={{ margin: 0 }}>These guidelines were built with an older version, so some pages may still show slide images.</p><p className="mute" style={{ margin: '4px 0 8px' }}>Rebuild to get live text, colour swatches you can click to copy, and subsections. Your edits are kept.</p><button className="btn solid" disabled={busy} onClick={rebuild}>Rebuild now</button></div> : null}
@@ -137,7 +160,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           <p className="ve-label">Chapters · drag to reorder</p>
           {g.chapters.map((c, i) => <div key={c.id} draggable onDragStart={() => setDrag({ kind: 'chapter', id: c.id })} onDragOver={(e) => { if (drag?.kind === 'chapter') { e.preventDefault(); setOver(c.id); } }} onDrop={() => { if (drag?.kind === 'chapter') moveChapter(drag.id, c.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }}
             className={'ve-ch' + (c.id === chId ? ' on' : '') + (c.hidden ? ' off' : '') + (over === c.id && drag?.kind === 'chapter' ? ' over' : '')}>
-            <button onClick={() => setChId(c.id)}><span className="pt-n">{String(i + 1).padStart(2, '0')}</span>{c.title}</button>
+            <button onClick={() => setChId(c.id)}><span className="pt-n">{String(i + 1).padStart(2, '0')}</span>{c.title}{chDrafts(c) ? <span className="ve-dcount" title="Drafts and missing items to check">{chDrafts(c)}</span> : null}</button>
             <button className="ve-eye" onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, hidden: !x.hidden } : x)))} aria-label={c.hidden ? `Show ${c.title}` : `Hide ${c.title}`} title={c.hidden ? 'Hidden from the client' : 'Hide from the client'}>{c.hidden ? '○' : '●'}</button>
           </div>)}
           <button className="btn" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); }}>+ Chapter</button>
@@ -156,7 +179,14 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
               <Inserter open={menu === 'i0'} onOpen={() => setMenu(menu === 'i0' ? null : 'i0')} onPick={(k) => insertAt(0, k)} />
               {ch.blocks.map((b, i) => (b.hidden && !showHidden ? null : (
                 <div key={b.id}>
-                  <div className={'ve-block' + (b.hidden ? ' off' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
+                  {b.draft ? <div className={'ve-draft ' + b.draft} role="note">
+                    <span className="ve-draft-tag">{b.draft === 'draft' ? 'Draft, check this' : 'Missing'}</span>
+                    <span className="ve-draft-note">{b.draftNote}{b.draft === 'missing' && b.body ? ` For this tier: ${b.body}` : ''}</span>
+                    {b.draft === 'draft' ? <><button className="btn solid" onClick={() => accept(b)}>Accept</button><button className="btn" onClick={() => removeBlock(b)}>Delete</button></>
+                      : <><button className="btn solid" onClick={() => editBlock(b.id, { draft: undefined, draftNote: undefined, body: '' })}>Write it now</button><button className="btn" onClick={() => { removeBlock(b); dismissSlot(b.slot); }} title="Not needed for this client; it won’t be flagged again">Not needed</button></>}
+                    <span className="mute">Hidden from the client until accepted.</span>
+                  </div> : null}
+                  <div className={'ve-block' + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
                     onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }}>
                     <BlockBar b={b} onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragEnd={() => { setDrag(null); setOver(null); }} edit={(p) => editBlock(b.id, p)}
                       onDuplicate={() => { const l = [...ch.blocks]; l.splice(i + 1, 0, { ...b, id: 'b-' + uid(), source: undefined, edited: true }); setBlocks(l); }}

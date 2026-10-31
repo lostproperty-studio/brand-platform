@@ -7,7 +7,7 @@ export const SECTIONS = [
   { id: 'labels', title: 'File names', blurb: 'Every deliverable, named clearly and consistently. Remove, find or add files.' },
   { id: 'language', title: 'Wording and rules', blurb: 'Rules or wording that contradict each other, or could confuse your team or AI.' },
   { id: 'styling', title: 'Styling consistency', blurb: 'Styles that are nearly consistent. Pick the right one so there’s only ever one answer.' },
-  { id: 'gaps', title: 'Missing rules', blurb: 'Numbers the guidelines don’t give yet, like clear space, minimum sizes and contrast.' },
+  { id: 'gaps', title: 'Missing rules', blurb: 'Numbers the guidelines don’t give yet, like where the logo sits and how big, minimum sizes and contrast.' },
   { id: 'housekeeping', title: 'Housekeeping', blurb: 'Placeholder copy, empty frames, trial fonts and file setup.' }
 ] as const;
 export type SectionId = (typeof SECTIONS)[number]['id'];

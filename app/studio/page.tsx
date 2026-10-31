@@ -28,6 +28,8 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
         <form><label className="mute" htmlFor="q" style={{ position: 'absolute', left: -9999 }}>Search</label><input id="q" name="q" className="in" placeholder="Search..." defaultValue={sp.q} style={{ borderRadius: 8 }} /></form>
         <p className="db-h">Projects</p>
         {FILTERS.map(([k, label]) => <Link key={k} href={`/studio?f=${k}`} className={'db-it' + (f === k ? ' on' : '')}>{label}<span className="n">{count(k)}</span></Link>)}
+        <p className="db-h">Studio</p>
+        <Link href="/studio/playbook" className="db-it">Guidelines playbook</Link>
         <p className="db-h">Clients</p>
         {all.filter((p) => p.status !== 'archived').map((p) => <Link key={p.id} href={`/studio/projects/${p.id}`} className="db-it">{p.client}<span className="n">{p.status === 'live' ? 'Live' : 'Draft'}</span></Link>)}
       </aside>

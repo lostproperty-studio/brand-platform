@@ -23,6 +23,9 @@ export type Block = {
   // Studio text styling: headline size, body size, body columns, alignment
   headSize?: 'S' | 'M' | 'L' | 'XL'; bodySize?: 'S' | 'M' | 'L'; bodyCols?: 1 | 2 | 3; align?: 'left' | 'center';
   hidden?: boolean; edited?: boolean;
+  // Written by the platform to fill a gap for the project's tier: 'draft' needs checking, 'missing' needs the studio or client to write it.
+  // Both stay out of the client portal until accepted.
+  draft?: 'draft' | 'missing'; draftNote?: string; slot?: string;
 };
 /** An image layer that needs exporting before the block can be shown. */
 export type Visual = { nodeId: string; kind: 'photo' | 'graphic'; w: number; h: number; caption?: string; share: number; backdrop?: boolean };

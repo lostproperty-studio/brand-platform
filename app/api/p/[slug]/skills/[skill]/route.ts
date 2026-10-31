@@ -3,6 +3,7 @@ import { adminClient } from '@/lib/supabase/server';
 import { portalContext } from '@/lib/portal/context';
 import { SKILLS, skillFiles, type SkillId } from '@/lib/skills';
 import { logActivity } from '@/lib/activity';
+import { getPlaybook } from '@/lib/playbookStore';
 
 export const maxDuration = 60;
 
@@ -14,7 +15,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string; ski
   if (!pc?.snap) return new Response('Not found', { status: 404 });
   // Clients only get files from parts the studio has marked Ready
   const files = pc.files.filter((f) => f.storage_path && (pc.preview || f.partStatus === 'ready') && !/LICENCE|manifest/.test(f.path));
-  const s = skillFiles(skill as SkillId, pc.snap, pc.fonts, files.map((f) => f.path));
+  const s = skillFiles(skill as SkillId, pc.snap, pc.fonts, files.map((f) => f.path), (await getPlaybook()).aiDonts);
   const tree: Record<string, Uint8Array> = { [`${s.folder}/SKILL.md`]: strToU8(s.md), [`${s.folder}/reference/brand.md`]: strToU8(s.reference) };
   const sb = adminClient();
   await Promise.all(files.filter((f) => s.include.includes(f.path)).map(async (f) => {

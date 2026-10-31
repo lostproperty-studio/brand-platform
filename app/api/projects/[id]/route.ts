@@ -4,7 +4,7 @@ import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { deleteKitRepo } from '@/lib/github/kitRepo';
 import { parseFigmaUrl } from '@/lib/figma/scan';
 
-const Body = z.object({ client: z.string().max(120).optional(), name: z.string().max(120).optional(), line: z.string().max(300).optional(), status: z.enum(['draft', 'live', 'archived']).optional(), brand: z.record(z.unknown()).optional(), content: z.record(z.unknown()).optional(), kit_version: z.string().max(20).optional(), figmaUrl: z.string().max(500).optional() });
+const Body = z.object({ client: z.string().max(120).optional(), name: z.string().max(120).optional(), line: z.string().max(300).optional(), status: z.enum(['draft', 'live', 'archived']).optional(), brand: z.record(z.unknown()).optional(), content: z.record(z.unknown()).optional(), kit_version: z.string().max(20).optional(), figmaUrl: z.string().max(500).optional(), tier: z.enum(['essentials', 'standard', 'comprehensive']).optional() });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff();
@@ -12,8 +12,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const { id } = await ctx.params;
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
-  const { figmaUrl, ...rest } = b.data;
+  const { figmaUrl, tier, content, ...rest } = b.data;
   const update: Record<string, unknown> = { ...rest };
+  // Content is merged key by key, so saving the guide never wipes the tier or other settings
+  if (content || tier) {
+    const { data: cur } = await adminClient().from('projects').select('content').eq('id', id).maybeSingle();
+    update.content = { ...((cur?.content as Record<string, unknown>) || {}), ...(content || {}), ...(tier ? { tier } : {}) };
+  }
   if (figmaUrl) {
     const fig = parseFigmaUrl(figmaUrl);
     if (!fig) return NextResponse.json({ error: 'That isn’t a Figma file link.' }, { status: 400 });

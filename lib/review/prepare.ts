@@ -53,7 +53,7 @@ async function writeQuestions(client: string, items: ItemLike[]): Promise<Record
   assets: whether a layer is final artwork that should be downloadable (asset items only).
   language: rules or wording that contradict each other, are vague, or name the same thing differently, so people or AI could misread them.
   styling: values that are mostly consistent but vary (sizes, colours, spacing, line height); ask which is right.
-  gaps: rules or numbers the kit needs that the file doesn't give (clear space, minimum sizes, contrast, grid, tone of voice).
+  gaps: rules or numbers the kit needs that the file doesn't give (logo in use: which file, position and scale; minimum sizes; contrast; grid). Strategy and tone of voice are flagged as missing, never proposed.
   housekeeping: placeholder copy, empty frames, trial fonts, file setup.
 - priority: 1 = blocks the kit or could be wrong in front of the client (logo artwork, conflicts, missing key values); 2 = improves the rules; 3 = minor confirmation they could accept in bulk. Be strict: most items should be 2 or 3.
 Call save_questions once with every item id.`,

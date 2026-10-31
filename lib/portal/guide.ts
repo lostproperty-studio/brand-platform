@@ -9,7 +9,7 @@ import { resolvedText } from '@/lib/kit/fromProject';
 
 export type { Block, BlockKind, BlockMedia } from '@/lib/figma/blocks';
 export type GuideRule = { title: string; text: string };
-export type GuideChapter = { id: string; key: string | null; title: string; kicker: string; lede: string; hidden?: boolean; edited?: boolean; blocks: Block[]; rules: GuideRule[] };
+export type GuideChapter = { id: string; key: string | null; title: string; kicker: string; lede: string; hidden?: boolean; edited?: boolean; blocks: Block[]; rules: GuideRule[]; /** Added to fill a gap for the tier */ slot?: string };
 export type GuideColour = { name: string; hex: string; role: string };
 export type Guide = { version?: number; generatedAt: string; file: string; page: string; chapters: GuideChapter[]; colours: GuideColour[] };
 export const GUIDE_VERSION = 2;
@@ -152,8 +152,8 @@ export async function buildGuide(projectId: string) {
     const prev = prevCh.get(`rules-${key}`);
     if (rules.length) chapters.push({ id: `rules-${key}`, key, title: prev?.title || CHAPTER_NAMES[key], kicker: 'Rules', lede: prev?.lede || '', hidden: prev?.hidden, edited: prev?.edited, blocks: prev?.blocks || [], rules });
   }
-  // Chapters the studio added by hand survive a rebuild
-  for (const c of previous?.chapters || []) if (c.id.startsWith('custom-')) chapters.push(c);
+  // Chapters the studio added by hand, and chapters drafted for the tier, survive a rebuild
+  for (const c of previous?.chapters || []) if (c.id.startsWith('custom-') || c.id.startsWith('draft-')) chapters.push(c);
 
   const colourCh = chapters.filter((c) => c.key === 'colour');
   const colourFrames = scan.chapters.filter((c) => keyFor(clean(c.title)) === 'colour').flatMap((c) => c.frames);
@@ -181,5 +181,5 @@ export function guidePaths(g: Guide) {
 
 /** Plain text of a chapter, for the brand chat and the connector. */
 export function chapterText(c: GuideChapter) {
-  return c.blocks.filter((b) => !b.hidden).flatMap(blockText);
+  return c.blocks.filter((b) => !b.hidden && !b.draft).flatMap(blockText);
 }

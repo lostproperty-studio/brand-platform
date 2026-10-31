@@ -16,6 +16,8 @@ import { signFontUrls } from '@/lib/projects/fonts';
 import { fontFaceCss } from '@/lib/fonts';
 import { readFonts } from '@/lib/projects/fonts';
 import { fontState, fontsNeedingLicence } from '@/lib/fonts';
+import { TierSetting } from '@/components/TierPicker';
+import { tierLabel, tierOf } from '@/lib/playbook';
 
 const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['typefaces', 'Typefaces'], ['tools', 'Tools'], ['deliverables', 'Deliverables'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
@@ -39,6 +41,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 
   const content = (p.content || {}) as { guide?: Guide };
   const guide = normaliseGuide(content.guide);
+  const tier = tierOf(content);
+  const drafts = guide ? guide.chapters.flatMap((c) => c.blocks).filter((b) => b.draft === 'draft').length : 0;
+  const missing = guide ? guide.chapters.flatMap((c) => c.blocks).filter((b) => b.draft === 'missing').length : 0;
   let body: React.ReactNode = null;
   if (tab === 'overview') {
     const { fonts } = await readFonts(id);
@@ -50,7 +55,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const checks = [
       { ok: !!scan && open === 0, title: !scan ? 'Figma file not scanned yet' : open ? `Review: ${open} of ${total} items still open` : `Review complete (${total} items)`, note: open ? 'Open items use the suggested option. You can come back to them any time.' : '', href: `?tab=review`, cta: open ? 'Continue review' : 'Open review' },
       { ok: fonts.length > 0 && pendingFonts.length === 0, title: !fonts.length ? 'No typefaces added' : pendingFonts.length ? `Typefaces: ${pendingFonts.length} still need licensed files` : 'Typefaces: all licensed', note: pendingFonts.map((f) => `${f.name || f.label}: ${fontState(f) === 'none' ? 'no files' : fontState(f) === 'mixed' ? 'some trial files' : 'trial files'}`).join(' · '), href: `?tab=typefaces`, cta: pendingFonts.length ? 'Add licensed files' : 'Open typefaces' },
-      { ok: !!guide, title: guide ? `Guidelines: ${guide.chapters.filter((c) => !c.hidden).length} chapters` : 'Guidelines not built yet', note: guide ? '' : 'Builds the client’s online guidelines from the Figma page.', href: `?tab=guidelines`, cta: guide ? 'Edit guidelines' : 'Build guidelines' },
+      { ok: !!guide, title: guide ? `Guidelines: ${guide.chapters.filter((c) => !c.hidden && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length} chapters` : 'Guidelines not built yet', note: guide ? '' : 'Builds the client’s online guidelines from the Figma page.', href: `?tab=guidelines`, cta: guide ? 'Edit guidelines' : 'Build guidelines' },
+      ...(guide && (drafts || missing) ? [{ ok: false, title: `${tierLabel(tier)} tier: ${[drafts ? `${drafts} draft section${drafts === 1 ? '' : 's'} to check` : '', missing ? `${missing} missing` : ''].filter(Boolean).join(', ')}`, note: 'Drafts and missing items stay hidden from the client until you accept them.', href: `?tab=guidelines`, cta: 'Check drafts' }] : []),
+      ...(!tier ? [{ ok: false, title: 'Guide tier not set', note: 'Choose Essentials, Standard or Comprehensive below.', href: '', cta: '' }] : []),
       { ok: !!p.repo_full_name, title: p.repo_full_name ? 'Kit built' : 'Kit not built yet', note: '', href: '', cta: '' }
     ];
     body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>
@@ -67,6 +74,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <p style={{ margin: 0 }}>Figma: {p.figma_key ? <a href={`https://www.figma.com/design/${p.figma_key}`} target="_blank" rel="noopener">open file</a> : <span className="mute">not linked</span>}</p>
         <p style={{ margin: 0 }}>Client AI: {p.ai_key_hint ? `connected (key ending ${p.ai_key_hint})` : <span className="mute">not connected; the client adds their key in portal settings</span>}</p>
       </div>
+      <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
       <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
     </div>;
@@ -78,7 +86,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { fonts } = await readFonts(id);
     const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
     const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.ve-canvas.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
-    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} />;
+    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} tier={tier} />;
   }
   if (tab === 'tools') body = <ToolManager projectId={id} slug={p.slug} />;
   if (tab === 'client') {

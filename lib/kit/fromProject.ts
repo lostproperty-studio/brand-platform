@@ -1,6 +1,7 @@
 import { adminClient } from '@/lib/supabase/server';
 import { exportNodes } from '@/lib/figma/scan';
 import { env } from '@/lib/env';
+import { getPlaybook } from '@/lib/playbookStore';
 import type { AssetFile, Colour, Font, KitInput, Rule } from '@/lib/kit/build';
 import type { ProjectFont } from '@/lib/fonts';
 import { FONT_BUCKET } from '@/lib/projects/fonts';
@@ -40,7 +41,7 @@ export async function kitInputFor(projectId: string): Promise<{ input: KitInput;
   const picked = tplItem ? resolvedText(tplItem).split(/,\s*/).map((a) => TPL.find(([re]) => re.test(a))?.[1]).filter(Boolean) as string[] : [];
   return {
     figmaKey: p.figma_key,
-    input: { client: p.client, slug: p.slug, version: p.kit_version, line: p.line || '', portalUrl: `${env.appUrl()}/p/${p.slug}`, colours, fonts, rules, assets, templates: picked.length ? [...new Set(picked)] : ['social-post-4x5'], fontFiles: await Promise.all(licensedFiles.map(async (x) => ({ family: x.family, name: x.name, bytes: new Uint8Array(await (await sb.storage.from(FONT_BUCKET).download(x.path)).data!.arrayBuffer()) }))), figmaUrl: p.figma_key ? `https://www.figma.com/design/${p.figma_key}` : undefined }
+    input: { client: p.client, slug: p.slug, version: p.kit_version, line: p.line || '', portalUrl: `${env.appUrl()}/p/${p.slug}`, colours, fonts, rules, assets, templates: picked.length ? [...new Set(picked)] : ['social-post-4x5'], fontFiles: await Promise.all(licensedFiles.map(async (x) => ({ family: x.family, name: x.name, bytes: new Uint8Array(await (await sb.storage.from(FONT_BUCKET).download(x.path)).data!.arrayBuffer()) }))), figmaUrl: p.figma_key ? `https://www.figma.com/design/${p.figma_key}` : undefined, aiDonts: (await getPlaybook()).aiDonts }
   };
 }
 

@@ -23,7 +23,7 @@ export async function buildSnapshot(projectId: string): Promise<Snapshot> {
   const brand = (p.brand || {}) as { core?: { name: string; hex: string; note?: string }[]; fonts?: { role: string; name: string; label?: string }[] };
   const content = (p.content || {}) as { guide?: Guide };
   const g = normaliseGuide(content.guide);
-  const guide = g ? { ...g, chapters: g.chapters.filter((c) => !c.hidden).map((c) => ({ ...c, blocks: c.blocks.filter((b) => !b.hidden) })) } : undefined;
+  const guide = g ? { ...g, chapters: g.chapters.filter((c) => !c.hidden).map((c) => ({ ...c, blocks: c.blocks.filter((b) => !b.hidden && !b.draft) })).filter((c) => !c.id.startsWith('draft-') || c.blocks.length) } : undefined;
   const colours = (brand.core?.length ? brand.core.map((c) => ({ name: c.name, hex: c.hex, role: c.note || '' })) : guide?.colours || []);
   return {
     client: p.client, line: p.line || '',

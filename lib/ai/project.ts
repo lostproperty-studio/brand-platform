@@ -34,7 +34,12 @@ Answer only from the guidelines below. Quote exact values (hex, sizes, ratios). 
 COLOURS: ${s.colours.map((c) => `${c.name} ${c.hex} (${c.role})`).join('; ')}
 TYPE: ${s.fonts.map((f) => `${f.role}: ${f.name}, ${f.usage}`).join('; ')}
 ${s.chapters.map((c) => `\n## ${c.title}\n${c.rules.map((r) => `- ${r.title}: ${r.text}`).join('\n')}`).join('\n')}
-\nDELIVERABLES: ${s.deliverables.map((d) => `${d.title} (${d.status})`).join('; ')}`;
+\nDELIVERABLES: ${s.deliverables.map((d) => `${d.title} (${d.status})`).join('; ')}
+
+WHEN YOU MAKE OR ADVISE ON ANYTHING VISUAL
+- Logo in use, not clear space: say which logo file for the background, and use only the positions and sizes the logo guidance names.
+- Use only the listed colours and type styles. Where the guidelines give modes (colourways, type modes, image styles), pick one and name it.
+- Never redraw or recolour the logo, invent colours or effects, substitute fonts, or make new versions of the brand's artwork.`;
 }
 
 export async function logUsage(projectId: string, userId: string | null, feature: 'chat' | 'canvas', usage?: { input_tokens?: number; output_tokens?: number }) {
