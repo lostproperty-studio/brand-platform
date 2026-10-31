@@ -17,8 +17,8 @@ export type ScanChapter = { id: string; title: string; frames: ScanFrame[] };
 export type ScanAsset = { id: string; name: string; w: number; h: number; frameId: string; visibleLayers: number };
 export type FigmaScan = {
   fileName: string; pageName: string; pageId: string; lastModified: string;
-  chapters: ScanChapter[]; colours: { hex: string; opacity: number; count: number }[];
-  type: { font: string; size: number; lineHeight: number | null; tracking: number; textCase: string; count: number }[];
+  chapters: ScanChapter[]; colours: { hex: string; opacity: number; count: number; examples?: string[] }[];
+  type: { font: string; size: number; lineHeight: number | null; tracking: number; textCase: string; count: number; examples?: string[]; sample?: string }[];
   assets: ScanAsset[]; styles: { name: string; type: string }[];
   stats: { frames: number; texts: number; assets: number };
 };
@@ -55,7 +55,7 @@ export async function scanFigmaPage(fileKey: string, pageId: string | null, fetc
   const { meta, page, root } = fetched || await fetchPage(fileKey, pageId);
 
   const tops = (root.children || []).filter((n) => n.visible !== false && n.absoluteBoundingBox && ['FRAME', 'GROUP', 'COMPONENT', 'INSTANCE', 'SECTION'].includes(n.type));
-  const colourCount = new Map<string, { hex: string; opacity: number; count: number }>();
+  const colourCount = new Map<string, { hex: string; opacity: number; count: number; examples: string[] }>();
   const typeCount = new Map<string, FigmaScan['type'][number]>();
   const assets: ScanAsset[] = [];
   let textCount = 0;
@@ -67,8 +67,8 @@ export async function scanFigmaPage(fileKey: string, pageId: string | null, fetc
       if (f.type === 'SOLID' && f.visible !== false && f.color) {
         if (n.type !== 'TEXT' && n.id !== frameId && n.absoluteBoundingBox && (f.opacity ?? 1) > 0.99) { const m = frameFills.get(frameId) || new Map(); const hx = hex(f.color); m.set(hx, (m.get(hx) || 0) + n.absoluteBoundingBox.width * n.absoluteBoundingBox.height); frameFills.set(frameId, m); }
         const k = hex(f.color) + '@' + Math.round((f.opacity ?? 1) * 100);
-        const e = colourCount.get(k) || { hex: hex(f.color), opacity: Math.round((f.opacity ?? 1) * 100), count: 0 };
-        e.count++; colourCount.set(k, e);
+        const e = colourCount.get(k) || { hex: hex(f.color), opacity: Math.round((f.opacity ?? 1) * 100), count: 0, examples: [] };
+        e.count++; if (e.examples.length < 3) e.examples.push(n.id); colourCount.set(k, e);
       }
     }
     if (n.type === 'TEXT' && n.characters && n.characters.trim()) {
@@ -76,8 +76,8 @@ export async function scanFigmaPage(fileKey: string, pageId: string | null, fetc
       const t: ScanText = { frameId, text: n.characters.replace(/\s+/g, ' ').trim(), font: `${st.fontFamily || '?'} ${st.fontWeight || ''}`.trim(), size: Math.round((st.fontSize || 0) * 10) / 10, lineHeight: st.lineHeightPercentFontSize ? Math.round(st.lineHeightPercentFontSize) : null, tracking: Math.round((st.letterSpacing || 0) * 100) / 100, textCase: st.textCase || 'ORIGINAL' };
       out.push(t); textCount++;
       const tk = [t.font, t.size, t.lineHeight, t.tracking, t.textCase].join('|');
-      const te = typeCount.get(tk) || { font: t.font, size: t.size, lineHeight: t.lineHeight, tracking: t.tracking, textCase: t.textCase, count: 0 };
-      te.count++; typeCount.set(tk, te);
+      const te = typeCount.get(tk) || { font: t.font, size: t.size, lineHeight: t.lineHeight, tracking: t.tracking, textCase: t.textCase, count: 0, examples: [] as string[], sample: t.text.slice(0, 40) };
+      te.count++; if (te.examples!.length < 3) te.examples!.push(n.id); typeCount.set(tk, te);
     }
     if ((n.type === 'FRAME' || n.type === 'COMPONENT' || n.type === 'INSTANCE' || n.type === 'GROUP') && ASSET_NAME.test(n.name) && !GENERIC.test(n.name) && n.absoluteBoundingBox) {
       const visibleLayers = (n.children || []).filter((c) => c.visible !== false).length;
@@ -102,8 +102,8 @@ export async function scanFigmaPage(fileKey: string, pageId: string | null, fetc
   return {
     fileName: meta.name, pageName: page.name, pageId: page.id, lastModified: meta.lastModified,
     chapters,
-    colours: [...colourCount.values()].sort((a, b) => b.count - a.count).slice(0, 40),
-    type: [...typeCount.values()].sort((a, b) => b.count - a.count).slice(0, 40),
+    colours: [...colourCount.values()].sort((a, b) => b.count - a.count).slice(0, 60),
+    type: [...typeCount.values()].sort((a, b) => b.count - a.count).slice(0, 80),
     assets: dedupeAssets(assets),
     styles: Object.values(meta.styles || {}).map((s) => ({ name: s.name, type: s.styleType })),
     stats: { frames: frames.length, texts: textCount, assets: assets.length }

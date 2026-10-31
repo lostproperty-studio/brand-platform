@@ -2,7 +2,18 @@
 // yes or no (or explain), and what will happen either way. Claude writes these when it can; these
 // fallbacks cover anything it didn't.
 
+export const SECTIONS = [
+  { id: 'assets', title: 'Final assets', blurb: 'Which artwork is final, and should be downloadable.' },
+  { id: 'labels', title: 'File names', blurb: 'Every deliverable, named clearly and consistently. Remove, find or add files.' },
+  { id: 'language', title: 'Wording and rules', blurb: 'Rules or wording that contradict each other, or could confuse your team or AI.' },
+  { id: 'styling', title: 'Styling consistency', blurb: 'Styles that are nearly consistent. Pick the right one so there’s only ever one answer.' },
+  { id: 'gaps', title: 'Missing rules', blurb: 'Numbers the guidelines don’t give yet, like clear space, minimum sizes and contrast.' },
+  { id: 'housekeeping', title: 'Housekeeping', blurb: 'Placeholder copy, empty frames, trial fonts and file setup.' }
+] as const;
+export type SectionId = (typeof SECTIONS)[number]['id'];
+
 export type ReviewQuestion = {
+  section?: SectionId;
   question: string;          // short, plain, answerable
   why?: string;              // one line of context: what was found
   yes?: string;              // what happens on yes ("I'll …")
@@ -15,7 +26,21 @@ export type ItemLike = { id: string; kind: string; title: string; found: string;
 const lc = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const fileName = (s: string) => s.match(/[a-z0-9-]+\.(svg|png)/)?.[0];
 
+export function fallbackSection(i: ItemLike): SectionId {
+  if (i.kind === 'asset') return 'assets';
+  if (i.kind === 'issue') return 'housekeeping';
+  if (i.kind === 'rule') return 'gaps';
+  if (i.kind === 'value') return 'styling';
+  if (/trial|placeholder|lorem|empty|styles in the file/i.test(i.title)) return 'housekeeping';
+  return 'language';
+}
+
 export function fallbackQuestion(i: ItemLike): ReviewQuestion {
+  const q = fallbackQuestionInner(i);
+  return { ...q, section: q.section || fallbackSection(i) };
+}
+
+function fallbackQuestionInner(i: ItemLike): ReviewQuestion {
   switch (i.kind) {
     case 'asset': return {
       question: `Is “${i.title}” master artwork the client should be able to download?`,
@@ -40,6 +65,6 @@ export function fallbackQuestion(i: ItemLike): ReviewQuestion {
 /** What happens for a choice or written answer, when Claude hasn't said. */
 export function planForAnswer(i: ItemLike, answer: string) {
   if (i.input === 'multi') return `I’ll make templates for: ${answer.split('\n').filter(Boolean).join(', ')}.`;
-  if (i.input === 'choice') return `I’ll go with “${answer}” and write it into the kit that way.`;
+  if (i.input === 'choice') { const a = answer.replace(/\s*\(used \d+ times?\)/, ''); return /meant to be different/i.test(a) ? 'I’ll keep them as separate values and note in the guidelines where each one is used.' : `I’ll use ${a} everywhere this style appears, in the tokens and the guidelines.`; }
   return `I’ll use your answer: “${answer.slice(0, 160)}${answer.length > 160 ? '…' : ''}”`;
 }
