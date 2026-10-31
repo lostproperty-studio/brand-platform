@@ -8,13 +8,16 @@ import { DeleteProjectButton } from '@/components/DeleteProject';
 import { GuideEditor } from '@/components/GuideEditor';
 import { TeamManager } from '@/components/TeamManager';
 import { ToolManager } from '@/components/ToolManager';
+import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
+import { listMembers, ROLE_LABEL } from '@/lib/team';
+import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
 import { guidePaths, normaliseGuide, type Guide } from '@/lib/portal/guide';
 import { signFontUrls } from '@/lib/projects/fonts';
 import { fontFaceCss } from '@/lib/fonts';
 import { readFonts } from '@/lib/projects/fonts';
 import { fontState, fontsNeedingLicence } from '@/lib/fonts';
 
-const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['typefaces', 'Typefaces'], ['tools', 'Tools'], ['deliverables', 'Deliverables'], ['team', 'Client team']] as const;
+const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['typefaces', 'Typefaces'], ['tools', 'Tools'], ['deliverables', 'Deliverables'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -24,7 +27,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : 'overview';
   const sb = adminClient();
-  const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, repo_full_name, kit_version, published_at, ai_key_hint, content').eq('id', id).maybeSingle();
+  const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content').eq('id', id).maybeSingle();
   if (!p) notFound();
 
   async function setPartStatus(form: FormData) {
@@ -78,10 +81,62 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} />;
   }
   if (tab === 'tools') body = <ToolManager projectId={id} slug={p.slug} />;
-  if (tab === 'team') {
-    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>
-      <p className="mute" style={{ margin: 0 }}>Invite the client’s main contact as an Admin. They can add the rest of their team from the portal’s Settings. Each person has their own sign-in, conversations and saved work.</p>
-      <TeamManager slug={p.slug} studio />
+  if (tab === 'client') {
+    // Everything about how the client uses their portal
+    const since = new Date(Date.now() - 30 * 864e5).toISOString();
+    const [members, { data: act }, { data: usage }, { data: reqs }, { count: convs }] = await Promise.all([
+      listMembers(id),
+      sb.from('activity').select('user_id, kind, detail, created_at').eq('project_id', id).gte('created_at', since).order('created_at', { ascending: false }).limit(5000),
+      sb.from('ai_usage').select('feature, input_tokens, output_tokens').eq('project_id', id).gte('created_at', since),
+      sb.from('requests').select('id, kind, title, details, status, reply, email, created_at').eq('project_id', id).order('created_at', { ascending: false }),
+      sb.from('conversations').select('id', { count: 'exact', head: true }).eq('project_id', id)
+    ]);
+    const a = act || [];
+    const count = (k: string) => a.filter((x) => x.kind === k).length;
+    const activeUsers = new Set(a.map((x) => x.user_id).filter(Boolean)).size;
+    const per = (uid: string, k: string) => a.filter((x) => x.user_id === uid && x.kind === k).length;
+    const downloads = Object.entries(a.filter((x) => x.kind === 'download').reduce((m, x) => ({ ...m, [x.detail || '?']: (m[x.detail || '?'] || 0) + 1 }), {} as Record<string, number>)).sort((x, y) => y[1] - x[1]).slice(0, 10);
+    const tokens = (usage || []).reduce((n, r) => n + (r.input_tokens || 0) + (r.output_tokens || 0), 0);
+    const emailOf = Object.fromEntries(members.map((m) => [m.user_id, m.email]));
+    const look: LoginLook = { ...DEFAULT_LOOK, ...((content as { login?: Partial<LoginLook> }).login || {}) };
+    const VERB: Record<string, string> = { visit: 'visited', download: 'downloaded', tool: 'opened', skill: 'downloaded the skill', ask: 'asked a question on', join: 'joined as', upload: 'uploaded' };
+    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 1000 }}>
+      <section className="cl-sec">
+        <h2>Last 30 days</h2>
+        <div className="cl-stats">
+          <div className="cl-stat"><strong>{members.length}</strong><span className="mute">people</span></div>
+          <div className="cl-stat"><strong>{activeUsers}</strong><span className="mute">active</span></div>
+          <div className="cl-stat"><strong>{count('visit')}</strong><span className="mute">visits</span></div>
+          <div className="cl-stat"><strong>{count('download') + count('skill')}</strong><span className="mute">downloads</span></div>
+          <div className="cl-stat"><strong>{count('tool')}</strong><span className="mute">tool uses</span></div>
+          <div className="cl-stat"><strong>{count('ask')}</strong><span className="mute">questions asked</span></div>
+        </div>
+      </section>
+      <section className="cl-sec">
+        <h2>AI</h2>
+        <div className="tm-row"><div style={{ flex: 1 }}><p style={{ margin: 0 }}>{p.ai_key_hint ? `Anthropic connected (key ending ${p.ai_key_hint})` : 'Not connected'}{p.mcp_token_hash ? ' · Claude connector created' : ''}</p><p className="mute" style={{ margin: 0 }}>{p.ai_key_hint ? `${(usage || []).length} AI requests and ${tokens.toLocaleString('en-GB')} tokens in the last 30 days, billed to the client’s Anthropic account. ${convs || 0} conversations in total.` : 'A client admin connects their Anthropic account in Settings. Until then, Ask and AI in tools are off.'}</p></div></div>
+      </section>
+      <section className="cl-sec">
+        <h2>Requests</h2>
+        <StudioRequests projectId={id} initial={reqs || []} />
+      </section>
+      <section className="cl-sec">
+        <h2>People</h2>
+        {members.length ? <table className="cl-table"><thead><tr><th>Person</th><th>Role</th><th>Last signed in</th><th>Visits</th><th>Downloads</th><th>Tools</th><th>Questions</th></tr></thead><tbody>{members.map((m) => <tr key={m.user_id}><td>{m.email}</td><td>{ROLE_LABEL[m.role]}</td><td>{m.last_sign_in_at ? new Date(m.last_sign_in_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Not yet'}</td><td className="n">{per(m.user_id, 'visit')}</td><td className="n">{per(m.user_id, 'download') + per(m.user_id, 'skill')}</td><td className="n">{per(m.user_id, 'tool')}</td><td className="n">{per(m.user_id, 'ask')}</td></tr>)}</tbody></table> : <p className="mute" style={{ margin: 0 }}>No one yet.</p>}
+        <details className="card"><summary>Invite and manage people</summary><div style={{ marginTop: 12 }}><TeamManager slug={p.slug} studio /></div></details>
+      </section>
+      <section className="cl-sec">
+        <h2>Most downloaded</h2>
+        {downloads.length ? <div className="tm-list">{downloads.map(([f, n]) => <div key={f} className="tm-row"><span style={{ flex: 1, overflowWrap: 'anywhere' }}>{f}</span><span className="mute">{n}×</span></div>)}</div> : <p className="mute" style={{ margin: 0 }}>Nothing downloaded yet.</p>}
+      </section>
+      <section className="cl-sec">
+        <h2>Recent activity</h2>
+        {a.length ? <div className="tm-list">{a.filter((x) => x.kind !== 'visit').slice(0, 25).map((x, k) => <div key={k} className="tm-row"><span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{emailOf[x.user_id || ''] || 'Someone'} {VERB[x.kind] || x.kind} {x.detail || ''}</span><span className="mute">{new Date(x.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>)}</div> : <p className="mute" style={{ margin: 0 }}>No activity yet.</p>}
+      </section>
+      <section className="cl-sec">
+        <h2>Sign-in page</h2>
+        <LoginLookEditor projectId={id} slug={p.slug} initial={look} />
+      </section>
     </div>;
   }
   if (tab === 'typefaces') {
@@ -109,7 +164,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   }
   return (
     <div>
-      <div className="pj-head"><Link className="btn" href="/studio">← Projects</Link><span className="pj-client">{p.client}</span><nav className="pj-tabs">{TABS.map(([k, l]) => <Link key={k} className={'pj-tab' + (k === tab ? ' on' : '')} href={`/studio/projects/${id}?tab=${k}`}>{l}</Link>)}</nav><a className="btn solid" style={{ marginLeft: 'auto' }} href={`/p/${p.slug}`}>Preview as client</a></div>
+      <div className="pj-head"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn" href="/studio">← Projects</Link><span className="pj-client">{p.client}</span><nav className="pj-tabs">{TABS.map(([k, l]) => <Link key={k} className={'pj-tab' + (k === tab ? ' on' : '')} href={`/studio/projects/${id}?tab=${k}`}>{l}</Link>)}</nav><a className="btn solid" style={{ marginLeft: 'auto' }} href={`/p/${p.slug}`}>Preview as client</a></div>
       <div style={{ padding: '20px 20px 80px' }}>{body}</div>
     </div>
   );

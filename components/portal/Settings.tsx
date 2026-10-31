@@ -2,9 +2,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TeamManager } from '@/components/TeamManager';
+import { Requests } from '@/components/portal/Requests';
 
 // Client admin settings: connect their own Anthropic key (route 1) and get a connector for their own Claude (route 3).
-export function PortalSettings({ slug, hint }: { slug: string; hint: string | null }) {
+export function PortalSettings({ slug, hint, isAdmin, usage }: { slug: string; hint: string | null; isAdmin: boolean; usage: { requests: number; input: number; output: number } | null }) {
   const router = useRouter();
   const [key, setKey] = useState('');
   const [msg, setMsg] = useState('');
@@ -25,6 +26,7 @@ export function PortalSettings({ slug, hint }: { slug: string; hint: string | nu
         <p className="mute" style={{ margin: 0 }}>Everyone signs in with their own email, so their questions and saved work stay their own.</p>
         <TeamManager slug={slug} />
       </section>
+      {isAdmin ? <>
       <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <h2 className="pt-h2" style={{ margin: 0 }}>Connect AI</h2>
         <p className="mute" style={{ margin: 0 }}>Canvas and Ask run on your own Anthropic account, so usage is billed to you and you set the limit.</p>
@@ -36,6 +38,7 @@ export function PortalSettings({ slug, hint }: { slug: string; hint: string | nu
         {hint ? <p style={{ margin: 0 }}>Connected · key ending {hint} <button className="btn" onClick={disconnect}>Disconnect</button></p> : null}
         <div className="row"><label className="sr" htmlFor="k">Anthropic API key</label><input id="k" className="in" type="password" autoComplete="off" placeholder={hint ? 'Paste a new key to replace it' : 'sk-ant-…'} value={key} onChange={(e) => setKey(e.target.value)} style={{ flex: 1, minWidth: 200 }} /><button className="btn solid" disabled={key.trim().length < 20} onClick={save}>{hint ? 'Replace key' : 'Connect'}</button></div>
         {msg ? <p className="mute" role="status" style={{ margin: 0 }}>{msg}</p> : null}
+        {usage ? <div className="tm-row" style={{ marginTop: 4 }}><div style={{ flex: 1 }}><p style={{ margin: 0 }}>Last 30 days: {usage.requests} AI request{usage.requests === 1 ? '' : 's'}</p><p className="mute" style={{ margin: 0 }}>{(usage.input + usage.output).toLocaleString('en-GB')} tokens. Billing and spend limits are in your Anthropic account.</p></div><a className="btn" href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener">Billing ↗</a></div> : null}
       </section>
       <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <h2 className="pt-h2" style={{ margin: 0 }}>Use the brand in your own Claude</h2>
@@ -43,6 +46,12 @@ export function PortalSettings({ slug, hint }: { slug: string; hint: string | nu
         <div className="row"><button className="btn" onClick={connector}>{conn ? 'Make a new link' : 'Create connector link'}</button></div>
         {conn ? <><input className="in" readOnly value={conn.url} onFocus={(e) => e.target.select()} aria-label="Connector URL" /><p className="mute" style={{ margin: 0 }}>{conn.note}</p></> : null}
       </section>
+      <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <h2 className="pt-h2" style={{ margin: 0 }}>Requests to Lost Property</h2>
+        <p className="mute" style={{ margin: 0 }}>Ask for changes to the guidelines, new assets, hosting on your own domain, or anything else.</p>
+        <Requests slug={slug} />
+      </section>
+      </> : null}
     </div>
   );
 }

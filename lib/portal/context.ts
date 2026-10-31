@@ -35,9 +35,10 @@ export async function signFrames(paths: string[], seconds = 6 * 3600) {
   return Object.fromEntries((data || []).filter((d) => d.signedUrl && d.path).map((d) => [d.path!, d.signedUrl]));
 }
 
-/** A download link for a kit file, only when its part is marked Ready (or for the studio). */
-export async function downloadUrl(f: KitFileRow, preview: boolean) {
+/** A download link for a kit file, only when its part is marked Ready (or for the studio). Goes through the logged download route. */
+export async function downloadUrl(f: KitFileRow, preview: boolean, slug?: string) {
   if (!f.storage_path || (!preview && f.partStatus !== 'ready')) return null;
+  if (slug) return `/api/p/${slug}/download?path=${encodeURIComponent(f.path)}`;
   return (await adminClient().storage.from('kits').createSignedUrl(f.storage_path, 3600, { download: f.path.split('/').pop() })).data?.signedUrl ?? null;
 }
 

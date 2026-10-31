@@ -8,9 +8,13 @@ export async function middleware(req: NextRequest) {
     cookies: { getAll: () => req.cookies.getAll(), setAll: (list) => list.forEach(({ name, value, options }) => res.cookies.set(name, value, options)) }
   });
   const { data } = await sb.auth.getUser();
-  const open = req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/auth') || req.nextUrl.pathname.startsWith('/api/mcp') || req.nextUrl.pathname === '/api/health';
+  const path = req.nextUrl.pathname;
+  const open = path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/join/') || path.startsWith('/api/mcp') || path === '/api/health';
   if (!data.user && !open) {
-    const url = req.nextUrl.clone(); url.pathname = '/login'; url.searchParams.set('next', req.nextUrl.pathname);
+    // Client portals send people to that client's own branded sign-in page
+    const portal = path.match(/^\/p\/([^/]+)/);
+    if (path.startsWith('/api/')) return new NextResponse('Sign in required', { status: 401 });
+    const url = req.nextUrl.clone(); url.pathname = portal ? `/login/${portal[1]}` : '/login'; url.search = ''; url.searchParams.set('next', path);
     return NextResponse.redirect(url);
   }
   return res;

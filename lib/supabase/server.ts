@@ -35,14 +35,21 @@ export async function requireStaff(): Promise<Staff | Response> {
   return { user, role: data.role as Staff['role'] };
 }
 
-/** Staff, or a signed-in member of the project. */
-export async function requireProjectAccess(projectId: string): Promise<{ user: Staff['user']; staff: boolean; clientAdmin: boolean } | Response> {
+export type ClientRole = 'admin' | 'manager' | 'creator';
+export const ROLE_DB: Record<ClientRole, 'client_admin' | 'client_manager' | 'client_viewer'> = { admin: 'client_admin', manager: 'client_manager', creator: 'client_viewer' };
+export const ROLE_OF: Record<string, ClientRole> = { client_admin: 'admin', client_manager: 'manager', client_viewer: 'creator' };
+
+/** Staff, or a signed-in member of the project, with what they're allowed to do.
+ *  Creator: use the guidelines, tools, downloads and Ask. Manager: also upload team files and invite creators and managers.
+ *  Admin: everything, including AI, usage, all people and permissions, and requests to Lost Property. Staff count as admins. */
+export async function requireProjectAccess(projectId: string): Promise<{ user: Staff['user']; staff: boolean; role: ClientRole; clientAdmin: boolean; canManage: boolean } | Response> {
   const user = await currentUser();
   if (!user) return new Response('Sign in required', { status: 401 });
   const sb = adminClient();
   const { data: st } = await sb.from('staff').select('role').eq('user_id', user.id).maybeSingle();
-  if (st) return { user, staff: true, clientAdmin: true };
+  if (st) return { user, staff: true, role: 'admin', clientAdmin: true, canManage: true };
   const { data: m } = await sb.from('project_members').select('role').eq('project_id', projectId).eq('user_id', user.id).maybeSingle();
   if (!m) return new Response('Not found', { status: 404 });
-  return { user, staff: false, clientAdmin: m.role === 'client_admin' };
+  const role = ROLE_OF[m.role as string] || 'creator';
+  return { user, staff: false, role, clientAdmin: role === 'admin', canManage: role !== 'creator' };
 }

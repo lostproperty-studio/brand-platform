@@ -16,7 +16,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   return (
     <main className="auth">
       <form action={send}>
-        <img src="/lp-logo.svg" alt="Lost Property" width={64} />
+        <div className="bp-mark"><img src="/lp-logo.svg" alt="Lost Property" /><span className="bp-sub">Brand Platform</span></div>
         <h1>Sign in</h1>
         {sp.sent ? <p>Check your email for a sign-in link.</p> : <>
           <label htmlFor="email" className="mute">Email</label>

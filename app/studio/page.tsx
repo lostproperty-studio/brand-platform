@@ -15,6 +15,8 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   const sb = await userClient();
   const { data } = await sb.from('projects').select('id, client, name, slug, status, updated_at, brand, repo_full_name').order('updated_at', { ascending: false });
   const all = (data || []) as Row[];
+  const { data: openReqs } = await sb.from('requests').select('project_id').in('status', ['open']);
+  const reqCount = (id: string) => (openReqs || []).filter((r) => r.project_id === id).length;
   const f = (sp.f || 'all') as (typeof FILTERS)[number][0];
   const q = (sp.q || '').toLowerCase();
   const list = all.filter((p) => (f === 'all' ? p.status !== 'archived' : p.status === f) && (!q || p.client.toLowerCase().includes(q)));
@@ -22,7 +24,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   return (
     <div className="db">
       <aside className="db-side">
-        <div className="db-ws"><img src="/lp-logo.svg" alt="" />Lost Property</div>
+        <div className="db-ws"><img src="/lp-logo.svg" alt="Lost Property" /><span className="db-ws-txt"><span>Lost Property</span><span className="db-ws-sub">Brand Platform</span></span></div>
         <form><label className="mute" htmlFor="q" style={{ position: 'absolute', left: -9999 }}>Search</label><input id="q" name="q" className="in" placeholder="Search..." defaultValue={sp.q} style={{ borderRadius: 8 }} /></form>
         <p className="db-h">Projects</p>
         {FILTERS.map(([k, label]) => <Link key={k} href={`/studio?f=${k}`} className={'db-it' + (f === k ? ' on' : '')}>{label}<span className="n">{count(k)}</span></Link>)}
@@ -33,7 +35,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
         <div className="db-top"><h1>{FILTERS.find(([k]) => k === f)?.[1]}</h1><Link className="btn pink" href="/studio/new">New project</Link></div>
         {sp.deleted ? <div className="card" role="status" style={{ marginBottom: 20 }}>Deleted {sp.deleted}.{sp.repo ? (sp.repoFailed ? <> The GitHub repository <a href={`https://github.com/${sp.repo}`}>{sp.repo}</a> couldn’t be deleted; remove it on GitHub if you don’t need it.</> : <> The kit is still on GitHub at <a href={`https://github.com/${sp.repo}`}>{sp.repo}</a>.</>) : null}</div> : null}
         <div className="db-grid">
-          {list.map((p) => <ProjectCard key={p.id} p={{ id: p.id, client: p.client, slug: p.slug, status: p.status, updated_at: p.updated_at, repo_full_name: p.repo_full_name, thumb: p.brand?.core?.[1]?.hex || '#111', logo: p.brand?.logo, trialFonts: fontsNeedingLicence((p.brand?.fonts || []).map((f) => ({ ...f, files: f.files || [] }))).filter((f) => f.files.length).length }} />)}
+          {list.map((p) => <ProjectCard key={p.id} p={{ id: p.id, client: p.client, slug: p.slug, status: p.status, updated_at: p.updated_at, repo_full_name: p.repo_full_name, thumb: p.brand?.core?.[1]?.hex || '#111', logo: p.brand?.logo, requests: reqCount(p.id), trialFonts: fontsNeedingLicence((p.brand?.fonts || []).map((f) => ({ ...f, files: f.files || [] }))).filter((f) => f.files.length).length }} />)}
         </div>
         {!list.length ? <p className="mute" style={{ padding: '40px 0' }}>No projects yet. Start one with New project.</p> : null}
       </main>

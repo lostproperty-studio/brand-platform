@@ -89,6 +89,7 @@ export default function NewProject() {
   return (
     <div className="wz">
       <nav className="wz-rail" aria-label="Setup steps">
+        <div className="bp-mark" style={{ padding: '4px 10px 12px' }}><img src="/lp-logo.svg" alt="Lost Property" style={{ width: 40 }} /><span className="bp-sub">Brand Platform</span></div>
         <a className="btn" href="/studio" style={{ alignSelf: 'flex-start', marginBottom: 10 }}>← Projects</a>
         {STEPS.map((s, i) => <div key={s} className={'wz-step' + (i === step ? ' on' : i < step ? ' done' : '')}><span className="wz-n">{i + 1}</span>{s}</div>)}
       </nav>

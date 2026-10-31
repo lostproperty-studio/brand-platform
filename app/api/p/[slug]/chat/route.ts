@@ -3,6 +3,7 @@ import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
 import { brandSystemPrompt, clientAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
 import { pageContext } from '@/lib/portal/pageContext';
+import { logActivity } from '@/lib/activity';
 
 export const maxDuration = 60;
 const Body = z.object({
@@ -33,6 +34,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (convId) { const { data: own } = await sb.from('conversations').select('id').eq('id', convId).eq('user_id', acc.user.id).maybeSingle(); if (!own) convId = undefined; }
   if (!convId) { const { data: c } = await sb.from('conversations').insert({ project_id: p.id, user_id: acc.user.id, title: question.slice(0, 80), context: here?.label ?? null }).select('id').single(); convId = c!.id; }
   await sb.from('messages').insert({ conversation_id: convId, role: 'user', content: question, context: here?.label ?? null });
+  if (!acc.staff) await logActivity(p.id, acc.user.id, 'ask', here?.label);
 
   const system = brandSystemPrompt(snap) + (here ? `\n\nWHAT THEY'RE LOOKING AT\n${here.text}\nIf they say "this", "here" or "on this page", they mean this. Keep answers short and practical.` : '');
   const stream = ai.messages.stream({ model: 'claude-sonnet-5-5', max_tokens: 1200, system, messages: body.data.messages });

@@ -7,12 +7,14 @@ import { listTools, prepareToolHtml } from '@/lib/tools';
 import { Icon } from '@/lib/icons';
 import { ToolRunner } from '@/components/portal/ToolRunner';
 import { LayoutMaker } from '@/components/portal/LayoutMaker';
+import { logActivity } from '@/lib/activity';
 
 export default async function ToolPage({ params }: { params: Promise<{ slug: string; toolId: string }> }) {
   const { slug, toolId } = await params;
   const ctx = (await portalContext(slug))!;
   const tool = (await listTools(ctx.project.id, ctx.preview)).find((t) => t.id === toolId);
   if (!tool) notFound();
+  if (!ctx.access.staff) await logActivity(ctx.project.id, ctx.access.user.id, 'tool', tool.name);
   // Full-screen: a slim bar with Back, then the tool fills the rest of the space beside the portal sidebar
   const head = <><Link className="btn" href={`/p/${slug}/tools`}>← Tools</Link><span className="tl-icon sm"><Icon name={tool.icon} size={16} /></span><h1>{tool.name}</h1><span className="mute tl-desc">{tool.description}</span></>;
   if (tool.kind === 'layouts') return <div className="tl-full"><header className="tl-bar">{head}</header><div className="tl-body"><LayoutMaker slug={slug} toolId={tool.id} /></div></div>;

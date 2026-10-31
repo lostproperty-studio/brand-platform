@@ -2,6 +2,7 @@ import { zipSync, strToU8 } from 'fflate';
 import { adminClient } from '@/lib/supabase/server';
 import { portalContext } from '@/lib/portal/context';
 import { SKILLS, skillFiles, type SkillId } from '@/lib/skills';
+import { logActivity } from '@/lib/activity';
 
 export const maxDuration = 60;
 
@@ -21,5 +22,6 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string; ski
     if (data) tree[`${s.folder}/${f.path}`] = new Uint8Array(await data.arrayBuffer());
   }));
   const zip = zipSync(tree, { level: 6 });
+  if (!pc.preview) await logActivity(pc.project.id, pc.access.user.id, 'skill', skill);
   return new Response(zip, { headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${s.folder}.zip"`, 'Cache-Control': 'no-store' } });
 }

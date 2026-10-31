@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { portalContext } from '@/lib/portal/context';
 import { PortalNav } from '@/components/portal/PortalNav';
 import { AskDock } from '@/components/portal/AskDock';
+import { logVisit } from '@/lib/activity';
 
 // The client portal: an online version of the brand guidelines, with the kit, Canvas and Ask alongside.
 export default async function PortalLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
@@ -9,6 +10,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   const ctx = await portalContext(slug);
   if (!ctx) notFound();
   const { project, snap, fontCss, fonts, logoUrl, preview, access } = ctx;
+  if (!access.staff) await logVisit(project.id, access.user.id);
   const display = fonts.find((f) => f.role === 'display' && f.files.length) || fonts.find((f) => f.files.length);
   const body = fonts.find((f) => f.role === 'body' && f.files.length);
   const chapters = (snap?.guide?.chapters || []).map((c) => ({ id: c.id, title: c.title }));
@@ -16,7 +18,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   return (
     <div className="pt">
       <style>{css}</style>
-      <PortalNav slug={slug} client={project.client} logoUrl={logoUrl} chapters={chapters} showSettings={access.clientAdmin} />
+      <PortalNav slug={slug} client={project.client} logoUrl={logoUrl} chapters={chapters} showSettings={access.canManage} />
       <div className="pt-main">
         {preview ? <div className="pt-preview" role="status">Studio preview of the working copy. {project.status === 'live' ? 'Clients see the last published version.' : 'Not published yet, so clients can’t see it.'} <a href={`/studio/projects/${project.id}`}>Back to the studio</a></div> : null}
         {snap ? <AskDock slug={slug} client={project.client} aiConnected={!!project.ai_key_hint} canConnect={access.clientAdmin} /> : null}

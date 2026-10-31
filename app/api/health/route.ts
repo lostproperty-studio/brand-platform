@@ -17,6 +17,16 @@ export async function GET() {
     check(async () => { const t = env.figmaToken(); const r = await fetch('https://api.figma.com/v1/files/T5NgfMUus0JuBz1HAito3g?depth=1', { headers: { 'X-Figma-Token': t } }); if (!r.ok) throw new Error(`Figma said ${r.status}: ${(await r.text()).slice(0, 100)} (token starts ${t.slice(0, 5)}, ${t.length} chars)`); const f = await r.json(); return `can read “${f.name}”`; }),
     check(async () => { await studioAnthropic().models.list({ limit: 1 }); return 'key accepted'; })
   ]);
+  const migrations = await check(async () => {
+    const { readdirSync } = await import('node:fs');
+    const files = readdirSync(process.cwd() + '/supabase/migrations').filter((f) => f.endsWith('.sql')).sort();
+    const { data, error } = await createClient(env.supabaseUrl(), env.supabaseService()).from('_migrations').select('name');
+    if (error) throw new Error('No migration record yet: ' + error.message);
+    const done = new Set((data || []).map((r) => r.name));
+    const pending = files.filter((f) => !done.has(f));
+    if (pending.length) throw new Error('Pending: ' + pending.join(', '));
+    return `${files.length} applied`;
+  });
   const encryption = { ok: !!(process.env.KEY_ENCRYPTION_SECRET || process.env.SUPABASE_JWT_SECRET), detail: '' };
-  return Response.json({ supabase, github, figma, anthropic, encryption });
+  return Response.json({ supabase, github, figma, anthropic, encryption, migrations });
 }

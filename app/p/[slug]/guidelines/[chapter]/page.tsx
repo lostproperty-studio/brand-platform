@@ -20,7 +20,7 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   const urls = await signFrames(c.blocks.flatMap((b) => [b.original, b.backdrop?.path, ...(b.media || []).map((m) => m.path)]).filter(Boolean) as string[]);
   const hasCover = c.blocks[0]?.kind === 'cover' && !c.blocks[0].hidden;
   const dl = c.key && DOWNLOADS[c.key] ? ctx.files.filter((f) => DOWNLOADS[c.key!][0].test(f.path) && !/LICENCE|manifest/.test(f.path)) : [];
-  const dlLinks = await Promise.all(dl.slice(0, 24).map(async (f) => ({ ...f, href: await downloadUrl(f, ctx.preview) })));
+  const dlLinks = await Promise.all(dl.slice(0, 24).map(async (f) => ({ ...f, href: await downloadUrl(f, ctx.preview, slug) })));
   const prev = chapters[idx - 1], next = chapters[idx + 1];
   const base = `/p/${slug}/guidelines`;
 

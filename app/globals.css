@@ -437,3 +437,52 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .rq-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid #bbb; flex: none; }
 .rq-dot.on { background: #000; border-color: #000; }
 @media (max-width: 860px) { .rq { grid-template-columns: 1fr; } .rq-top { flex-direction: column; align-items: stretch; } }
+
+/* ---------- client sign-in */
+.ls { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px 72px; position: relative; }
+.ls.preview { min-height: 0; height: 100%; padding: 24px 16px 56px; }
+.ls-card { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 14px; }
+.ls-logo { max-width: 180px; max-height: 64px; align-self: flex-start; margin-bottom: 18px; }
+.ls-name { font-size: 26px; margin: 0 0 18px; }
+.ls-lp { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.ls-lp img { width: 56px; }
+.ls-lp span, .db-ws-sub, .bp-sub { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
+.ls-h { font-size: 30px; line-height: 1.05; letter-spacing: -.02em; font-weight: 400; margin: 0; }
+.ls-msg { margin: 0; opacity: .85; }
+.ls-form { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.ls-form label { font-size: 12px; opacity: .7; }
+.ls-in { height: 40px; border: 0; border-radius: 999px; padding: 0 16px; font-size: 15px; background: rgba(127,127,127,.14); color: inherit; }
+.ls-in:focus { outline: 2px solid currentColor; }
+.ls-btn { height: 40px; border: 0; border-radius: 999px; background: #000; color: #fff; font-size: 14px; cursor: pointer; }
+.ls.dark .ls-btn { background: #fff; color: #000; }
+.ls-fine { font-size: 12px; opacity: .6; margin: 4px 0 0; }
+.ls-credit { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; margin: 0; font-size: 11px; opacity: .6; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.ls-credit-logo { height: 10px; width: auto; }
+/* backend identity */
+.db-ws { flex-direction: row; }
+.db-ws-txt { display: flex; flex-direction: column; gap: 1px; line-height: 1.15; }
+.bp-mark { display: inline-flex; flex-direction: column; gap: 4px; }
+.bp-mark img { width: 56px; }
+.pj-bp { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding-right: 10px; border-right: 1px solid var(--line); margin-right: 2px; }
+.pj-bp img { width: 28px; }
+@media (max-width: 760px) { .pj-bp .bp-sub { display: none; } }
+.tm-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tm-roles > div { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; background: var(--fill); border-radius: 8px; font-size: 12px; }
+.tm-roles strong { font-weight: 500; font-size: 13px; }
+.tm-block { display: flex; flex-direction: column; gap: 8px; }
+.tm-h { margin: 0; font-weight: 500; }
+@media (max-width: 760px) { .tm-roles { grid-template-columns: 1fr; } }
+.ll { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ll-ctl { display: flex; flex-direction: column; gap: 12px; }
+.ll-prev { border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); height: 360px; position: relative; }
+.ll-prev iframe { position: absolute; top: 0; left: 0; width: 200%; height: 200%; border: 0; transform: scale(.5); transform-origin: 0 0; }
+.cl-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.cl-stat { background: var(--fill); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+.cl-stat strong { font-size: 24px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.cl-sec { display: flex; flex-direction: column; gap: 10px; }
+.cl-sec > h2 { font-size: 16px; font-weight: 500; margin: 0; }
+.cl-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cl-table th { text-align: left; font-weight: 400; color: var(--mute); font-size: 11px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.cl-table td { padding: 8px; border-bottom: 1px solid #f3f3f3; vertical-align: top; }
+.cl-table td.n { font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .ll { grid-template-columns: 1fr; } .cl-table { display: block; overflow-x: auto; } }
