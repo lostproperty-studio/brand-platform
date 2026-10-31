@@ -1,5 +1,5 @@
-// The studio's playbook: how Lost Property writes guidelines, and what each tier of guide contains.
-// The studio edits it on /studio/playbook. It feeds the scan, the review questions, gap drafts and the AI rules in every kit.
+// The platform's playbook: how Lost Property writes guidelines, and what each tier of guide contains.
+// Built in, never shown in the interface. It feeds the scan, the review questions, gap drafts and the AI rules in every kit.
 
 export type Tier = 'essentials' | 'standard' | 'comprehensive';
 export const TIERS: { id: Tier; label: string; blurb: string }[] = [
@@ -86,7 +86,7 @@ export const DEFAULT_AI_DONTS = [
   'Don’t use stock imagery where the guidelines say the brand makes its own.'
 ];
 
-export type Playbook = { house: string; slots: Slot[]; aiDonts: string[]; updatedAt?: string };
+export type Playbook = { house: string; slots: Slot[]; aiDonts: string[] };
 export const DEFAULT_PLAYBOOK: Playbook = { house: DEFAULT_HOUSE, slots: DEFAULT_SLOTS, aiDonts: DEFAULT_AI_DONTS };
 
 /** True when a chapter title or section headline belongs to the slot. */
