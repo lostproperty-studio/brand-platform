@@ -8,7 +8,7 @@ import { ProgressBar, useProgress, type Phase } from '@/components/Progress';
 type Step = { title: string; desc: string; state: 'waiting' | 'running' | 'done' };
 const STEPS = ['Client', 'Figma file', 'Scan', 'Review', 'Typefaces', 'Create'];
 // Typical durations (seconds) of the scan steps, and of building the project at the end
-const SCAN_PHASES: Phase[] = [{ label: 'Opening the Figma file', expected: 6 }, { label: 'Reading the text', expected: 2 }, { label: 'Reading colours and type', expected: 2 }, { label: 'Exporting asset previews', expected: 20 }, { label: 'Claude is drafting rules and questions', expected: 100 }];
+const SCAN_PHASES: Phase[] = [{ label: 'Opening the Figma file', expected: 6 }, { label: 'Reading the text', expected: 2 }, { label: 'Reading colours and type', expected: 2 }, { label: 'Exporting asset previews', expected: 20 }, { label: 'Claude is drafting rules and questions', expected: 140 }];
 const CREATE_PHASES: Phase[] = [{ label: 'Building the kit and the repository', expected: 45 }, { label: 'Building the online guidelines from Figma', expected: 75 }];
 
 // New project: client → Figma link → live scan → review (can be skipped) → typefaces → build the kit.
@@ -112,9 +112,9 @@ export default function NewProject() {
           {scan?.status === 'failed' ? <><p>The scan failed: {scan.error}</p><div className="row"><button className="btn solid" onClick={startScan}>Try the scan again</button><span className="mute">Uses the same project; nothing is duplicated.</span></div></> : null}
         </> : null}
         {step === 3 && scan ? <>
-          <h1>Check what I found</h1>
-          <p className="mute" style={{ maxWidth: 720 }}>Accept what’s right, correct what isn’t, answer the questions. Answers save as you go. Short on time? <strong style={{ color: '#000' }}>Skip for now</strong> and finish it later from the project’s Review tab.</p>
-          <Review initial={items} figmaKey={scan.figma_key} />
+          <h1>A few questions</h1>
+          <p className="mute" style={{ maxWidth: 640 }}>A few quick questions, most important first. Short on time? <strong style={{ color: '#000' }}>Skip for now</strong> and come back to them from the project’s Review tab.</p>
+          <Review initial={items} figmaKey={scan.figma_key} scanId={scanId!} />
         </> : null}
         {step === 4 && project ? <>
           <h1>Typefaces</h1>

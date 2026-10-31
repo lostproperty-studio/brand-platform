@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { exportNodes, scanFigmaPage } from '@/lib/figma/scan';
+import { prepareReview } from '@/lib/review/prepare';
 import { buildReview } from '@/lib/scan/review';
 
 export const maxDuration = 300;
@@ -39,7 +40,10 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
     await done(3, `${result.assets.length} named asset layers found`, 'Claude is drafting rules and questions. This takes a minute or two.');
     const items = await buildReview(result, p.client);
     await sb.from('review_items').insert(items.map((it, ord) => ({ ...it, scan_id: scan!.id, ord, preview_path: it.node_id ? previewPaths[it.node_id] ?? null : null })));
-    steps.forEach((s) => { s.state = 'done'; }); steps[4].desc = `${items.length} items to review`;
+    steps[4].desc = 'Writing your questions and marking where each one is in Figma';
+    await sb.from('scans').update({ steps }).eq('id', scan!.id);
+    await prepareReview(scan!.id).catch(() => null);
+    steps.forEach((s) => { s.state = 'done'; }); steps[4].desc = `${items.length} things checked`;
     await sb.from('scans').update({ status: 'done', steps, finished_at: new Date().toISOString(), meta: { file: result.fileName, page: result.pageName, chapters: result.chapters.map((c) => ({ id: c.id, title: c.title })), colours: result.colours.slice(0, 12), type: result.type.slice(0, 12) } }).eq('id', scan!.id);
   } catch (e) {
     await sb.from('scans').update({ status: 'failed', error: String((e as Error).message || e).slice(0, 500) }).eq('id', scan!.id);

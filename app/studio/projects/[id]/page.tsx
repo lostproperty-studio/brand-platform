@@ -94,7 +94,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { data: scan } = await sb.from('scans').select('id, figma_key').eq('project_id', id).eq('status', 'done').order('created_at', { ascending: false }).limit(1).maybeSingle();
     const { data: items } = scan ? await sb.from('review_items').select('*').eq('scan_id', scan.id).order('ord') : { data: [] };
     const withPrev = await Promise.all((items || []).map(async (it) => ({ ...it, preview: it.preview_path ? (await sb.storage.from('previews').createSignedUrl(it.preview_path, 3600)).data?.signedUrl ?? null : null })));
-    body = scan ? <Review initial={withPrev as Item[]} figmaKey={scan.figma_key} /> : <p className="mute">No scan yet.</p>;
+    body = scan ? <Review initial={withPrev as Item[]} figmaKey={scan.figma_key} scanId={scan.id} /> : <p className="mute">No scan yet.</p>;
   }
   if (tab === 'deliverables') {
     const { data: parts } = await sb.from('deliverable_parts').select('id, title, contains, format, status, deliverable_files(path)').eq('project_id', id).order('ord');
