@@ -24,10 +24,17 @@ export type FigmaScan = {
 };
 
 const API = 'https://api.figma.com/v1';
-async function figma<T>(path: string): Promise<T> {
-  const r = await fetch(API + path, { headers: { 'X-Figma-Token': env.figmaToken() }, cache: 'no-store' });
-  if (!r.ok) throw new Error(`Figma API ${r.status} on ${path}: ${(await r.text()).slice(0, 200)}`);
-  return r.json() as Promise<T>;
+// Figma's API sometimes fails on big requests or when busy (500, 502, 503, 429): retry with a short wait.
+async function figma<T>(path: string, tries = 3): Promise<T> {
+  let last = '';
+  for (let i = 0; i < tries; i++) {
+    const r = await fetch(API + path, { headers: { 'X-Figma-Token': env.figmaToken() }, cache: 'no-store' });
+    if (r.ok) return r.json() as Promise<T>;
+    last = `Figma API ${r.status} on ${path.slice(0, 80)}: ${(await r.text()).slice(0, 160)}`;
+    if (![429, 500, 502, 503, 504].includes(r.status)) break;
+    await new Promise((w) => setTimeout(w, (r.status === 429 ? 4000 : 1500) * (i + 1)));
+  }
+  throw new Error(last);
 }
 
 export function parseFigmaUrl(url: string): { key: string; nodeId: string | null } | null {
@@ -47,8 +54,20 @@ export async function fetchPage(fileKey: string, pageId: string | null) {
   const pages = meta.document.children || [];
   const page = (pageId && pages.find((p) => p.id === pageId)) || pages.find((p) => /brand\s*guide/i.test(p.name)) || pages[0];
   if (!page) throw new Error('The file has no pages.');
-  const full = await figma<{ nodes: Record<string, { document: Node }> }>(`/files/${fileKey}/nodes?ids=${encodeURIComponent(page.id)}`);
-  return { meta, page, root: full.nodes[page.id].document };
+  try {
+    const full = await figma<{ nodes: Record<string, { document: Node }> }>(`/files/${fileKey}/nodes?ids=${encodeURIComponent(page.id)}`, 2);
+    return { meta, page, root: full.nodes[page.id].document };
+  } catch {
+    // The whole page at once can be too much for Figma: list its slides, then fetch them a few at a time
+    const shallow = await figma<{ nodes: Record<string, { document: Node }> }>(`/files/${fileKey}/nodes?ids=${encodeURIComponent(page.id)}&depth=1`);
+    const ids = (shallow.nodes[page.id].document.children || []).map((n) => n.id);
+    const children: Node[] = [];
+    for (let i = 0; i < ids.length; i += 6) {
+      const part = await figma<{ nodes: Record<string, { document: Node } | null> }>(`/files/${fileKey}/nodes?ids=${encodeURIComponent(ids.slice(i, i + 6).join(','))}`);
+      for (const id of ids.slice(i, i + 6)) { const d = part.nodes[id]?.document; if (d) children.push(d); }
+    }
+    return { meta, page, root: { ...shallow.nodes[page.id].document, children } };
+  }
 }
 
 export async function scanFigmaPage(fileKey: string, pageId: string | null, fetched?: Awaited<ReturnType<typeof fetchPage>>): Promise<FigmaScan> {

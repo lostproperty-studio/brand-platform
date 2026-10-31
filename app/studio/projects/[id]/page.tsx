@@ -77,7 +77,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const thumbs = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
     const { fonts } = await readFonts(id);
     const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
-    const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.ge-prev.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
+    const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.ve-canvas.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
     body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} />;
   }
   if (tab === 'tools') body = <ToolManager projectId={id} slug={p.slug} />;

@@ -541,3 +541,92 @@ button, input, select, textarea { font: inherit; color: inherit; }
 html { scroll-behavior: smooth; }
 @media (max-width: 760px) { .gb-div { grid-template-columns: 1fr; } .gb-div-art { order: -1; aspect-ratio: 16 / 9; } .sn { top: 49px; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sw-btn { transition: none; } }
+/* studio text styles on guideline blocks */
+.hs-S .gb-h, .hs-S .gb-div-h { font-size: clamp(20px, 2.2vw, 26px); }
+.hs-M .gb-h, .hs-M .gb-div-h { font-size: clamp(26px, 3.4vw, 40px); }
+.hs-L .gb-h, .hs-L .gb-div-h { font-size: clamp(36px, 5vw, 64px); }
+.hs-XL .gb-h, .hs-XL .gb-div-h { font-size: clamp(48px, 8vw, 112px); line-height: .92; }
+.bs-S .gb-body { font-size: 13px; }
+.bs-M .gb-body { font-size: 15px; }
+.bs-L .gb-body { font-size: clamp(17px, 1.8vw, 21px); line-height: 1.4; }
+.bc-2 .gb-body, .bc-3 .gb-body { display: block; max-width: none; column-gap: 32px; }
+.bc-2 .gb-body { column-count: 2; }
+.bc-3 .gb-body { column-count: 3; }
+.bc-2 .gb-body p, .bc-3 .gb-body p { margin: 0 0 10px; break-inside: avoid-column; }
+.al-c .gb-head, .al-c .gb-body, .al-c .gb-div-txt { text-align: center; align-items: center; margin-left: auto; margin-right: auto; }
+@media (max-width: 760px) { .bc-2 .gb-body, .bc-3 .gb-body { column-count: 1; } }
+.gb-div-img { display: contents; }
+
+/* ---------- visual guidelines editor */
+.ve { display: flex; flex-direction: column; gap: 12px; }
+.ve-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 20; background: #fff; padding: 6px 0; }
+.ve-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: start; }
+.ve-chs { display: flex; flex-direction: column; gap: 1px; position: sticky; top: 52px; }
+.ve-label { margin: 6px 0 4px; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--mute); }
+.ve-ch { display: flex; align-items: center; border-radius: 8px; }
+.ve-ch > button:first-child { all: unset; box-sizing: border-box; cursor: pointer; flex: 1; display: flex; gap: 8px; align-items: baseline; padding: 6px 10px; min-width: 0; }
+.ve-ch:hover { background: var(--fill); }
+.ve-ch.on { background: var(--fill-2); }
+.ve-ch.off > button:first-child { opacity: .45; }
+.ve-ch.over { box-shadow: inset 0 2px 0 #000; }
+.ve-eye { all: unset; cursor: pointer; width: 26px; text-align: center; font-size: 9px; color: var(--mute); }
+.ve-canvas { display: block; min-height: 0; grid-template-columns: none; border-radius: 10px; box-shadow: 0 0 0 1px var(--line); background: #fff; overflow: visible; }
+.ve-page { max-width: none; padding: 40px clamp(20px, 4vw, 56px) 80px; }
+.ve-chhead .ed { outline: none; }
+.ve-blocks { gap: 0; }
+.ve-block { position: relative; border-radius: 6px; outline: 1px dashed transparent; outline-offset: 10px; transition: outline-color .1s; }
+.ve-block:hover, .ve-block:focus-within { outline-color: #c9c9c9; }
+.ve-block.off > .gb { opacity: .35; }
+.ve-block.over { outline: 2px solid #000; }
+.ve-hidden { margin: 0 0 8px; font-size: 12px; color: var(--mute); }
+.ve-hidden button { all: unset; cursor: pointer; text-decoration: underline; color: #000; }
+.ve-bar { position: absolute; top: -44px; left: 0; z-index: 10; display: none; align-items: center; gap: 2px; padding: 3px; border-radius: 10px; background: #000; color: #fff; font-family: var(--font); font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.ve-block:hover > .ve-bar, .ve-block:focus-within > .ve-bar { display: flex; }
+.ve-bar > button, .ve-pop-wrap > button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: 7px; white-space: nowrap; }
+.ve-bar > button:hover, .ve-pop-wrap > button:hover, .ve-bar > button.on { background: rgba(255,255,255,.16); }
+.ve-handle { cursor: grab; padding: 0 6px; height: 28px; display: inline-flex; align-items: center; letter-spacing: -2px; opacity: .7; }
+.ve-sep { width: 1px; height: 18px; background: rgba(255,255,255,.25); margin: 0 3px; }
+.ve-dot { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255,255,255,.6); }
+.ve-pop-wrap { position: relative; }
+.ve-pop { position: absolute; top: 34px; left: 0; min-width: 200px; padding: 8px; border-radius: 10px; background: #fff; color: #000; box-shadow: 0 0 0 1px var(--line), 0 10px 30px rgba(0,0,0,.14); display: flex; flex-direction: column; gap: 2px; z-index: 30; }
+.ve-row { all: unset; cursor: pointer; display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 6px; }
+.ve-row:hover { background: var(--fill); }
+.ve-row.on { background: var(--fill-2); }
+.ve-seg { display: flex; gap: 2px; background: var(--fill); border-radius: 8px; padding: 2px; }
+.ve-seg button { all: unset; cursor: pointer; flex: 1; text-align: center; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+.ve-seg button.on { background: #000; color: #fff; }
+.ed { outline: none; border-radius: 3px; cursor: text; min-width: 1ch; }
+.ed:hover { box-shadow: 0 0 0 1px rgba(0,0,0,.12); }
+.ed:focus { box-shadow: 0 0 0 2px #000; background: rgba(255,255,255,.04); }
+.on-dark .ed:focus, .ve-sw .ed:focus { box-shadow: 0 0 0 2px currentColor; }
+.ed:empty::before { content: attr(data-ph); opacity: .35; pointer-events: none; }
+.ed.gb-body:empty { min-height: 1.4em; }
+p.ed:empty, span.ed:empty { display: inline-block; }
+.gb-cap { margin: 0; font-size: 12px; opacity: .75; }
+.gb-div-eb { display: inline; }
+.ve-img { position: relative; display: block; }
+.ve-img > img { display: block; }
+.gb-cover .ve-img, .has-back > .ve-img { position: absolute; inset: 0; }
+.gb-cover .ve-img > .gb-back, .has-back > .ve-img > .gb-back { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ve-imgbar { position: absolute; top: 8px; right: 8px; display: none; gap: 2px; padding: 3px; border-radius: 8px; background: rgba(0,0,0,.82); z-index: 5; }
+.ve-img:hover > .ve-imgbar { display: flex; }
+.ve-imgbar button { all: unset; cursor: pointer; color: #fff; font-family: var(--font); font-size: 11px; padding: 4px 8px; border-radius: 5px; }
+.ve-imgbar button:hover { background: rgba(255,255,255,.18); }
+.ve-add { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 1px dashed #bdbdbd; border-radius: 6px; color: var(--mute); font-family: var(--font); font-size: 13px; }
+.ve-add:hover { border-color: #000; color: #000; }
+.ve-addimg { min-height: 140px; width: 100%; }
+.gb-div-art .ve-addimg { min-height: 100%; height: 100%; }
+.ve-sw { position: relative; }
+.ve-swbar { position: absolute; top: 8px; right: 8px; display: none; gap: 4px; }
+.ve-sw:hover .ve-swbar { display: flex; }
+.ve-swbar label, .ve-swbar button { all: unset; cursor: pointer; width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.9); color: #000; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; position: relative; }
+.ve-swbar input[type=color] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.ve-ins { position: relative; height: 36px; display: flex; align-items: center; justify-content: center; }
+.ve-ins::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid transparent; }
+.ve-ins:hover::before, .ve-ins.open::before { border-top-color: #000; }
+.ve-ins-btn { all: unset; cursor: pointer; position: relative; width: 26px; height: 26px; border-radius: 50%; background: #000; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; opacity: 0; transition: opacity .1s; }
+.ve-ins:hover .ve-ins-btn, .ve-ins.open .ve-ins-btn, .ve-ins-btn:focus-visible { opacity: 1; }
+.ve-menu { position: absolute; top: 32px; z-index: 30; background: #fff; border-radius: 10px; padding: 6px; box-shadow: 0 0 0 1px var(--line), 0 10px 30px rgba(0,0,0,.14); display: flex; flex-direction: column; min-width: 200px; }
+.ve-menu button { all: unset; cursor: pointer; display: flex; gap: 8px; align-items: center; padding: 7px 10px; border-radius: 6px; font-family: var(--font); font-size: 13px; }
+.ve-menu button:hover { background: var(--fill); }
+@media (max-width: 900px) { .ve-grid { grid-template-columns: 1fr; } .ve-chs { position: static; } .ve-bar { position: static; display: flex; flex-wrap: wrap; margin-bottom: 8px; } }

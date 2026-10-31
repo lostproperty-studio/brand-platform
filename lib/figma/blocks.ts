@@ -20,6 +20,8 @@ export type Block = {
   backdrop?: BlockMedia; // full-bleed image behind the text (chapter dividers, hero slides)
   swatches?: BlockSwatch[];
   original?: string; showOriginal?: boolean;
+  // Studio text styling: headline size, body size, body columns, alignment
+  headSize?: 'S' | 'M' | 'L' | 'XL'; bodySize?: 'S' | 'M' | 'L'; bodyCols?: 1 | 2 | 3; align?: 'left' | 'center';
   hidden?: boolean; edited?: boolean;
 };
 /** An image layer that needs exporting before the block can be shown. */

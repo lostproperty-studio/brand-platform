@@ -1,190 +1,230 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
-import { GuideBlock } from '@/components/portal/GuideBlock';
+import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
 import { TimedProgress } from '@/components/Progress';
 
 const KINDS: [BlockKind, string][] = [['cover', 'Cover'], ['divider', 'Subsection start'], ['text', 'Text'], ['split', 'Text + image'], ['media', 'Images'], ['swatches', 'Colour swatches']];
 const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const toHtml = (v: string | undefined, multiline: boolean) => (!v ? '' : multiline ? v.split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('') : esc(v).replace(/\n/g, '<br>'));
+const fromEl = (el: HTMLElement) => el.innerText.replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 
-// Studio editing of the client guidelines. Each Figma slide is rebuilt as a block; edit its words, images,
-// colours and layout here. Edited and added blocks are kept when you rebuild from Figma.
+// Text you edit in place, in the brand's own type. Enter ends a headline; in body text, Enter starts a new paragraph.
+function Editable({ value, onSave, tag, className, placeholder, multiline }: { value?: string; onSave: (v: string) => void; tag: string; className: string; placeholder: string; multiline?: boolean }) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => { const el = ref.current; if (el && document.activeElement !== el) el.innerHTML = toHtml(value, !!multiline); }, [value, multiline]);
+  return createElement(tag, {
+    ref, className: className + ' ed', contentEditable: true, suppressContentEditableWarning: true, 'data-ph': placeholder, spellCheck: true, role: 'textbox', 'aria-label': placeholder, 'aria-multiline': multiline || undefined,
+    onBlur: () => { const el = ref.current; if (!el) return; const v = fromEl(el); if (v !== (value || '').trim()) onSave(v); if (!v) el.innerHTML = ''; },
+    onPaste: (e: React.ClipboardEvent) => { e.preventDefault(); document.execCommand('insertText', false, e.clipboardData.getData('text/plain')); },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') { (e.target as HTMLElement).innerHTML = toHtml(value, !!multiline); (e.target as HTMLElement).blur(); }
+      if (e.key === 'Enter' && !multiline && !e.shiftKey) { e.preventDefault(); (e.target as HTMLElement).blur(); }
+    }
+  });
+}
+
+// The studio's guidelines editor: the client's view, editable in place.
 export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss }: { projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string }) {
   const router = useRouter();
   const [guide, setGuide] = useState(initial);
   const [urls, setUrls] = useState(thumbs);
   const [chId, setChId] = useState(initial?.chapters[0]?.id || '');
-  const [open, setOpen] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
+  const [drag, setDrag] = useState<{ kind: 'block' | 'chapter'; id: string } | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const [menu, setMenu] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(guide);
-  useEffect(() => { setGuide(initial); setUrls(thumbs); }, [initial, thumbs]);
+  const fileFor = useRef<{ block: string; target: number | 'backdrop' | 'new' } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { setGuide(initial); latest.current = initial; setUrls(thumbs); }, [initial, thumbs]);
 
   async function rebuild() {
     setBusy(true); setMsg('');
     const r = await fetch(`/api/projects/${projectId}/guide`, { method: 'POST' });
     const j = await r.json().catch(() => ({}));
     setBusy(false);
-    setMsg(r.ok ? `Rebuilt ${j.chapters} chapters from ${j.frames} Figma slides. Your edits were kept.` : 'The rebuild failed: ' + (j.error || r.status));
+    setMsg(r.ok ? `Rebuilt ${j.chapters} chapters from ${j.frames} Figma slides. Your edits were kept.` : 'The rebuild didn’t finish: ' + (j.error || r.status) + ' Try again in a minute; Figma is sometimes busy.');
     router.refresh();
   }
-  // Autosave shortly after the last change
   function commit(next: Guide) {
     setGuide(next); latest.current = next; setMsg('Saving…');
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       const r = await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { ...content, guide: latest.current } }) });
       setMsg(r.ok ? 'Saved · publish to show the client' : 'Couldn’t save. Check your connection.');
-    }, 700);
+    }, 600);
   }
-  const ch = guide?.chapters.find((c) => c.id === chId);
-  const setCh = (patch: Partial<GuideChapter>) => guide && commit({ ...guide, chapters: guide.chapters.map((c) => (c.id === chId ? { ...c, ...patch } : c)) });
+  const g = guide;
+  const ch = g?.chapters.find((c) => c.id === chId);
+  const setChapters = (chapters: GuideChapter[]) => g && commit({ ...g, chapters });
+  const setCh = (patch: Partial<GuideChapter>) => g && setChapters(g.chapters.map((c) => (c.id === chId ? { ...c, ...patch } : c)));
   const setBlocks = (blocks: Block[]) => setCh({ blocks });
   const editBlock = (id: string, patch: Partial<Block>) => ch && setBlocks(ch.blocks.map((b) => (b.id === id ? { ...b, ...patch, edited: true } : b)));
-  const move = (i: number, d: number) => { if (!ch) return; const l = [...ch.blocks]; const j = i + d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; setBlocks(l); };
-  const addBlock = (kind: BlockKind) => { if (!ch) return; const b: Block = { id: 'b-' + uid(), kind, heading: kind === 'swatches' ? 'Colours' : 'New section', body: '', media: [], swatches: kind === 'swatches' ? [{ name: 'Colour', hex: '#000000' }] : undefined, cols: kind === 'media' ? 2 : undefined, side: kind === 'split' ? 'right' : undefined, edited: true }; setBlocks([...ch.blocks, b]); setOpen(b.id); };
-  const addChapter = () => { if (!guide) return; const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; commit({ ...guide, chapters: [...guide.chapters, c] }); setChId(c.id); };
-  const moveCh = (d: number) => { if (!guide || !ch) return; const l = [...guide.chapters]; const i = l.indexOf(ch); const j = i + d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; commit({ ...guide, chapters: l }); };
+  const insertAt = (i: number, kind: BlockKind) => { if (!ch) return; const b: Block = { id: 'b-' + uid(), kind, heading: kind === 'swatches' ? 'Colours' : kind === 'divider' ? 'New subsection' : 'New section', body: kind === 'text' || kind === 'split' ? 'Write something…' : '', media: [], swatches: kind === 'swatches' ? [{ name: 'Colour', hex: '#000000' }] : undefined, cols: kind === 'media' ? 2 : undefined, side: kind === 'split' ? 'right' : undefined, edited: true }; const l = [...ch.blocks]; l.splice(i, 0, b); setBlocks(l); setMenu(null); };
+  const moveBlock = (id: string, toId: string) => { if (!ch || id === toId) return; const l = [...ch.blocks]; const from = l.findIndex((b) => b.id === id); const [b] = l.splice(from, 1); l.splice(l.findIndex((x) => x.id === toId), 0, b); setBlocks(l); };
+  const moveChapter = (id: string, toId: string) => { if (!g || id === toId) return; const l = [...g.chapters]; const from = l.findIndex((c) => c.id === id); const [c] = l.splice(from, 1); l.splice(l.findIndex((x) => x.id === toId), 0, c); setChapters(l); };
 
   async function upload(file: File): Promise<BlockMedia | null> {
-    const dims = await new Promise<{ w: number; h: number }>((ok) => { const img = new Image(); img.onload = () => ok({ w: img.naturalWidth || 1200, h: img.naturalHeight || 800 }); img.onerror = () => ok({ w: 1200, h: 800 }); img.src = URL.createObjectURL(file); });
-    const fd = new FormData(); fd.set('file', file);
-    setMsg('Uploading…');
+    const dims = await new Promise<{ w: number; h: number }>((ok) => { const im = new Image(); im.onload = () => ok({ w: im.naturalWidth || 1200, h: im.naturalHeight || 800 }); im.onerror = () => ok({ w: 1200, h: 800 }); im.src = URL.createObjectURL(file); });
+    const fd = new FormData(); fd.set('file', file); setMsg('Uploading…');
     const r = await fetch(`/api/projects/${projectId}/guide/upload`, { method: 'POST', body: fd });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { setMsg(j.error || 'Upload failed.'); return null; }
     setUrls((u) => ({ ...u, [j.path]: j.url })); setMsg('');
     return { path: j.path, w: dims.w, h: dims.h, kind: file.type === 'image/svg+xml' ? 'graphic' : 'photo' };
   }
+  function pickImage(block: string, target: number | 'backdrop' | 'new') { fileFor.current = { block, target }; fileInput.current?.click(); }
+  async function onFile(f?: File) {
+    const t = fileFor.current; if (!f || !t || !ch) return;
+    const up = await upload(f); if (!up) return;
+    const b = ch.blocks.find((x) => x.id === t.block); if (!b) return;
+    if (t.target === 'backdrop') editBlock(b.id, { backdrop: up });
+    else if (t.target === 'new') editBlock(b.id, { media: [...(b.media || []), up] });
+    else editBlock(b.id, { media: (b.media || []).map((m, i) => (i === t.target ? { ...up, caption: m.caption } : m)) });
+  }
 
-  if (!guide) return (
+  if (!g) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 720 }}>
-      <p className="mute" style={{ margin: 0 }}>Reads the Figma page and rebuilds every slide as responsive web content: headings, text, images, colour swatches. You can edit everything afterwards.</p>
+      <p className="mute" style={{ margin: 0 }}>Reads the Figma page and rebuilds every slide as live web content. Then edit it here exactly as the client will see it.</p>
       <div className="row"><button className="btn solid" disabled={busy} onClick={rebuild}>Build guidelines from Figma</button><span className="mute">{msg}</span></div>
       <TimedProgress label="Reading Figma and rebuilding every slide" expected={90} running={busy} />
     </div>
   );
 
+  const kitFor = (b: Block): EditKit => ({
+    text: (field: TextField, value, el) => <Editable key={field} value={value} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} onSave={(v) => editBlock(b.id, { [field]: v || undefined } as Partial<Block>)} />,
+    image: (target, m, imgEl) => <span className="ve-img">{imgEl}<span className="ve-imgbar">
+      <button onClick={() => pickImage(b.id, target)}>Replace</button>
+      {target !== 'backdrop' ? <button onClick={() => editBlock(b.id, { media: (b.media || []).map((x, i) => (i === target ? { ...x, kind: x.kind === 'photo' ? 'graphic' : 'photo' } : x)) })}>{m.kind === 'photo' ? 'Fit' : 'Fill'}</button> : null}
+      {target !== 'backdrop' && m.caption === undefined ? <button onClick={() => editBlock(b.id, { media: (b.media || []).map((x, i) => (i === target ? { ...x, caption: '' } : x)) })}>Caption</button> : null}
+      <button onClick={() => (target === 'backdrop' ? editBlock(b.id, { backdrop: undefined }) : editBlock(b.id, { media: (b.media || []).filter((_, i) => i !== target) }))}>Remove</button>
+    </span></span>,
+    caption: (i, value) => (value === undefined ? null : <Editable value={value} tag="p" className="gb-cap" placeholder="Caption" onSave={(v) => editBlock(b.id, { media: (b.media || []).map((x, k) => (k === i ? { ...x, caption: v || undefined } : x)) })} />),
+    swatch: (i, s) => { const set = (p: Partial<typeof s>) => editBlock(b.id, { swatches: (b.swatches || []).map((x, k) => (k === i ? { ...x, ...p } : x)) }); return (
+      <div key={i} className="gb-swc ve-sw" style={{ background: s.hex, color: textOn(s.hex) }}>
+        <Editable value={s.name} tag="span" className="gb-swn" placeholder="Name" onSave={(v) => set({ name: v || 'Colour' })} />
+        <span className="sw-meta"><Editable value={s.hex} tag="span" className="sw-hex" placeholder="#000000" onSave={(v) => { const h = v.trim().toUpperCase().replace(/^([0-9A-F]{6})$/, '#$1'); if (/^#[0-9A-F]{6}$/.test(h)) set({ hex: h }); }} /><Editable value={s.note} tag="span" className="" placeholder="Note, e.g. CMYK" onSave={(v) => set({ note: v || undefined })} /></span>
+        <span className="ve-swbar"><label title="Pick colour"><input type="color" value={/^#[0-9A-F]{6}$/i.test(s.hex) ? s.hex : '#000000'} onChange={(e) => set({ hex: e.target.value.toUpperCase() })} aria-label={`Colour for ${s.name}`} />●</label><button onClick={() => editBlock(b.id, { swatches: (b.swatches || []).filter((_, k) => k !== i) })} aria-label={`Remove ${s.name}`}>×</button></span>
+      </div>); },
+    addSwatch: () => <button key="add" className="gb-swc ve-add" onClick={() => editBlock(b.id, { swatches: [...(b.swatches || []), { name: 'Colour', hex: '#000000' }] })}>+ Swatch</button>,
+    addImage: () => <button key="addimg" className="ve-add ve-addimg" onClick={() => pickImage(b.id, 'new')}>+ Add image</button>
+  });
+
+  const subsIdx = (id: string) => { const subs = ch ? ch.blocks.filter((b) => b.kind === 'divider' && !b.hidden) : []; const k = subs.findIndex((b) => b.id === id); return k >= 0 ? String(k + 1).padStart(2, '0') : undefined; };
+  const hiddenCount = ch ? ch.blocks.filter((b) => b.hidden).length : 0;
+
   return (
-    <div className="ge">
+    <div className="ve">
       <style>{fontCss}</style>
-      <div className="ge-bar">
+      <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
+      <div className="ve-top">
         <button className="btn solid" disabled={busy} onClick={rebuild}>Rebuild from Figma</button>
         <a className="btn" href={`/p/${slug}/guidelines`} target="_blank" rel="noopener">Preview as client ↗</a>
+        <label className="row mute"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Show hidden{hiddenCount ? ` (${hiddenCount})` : ''}</label>
         <span className="mute" role="status">{msg}</span>
       </div>
-      {(guide.version || 1) < 2 ? <div className="card" role="status" style={{ borderColor: '#000' }}><p style={{ margin: 0 }}>These guidelines were built with an older version, so some pages may still show slide images.</p><p className="mute" style={{ margin: '4px 0 8px' }}>Rebuild to get live text, colour swatches you can click to copy, and subsections. Your edits are kept.</p><button className="btn solid" disabled={busy} onClick={rebuild}>Rebuild now</button></div> : null}
-      <TimedProgress label="Reading Figma and rebuilding every slide" expected={Math.max(45, guide.chapters.reduce((n, c) => n + c.blocks.length, 0) * 2)} running={busy} />
-      <div className="ge-grid">
-        <nav className="ge-chs" aria-label="Chapters">
-          {guide.chapters.map((c, i) => <button key={c.id} className={'ge-ch' + (c.id === chId ? ' on' : '') + (c.hidden ? ' off' : '')} onClick={() => { setChId(c.id); setOpen(null); }}><span className="mute">{String(i + 1).padStart(2, '0')}</span>{c.title}{c.hidden ? <span className="mute"> · hidden</span> : null}</button>)}
-          <button className="btn" style={{ marginTop: 8 }} onClick={addChapter}>+ Chapter</button>
-        </nav>
-        {ch ? <div className="ge-main">
-          <div className="card ge-chhead">
-            <div className="row" style={{ flexWrap: 'nowrap' }}>
-              <input className="in" aria-label="Chapter title" value={ch.title} onChange={(e) => setCh({ title: e.target.value, edited: true })} style={{ fontSize: 16 }} />
-              <button className="btn" onClick={() => moveCh(-1)} aria-label="Move chapter up">↑</button>
-              <button className="btn" onClick={() => moveCh(1)} aria-label="Move chapter down">↓</button>
-              <button className="btn" onClick={() => setCh({ hidden: !ch.hidden })}>{ch.hidden ? 'Show chapter' : 'Hide chapter'}</button>
-              {ch.id.startsWith('custom-') ? <button className="btn" onClick={() => { if (confirm('Delete this chapter?')) { commit({ ...guide, chapters: guide.chapters.filter((c) => c.id !== ch.id) }); setChId(guide.chapters[0]?.id || ''); } }}>Delete</button> : null}
-            </div>
-            <div className="ge-two">
-              <div className="cv-f"><label className="mute" htmlFor="ge-k">Label above the title</label><input id="ge-k" className="in" value={ch.kicker} onChange={(e) => setCh({ kicker: e.target.value, edited: true })} /></div>
-              <div className="cv-f"><label className="mute" htmlFor="ge-l">Introduction</label><textarea id="ge-l" className="ta" style={{ minHeight: 30 }} value={ch.lede} onChange={(e) => setCh({ lede: e.target.value, edited: true })} /></div>
-            </div>
-            {ch.rules.length ? <p className="mute" style={{ margin: 0 }}>{ch.rules.length} rule{ch.rules.length === 1 ? '' : 's'} from the review show under this chapter. Edit them in the Review tab.</p> : null}
-          </div>
+      {(g.version || 1) < 2 ? <div className="card" role="status" style={{ borderColor: '#000' }}><p style={{ margin: 0 }}>These guidelines were built with an older version, so some pages may still show slide images.</p><p className="mute" style={{ margin: '4px 0 8px' }}>Rebuild to get live text, colour swatches you can click to copy, and subsections. Your edits are kept.</p><button className="btn solid" disabled={busy} onClick={rebuild}>Rebuild now</button></div> : null}
+      <TimedProgress label="Reading Figma and rebuilding every slide" expected={Math.max(45, g.chapters.reduce((n, c) => n + c.blocks.length, 0) * 2)} running={busy} />
 
-          {ch.blocks.map((b, i) => (
-            <div key={b.id} className={'ge-block' + (b.hidden ? ' off' : '')}>
-              <div className="ge-btools">
-                <span className="tag">{KINDS.find(([k]) => k === b.kind)?.[1]}</span>
-                {b.source ? <span className="mute">{b.edited ? 'Edited · kept on rebuild' : 'From Figma'}</span> : <span className="mute">Added in the studio</span>}
-                <span style={{ flex: 1 }} />
-                <button className="btn" onClick={() => setOpen(open === b.id ? null : b.id)}>{open === b.id ? 'Done' : 'Edit'}</button>
-                <button className="btn" onClick={() => move(i, -1)} aria-label="Move up">↑</button>
-                <button className="btn" onClick={() => move(i, 1)} aria-label="Move down">↓</button>
-                <button className="btn" onClick={() => editBlock(b.id, { hidden: !b.hidden })}>{b.hidden ? 'Show' : 'Hide'}</button>
-                {b.original ? <button className={'btn' + (b.showOriginal ? ' solid' : '')} onClick={() => editBlock(b.id, { showOriginal: !b.showOriginal })} title="Show the Figma slide as a picture instead">Slide image</button> : null}
-                {b.source && b.edited ? <button className="btn" onClick={() => { if (confirm('Discard your edits? The block refreshes from Figma on the next rebuild.')) setBlocks(ch.blocks.map((x) => (x.id === b.id ? { ...x, edited: false } : x))); }}>Reset</button> : null}
-                {!b.source ? <button className="btn" onClick={() => setBlocks(ch.blocks.filter((x) => x.id !== b.id))}>Delete</button> : null}
-              </div>
-              <div className="ge-prev pt">{b.hidden ? <p className="mute" style={{ padding: 12, margin: 0 }}>Hidden from the client{b.heading ? `: ${b.heading}` : ''}</p> : <GuideBlock b={b} urls={urls} headingLevel={3} />}</div>
-              {open === b.id ? <BlockForm b={b} urls={urls} onChange={(p) => editBlock(b.id, p)} upload={upload} /> : null}
+      <div className="ve-grid">
+        <nav className="ve-chs" aria-label="Chapters">
+          <p className="ve-label">Chapters · drag to reorder</p>
+          {g.chapters.map((c, i) => <div key={c.id} draggable onDragStart={() => setDrag({ kind: 'chapter', id: c.id })} onDragOver={(e) => { if (drag?.kind === 'chapter') { e.preventDefault(); setOver(c.id); } }} onDrop={() => { if (drag?.kind === 'chapter') moveChapter(drag.id, c.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }}
+            className={'ve-ch' + (c.id === chId ? ' on' : '') + (c.hidden ? ' off' : '') + (over === c.id && drag?.kind === 'chapter' ? ' over' : '')}>
+            <button onClick={() => setChId(c.id)}><span className="pt-n">{String(i + 1).padStart(2, '0')}</span>{c.title}</button>
+            <button className="ve-eye" onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, hidden: !x.hidden } : x)))} aria-label={c.hidden ? `Show ${c.title}` : `Hide ${c.title}`} title={c.hidden ? 'Hidden from the client' : 'Hide from the client'}>{c.hidden ? '○' : '●'}</button>
+          </div>)}
+          <button className="btn" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); }}>+ Chapter</button>
+        </nav>
+
+        {ch ? <div className="ve-canvas pt">
+          <article className="pt-page ve-page">
+            <header className="pt-chhead ve-chhead">
+              <p className="mute"><span className="pt-n">{String(g.chapters.indexOf(ch) + 1).padStart(2, '0')}</span><Editable value={ch.kicker} tag="span" className="" placeholder="Label" onSave={(v) => setCh({ kicker: v, edited: true })} /></p>
+              <Editable value={ch.title} tag="h1" className="pt-display" placeholder="Chapter title" onSave={(v) => setCh({ title: v || 'Untitled', edited: true })} />
+              <Editable value={ch.lede} tag="p" className="pt-lede" placeholder="Add an introduction (optional)" multiline onSave={(v) => setCh({ lede: v, edited: true })} />
+              {ch.hidden ? <p className="tag">This chapter is hidden from the client</p> : null}
+            </header>
+
+            <div className="pt-blocks ve-blocks">
+              <Inserter open={menu === 'i0'} onOpen={() => setMenu(menu === 'i0' ? null : 'i0')} onPick={(k) => insertAt(0, k)} />
+              {ch.blocks.map((b, i) => (b.hidden && !showHidden ? null : (
+                <div key={b.id}>
+                  <div className={'ve-block' + (b.hidden ? ' off' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
+                    onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }}>
+                    <BlockBar b={b} onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragEnd={() => { setDrag(null); setOver(null); }} edit={(p) => editBlock(b.id, p)}
+                      onDuplicate={() => { const l = [...ch.blocks]; l.splice(i + 1, 0, { ...b, id: 'b-' + uid(), source: undefined, edited: true }); setBlocks(l); }}
+                      onDelete={() => (b.source ? editBlock(b.id, { hidden: true }) : setBlocks(ch.blocks.filter((x) => x.id !== b.id)))}
+                      onReset={b.source && b.edited ? () => { if (confirm('Discard your edits to this section? It refreshes from Figma on the next rebuild.')) setBlocks(ch.blocks.map((x) => (x.id === b.id ? { ...x, edited: false } : x))); } : undefined}
+                      onImage={() => pickImage(b.id, 'new')} onBackdrop={() => pickImage(b.id, 'backdrop')} />
+                    {b.hidden ? <p className="ve-hidden">Hidden from the client · <button onClick={() => editBlock(b.id, { hidden: false })}>Show</button></p> : null}
+                    <GuideBlock b={{ ...b, hidden: false }} urls={urls} headingLevel={3} number={b.kind === 'divider' ? subsIdx(b.id) : undefined} chapter={ch.title} edit={kitFor(b)} />
+                  </div>
+                  <Inserter open={menu === 'i' + (i + 1)} onOpen={() => setMenu(menu === 'i' + (i + 1) ? null : 'i' + (i + 1))} onPick={(k) => insertAt(i + 1, k)} />
+                </div>)))}
+              {!ch.blocks.length ? <p className="mute">This chapter is empty. Use + to add a section.</p> : null}
             </div>
-          ))}
-          <div className="row"><span className="mute">Add a section:</span>{KINDS.filter(([k]) => k !== 'cover').map(([k, l]) => <button key={k} className="btn" onClick={() => addBlock(k)}>+ {l}</button>)}</div>
+
+            {ch.rules.length ? <section className="pt-blk"><h2 className="pt-h2">The rules</h2><p className="mute" style={{ marginTop: -6 }}>From the review. Change them in the Review tab.</p><div className="pt-rules">{ch.rules.map((r, k) => <div key={k} className="pt-rule"><p className="pt-rule-h">{r.title}</p><p>{r.text}</p></div>)}</div></section> : null}
+          </article>
         </div> : null}
       </div>
-      <p className="mute">Built {new Date(guide.generatedAt).toLocaleString('en-GB')} from “{guide.page}” in {guide.file}.</p>
+      <p className="mute">Built {new Date(g.generatedAt).toLocaleString('en-GB')} from “{g.page}” in {g.file}. Sections you edit or add are kept when you rebuild.</p>
     </div>
   );
 }
 
-function BlockForm({ b, urls, onChange, upload }: { b: Block; urls: Record<string, string>; onChange: (p: Partial<Block>) => void; upload: (f: File) => Promise<BlockMedia | null> }) {
-  const media = b.media || [];
-  const setMedia = (m: BlockMedia[]) => onChange({ media: m });
-  const sw = b.swatches || [];
-  return (
-    <div className="ge-form">
-      <div className="ge-two">
-        <div className="cv-f"><label className="mute">Layout</label><select className="in" value={b.kind} onChange={(e) => onChange({ kind: e.target.value as BlockKind, side: e.target.value === 'split' ? b.side || 'right' : b.side })}>{KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
-        {b.kind === 'split' ? <div className="cv-f"><label className="mute">Image side</label><div className="row">{(['left', 'right'] as const).map((s) => <button key={s} className={'btn' + ((b.side || 'right') === s ? ' solid' : '')} onClick={() => onChange({ side: s })}>{s === 'left' ? 'Left' : 'Right'}</button>)}</div></div>
-          : b.kind === 'media' ? <div className="cv-f"><label className="mute">Columns</label><div className="row">{[1, 2, 3, 4].map((n) => <button key={n} className={'btn' + ((b.cols || 2) === n ? ' solid' : '')} onClick={() => onChange({ cols: n })}>{n}</button>)}</div></div> : <span />}
-      </div>
-      <div className="cv-f"><label className="mute">Small label</label><input className="in" value={b.eyebrow || ''} onChange={(e) => onChange({ eyebrow: e.target.value || undefined })} /></div>
-      <div className="cv-f"><label className="mute">Heading</label><textarea className="ta" style={{ minHeight: 36 }} value={b.heading || ''} onChange={(e) => onChange({ heading: e.target.value || undefined })} /></div>
-      <div className="cv-f"><label className="mute">Text <span>(blank line for a new paragraph)</span></label><textarea className="ta" style={{ minHeight: 110 }} value={b.body || ''} onChange={(e) => onChange({ body: e.target.value || undefined })} /></div>
-      <div className="ge-two">
-        <ColourField label="Background" value={b.bg} onChange={(v) => onChange({ bg: v })} />
-        <ColourField label="Text colour" value={b.ink} onChange={(v) => onChange({ ink: v })} />
-      </div>
-
-      {b.kind === 'swatches' ? <div className="cv-f">
-        <label className="mute">Swatches</label>
-        {sw.map((s, k) => <div key={k} className="row" style={{ flexWrap: 'nowrap' }}>
-          <input type="color" aria-label="Colour" value={/^#[0-9A-F]{6}$/i.test(s.hex) ? s.hex : '#000000'} onChange={(e) => onChange({ swatches: sw.map((x, j) => (j === k ? { ...x, hex: e.target.value.toUpperCase() } : x)) })} />
-          <input className="in" aria-label="Name" value={s.name} onChange={(e) => onChange({ swatches: sw.map((x, j) => (j === k ? { ...x, name: e.target.value } : x)) })} />
-          <input className="in" aria-label="Hex" style={{ width: 110 }} value={s.hex} onChange={(e) => onChange({ swatches: sw.map((x, j) => (j === k ? { ...x, hex: e.target.value.toUpperCase() } : x)) })} />
-          <input className="in" aria-label="Note, e.g. CMYK or Pantone" placeholder="CMYK / Pantone" value={s.note || ''} onChange={(e) => onChange({ swatches: sw.map((x, j) => (j === k ? { ...x, note: e.target.value || undefined } : x)) })} />
-          <button className="fm-x" aria-label={`Remove ${s.name}`} onClick={() => onChange({ swatches: sw.filter((_, j) => j !== k) })}>×</button>
-        </div>)}
-        <div className="row"><button className="btn" onClick={() => onChange({ swatches: [...sw, { name: 'Colour', hex: '#000000' }] })}>+ Swatch</button></div>
-      </div> : null}
-
-      <div className="cv-f">
-        <label className="mute">Images</label>
-        {media.map((m, k) => <div key={m.path} className="ge-media">
-          {urls[m.path] ? <img src={urls[m.path]} alt="" /> : <span className="mute">missing</span>}
-          <input className="in" aria-label="Caption" placeholder="Caption (optional)" value={m.caption || ''} onChange={(e) => setMedia(media.map((x, j) => (j === k ? { ...x, caption: e.target.value || undefined } : x)))} />
-          <select className="fm-sel" aria-label="Image fit" value={m.kind} onChange={(e) => setMedia(media.map((x, j) => (j === k ? { ...x, kind: e.target.value as BlockMedia['kind'] } : x)))}><option value="photo">Photo</option><option value="graphic">Graphic</option></select>
-          <button className="btn" onClick={() => { const l = [...media]; if (k > 0) { [l[k - 1], l[k]] = [l[k], l[k - 1]]; setMedia(l); } }} aria-label="Move image earlier">↑</button>
-          <label className="btn">Replace<input type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; const up = await upload(f); if (up) setMedia(media.map((x, j) => (j === k ? { ...up, caption: x.caption } : x))); }} /></label>
-          <button className="fm-x" aria-label="Remove image" onClick={() => setMedia(media.filter((_, j) => j !== k))}>×</button>
-        </div>)}
-        <div className="row">
-          <label className="btn">+ Add image<input type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; const up = await upload(f); if (up) setMedia([...media, up]); }} /></label>
-          {b.kind === 'cover' || b.backdrop ? <>
-            <label className="btn">{b.backdrop ? 'Replace background image' : 'Add background image'}<input type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; const up = await upload(f); if (up) onChange({ backdrop: up }); }} /></label>
-            {b.backdrop ? <button className="btn" onClick={() => onChange({ backdrop: undefined })}>Remove background</button> : null}
-          </> : null}
-        </div>
-      </div>
-    </div>
-  );
+function Inserter({ open, onOpen, onPick }: { open: boolean; onOpen: () => void; onPick: (k: BlockKind) => void }) {
+  return <div className={'ve-ins' + (open ? ' open' : '')}>
+    <button className="ve-ins-btn" onClick={onOpen} aria-expanded={open} aria-label="Add a section here">+</button>
+    {open ? <div className="ve-menu" role="menu">{KINDS.map(([k, l]) => <button key={k} role="menuitem" onClick={() => onPick(k)}><KindIcon k={k} />{l}</button>)}</div> : null}
+  </div>;
 }
 
-function ColourField({ label, value, onChange }: { label: string; value?: string; onChange: (v?: string) => void }) {
+function KindIcon({ k }: { k: BlockKind }) {
+  const r = { cover: 'M3 3h18v18H3z M6 15h8', divider: 'M3 6h18 M3 12h9 M15 10h6v6h-6z', text: 'M4 6h16 M4 10h16 M4 14h11', split: 'M3 5h8v14H3z M14 7h7 M14 11h7 M14 15h5', media: 'M3 5h8v6H3z M13 5h8v6h-8z M3 13h8v6H3z M13 13h8v6h-8z', swatches: 'M3 6h5v12H3z M10 6h5v12h-5z M17 6h4v12h-4z' }[k];
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden><path d={r} /></svg>;
+}
+
+// The toolbar that appears on a section: layout, text style, colour, images, order, visibility.
+function BlockBar({ b, edit, onDragStart, onDragEnd, onDuplicate, onDelete, onReset, onImage, onBackdrop }: { b: Block; edit: (p: Partial<Block>) => void; onDragStart: () => void; onDragEnd: () => void; onDuplicate: () => void; onDelete: () => void; onReset?: () => void; onImage: () => void; onBackdrop: () => void }) {
+  const [pop, setPop] = useState<'layout' | 'type' | 'colour' | null>(null);
+  const seg = <T extends string | number>(cur: T | undefined, opts: [T, string][], set: (v: T) => void) => <div className="ve-seg">{opts.map(([v, l]) => <button key={String(v)} className={cur === v ? 'on' : ''} onClick={() => set(v)}>{l}</button>)}</div>;
   return (
-    <div className="cv-f"><label className="mute">{label}</label>
-      <div className="row" style={{ flexWrap: 'nowrap' }}>
-        <input type="color" aria-label={label} value={value && /^#[0-9A-F]{6}$/i.test(value) ? value : '#FFFFFF'} onChange={(e) => onChange(e.target.value.toUpperCase())} />
-        <input className="in" aria-label={`${label} hex`} placeholder="Automatic" value={value || ''} onChange={(e) => onChange(e.target.value.toUpperCase() || undefined)} />
-        {value ? <button className="btn" onClick={() => onChange(undefined)}>Auto</button> : null}
-      </div>
+    <div className="ve-bar" onMouseLeave={() => setPop(null)}>
+      <span className="ve-handle" draggable onDragStart={onDragStart} onDragEnd={onDragEnd} title="Drag to move" aria-label="Drag to move">⋮⋮</span>
+      <div className="ve-pop-wrap"><button onClick={() => setPop(pop === 'layout' ? null : 'layout')} aria-expanded={pop === 'layout'}><KindIcon k={b.kind} />{KINDS.find(([k]) => k === b.kind)?.[1]}</button>
+        {pop === 'layout' ? <div className="ve-pop">
+          {KINDS.map(([k, l]) => <button key={k} className={'ve-row' + (b.kind === k ? ' on' : '')} onClick={() => edit({ kind: k, side: k === 'split' ? b.side || 'right' : b.side })}><KindIcon k={k} />{l}</button>)}
+          {b.kind === 'split' ? <><p className="ve-label">Image side</p>{seg(b.side || 'right', [['left', 'Left'], ['right', 'Right']], (v) => edit({ side: v }))}</> : null}
+          {b.kind === 'media' ? <><p className="ve-label">Columns</p>{seg(b.cols || 2, [[1, '1'], [2, '2'], [3, '3'], [4, '4']], (v) => edit({ cols: v }))}</> : null}
+        </div> : null}</div>
+      <div className="ve-pop-wrap"><button onClick={() => setPop(pop === 'type' ? null : 'type')} aria-expanded={pop === 'type'} title="Text style"><span style={{ fontWeight: 500 }}>Aa</span></button>
+        {pop === 'type' ? <div className="ve-pop">
+          <p className="ve-label">Headline size</p>{seg(b.headSize, [['S', 'S'], ['M', 'M'], ['L', 'L'], ['XL', 'XL']], (v) => edit({ headSize: v }))}
+          <p className="ve-label">Text size</p>{seg(b.bodySize, [['S', 'S'], ['M', 'M'], ['L', 'L']], (v) => edit({ bodySize: v }))}
+          <p className="ve-label">Text columns</p>{seg(b.bodyCols || 1, [[1, '1'], [2, '2'], [3, '3']], (v) => edit({ bodyCols: v }))}
+          <p className="ve-label">Align</p>{seg(b.align || 'left', [['left', 'Left'], ['center', 'Centre']], (v) => edit({ align: v }))}
+        </div> : null}</div>
+      <div className="ve-pop-wrap"><button onClick={() => setPop(pop === 'colour' ? null : 'colour')} aria-expanded={pop === 'colour'} title="Colours"><span className="ve-dot" style={{ background: b.bg || '#fff' }} /></button>
+        {pop === 'colour' ? <div className="ve-pop">
+          <p className="ve-label">Background</p><div className="row"><input type="color" value={b.bg && /^#[0-9A-F]{6}$/i.test(b.bg) ? b.bg : '#FFFFFF'} onChange={(e) => edit({ bg: e.target.value.toUpperCase() })} aria-label="Background colour" /><button className="btn" onClick={() => edit({ bg: undefined })}>None</button></div>
+          <p className="ve-label">Text</p><div className="row"><input type="color" value={b.ink && /^#[0-9A-F]{6}$/i.test(b.ink) ? b.ink : '#000000'} onChange={(e) => edit({ ink: e.target.value.toUpperCase() })} aria-label="Text colour" /><button className="btn" onClick={() => edit({ ink: undefined })}>Auto</button></div>
+          <p className="ve-label">Background image</p><div className="row"><button className="btn" onClick={onBackdrop}>{b.backdrop ? 'Replace' : 'Add'}</button>{b.backdrop ? <button className="btn" onClick={() => edit({ backdrop: undefined })}>Remove</button> : null}</div>
+        </div> : null}</div>
+      {b.kind !== 'text' && b.kind !== 'swatches' ? <button onClick={onImage} title="Add image">+ Image</button> : null}
+      {b.original ? <button className={b.showOriginal ? 'on' : ''} onClick={() => edit({ showOriginal: !b.showOriginal })} title="Show the Figma slide as a picture instead">Slide</button> : null}
+      <span className="ve-sep" />
+      <button onClick={onDuplicate} title="Duplicate">Duplicate</button>
+      {onReset ? <button onClick={onReset} title="Discard edits">Reset</button> : null}
+      <button onClick={() => edit({ hidden: !b.hidden })}>{b.hidden ? 'Show' : 'Hide'}</button>
+      {!b.source ? <button onClick={onDelete} title="Delete">Delete</button> : null}
     </div>
   );
 }
