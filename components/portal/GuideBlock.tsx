@@ -1,4 +1,5 @@
 import type { Block } from '@/lib/figma/blocks';
+import { Swatch } from '@/components/portal/Swatch';
 
 // Renders one guideline block as responsive web content. Used by the client portal and the studio preview.
 // `urls` maps stored image paths to signed URLs.
@@ -12,7 +13,7 @@ function Paras({ text, className }: { text?: string; className?: string }) {
   return <div className={className}>{text.split(/\n{2,}/).map((p, i) => <p key={i}>{p.split('\n').map((l, j, a) => <span key={j}>{l}{j < a.length - 1 ? <br /> : null}</span>)}</p>)}</div>;
 }
 
-export function GuideBlock({ b, urls, headingLevel = 2 }: { b: Block; urls: Record<string, string>; headingLevel?: 2 | 3 }) {
+export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter }: { b: Block; urls: Record<string, string>; headingLevel?: 2 | 3; number?: string; anchor?: string; chapter?: string }) {
   if (b.hidden) return null;
   const H = (headingLevel === 2 ? 'h2' : 'h3') as 'h2';
   const back = b.backdrop && urls[b.backdrop.path];
@@ -39,10 +40,22 @@ export function GuideBlock({ b, urls, headingLevel = 2 }: { b: Block; urls: Reco
       {mediaEl && !back ? mediaEl : null}
     </section>
   );
+  // A subsection start: generous space, the number and headline, and the asset it introduces
+  if (b.kind === 'divider') return (
+    <section id={anchor} className={'gb gb-div' + (back ? ' has-back on-dark' : '')} style={bg && bg.toUpperCase() !== '#FFFFFF' && !back ? style : ink && !bg ? { color: ink } : undefined}>
+      {back ? <img className="gb-back" src={back} alt="" /> : null}
+      <div className="gb-div-txt gb-in">
+        <p className="gb-div-n">{[number, b.eyebrow || chapter].filter(Boolean).join(' · ')}</p>
+        <H className="gb-div-h">{b.heading}</H>
+        <Paras text={b.body} className="gb-body lg" />
+      </div>
+      {media.length ? <div className={'gb-div-art' + (bg && bg.toUpperCase() !== '#FFFFFF' ? '' : ' plain')}>{media.slice(0, 2).map((m) => <img key={m.path} src={urls[m.path]} alt={m.caption || b.heading || ''} />)}</div> : null}
+    </section>
+  );
   if (b.kind === 'swatches') return (
     <section className={'gb' + (padded ? ' pad' : '')} style={style}>
       {head}<Paras text={b.body} className="gb-body" />
-      <div className="gb-sw">{(b.swatches || []).map((s) => <div key={s.hex + s.name} className="gb-swc" style={{ background: s.hex, color: textOn(s.hex) }}><span className="gb-swn">{s.name}</span><span>{s.hex}<br /><span style={{ opacity: .75 }}>{s.note || rgb(s.hex)}</span></span></div>)}</div>
+      <div className="gb-sw">{(b.swatches || []).map((s) => <Swatch key={s.hex + s.name} name={s.name} hex={s.hex} note={s.note || rgb(s.hex)} ink={textOn(s.hex)} />)}</div>
       {mediaEl}
     </section>
   );

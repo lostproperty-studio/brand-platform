@@ -9,7 +9,7 @@ export type FNode = {
   style?: { fontSize?: number; fontWeight?: number; textCase?: string; fontFamily?: string };
 };
 
-export type BlockKind = 'cover' | 'text' | 'split' | 'media' | 'swatches';
+export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swatches';
 export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string };
 export type BlockSwatch = { name: string; hex: string; note?: string };
 export type Block = {
@@ -28,10 +28,14 @@ export type Visual = { nodeId: string; kind: 'photo' | 'graphic'; w: number; h: 
 type Box = { x: number; y: number; w: number; h: number };
 type T = { id: string; text: string; size: number; box: Box; hex: string | null; upper: boolean; lower: boolean };
 type V = { id: string; kind: 'photo' | 'graphic'; box: Box };
-type R = { id: string; hex: string; box: Box };
+type R = { id: string; hex: string; box: Box; base?: string; alpha?: number };
 
 const hexOf = (c: { r: number; g: number; b: number }) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 const solid = (n: FNode) => (n.fills || []).find((f) => f.type === 'SOLID' && f.visible !== false && (f.opacity ?? 1) > 0.5 && f.color);
+// Any visible solid fill with its effective opacity (fill opacity × layer opacity), for tints like "black at 80%"
+const tint = (n: FNode) => { const f = (n.fills || []).find((x) => x.type === 'SOLID' && x.visible !== false && x.color); return f ? { color: f.color!, alpha: (f.opacity ?? 1) * (n.opacity ?? 1) } : null; };
+const mix = (c: { r: number; g: number; b: number }, a: number, over: string) => { const o = [1, 3, 5].map((i) => parseInt(over.slice(i, i + 2), 16) / 255); return hexOf({ r: c.r * a + o[0] * (1 - a), g: c.g * a + o[1] * (1 - a), b: c.b * a + o[2] * (1 - a) }); };
+const BASE_NAMES: Record<string, string> = { '#000000': 'Black', '#FFFFFF': 'White' };
 const hasImage = (n: FNode) => (n.fills || []).some((f) => f.type === 'IMAGE' && f.visible !== false);
 const hasText = (n: FNode): boolean => n.type === 'TEXT' ? !!n.characters?.trim() : (n.children || []).some((c) => c.visible !== false && hasText(c));
 const area = (b: Box) => b.w * b.h;
@@ -54,7 +58,7 @@ export function furnitureText(frames: FNode[]) {
   return new Set([...seen.entries()].filter(([t, n]) => n >= min && t.length < 60).map(([t]) => t));
 }
 
-export function frameToBlock(frame: FNode, opts: { cover?: boolean; furniture?: Set<string> } = {}): { block: Omit<Block, 'original'>; visuals: Visual[] } | null {
+export function frameToBlock(frame: FNode, opts: { cover?: boolean; colour?: boolean; furniture?: Set<string> } = {}): { block: Omit<Block, 'original'>; visuals: Visual[] } | null {
   const fb0 = frame.absoluteBoundingBox!;
   const F: Box = { x: fb0.x, y: fb0.y, w: fb0.width, h: fb0.height };
   const FA = area(F);
@@ -75,10 +79,10 @@ export function frameToBlock(frame: FNode, opts: { cover?: boolean; furniture?: 
     if (n.type === 'LINE') return;
     if (hasImage(n)) { if (area(b) / FA > 0.004) visuals.push({ id: n.id, kind: 'photo', box: b }); return; }
     if (!hasText(n)) {
-      const s = solid(n);
-      const plainShape = (n.type === 'RECTANGLE' || n.type === 'ELLIPSE' || ((n.type === 'FRAME' || n.type === 'INSTANCE') && !(n.children || []).some((c) => c.visible !== false))) && s;
-      if (plainShape && area(b) / FA >= 0.85) { bg = hexOf(s!.color!); return; }
-      if (plainShape) { if (area(b) / FA > 0.003) rects.push({ id: n.id, hex: hexOf(s!.color!), box: b }); return; }
+      const s = solid(n), t = tint(n);
+      const shape = n.type === 'RECTANGLE' || n.type === 'ELLIPSE' || ((n.type === 'FRAME' || n.type === 'INSTANCE') && !(n.children || []).some((c) => c.visible !== false));
+      if (shape && s && area(b) / FA >= 0.85 && (t?.alpha ?? 1) > 0.99) { bg = hexOf(s.color!); return; }
+      if (shape && t && t.alpha > 0.01) { if (area(b) / FA > 0.003) rects.push({ id: n.id, hex: t.alpha > 0.99 ? hexOf(t.color) : mix(t.color, t.alpha, bg || '#FFFFFF'), base: hexOf(t.color), alpha: t.alpha, box: b }); return; }
       if (GRAPHIC.has(n.type) && area(b) / FA > 0.002) visuals.push({ id: n.id, kind: 'graphic', box: b });
       return;
     }
@@ -96,13 +100,29 @@ export function frameToBlock(frame: FNode, opts: { cover?: boolean; furniture?: 
     const near = texts.filter((t) => !used.has(t.id) && xOverlap(t.box, r.box) > Math.min(t.box.w, r.box.w) * 0.5 && t.box.y >= r.box.y - 4 && t.box.y <= r.box.y + r.box.h + Math.max(60, r.box.h * 0.6));
     const hexT = near.find((t) => HEXRE.test(t.text));
     if (!hexT) continue;
-    const hex = '#' + hexT.text.match(HEXRE)![1].toUpperCase();
+    const written = '#' + hexT.text.match(HEXRE)![1].toUpperCase();
+    const isTint = (r.alpha ?? 1) < 0.99;
+    const hex = isTint ? r.hex : written;
     if (swatches.some((s) => s.hex === hex)) continue;
     const nameT = near.filter((t) => t !== hexT && /[a-z]{3,}/i.test(t.text) && !/\b(rgb|cmyk|pms|pantone|ral)\b/i.test(t.text)).sort((a, b) => b.size - a.size)[0];
     const own = hexT.text.replace(new RegExp(HEXRE.source, 'gi'), '').replace(/\bhex\b[:\s]*/i, '').trim();
     const note = near.filter((t) => t !== hexT && t !== nameT && /\b(rgb|cmyk|pms|pantone|ral)\b/i.test(t.text)).map((t) => t.text.replace(/\n/g, ' · ')).join(' · ');
-    swatches.push({ name: nameT?.text.split('\n')[0] || (/[a-z]{3,}/i.test(own) ? own : hex), hex, note: note || undefined });
+    const pct = isTint ? Math.round((r.alpha ?? 1) * 100) : null;
+    swatches.push({ name: nameT?.text.split('\n')[0] || (pct !== null ? `${BASE_NAMES[r.base!] || r.base} ${pct}%` : /[a-z]{3,}/i.test(own) ? own : hex), hex, note: [pct !== null ? `${r.base} at ${pct}%` : '', note].filter(Boolean).join(' · ') || undefined });
     near.forEach((t) => used.add(t.id));
+  }
+
+  // On colour pages, filled tiles are swatches even when no hex is written beside them: the fill is the value
+  if (opts.colour) {
+    for (const r of rects.filter((x) => area(x.box) / FA > 0.01).sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x)) {
+      if (swatches.some((s) => s.hex === r.hex) || (bg && r.hex === bg)) continue;
+      const near = texts.filter((t) => !used.has(t.id) && xOverlap(t.box, r.box) > Math.min(t.box.w, r.box.w) * 0.5 && t.box.y >= r.box.y - 4 && t.box.y <= r.box.y + r.box.h + Math.max(60, r.box.h * 0.6));
+      const nameT = near.filter((t) => /[a-z]{3,}/i.test(t.text) && !/\b(rgb|cmyk|pms|pantone|ral)\b/i.test(t.text)).sort((a, b) => b.size - a.size)[0];
+      const note = near.filter((t) => t !== nameT && /\b(rgb|cmyk|pms|pantone|ral)\b|\d+%/i.test(t.text)).map((t) => t.text.replace(/\n/g, ' · ')).join(' · ');
+      const pct = (r.alpha ?? 1) < 0.99 ? Math.round((r.alpha ?? 1) * 100) : null;
+      swatches.push({ name: nameT?.text.split('\n')[0] || (pct !== null ? `${BASE_NAMES[r.base!] || r.base} ${pct}%` : BASE_NAMES[r.hex] || r.hex), hex: r.hex, note: [pct !== null ? `${r.base} at ${pct}%` : '', note].filter(Boolean).join(' · ') || undefined });
+      near.forEach((t) => used.add(t.id));
+    }
   }
 
   // Keep the meaningful images: drop tiny decorations when there are many, and graphics inside photos
@@ -140,6 +160,9 @@ export function frameToBlock(frame: FNode, opts: { cover?: boolean; furniture?: 
   const visBox = vis.length ? union(vis.map((v) => v.box)) : null;
   let kind: BlockKind = opts.cover || (backdrop && !vis.length && rest.length) ? 'cover' : swatches.length >= 2 ? 'swatches' : !vis.length ? (backdrop && !rest.length ? 'media' : 'text') : 'media';
   if (kind === 'media' && !vis.length && backdrop) vis = [backdrop];
+  const otherChars = rest.filter((t) => !joinedHeading.includes(t) && t !== eyebrow).reduce((n, t) => n + t.text.length, 0);
+  const bigHead = !!heading && (heading.size >= F.w * 0.03 || rest.length === 1);
+  if (!opts.cover && kind !== 'swatches' && bigHead && otherChars <= 140 && vis.length <= 2 && (heading?.text.length || 0) <= 60) kind = 'divider';
   let side: 'left' | 'right' | undefined;
   if (kind === 'media' && textBox && visBox && xOverlap(textBox, visBox) < Math.min(textBox.w, visBox.w) * 0.25) { kind = 'split'; side = visBox.x + visBox.w / 2 > textBox.x + textBox.w / 2 ? 'right' : 'left'; }
   const rows: V[][] = [];

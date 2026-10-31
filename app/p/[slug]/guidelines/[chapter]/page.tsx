@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { chapterNum, chapterSlug, downloadUrl, portalContext, signFrames } from '@/lib/portal/context';
-import { CopyHex, TypeTester } from '@/components/portal/Interactive';
+import { TypeTester } from '@/components/portal/Interactive';
 import { fontState } from '@/lib/fonts';
 import { GuideBlock } from '@/components/portal/GuideBlock';
+import { SubNav } from '@/components/portal/SubNav';
+import { Swatch } from '@/components/portal/Swatch';
 
 const textOn = (hex: string) => { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#000' : '#fff'; };
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB ${n >> 16} ${(n >> 8) & 255} ${n & 255}`; };
@@ -19,6 +21,8 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   const c = chapters[idx];
   const urls = await signFrames(c.blocks.flatMap((b) => [b.original, b.backdrop?.path, ...(b.media || []).map((m) => m.path)]).filter(Boolean) as string[]);
   const hasCover = c.blocks[0]?.kind === 'cover' && !c.blocks[0].hidden;
+  // Subsections: each divider slide starts one (e.g. Wordmark, Symbol, How to use)
+  const subs = c.blocks.filter((b) => b.kind === 'divider' && !b.hidden && b.heading).map((b) => ({ id: 's-' + b.id.replace(/[^a-z0-9]/gi, '-'), title: b.heading!.replace(/\n/g, ' '), block: b.id }));
   const dl = c.key && DOWNLOADS[c.key] ? ctx.files.filter((f) => DOWNLOADS[c.key!][0].test(f.path) && !/LICENCE|manifest/.test(f.path)) : [];
   const dlLinks = await Promise.all(dl.slice(0, 24).map(async (f) => ({ ...f, href: await downloadUrl(f, ctx.preview, slug) })));
   const prev = chapters[idx - 1], next = chapters[idx + 1];
@@ -32,9 +36,10 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
         {c.lede ? <p className="pt-lede">{c.lede}</p> : null}
       </header>
 
-      {c.key === 'colour' && ctx.snap?.colours.length ? <section className="pt-blk" aria-labelledby="h-c">
+      {c.key === 'colour' && ctx.snap?.colours.length && !c.blocks.some((b) => b.kind === 'swatches' && !b.hidden) ? <section className="pt-blk" aria-labelledby="h-c">
         <h2 id="h-c" className="pt-h2">The colours</h2>
-        <div className="pt-cc">{ctx.snap.colours.map((col) => <div key={col.hex} className="pt-ccc" style={{ background: col.hex, color: textOn(col.hex) }}><span className="pt-ccn">{col.name}</span><span><CopyHex hex={col.hex} /><br /><span style={{ opacity: .75 }}>{rgb(col.hex)}</span></span></div>)}</div>
+        <p className="mute" style={{ marginTop: -6 }}>Click a colour to copy its HEX code.</p>
+        <div className="pt-cc">{ctx.snap.colours.map((col) => <Swatch key={col.hex} className="pt-ccc" name={col.name} hex={col.hex} note={[col.role, rgb(col.hex)].filter(Boolean).join(' · ')} ink={textOn(col.hex)} />)}</div>
       </section> : null}
 
       {c.key === 'type' && ctx.fonts.some((f) => f.name) ? <section className="pt-blk" aria-labelledby="h-t">
@@ -42,7 +47,8 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
         <TypeTester fonts={ctx.fonts.filter((f) => f.name).map((f) => ({ role: f.role, label: f.label, name: f.name, hasFiles: f.files.length > 0, licensed: fontState(f) === 'licensed', weights: [...new Set(f.files.map((x) => x.weight))].sort() }))} />
       </section> : null}
 
-      <div className="pt-blocks">{c.blocks.map((b, k) => <GuideBlock key={b.id} b={b} urls={urls} headingLevel={k === 0 && hasCover ? 2 : 3} />)}</div>
+      {subs.length > 1 ? <SubNav items={subs} /> : null}
+      <div className="pt-blocks">{c.blocks.map((b, k) => { const si = subs.findIndex((x) => x.block === b.id); return <GuideBlock key={b.id} b={b} urls={urls} headingLevel={k === 0 && hasCover ? 2 : 3} anchor={si >= 0 ? subs[si].id : undefined} number={si >= 0 ? String(si + 1).padStart(2, '0') : undefined} chapter={c.title} />; })}</div>
 
       {c.rules.length ? <section className="pt-blk" aria-labelledby="h-r">
         <h2 id="h-r" className="pt-h2">The rules</h2>

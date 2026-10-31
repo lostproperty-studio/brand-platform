@@ -5,7 +5,7 @@ import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/po
 import { GuideBlock } from '@/components/portal/GuideBlock';
 import { TimedProgress } from '@/components/Progress';
 
-const KINDS: [BlockKind, string][] = [['cover', 'Cover'], ['text', 'Text'], ['split', 'Text + image'], ['media', 'Images'], ['swatches', 'Colour swatches']];
+const KINDS: [BlockKind, string][] = [['cover', 'Cover'], ['divider', 'Subsection start'], ['text', 'Text'], ['split', 'Text + image'], ['media', 'Images'], ['swatches', 'Colour swatches']];
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 // Studio editing of the client guidelines. Each Figma slide is rebuilt as a block; edit its words, images,
@@ -75,6 +75,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         <a className="btn" href={`/p/${slug}/guidelines`} target="_blank" rel="noopener">Preview as client ↗</a>
         <span className="mute" role="status">{msg}</span>
       </div>
+      {(guide.version || 1) < 2 ? <div className="card" role="status" style={{ borderColor: '#000' }}><p style={{ margin: 0 }}>These guidelines were built with an older version, so some pages may still show slide images.</p><p className="mute" style={{ margin: '4px 0 8px' }}>Rebuild to get live text, colour swatches you can click to copy, and subsections. Your edits are kept.</p><button className="btn solid" disabled={busy} onClick={rebuild}>Rebuild now</button></div> : null}
       <TimedProgress label="Reading Figma and rebuilding every slide" expected={Math.max(45, guide.chapters.reduce((n, c) => n + c.blocks.length, 0) * 2)} running={busy} />
       <div className="ge-grid">
         <nav className="ge-chs" aria-label="Chapters">

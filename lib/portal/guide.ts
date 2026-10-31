@@ -11,7 +11,8 @@ export type { Block, BlockKind, BlockMedia } from '@/lib/figma/blocks';
 export type GuideRule = { title: string; text: string };
 export type GuideChapter = { id: string; key: string | null; title: string; kicker: string; lede: string; hidden?: boolean; edited?: boolean; blocks: Block[]; rules: GuideRule[] };
 export type GuideColour = { name: string; hex: string; role: string };
-export type Guide = { generatedAt: string; file: string; page: string; chapters: GuideChapter[]; colours: GuideColour[] };
+export type Guide = { version?: number; generatedAt: string; file: string; page: string; chapters: GuideChapter[]; colours: GuideColour[] };
+export const GUIDE_VERSION = 2;
 
 const KEYS: [RegExp, string][] = [
   [/logo|wordmark|marque|symbol|lock-?up|identity/i, 'logo'], [/typo|type|font/i, 'type'], [/colou?r|palette/i, 'colour'],
@@ -59,7 +60,8 @@ export function readColours(blocks: Block[], frames: ScanFrame[]): GuideColour[]
 /** Keeps the studio's work across a rebuild: edited and added blocks stay, the rest refresh. */
 function mergeBlocks(fresh: Block[], prev: Block[]): Block[] {
   const prevById = new Map(prev.map((b) => [b.id, b]));
-  const out = fresh.map((b) => { const p = prevById.get(b.id); return p?.edited ? { ...p, original: b.original } : p ? { ...b, hidden: p.hidden, showOriginal: p.showOriginal } : b; });
+  // Untouched blocks refresh completely from Figma (only whether they're hidden carries over)
+  const out = fresh.map((b) => { const p = prevById.get(b.id); return p?.edited ? { ...p, original: b.original } : p ? { ...b, hidden: p.hidden } : b; });
   // Blocks the studio added (no Figma source) go back after the block they followed
   prev.forEach((b, i) => {
     if (b.source) return;
@@ -85,7 +87,7 @@ export async function buildGuide(projectId: string) {
   const furniture = furnitureText(slides);
 
   // 1. Blocks and the image layers they need
-  const perChapter = scan.chapters.map((c) => c.frames.map((f, i) => { const n = nodeById.get(f.id); const r = n ? frameToBlock(n, { cover: i === 0, furniture }) : null; return r ? { frame: f, ...r } : null; }).filter(Boolean) as { frame: ScanFrame; block: Omit<Block, 'original'>; visuals: Visual[] }[]);
+  const perChapter = scan.chapters.map((c) => c.frames.map((f, i) => { const n = nodeById.get(f.id); const r = n ? frameToBlock(n, { cover: i === 0, colour: keyFor(clean(c.title)) === 'colour', furniture }) : null; return r ? { frame: f, ...r } : null; }).filter(Boolean) as { frame: ScanFrame; block: Omit<Block, 'original'>; visuals: Visual[] }[]);
   const all = perChapter.flat();
   const photos = all.flatMap((x) => x.visuals.filter((v) => v.kind === 'photo' || v.share > 0.25));
   const vectors = all.flatMap((x) => x.visuals.filter((v) => v.kind === 'graphic' && v.share <= 0.25));
@@ -155,7 +157,7 @@ export async function buildGuide(projectId: string) {
 
   const colourCh = chapters.filter((c) => c.key === 'colour');
   const colourFrames = scan.chapters.filter((c) => keyFor(clean(c.title)) === 'colour').flatMap((c) => c.frames);
-  const guide: Guide = { generatedAt: new Date().toISOString(), file: scan.fileName, page: scan.pageName, chapters, colours: readColours(colourCh.flatMap((c) => c.blocks), colourFrames.length ? colourFrames : scan.chapters.flatMap((c) => c.frames)) };
+  const guide: Guide = { version: GUIDE_VERSION, generatedAt: new Date().toISOString(), file: scan.fileName, page: scan.pageName, chapters, colours: readColours(colourCh.flatMap((c) => c.blocks), colourFrames.length ? colourFrames : scan.chapters.flatMap((c) => c.frames)) };
 
   const brand = (p.brand || {}) as { core?: { name: string; hex: string; note?: string }[] };
   const update: Record<string, unknown> = { content: { ...content, guide } };
