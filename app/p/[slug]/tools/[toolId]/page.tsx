@@ -22,7 +22,9 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   const { data } = used.length ? await adminClient().storage.from('kits').createSignedUrls(used.map((f) => f.storage_path!), 6 * 3600) : { data: [] };
   const byStorage = Object.fromEntries((data || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
   const assets = Object.fromEntries(used.filter((f) => byStorage[f.storage_path!]).map((f) => [f.path, byStorage[f.storage_path!]]));
-  const html = await prepareToolHtml(tool, ctx, await signFontUrls(ctx.fonts, 6 * 3600), assets);
+  const { data: pr } = await adminClient().from('projects').select('content').eq('id', ctx.project.id).single();
+  const settings = ((pr?.content as { toolSettings?: Record<string, { artwork?: string }> } | null)?.toolSettings || {})[tool.id] || {};
+  const html = await prepareToolHtml(tool, ctx, await signFontUrls(ctx.fonts, 6 * 3600), assets, settings);
   if (!html) return <div className="tl-full"><header className="tl-bar">{head}</header><div className="tl-body"><p className="mute">This tool’s file couldn’t be loaded.</p></div></div>;
   return <ToolRunner slug={slug} toolId={tool.id} name={tool.name} html={html} aiEnabled={tool.ai_enabled} aiConnected={!!ctx.project.ai_key_hint} canConnect={ctx.access.clientAdmin} head={head} />;
 }

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon, ICON_NAMES } from '@/lib/icons';
 
 type Tool = { id: string; kind: 'html' | 'layouts'; name: string; icon: string; description: string; styling: 'full' | 'light' | 'none'; ai_enabled: boolean; visible: boolean; ord: number; updated_at: string };
-const STYLING = { full: 'Platform look', light: 'Brand fonts only', none: 'As uploaded' } as const;
+const STYLING = { full: 'Reskin to the platform', light: 'Brand fonts only', none: 'As uploaded' } as const;
 
 // Studio: tools for this client. Upload a self-contained HTML tool; the portal shows it as an app in the brand's look.
 export function ToolManager({ projectId, slug }: { projectId: string; slug: string }) {
@@ -57,6 +57,7 @@ export function ToolManager({ projectId, slug }: { projectId: string; slug: stri
               {t.kind === 'html' ? <select className="fm-sel" aria-label="Styling" value={t.styling} onChange={(e) => patch(t, { styling: e.target.value as Tool['styling'] })}>{Object.entries(STYLING).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select> : <span className="tag">Built in</span>}
               {t.kind === 'html' ? <label className="row mute"><input type="checkbox" checked={t.ai_enabled} onChange={(e) => patch(t, { ai_enabled: e.target.checked })} /> AI</label> : null}
             </div>
+            {t.kind === 'html' && t.styling === 'full' ? <ArtworkField projectId={projectId} toolId={t.id} /> : null}
           </div>
           <div className="row" style={{ alignSelf: 'flex-start' }}>
             <button className="btn" onClick={() => move(i, -1)} aria-label="Move up">↑</button>
@@ -67,10 +68,21 @@ export function ToolManager({ projectId, slug }: { projectId: string; slug: stri
           </div>
         </div>))}
       <details className="card"><summary>Making a tool work well with AI</summary><div className="mute" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+        <p style={{ margin: 0 }}>“Reskin to the platform” restyles the whole interface: portal colours, brand fonts, type sizes, spacing, buttons and inputs, whatever the tool’s own CSS says. The artwork the tool makes is left alone: canvases, SVGs and areas named like preview, poster, artboard or stage are found automatically. If something in the artwork gets restyled, enter its CSS selector under Artwork area, or add <code>data-lp-artwork</code> to it in the HTML.</p>
         <p style={{ margin: 0 }}>The AI reads the tool’s visible controls (inputs, dropdowns, buttons, editable text) and fills them in. Give each control a clear label (a &lt;label&gt;, aria-label or placeholder) and use dropdowns for fixed choices like sizes.</p>
         <p style={{ margin: 0 }}>Keep the tool in one HTML file. Scripts and fonts from CDNs are fine. Brand files are available as <code>window.LP_BRAND.assets</code> (logo SVGs, tokens) and brand colours as CSS variables <code>--lp-colour-1</code> and up.</p>
         <p style={{ margin: 0 }}>Tools run in a protected frame. Browser storage is kept per person on their device; “Save this version” in the portal keeps their work in their account.</p>
       </div></details>
     </div>
   );
+}
+
+// The part of a tool that is the artwork (kept exactly as the tool draws it when the interface is reskinned)
+function ArtworkField({ projectId, toolId }: { projectId: string; toolId: string }) {
+  const [v, setV] = useState<string | null>(null);
+  const [saved, setSaved] = useState('');
+  useEffect(() => { fetch(`/api/projects/${projectId}/tools/${toolId}`).then((r) => r.json()).then((j) => setV(j.settings?.artwork || '')); }, [projectId, toolId]);
+  if (v === null) return null;
+  const save = async () => { const r = await fetch(`/api/projects/${projectId}/tools/${toolId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ artwork: v }) }); setSaved(r.ok ? 'Saved' : 'Couldn’t save'); setTimeout(() => setSaved(''), 1500); };
+  return <div className="row" style={{ flexWrap: 'nowrap' }}><label className="mute" htmlFor={`aw-${toolId}`} style={{ whiteSpace: 'nowrap' }}>Artwork area</label><input id={`aw-${toolId}`} className="in" placeholder="Found automatically. Or a CSS selector, e.g. #poster" value={v} onChange={(e) => setV(e.target.value)} onBlur={save} /><span className="mute">{saved}</span></div>;
 }

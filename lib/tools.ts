@@ -1,5 +1,6 @@
 import { adminClient } from '@/lib/supabase/server';
 import type { PortalCtx } from '@/lib/portal/context';
+import { RESKIN } from '@/lib/reskin';
 
 export type Tool = { id: string; project_id: string; kind: 'html' | 'layouts'; name: string; icon: string; description: string; html_path: string | null; styling: 'full' | 'light' | 'none'; ai_enabled: boolean; visible: boolean; ord: number; updated_at: string };
 export const TOOL_BUCKET = 'uploads';
@@ -71,7 +72,7 @@ export const BRIDGE = `
 const CSS_FORMAT: Record<string, string> = { woff2: 'woff2', woff: 'woff', otf: 'opentype', ttf: 'truetype' };
 
 /** The tool's HTML, repackaged for the portal: brand fonts and colours, the platform's look, brand assets, and the bridge. */
-export async function prepareToolHtml(tool: Tool, ctx: PortalCtx, fontUrls: Record<string, string>, assetUrls: Record<string, string>) {
+export async function prepareToolHtml(tool: Tool, ctx: PortalCtx, fontUrls: Record<string, string>, assetUrls: Record<string, string>, settings: { artwork?: string } = {}) {
   if (!tool.html_path) return null;
   const { data, error } = await adminClient().storage.from(TOOL_BUCKET).download(tool.html_path);
   if (error || !data) return null;
@@ -84,20 +85,11 @@ export async function prepareToolHtml(tool: Tool, ctx: PortalCtx, fontUrls: Reco
   const ink = '#000000', bg = '#FFFFFF';
   const vars = `:root{--lp-display:${display ? `"brand-${display.role}",` : ''}${JSON.stringify(display?.name || 'Helvetica Neue')},sans-serif;--lp-body:${body ? `"brand-${body.role}",` : ''}${JSON.stringify(body?.name || 'Helvetica Neue')},sans-serif;--lp-ink:${ink};--lp-bg:${bg};--lp-line:#ededed;--lp-fill:#f5f5f5;${colours.slice(0, 12).map((c, i) => `--lp-colour-${i + 1}:${c.hex};`).join('')}}`;
   const light = `html,body{font-family:var(--lp-body)!important}h1,h2,h3,h4{font-family:var(--lp-display)!important}button,input,select,textarea{font-family:inherit!important}`;
-  // Zero-specificity rules: tools without their own styling look native; a tool's own classes still win
-  const full = light + `
-:where(body){margin:0;padding:20px;background:var(--lp-bg);color:var(--lp-ink);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
-:where(h1,h2,h3){font-weight:400;letter-spacing:-.01em;line-height:1.1}
-:where(button,input[type=button],input[type=submit]){border:0;border-radius:999px;background:#efefef;min-height:30px;padding:0 14px;font-size:13px;cursor:pointer;color:inherit}
-:where(button:hover){background:#e4e4e4}
-:where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),select){height:32px;border:0;border-radius:999px;background:#efefef;padding:0 12px;font-size:13px;color:inherit}
-:where(textarea){border:0;border-radius:10px;background:#efefef;padding:8px 12px;font-size:13px;color:inherit}
-:where(input,select,textarea,button):focus-visible{outline:2px solid #000;outline-offset:1px}
-:where(label){font-size:12px;color:#767676}
-:where(input[type=range]){accent-color:#000}`;
-  const style = tool.styling === 'none' ? '' : `<style id="lp-theme">${faces}\n${vars}\n${tool.styling === 'full' ? full : light}</style>`;
+  // 'full' restyles the whole interface at runtime (see lib/reskin.ts); 'light' only swaps in the brand fonts
+  const style = tool.styling === 'none' ? '' : `<style id="lp-theme">${faces}\n${vars}\n${tool.styling === 'light' ? light : ''}</style>`;
+  const reskin = tool.styling === 'full' ? `<script>window.LP_RESKIN=${JSON.stringify({ display: `"brand-${display?.role || 'display'}",${JSON.stringify(display?.name || 'Helvetica Neue')},sans-serif`, body: `"brand-${body?.role || 'body'}",${JSON.stringify(body?.name || 'Helvetica Neue')},sans-serif`, artwork: settings.artwork || '' }).replace(/</g, '\\u003c')};</script><script>${RESKIN}</script>` : '';
   const brand = { client: ctx.project.client, colours, fonts: fonts.filter((f) => f.name).map((f) => ({ role: f.role, name: f.name, family: `brand-${f.role}` })), assets: assetUrls };
-  const head = `<script>window.LP_BRAND=${JSON.stringify(brand).replace(/</g, '\\u003c')};</script><script>${BRIDGE}</script>`;
+  const head = `<script>window.LP_BRAND=${JSON.stringify(brand).replace(/</g, '\\u003c')};</script><script>${BRIDGE}</script>${reskin}`;
   // Bridge first in <head> (so the storage stand-in exists before the tool's scripts run); theme last so it applies over the tool's base styles
   html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + head) : head + html;
   html = /<\/head>/i.test(html) ? html.replace(/<\/head>/i, style + '</head>') : style + html;
