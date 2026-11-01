@@ -1,3 +1,4 @@
+import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { requireStaff } from '@/lib/supabase/server';
 import { buildGuide, normaliseGuide, type BuildMode, type Guide } from '@/lib/portal/guide';
@@ -12,6 +13,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const st = await requireStaff();
   if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'guidelines'); if (gate) return gate; }
   try {
     const body = await req.json().catch(() => ({}));
     const mode: BuildMode = ['update', 'add', 'fresh'].includes(body?.mode) ? body.mode : 'update';

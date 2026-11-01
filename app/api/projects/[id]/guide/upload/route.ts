@@ -1,3 +1,4 @@
+import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
@@ -8,6 +9,7 @@ const TYPES: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg',
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'guidelines'); if (gate) return gate; }
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
   if (!(file instanceof File)) return NextResponse.json({ error: 'No file received.' }, { status: 400 });

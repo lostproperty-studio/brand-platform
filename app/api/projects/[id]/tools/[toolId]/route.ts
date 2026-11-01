@@ -1,3 +1,4 @@
+import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
@@ -10,6 +11,7 @@ const Patch = z.object({ name: z.string().min(1).max(60).optional(), icon: z.str
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; toolId: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id, toolId } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'tools'); if (gate) return gate; }
   const sb = adminClient();
   const { data: tool } = await sb.from('tools').select('kind, html_path').eq('id', toolId).eq('project_id', id).maybeSingle();
   if (!tool) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -37,6 +39,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; t
 export async function GET(_: Request, ctx: { params: Promise<{ id: string; toolId: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id, toolId } = await ctx.params;
+  { const gate = await teamGate(id, st, 'viewer', 'tools'); if (gate) return gate; }
   const { data: pr } = await adminClient().from('projects').select('content').eq('id', id).single();
   return NextResponse.json({ settings: ((pr?.content as { toolSettings?: Record<string, unknown> } | null)?.toolSettings || {})[toolId] || {} });
 }
@@ -44,6 +47,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string; toolI
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string; toolId: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id, toolId } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'tools'); if (gate) return gate; }
   const sb = adminClient();
   const { data: tool } = await sb.from('tools').select('kind, html_path').eq('id', toolId).eq('project_id', id).maybeSingle();
   if (!tool) return NextResponse.json({ tools: await listTools(id, true) });

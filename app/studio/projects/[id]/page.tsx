@@ -28,6 +28,10 @@ import { resolvePackages } from '@/lib/portal/packages';
 import { buildSnapshot } from '@/lib/projects/snapshot';
 import type { KitFileRow } from '@/lib/portal/context';
 import { tierLabel, tierOf } from '@/lib/playbook';
+import { Overview, type OverviewData } from '@/components/Overview';
+import { portalShot } from '@/lib/projects/overview';
+import { env } from '@/lib/env';
+import { teamGate, teamRole } from '@/lib/studioTeam';
 
 const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['resources', 'Resources'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
@@ -43,10 +47,15 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content').eq('id', id).maybeSingle();
   if (!p) notFound();
+  // The studio team: people not on a project's team can't open it; viewers see it read-only
+  const me = await requireStaff();
+  const myRole = me instanceof Response ? null : await teamRole(id, me);
+  if (!myRole) return <div className="ov-denied"><h1>You’re not on the {p.client} team</h1><p className="mute">Ask the project’s lead to add you, then reload this page.</p><Link className="btn" href="/studio">← Projects</Link></div>;
 
   async function setPartStatus(form: FormData) {
     'use server';
     const s = await requireStaff(); if (s instanceof Response) return;
+    if (await teamGate(id, s, 'editor', 'deliverables')) return;
     await adminClient().from('deliverable_parts').update({ status: String(form.get('status')) }).eq('id', String(form.get('part')));
     redirect(`/studio/projects/${id}?tab=resources#deliverables`);
   }
@@ -72,24 +81,51 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       ...(!tier ? [{ ok: false, title: 'Guide tier not set', note: 'Choose Essentials, Standard or Comprehensive below.', href: '', cta: '' }] : []),
       { ok: !!p.repo_full_name, title: p.repo_full_name ? 'Kit built' : 'Kit not built yet', note: '', href: '', cta: '' }
     ];
-    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>
-      {sp.created ? <div className="card" style={{ background: '#000', color: '#fff' }}>Project created and kit built. The client portal stays in draft until you publish it.{sp.skipped ? ' You skipped the review; pick it up from the checklist below.' : ''}</div> : null}
-      <h1 style={{ fontSize: 28, fontWeight: 400, margin: 0 }}>{p.client}</h1>
-      <p className="mute" style={{ margin: 0 }}>{p.line}</p>
-      <div className="card">
-        <p style={{ margin: '0 0 4px' }}>Before you publish</p>
-        <div className="ck">{checks.map((c) => <div key={c.title} className="ck-row"><span className={'dot ' + (c.ok ? 'done' : 'warn')} /><div><p>{c.title}</p>{c.note ? <p className="mute">{c.note}</p> : null}</div>{c.href ? <Link className="btn" href={c.href}>{c.cta}</Link> : null}</div>)}</div>
-      </div>
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <p style={{ margin: 0 }}>Portal: <a href={`/p/${p.slug}`}>/p/{p.slug}</a> · <span className={'tag ' + p.status}>{p.status}</span></p>
-        <p style={{ margin: 0 }}>Kit repository: {p.repo_full_name ? <a href={`https://github.com/${p.repo_full_name}`} target="_blank" rel="noopener">{p.repo_full_name}</a> : <span className="mute">not built yet</span>} · v{p.kit_version}</p>
-        <p style={{ margin: 0 }}>Figma: {p.figma_key ? <a href={`https://www.figma.com/design/${p.figma_key}`} target="_blank" rel="noopener">open file</a> : <span className="mute">not linked</span>}</p>
-        <p style={{ margin: 0 }}>Client AI: {p.ai_key_hint ? `connected (key ending ${p.ai_key_hint})` : <span className="mute">not connected; the client adds their key in portal settings</span>}</p>
-      </div>
+    // The dashboard: portal status, sharing and views, edits, team, files
+    const since30 = new Date(Date.now() - 30 * 864e5).toISOString();
+    const [{ data: ver }, { data: links }, members, { data: act }, { data: edited }, { data: staffRows }, shot] = await Promise.all([
+      sb.from('project_versions').select('version, published_by, created_at').eq('project_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      sb.from('invite_links').select('uses, revoked, expires_at, created_at').eq('project_id', id),
+      listMembers(id),
+      sb.from('activity').select('user_id, kind, detail, created_at').eq('project_id', id).gte('created_at', since30).order('created_at', { ascending: false }).limit(3000),
+      sb.from('projects').select('last_edited_by, last_edited_at, updated_at').eq('id', id).maybeSingle(),
+      sb.from('staff').select('user_id, email, name'),
+      portalShot(id, content, p.figma_key)
+    ]);
+    const staffName = (uid?: string | null) => { const s0 = (staffRows || []).find((x) => x.user_id === uid); return s0 ? s0.name || String(s0.email).split('@')[0] : null; };
+    const memberName = (uid?: string | null) => members.find((m) => m.user_id === uid)?.email || staffName(uid) || 'Someone';
+    const a30 = act || [];
+    const clientAct = a30.filter((x) => x.kind !== 'edit');
+    const visits = clientAct.filter((x) => x.kind === 'visit');
+    const days = Array.from({ length: 30 }, (_, k) => { const d0 = new Date(Date.now() - (29 - k) * 864e5).toDateString(); return visits.filter((v) => new Date(v.created_at).toDateString() === d0).length; });
+    const VERB: Record<string, string> = { visit: 'visited the portal', download: 'downloaded', tool: 'opened', skill: 'downloaded the skill', ask: 'asked a question', join: 'joined as', upload: 'uploaded' };
+    const activeLinks = (links || []).filter((l) => !l.revoked && (!l.expires_at || new Date(l.expires_at) > new Date()));
+    const lastEdit = (edited as { last_edited_by?: string; last_edited_at?: string } | null)?.last_edited_at ? edited as { last_edited_by?: string; last_edited_at: string } : null;
+    const editAt = lastEdit?.last_edited_at || (edited as { updated_at?: string } | null)?.updated_at || null;
+    const data: OverviewData = {
+      projectId: id, client: p.client, line: p.line || '', slug: p.slug, status: p.status as OverviewData['status'], portalUrl: `${env.appUrl()}/p/${p.slug}`,
+      heroUrl: shot.hero, logoUrl: shot.logo,
+      published: ver ? { at: ver.created_at, version: ver.version, by: staffName(ver.published_by) } : null,
+      changedSince: !!ver && !!editAt && new Date(editAt) > new Date(ver.created_at),
+      share: { links: activeLinks.length, linkUses: (links || []).reduce((n, l) => n + (l.uses || 0), 0), members: members.length, firstAt: [...(links || []).map((l) => l.created_at), ...members.map((m) => m.created_at)].sort()[0] || null, pending: 0 },
+      views: { total: visits.length, viewers: new Set(visits.map((v) => v.user_id)).size, last: visits[0] ? { who: memberName(visits[0].user_id), at: visits[0].created_at } : null, days,
+        recent: clientAct.slice(0, 8).map((x) => ({ who: memberName(x.user_id), what: [VERB[x.kind] || x.kind, x.kind === 'visit' ? '' : x.detail || ''].filter(Boolean).join(' '), at: x.created_at, kind: x.kind })) },
+      edit: lastEdit ? { who: staffName(lastEdit.last_edited_by) || 'a teammate', at: lastEdit.last_edited_at } : null,
+      edits: a30.filter((x) => x.kind === 'edit').map((x) => ({ who: staffName(x.user_id) || 'Someone', area: x.detail || 'project', at: x.created_at })),
+      figma: p.figma_key ? { key: p.figma_key, ...shot.figma } : null,
+      repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null,
+      chapters: guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length : 0,
+      checks
+    };
+    body = <div className="ov-wrap">
+      <Overview d={data} created={!!sp.created} skipped={!!sp.skipped} />
+      <h2 className="ov-sec-h">Settings</h2>
+      <div className="ov-settings">
       <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
       <HomeIntro projectId={p.id} value={(content as { homeIntro?: string }).homeIntro || ''} fallback={defaultIntro(p.client)} />
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
       <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
+      </div>
     </div>;
   }
   if (tab === 'guidelines') {
@@ -212,6 +248,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <h1 className="pj-title">{p.client}</h1>
         <div className="pj-nav"><ProjectTabs id={id} tabs={TABS} current={tab} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
       </header>
+      {myRole === 'viewer' ? <p className="ov-viewer" role="note">You’re a viewer on this project, so changes you try to make won’t be saved.</p> : null}
       <div id="pj-panel" role="tabpanel" aria-label={TABS.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>{body}</div>
     </div>
   );

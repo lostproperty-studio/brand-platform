@@ -1,3 +1,4 @@
+import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { buildSnapshot } from '@/lib/projects/snapshot';
@@ -10,6 +11,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const st = await requireStaff();
   if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'publish'); if (gate) return gate; }
   const body = await req.json().catch(() => ({})) as { allowTrialFonts?: boolean };
   const { fonts } = await readFonts(id);
   const pending = fontsNeedingLicence(fonts);

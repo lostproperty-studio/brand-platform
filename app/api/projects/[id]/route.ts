@@ -1,3 +1,4 @@
+import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
@@ -10,6 +11,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const st = await requireStaff();
   if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'project'); if (gate) return gate; }
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const { figmaUrl, tier, content, ...rest } = b.data;
@@ -48,6 +50,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   const st = await requireStaff();
   if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'lead', 'project'); if (gate) return gate; }
   const b = Del.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const sb = adminClient();

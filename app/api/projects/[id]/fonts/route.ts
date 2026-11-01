@@ -1,3 +1,4 @@
+import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -14,6 +15,7 @@ const respond = async (fonts: ProjectFont[]) => NextResponse.json({ fonts, urls:
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'viewer', 'typefaces'); if (gate) return gate; }
   return respond((await readFonts(id)).fonts);
 }
 
@@ -22,6 +24,7 @@ const Meta = z.object({ fonts: z.array(z.object({ role: z.string().min(1).max(40
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'typefaces'); if (gate) return gate; }
   const b = Meta.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const { fonts, brand } = await readFonts(id);
@@ -38,6 +41,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'typefaces'); if (gate) return gate; }
   const form = await req.formData().catch(() => null);
   if (!form) return NextResponse.json({ error: 'Send the files as a form upload.' }, { status: 400 });
   const role = String(form.get('role') || '');
@@ -82,6 +86,7 @@ const FilePatch = z.object({ role: z.string(), path: z.string(), licence: z.enum
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'typefaces'); if (gate) return gate; }
   const b = FilePatch.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const { fonts, brand } = await readFonts(id);
@@ -97,6 +102,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'typefaces'); if (gate) return gate; }
   const { searchParams } = new URL(req.url);
   const role = searchParams.get('role'), path = searchParams.get('path');
   const { fonts, brand } = await readFonts(id);

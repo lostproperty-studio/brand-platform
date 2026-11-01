@@ -1,3 +1,4 @@
+import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
@@ -7,12 +8,15 @@ import { ICON_NAMES } from '@/lib/icons';
 // Studio: the project's tools. Upload a self-contained HTML file to add one.
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
-  return NextResponse.json({ tools: await listTools((await ctx.params).id, true) });
+  const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'viewer', 'tools'); if (gate) return gate; }
+  return NextResponse.json({ tools: await listTools(id, true) });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'tools'); if (gate) return gate; }
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
   const name = String(form?.get('name') || '').trim().slice(0, 60);

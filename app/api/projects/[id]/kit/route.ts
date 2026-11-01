@@ -1,3 +1,4 @@
+import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { buildKit } from '@/lib/kit/build';
@@ -19,6 +20,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const st = await requireStaff();
   if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'kit'); if (gate) return gate; }
   const sb = adminClient();
   const { input, figmaKey } = await kitInputFor(id);
   if (figmaKey) await attachAssetBytes(input, figmaKey);

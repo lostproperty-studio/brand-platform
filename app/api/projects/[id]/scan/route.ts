@@ -1,3 +1,4 @@
+import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
@@ -13,6 +14,7 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
   if (st instanceof Response) return st;
   const { user } = st;
   const { id } = await ctx.params;
+  { const gate = await teamGate(id, st, 'editor', 'review'); if (gate) return gate; }
   const sb = adminClient();
   const { data: p, error } = await sb.from('projects').select('client, figma_key, figma_page_id').eq('id', id).single();
   if (error || !p?.figma_key) return NextResponse.json({ error: 'Link a Figma file first.' }, { status: 400 });
