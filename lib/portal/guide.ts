@@ -2,6 +2,8 @@ import { adminClient } from '@/lib/supabase/server';
 import { exportNodes, fetchPage, scanFigmaPage, type ScanFrame } from '@/lib/figma/scan';
 import { blockText, frameToBlock, furnitureText, furnitureVisuals, type Block, type BlockMedia, type FNode, type Visual } from '@/lib/figma/blocks';
 import { resolvedText } from '@/lib/kit/fromProject';
+import { templatePages } from '@/lib/figma/template';
+import { buildGuideFromTemplate } from '@/lib/portal/templateBuild';
 
 // The client-facing guidelines, rebuilt from the Figma page as responsive web content.
 // Each row of frames is a chapter; each frame becomes a block (heading, text, images, swatches, layout).
@@ -21,8 +23,8 @@ const KEYS: [RegExp, string][] = [
   [/grid|layout|composition|spacing/i, 'layout'], [/imag|photo|art direction|illustrat|pattern|graphic/i, 'imagery'],
   [/voice|tone|copy|writing|messag|verbal/i, 'voice'], [/icon/i, 'icons'], [/applicat|example|in use|touchpoint/i, 'applications']
 ];
-const CHAPTER_NAMES: Record<string, string> = { logo: 'Logo', type: 'Typography', colour: 'Colour', layout: 'Grid & layout', imagery: 'Imagery', voice: 'Tone of voice' };
-const keyFor = (title: string) => KEYS.find(([re]) => re.test(title))?.[1] ?? null;
+export const CHAPTER_NAMES: Record<string, string> = { logo: 'Logo', type: 'Typography', colour: 'Colour', layout: 'Grid & layout', imagery: 'Imagery', voice: 'Tone of voice' };
+export const keyFor = (title: string) => KEYS.find(([re]) => re.test(title))?.[1] ?? null;
 const clean = (t: string) => t.replace(/^\s*(chapter\s*)?\d{1,2}[.)\s:–-]*/i, '').replace(/\s+/g, ' ').trim();
 const HEX = /#?\b([0-9A-F]{6})\b/i;
 
@@ -62,7 +64,7 @@ export function readColours(blocks: Block[], frames: ScanFrame[]): GuideColour[]
 }
 
 /** Keeps the studio's work across a rebuild: edited and added blocks stay, the rest refresh. */
-function mergeBlocks(fresh: Block[], prev: Block[]): Block[] {
+export function mergeBlocks(fresh: Block[], prev: Block[]): Block[] {
   const prevById = new Map(prev.map((b) => [b.id, b]));
   // Untouched blocks refresh completely from Figma (only whether they're hidden carries over)
   const out = fresh.map((b) => { const p = prevById.get(b.id); return p?.edited ? { ...p, original: b.original } : p ? { ...b, hidden: p.hidden } : b; });
@@ -84,6 +86,9 @@ export async function buildGuide(projectId: string) {
   const { data: p, error } = await sb.from('projects').select('figma_key, figma_page_id, content, brand').eq('id', projectId).single();
   if (error) throw error;
   if (!p.figma_key) throw new Error('Link a Figma file first.');
+  // A file made from the studio's guidelines template is read by its layer names, not interpreted
+  const tp = await templatePages(p.figma_key).catch(() => null);
+  if (tp) return buildGuideFromTemplate(projectId, p as { figma_key: string; content: unknown; brand: unknown }, tp);
   const fetched = await fetchPage(p.figma_key, p.figma_page_id);
   const scan = await scanFigmaPage(p.figma_key, p.figma_page_id, fetched);
   const nodeById = new Map<string, FNode>(((fetched.root as unknown as FNode).children || []).map((n) => [n.id, n]));

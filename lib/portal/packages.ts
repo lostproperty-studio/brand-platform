@@ -9,7 +9,7 @@ import type { ProjectFont } from '@/lib/fonts';
 // only sees packages with something in them, so a simple brand stays simple.
 
 export type PackageKind = 'logos' | 'colours' | 'fonts' | 'avatars' | 'icons' | 'images' | 'graphics' | 'custom' | 'tokens' | 'guidelines' | 'templates' | 'team';
-export type PkgFile = { name: string; path: string; bytes: number; type: string };
+export type PkgFile = { name: string; path: string; bytes: number; type: string; /** Came from the Figma template; replaced on each rescan */ fromFigma?: boolean };
 export type PackageSettings = { title?: string; purpose?: string; hidden?: boolean; enabled?: boolean; files?: PkgFile[]; cover?: string };
 export type PackageMap = Record<string, PackageSettings>;
 export type Section = 'brand' | 'elements' | 'builders' | 'team';

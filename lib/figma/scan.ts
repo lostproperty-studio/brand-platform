@@ -25,7 +25,7 @@ export type FigmaScan = {
 
 const API = 'https://api.figma.com/v1';
 // Figma's API sometimes fails on big requests or when busy (500, 502, 503, 429): retry with a short wait.
-async function figma<T>(path: string, tries = 3): Promise<T> {
+export async function figma<T>(path: string, tries = 3): Promise<T> {
   let last = '';
   for (let i = 0; i < tries; i++) {
     const r = await fetch(API + path, { headers: { 'X-Figma-Token': env.figmaToken() }, cache: 'no-store' });
@@ -56,7 +56,8 @@ const GENERIC = /^(frame|group|rectangle|vector|image|ellipse|line|union)\s*\d*$
 export async function fetchPage(fileKey: string, pageId: string | null) {
   const meta = await figma<{ name: string; lastModified: string; document: Node; styles: Record<string, { name: string; styleType: string }> }>(`/files/${fileKey}?depth=1`);
   const pages = meta.document.children || [];
-  const page = (pageId && pages.find((p) => p.id === pageId)) || pages.find((p) => /brand\s*guide/i.test(p.name)) || pages[0];
+  // A file made from the studio template keeps its guideline pages on the page named Guidelines
+  const page = (pageId && pages.find((p) => p.id === pageId)) || pages.find((p) => /^guidelines$/i.test(p.name.trim())) || pages.find((p) => /brand\s*guide/i.test(p.name)) || pages[0];
   if (!page) throw new Error('The file has no pages.');
   try {
     const full = await figma<{ nodes: Record<string, { document: Node }> }>(`/files/${fileKey}/nodes?ids=${encodeURIComponent(page.id)}`, 2);
