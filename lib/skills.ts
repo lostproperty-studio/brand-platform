@@ -1,3 +1,4 @@
+import { aboutMd } from '@/lib/brandForm';
 import type { Snapshot } from '@/lib/ai/project';
 import type { ProjectFont } from '@/lib/fonts';
 import { chapterText } from '@/lib/portal/guide';
@@ -24,7 +25,7 @@ export function brandReference(snap: Snapshot, fonts: ProjectFont[], files: stri
 
 ${snap.line}
 
-## Colours
+${aboutMd(snap.form)}## Colours
 | Name | Hex | Use |
 | --- | --- | --- |
 ${snap.colours.map((c) => `| ${c.name} | ${c.hex} | ${c.role || ''} |`).join('\n')}
@@ -44,7 +45,7 @@ ${chapters.map((c) => {
     return `## ${c.title}\n${rules ? `\n### Rules\n${rules}\n` : ''}${text ? `\n### Guidance\n${text}\n` : ''}`;
   }).join('\n')}
 
-${aiRulesMd({ client: snap.client, files, watchouts: watchoutsFrom(chapters.flatMap(chapterText)), donts: aiDonts })}
+${aiRulesMd({ client: snap.client, files, watchouts: watchoutsFrom(chapters.flatMap(chapterText)), donts: aiDonts, form: snap.form })}
 `;
 }
 

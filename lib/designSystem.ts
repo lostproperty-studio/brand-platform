@@ -1,3 +1,4 @@
+import { aboutMd } from '@/lib/brandForm';
 import type { Snapshot } from '@/lib/ai/project';
 import type { ProjectFont } from '@/lib/fonts';
 import { chapterText } from '@/lib/portal/guide';
@@ -106,10 +107,11 @@ Spacing steps 4, 8, 16, 24, 40, 64 px (\`--space-1\` to \`--space-6\`). Corner r
 ## Files
 ${[...logos.map((f) => `- \`${f}\``), ...tokens.map((f) => `- \`${f}\``), ...fontFiles.map((f) => `- \`${f}\``)].join('\n') || '- None yet.'}
 
+${aboutMd(snap.form)}
 ## The guidelines
 ${chapters.map((c) => { const t = chapterText(c).filter((x) => x.length > 2).map((x) => x.replace(/\n+/g, ' ')).join(' ').slice(0, 1800); const rules = c.rules.map((x) => `- ${x.title}: ${x.text}`).join('\n'); return `### ${c.title}\n${rules ? rules + '\n' : ''}${t}`; }).join('\n\n')}
 
-${aiRulesMd({ client, files, watchouts: watchoutsFrom(chapters.flatMap(chapterText)), donts: aiDonts })}
+${aiRulesMd({ client, files, watchouts: watchoutsFrom(chapters.flatMap(chapterText)), donts: aiDonts, form: snap.form })}
 `;
 
   const skill = `---

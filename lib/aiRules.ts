@@ -1,4 +1,5 @@
 import { DEFAULT_AI_DONTS } from '@/lib/playbook';
+import { formLogo, lines, type BrandForm } from '@/lib/brandForm';
 
 // The stricter layer the kit, the Claude skills and the portal's Ask give AI. People read the guide and use judgement;
 // AI averages, so it gets precise positive rules, "logo in use" instead of clear space, and a short fixed list of don'ts.
@@ -20,8 +21,13 @@ export function watchoutsFrom(texts: string[]) {
   return [...new Set(texts.flatMap((t) => t.split(/\n+/)).map((t) => t.trim()).filter((t) => t.length > 12 && t.length < 260 && WATCH.test(t)))].slice(0, 20);
 }
 
-export function aiRulesMd({ client, files, watchouts = [], donts = DEFAULT_AI_DONTS }: { client: string; files: string[]; watchouts?: string[]; donts?: string[] }) {
-  const { logos, dark, light, colour } = logoByBackground(files);
+export function aiRulesMd({ client, files, watchouts = [], donts = DEFAULT_AI_DONTS, form }: { client: string; files: string[]; watchouts?: string[]; donts?: string[]; form?: BrandForm }) {
+  const auto = logoByBackground(files);
+  // Logos picked in the brand form win over what the file names suggest
+  const pickL = formLogo(auto.logos, form?.['logo light']), pickD = formLogo(auto.logos, form?.['logo dark']);
+  const light = pickL.length ? pickL : auto.light, dark = pickD.length ? pickD : auto.dark;
+  const logos = auto.logos, colour = logos.filter((f) => !light.includes(f) && !dark.includes(f));
+  donts = [...donts, ...lines(form?.donts).filter((d) => !donts.includes(d))];
   const list = (xs: string[]) => xs.map((x) => `\`${x}\``).join(', ');
   const which = logos.length ? [
     light.length ? `- On light backgrounds: ${list(light)}` : '',

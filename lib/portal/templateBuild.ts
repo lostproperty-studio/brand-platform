@@ -3,6 +3,8 @@ import { exportNodes } from '@/lib/figma/scan';
 import { frameToTemplateBlock, readTemplate, type TemplatePages } from '@/lib/figma/template';
 import { CHAPTER_NAMES, GUIDE_VERSION, guidePaths, keyFor, mergeBlocks, normaliseGuide, type Block, type BlockMedia, type Guide, type GuideChapter } from '@/lib/portal/guide';
 import { packageSettings, type PackageMap, type PkgFile } from '@/lib/portal/packages';
+import { lines } from '@/lib/brandForm';
+import { TIERS } from '@/lib/playbook';
 import { readShowcase, type ShowcaseRow } from '@/lib/showcase';
 
 // Builds a project's first draft from a Figma file made from the studio's guidelines template:
@@ -59,7 +61,7 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key: 
       kicker: prev?.edited ? prev.kicker : (key ? CHAPTER_NAMES[key] || '' : ''),
       lede: prev?.edited ? prev.lede : c.intro || '',
       hidden: prev?.hidden, removed: prev?.removed, edited: prev?.edited,
-      thumb, thumbSample: prev?.thumbSample, thumbWords: prev?.thumbWords,
+      thumb, thumbSample: prev?.thumbSample, thumbWords: prev?.thumbWords || (key === 'voice' && t.form['voice words'] ? lines(t.form['voice words']).slice(0, 3).join(', ') : undefined),
       blocks: prev ? mergeBlocks(blocks, prev.blocks) : blocks,
       rules: []
     };
@@ -105,7 +107,9 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key: 
     nextBrand.fonts = fonts;
   }
   update.brand = nextBrand;
-  update.content = { ...content, guide, packages: pkgs, showcase, ...(t.brand.intro && !content.homeIntro ? { homeIntro: t.brand.intro } : {}), typeScale: t.styles.length ? t.styles : (content as { typeScale?: unknown }).typeScale };
+  // The form: kept whole, so the portal and every AI document read the same answers. Depth sets the tier once.
+  const tier = TIERS.find((x) => t.form.depth && x.label.toLowerCase() === t.form.depth.trim().toLowerCase())?.id;
+  update.content = { ...content, form: t.form, ...(tier && !(content as { tier?: string }).tier ? { tier } : {}), guide, packages: pkgs, showcase, ...(t.brand.intro && !content.homeIntro ? { homeIntro: t.brand.intro } : {}), typeScale: t.styles.length ? t.styles : (content as { typeScale?: unknown }).typeScale };
   const { data: proj } = await sb.from('projects').select('line').eq('id', projectId).single();
   if (t.brand.line && !proj?.line) update.line = t.brand.line;
   const { error } = await sb.from('projects').update(update).eq('id', projectId);

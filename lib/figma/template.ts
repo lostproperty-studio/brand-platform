@@ -1,3 +1,4 @@
+import { answer, FORM_KEYS, type BrandForm, type FormKey } from '@/lib/brandForm';
 import { figma } from '@/lib/figma/scan';
 import type { Block, BlockItem, BlockKind, BlockMedia, BoxStyle, FNode } from '@/lib/figma/blocks';
 
@@ -58,6 +59,8 @@ const filled = (s?: string) => (s && !PLACEHOLDER.has(s.toLowerCase()) && !/^a s
 export type TemplateAsset = { pkg: string; title?: string; name: string; nodeId: string; format: 'svg' | 'png'; ground?: string };
 export type TemplateRead = {
   brand: { name?: string; line?: string; intro?: string };
+  /** The brand form at the top of Assets: rows named "field / key", each with an answer */
+  form: BrandForm;
   colours: { name: string; hex: string; role: string }[];
   fonts: { role: string; family: string; use?: string }[];
   styles: { name: string; family?: string; size?: number; lineHeight?: number; tracking?: number; weight?: number }[];
@@ -77,7 +80,16 @@ export async function readTemplate(fileKey: string, pages: TemplatePages): Promi
 
   // Brand
   const brandF = find(assetsPage, 'brand');
+  const form: BrandForm = {};
+  const formF = find(assetsPage, 'form');
+  if (formF) for (const row of findAll(formF, (x) => /^field\s*\/\s*/i.test(x.name.trim()))) {
+    const key = row.name.trim().replace(/^field\s*\/\s*/i, '').toLowerCase() as FormKey;
+    const v = answer(named(row, 'answer'));
+    if (FORM_KEYS.includes(key) && v) form[key] = v;
+  }
+  // Older files hold the basics in a frame named brand
   const brand = brandF ? { name: filled(named(brandF, 'name')), line: filled(named(brandF, 'line')), intro: filled(named(brandF, 'intro')) } : {};
+  brand.name = form.name || brand.name; brand.line = form.line || brand.line; brand.intro = form.intro || brand.intro;
 
   // Colour: primary, secondary, tertiary sections of swatches; the value is the chip's fill
   const colours: TemplateRead['colours'] = [];
@@ -143,7 +155,7 @@ export async function readTemplate(fileKey: string, pages: TemplatePages): Promi
   const want = new Set([...imageNodes, ...chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...assets.map((a) => a.nodeId)]);
   const sizes: TemplateRead['sizes'] = {};
   for (const p of [assetsPage, guidePage]) walk(p, (x) => { if (want.has(x.id)) { const bb = box(x); sizes[x.id] = { w: Math.round(bb.width), h: Math.round(bb.height) }; } });
-  return { brand, colours, fonts, styles, assets, chapters, showcase, imageNodes, sizes };
+  return { brand, form, colours, fonts, styles, assets, chapters, showcase, imageNodes, sizes };
 }
 
 // ── Guideline frames to blocks, by layout name
