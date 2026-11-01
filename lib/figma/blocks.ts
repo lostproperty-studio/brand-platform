@@ -6,10 +6,15 @@ export type FNode = {
   absoluteBoundingBox?: { x: number; y: number; width: number; height: number } | null;
   children?: FNode[]; characters?: string;
   fills?: { type: string; visible?: boolean; opacity?: number; color?: { r: number; g: number; b: number; a?: number } }[];
+  strokes?: { type: string; visible?: boolean; color?: { r: number; g: number; b: number; a?: number } }[]; strokeWeight?: number;
   style?: { fontSize?: number; fontWeight?: number; textCase?: string; fontFamily?: string };
 };
 
-export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swatches';
+export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swatches' | 'columns' | 'grid' | 'statement' | 'image';
+/** How a group of text or content is held: free-standing, or in a container (corner marks as in the brand's own layouts, a fine outline, or a light fill). */
+export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';
+/** One item in a columns or grid section: a small label, a headline, body text and/or an image. Grid items span columns and rows. */
+export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number };
 export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string };
 export type BlockSwatch = { name: string; hex: string; note?: string };
 export type Block = {
@@ -19,6 +24,7 @@ export type Block = {
   media?: BlockMedia[]; side?: 'left' | 'right'; cols?: number;
   backdrop?: BlockMedia; // full-bleed image behind the text (chapter dividers, hero slides)
   swatches?: BlockSwatch[];
+  items?: BlockItem[]; box?: BoxStyle;
   original?: string; showOriginal?: boolean;
   // Studio text styling: headline size, body size, body columns, alignment
   headSize?: 'S' | 'M' | 'L' | 'XL'; bodySize?: 'S' | 'M' | 'L'; bodyCols?: 1 | 2 | 3; align?: 'left' | 'center';
@@ -28,7 +34,7 @@ export type Block = {
   draft?: 'draft' | 'missing'; draftNote?: string; slot?: string;
 };
 /** An image layer that needs exporting before the block can be shown. */
-export type Visual = { nodeId: string; kind: 'photo' | 'graphic'; w: number; h: number; caption?: string; share: number; backdrop?: boolean };
+export type Visual = { nodeId: string; kind: 'photo' | 'graphic'; w: number; h: number; caption?: string; share: number; backdrop?: boolean; item?: string };
 
 type Box = { x: number; y: number; w: number; h: number };
 type T = { id: string; text: string; size: number; box: Box; hex: string | null; upper: boolean; lower: boolean };
@@ -63,17 +69,49 @@ export function furnitureText(frames: FNode[]) {
   return new Set([...seen.entries()].filter(([t, n]) => n >= min && t.length < 60).map(([t]) => t));
 }
 
-export function frameToBlock(frame: FNode, opts: { cover?: boolean; colour?: boolean; furniture?: Set<string> } = {}): { block: Omit<Block, 'original'>; visuals: Visual[] } | null {
+/** Small graphics in the corners that repeat across slides (logos, page marks): page furniture, never content. */
+export function furnitureVisuals(frames: FNode[]) {
+  const seen = new Map<string, number>();
+  const keys = (f: FNode) => { const out = new Set<string>(); const fb = f.absoluteBoundingBox; if (!fb) return out;
+    const walk = (n: FNode) => { if (n.visible === false) return; const k = cornerKey(n, fb); if (k) { out.add(k); return; } (n.children || []).forEach(walk); };
+    (f.children || []).forEach(walk); return out; };
+  for (const f of frames) keys(f).forEach((k) => seen.set(k, (seen.get(k) || 0) + 1));
+  const min = Math.max(3, Math.ceil(frames.length * 0.3));
+  return new Set([...seen.entries()].filter(([, n]) => n >= min).map(([k]) => k));
+}
+/** A key for a small non-text element sitting in a corner band of the slide (name, size and corner). */
+function cornerKey(n: FNode, fb: { x: number; y: number; width: number; height: number }) {
+  const b = n.absoluteBoundingBox; if (!b || n.type === 'TEXT' || hasText(n)) return null;
+  if (b.width > fb.width * 0.16 || b.height > fb.height * 0.12) return null;
+  if (b.width <= fb.width * 0.012 && b.height <= fb.width * 0.012) return null; // corner marks and dots belong to the layout
+  const top = b.y - fb.y < fb.height * 0.12, bottom = fb.y + fb.height - (b.y + b.height) < fb.height * 0.12;
+  const left = b.x - fb.x < fb.width * 0.2, right = fb.x + fb.width - (b.x + b.width) < fb.width * 0.2;
+  if (!(top || bottom) || !(left || right)) return null;
+  return `${n.name}|${Math.round(b.width / 4)}x${Math.round(b.height / 4)}|${top ? 't' : 'b'}${left ? 'l' : 'r'}`;
+}
+
+export function frameToBlock(frame: FNode, opts: { cover?: boolean; colour?: boolean; furniture?: Set<string>; furnitureVis?: Set<string> } = {}): { block: Omit<Block, 'original'>; visuals: Visual[] } | null {
   const fb0 = frame.absoluteBoundingBox!;
   const F: Box = { x: fb0.x, y: fb0.y, w: fb0.width, h: fb0.height };
   const FA = area(F);
   const texts: T[] = [], visuals: V[] = [], rects: R[] = [];
+  // Containers (cards, panels) that hold text, and the tiny squares some brands put on their corners
+  const boxes: { box: Box; stroke: boolean; fill: string | null }[] = [], marks: Box[] = [];
   let bg = solid(frame) ? hexOf(solid(frame)!.color!) : undefined;
 
   const visit = (n: FNode) => {
     if (n.visible === false || n.opacity === 0) return;
     const b0 = n.absoluteBoundingBox; if (!b0) return;
     const b = clip({ x: b0.x, y: b0.y, w: b0.width, h: b0.height }, F); if (!b) return;
+    if (opts.furnitureVis?.size) {
+      const k = cornerKey(n, fb0); if (k && opts.furnitureVis.has(k)) return;
+      // A header or footer group holding furniture: look inside it rather than taking it whole
+      const holds = (x: FNode): boolean => { const kk = cornerKey(x, fb0); return !!(kk && opts.furnitureVis!.has(kk)) || (x.children || []).some(holds); };
+      if (n.type !== 'TEXT' && (n.children || []).some(holds)) { (n.children || []).forEach(visit); return; }
+    }
+    if (n.type !== 'TEXT' && !hasText(n) && b.w <= F.w * 0.012 && b.h <= F.w * 0.012 && Math.abs(b.w - b.h) <= 2) { marks.push(b); return; }
+    const stroked = (n.strokes || []).some((s) => s.visible !== false) && (n.strokeWeight ?? 1) > 0;
+    if (n.type !== 'TEXT' && area(b) / FA > 0.02 && area(b) / FA < 0.8 && (stroked || solid(n))) boxes.push({ box: b, stroke: stroked, fill: solid(n) ? hexOf(solid(n)!.color!) : null });
     if (n.type === 'TEXT') {
       const text = (n.characters || '').replace(/\u2028/g, '\n').trim();
       if (!text || opts.furniture?.has(text) || !/[\p{L}\p{N}]/u.test(text)) return;
@@ -161,35 +199,137 @@ export function frameToBlock(frame: FNode, opts: { cover?: boolean; colour?: boo
 
   // Layout
   if (!rest.length && !vis.length && !swatches.length && !backdrop) return null;
+  const toVisual = (v: V, isBack = false, item?: string): Visual => ({ nodeId: v.id, kind: v.kind, w: Math.round(v.box.w), h: Math.round(v.box.h), caption: caption.get(v.id), share: area(v.box) / FA, backdrop: isBack || undefined, item });
+
+  // Several groups of text side by side (in containers, or free-standing in columns): a columns or grid section
+  if (!opts.cover && swatches.length < 2) {
+    const grouped = groupItems({ rest, vis, boxes, marks, F, tidy });
+    if (grouped) {
+      const block: Omit<Block, 'original'> = {
+        id: frame.id, source: frame.id, kind: grouped.kind, ink: ink && ink !== bg ? ink : undefined,
+        heading: grouped.title ? tidy(grouped.title) : undefined, body: grouped.intro.map(tidy).join('\n\n') || undefined,
+        items: grouped.items, box: grouped.box, cols: grouped.cols, media: []
+      };
+      const visualsOut = [...grouped.itemVis.map(([v, id]) => toVisual(v, false, id)), ...grouped.looseVis.map((v) => toVisual(v))];
+      return { block, visuals: visualsOut };
+    }
+  }
+
   const textBox = rest.length ? union(rest.map((t) => t.box)) : null;
   const visBox = vis.length ? union(vis.map((v) => v.box)) : null;
   let kind: BlockKind = opts.cover || (backdrop && !vis.length && rest.length) ? 'cover' : swatches.length >= 2 ? 'swatches' : !vis.length ? (backdrop && !rest.length ? 'media' : 'text') : 'media';
   if (kind === 'media' && !vis.length && backdrop) vis = [backdrop];
   const otherChars = rest.filter((t) => !joinedHeading.includes(t) && t !== eyebrow).reduce((n, t) => n + t.text.length, 0);
   const bigHead = !!heading && (heading.size >= F.w * 0.03 || rest.length === 1);
-  if (!opts.cover && kind !== 'swatches' && bigHead && otherChars <= 140 && vis.length <= 2 && (heading?.text.length || 0) <= 60) kind = 'divider';
+  const headWords = joinedHeading.map((t) => t.text).join(' ').split(/\s+/).filter(Boolean).length;
+  // A big line on its own: a subsection headline when it's a few words, a statement when it's a sentence
+  if (!opts.cover && kind !== 'swatches' && bigHead && vis.length <= 2) {
+    if (headWords <= 5 && otherChars <= 40) kind = 'divider';
+    else if (headWords > 5 && otherChars <= 140 && !vis.length) kind = 'statement';
+  }
   let side: 'left' | 'right' | undefined;
   if (kind === 'media' && textBox && visBox && xOverlap(textBox, visBox) < Math.min(textBox.w, visBox.w) * 0.25) { kind = 'split'; side = visBox.x + visBox.w / 2 > textBox.x + textBox.w / 2 ? 'right' : 'left'; }
+  // One wide picture: a full-width image
+  if (kind === 'media' && vis.length === 1 && vis[0].box.w >= F.w * 0.6) kind = 'image';
   const rows: V[][] = [];
   for (const v of vis) { const r = rows.find((row) => Math.abs(row[0].box.y - v.box.y) < v.box.h * 0.3); if (r) r.push(v); else rows.push([v]); }
   const cols = Math.max(1, Math.min(4, Math.max(0, ...rows.map((r) => r.length))));
+  // Only covers and statements sit on a coloured panel; guidance stands free on the page
+  const keepBg = kind === 'cover' || kind === 'statement';
+  if (kind === 'divider') vis = [];
 
   const block: Omit<Block, 'original'> = {
     id: frame.id, source: frame.id, kind,
-    bg, ink: ink && ink !== bg ? ink : undefined,
-    eyebrow: eyebrow ? tidy(eyebrow) : undefined,
+    bg: keepBg ? bg : undefined, ink: ink && (!keepBg || ink !== bg) ? ink : undefined,
+    eyebrow: eyebrow && kind !== 'divider' ? tidy(eyebrow) : undefined,
     heading: joinedHeading.length ? joinedHeading.map(tidy).join(joinedHeading.every((t) => Math.abs(t.box.x - joinedHeading[0].box.x) < 8) ? '\n' : ' ') : undefined,
-    body: bodyTexts.map(tidy).join('\n\n') || undefined,
+    body: kind === 'divider' ? undefined : bodyTexts.map(tidy).join('\n\n') || undefined,
     media: [], side, cols: kind === 'media' ? cols : undefined,
     swatches: swatches.length ? swatches : undefined
   };
-  const toVisual = (v: V, isBack = false): Visual => ({ nodeId: v.id, kind: v.kind, w: Math.round(v.box.w), h: Math.round(v.box.h), caption: caption.get(v.id), share: area(v.box) / FA, backdrop: isBack || undefined });
   const visualsOut = vis.map((v) => toVisual(v));
-  if (backdrop && !vis.includes(backdrop)) visualsOut.push(toVisual(backdrop, true));
+  if (backdrop && !vis.includes(backdrop) && (kind === 'cover' || kind === 'statement')) visualsOut.push(toVisual(backdrop, true));
   return { block, visuals: visualsOut };
+}
+
+type GBox = { box: Box; stroke: boolean; fill: string | null };
+const inside = (t: Box, c: Box) => t.x >= c.x - 2 && t.y >= c.y - 2 && t.x + t.w <= c.x + c.w + 2 && t.y + t.h <= c.y + c.h + 2;
+const uidOf = (s: string) => 'i-' + s.replace(/[^a-z0-9]/gi, '').slice(-10);
+
+/** Finds groups of text that sit side by side (each in its own container, or free-standing in columns) and turns
+ *  them into items with a clear hierarchy: a small label, a headline, body text. Returns null for ordinary pages. */
+function groupItems({ rest, vis, boxes, marks, F, tidy }: { rest: T[]; vis: V[]; boxes: GBox[]; marks: Box[]; F: Box; tidy: (t: T) => string }) {
+  if (rest.length < 2) return null;
+  // Containers that hold text; keep the innermost, drop duplicates
+  let cards = boxes.filter((c) => rest.some((t) => inside(t.box, c.box))).sort((a, b) => area(a.box) - area(b.box));
+  cards = cards.filter((c, i) => !cards.some((o, j) => j < i && inside(o.box, c.box) && rest.filter((t) => inside(t.box, o.box)).length === rest.filter((t) => inside(t.box, c.box)).length));
+  cards = cards.filter((c) => !cards.some((o) => o !== c && inside(o.box, c.box)));
+  type G = { texts: T[]; box: Box; card?: GBox };
+  let groups: G[] = [];
+  let title: T | undefined;
+  if (cards.length >= 2) {
+    groups = cards.map((c) => ({ texts: rest.filter((t) => inside(t.box, c.box)), box: c.box, card: c })).filter((g) => g.texts.length);
+  } else {
+    // Free-standing: a title above everything, then text grouped by proximity into items
+    const top = [...rest].sort((a, b) => a.box.y - b.box.y);
+    const biggest = [...rest].sort((a, b) => b.size - a.size)[0];
+    if (biggest && biggest === top[0] && biggest.size >= (top[1]?.size || 0) * 1.3) title = biggest;
+    for (const t of top.filter((x) => x !== title)) {
+      const g = groups.find((gr) => { const last = gr.texts[gr.texts.length - 1]; const gap = t.box.y - (last.box.y + last.box.h); return xOverlap(t.box, last.box) > Math.min(t.box.w, last.box.w) * 0.4 && gap > -4 && gap < Math.max(t.size, last.size) * 2.4; });
+      if (g) { g.texts.push(t); g.box = union([g.box, t.box]); } else groups.push({ texts: [t], box: t.box });
+    }
+    // Needs at least two columns of groups to be a columns or grid section
+    const xs = groups.map((g) => g.box.x).sort((a, b) => a - b);
+    const distinct = xs.filter((x, i) => i === 0 || x - xs[i - 1] > F.w * 0.08).length;
+    if (groups.length < 2 || distinct < 2) return null;
+  }
+  if (groups.length < 2) return null;
+  const loose = rest.filter((t) => t !== title && !groups.some((g) => g.texts.includes(t)));
+  if (!title) { const above = loose.filter((t) => groups.every((g) => t.box.y + t.box.h <= g.box.y + 4)).sort((a, b) => b.size - a.size)[0]; if (above) title = above; }
+  const intro = loose.filter((t) => t !== title).sort((a, b) => a.box.y - b.box.y);
+
+  // Each group as an item: label on top, the biggest line as its headline, the rest as body
+  const items: BlockItem[] = [];
+  const itemVis: [V, string][] = [];
+  const usedVis = new Set<string>();
+  groups.sort((a, b) => (Math.abs(a.box.y - b.box.y) < F.h * 0.06 ? a.box.x - b.box.x : a.box.y - b.box.y));
+  for (const g of groups) {
+    const ts = [...g.texts].sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+    const min = Math.min(...ts.map((t) => t.size));
+    const label = ts.length > 1 && ts[0].text.length <= 40 ? ts[0] : undefined;
+    const others = ts.filter((t) => t !== label);
+    const big = others.filter((t) => t.size >= min * 1.5 && t.text.length <= 120).sort((a, b) => b.size - a.size)[0];
+    const heading = big && (others.length > 1 || (label && big.size >= label.size * 1.3)) ? big : others.length === 1 && others[0].size >= F.w * 0.025 ? others[0] : undefined;
+    const id = uidOf(ts[0].id);
+    const item: BlockItem = { id, label: label ? tidy(label) : undefined, heading: heading ? tidy(heading) : undefined, body: others.filter((t) => t !== heading).map(tidy).join('\n\n') || undefined };
+    const v = g.card ? vis.find((x) => !usedVis.has(x.id) && inside(x.box, g.card!.box)) : undefined;
+    if (v) { usedVis.add(v.id); itemVis.push([v, id]); }
+    (item as BlockItem & { _box?: Box })._box = g.card?.box || g.box;
+    items.push(item);
+  }
+  const looseVis = vis.filter((v) => !usedVis.has(v.id));
+
+  // Columns when the items line up in equal rows; a grid when they don't
+  const rows: Box[][] = [];
+  for (const it of items) { const b = (it as BlockItem & { _box: Box })._box; const r = rows.find((row) => Math.abs(row[0].y - b.y) < F.h * 0.06); if (r) r.push(b); else rows.push([b]); }
+  const counts = rows.map((r) => r.length);
+  const widths = items.map((it) => (it as BlockItem & { _box: Box })._box.w);
+  const even = counts.every((c) => c === counts[0]) && counts[0] >= 2 && counts[0] <= 4 && Math.max(...widths) / Math.min(...widths) < 1.35;
+  const kind: BlockKind = even ? 'columns' : 'grid';
+  const all = union(items.map((it) => (it as BlockItem & { _box: Box })._box));
+  for (const it of items) {
+    const b = (it as BlockItem & { _box?: Box })._box!;
+    if (kind === 'grid') { it.w = Math.max(1, Math.min(6, Math.round((b.w / all.w) * 6))); it.h = Math.max(1, Math.min(8, Math.round(b.h / (F.h * 0.1)))); }
+    delete (it as BlockItem & { _box?: Box })._box;
+  }
+  // How the items are held: corner marks, an outline, a fill, or free-standing
+  const nearCorner = (m: Box, c: Box) => [[c.x, c.y], [c.x + c.w, c.y], [c.x, c.y + c.h], [c.x + c.w, c.y + c.h]].some(([x, y]) => Math.abs(m.x + m.w / 2 - x) < F.w * 0.012 && Math.abs(m.y + m.h / 2 - y) < F.w * 0.012);
+  const withCards = groups.filter((g) => g.card);
+  const box: BoxStyle = !withCards.length ? 'none' : withCards.some((g) => marks.filter((m) => nearCorner(m, g.card!.box)).length >= 2) ? 'corners' : withCards.some((g) => g.card!.stroke) ? 'outline' : 'fill';
+  return { kind, title, intro, items, itemVis, looseVis, box, cols: kind === 'columns' ? counts[0] : undefined };
 }
 
 /** Plain text of a block, for search, the brand chat and the connector. */
 export function blockText(b: Block) {
-  return [b.eyebrow, b.heading, b.body, ...(b.media || []).map((m) => m.caption), ...(b.swatches || []).map((s) => `${s.name} ${s.hex}${s.note ? ' ' + s.note : ''}`)].filter(Boolean) as string[];
+  return [b.eyebrow, b.heading, b.body, ...(b.items || []).flatMap((i) => [i.label, i.heading, i.body]), ...(b.media || []).map((m) => m.caption), ...(b.swatches || []).map((s) => `${s.name} ${s.hex}${s.note ? ' ' + s.note : ''}`)].filter(Boolean) as string[];
 }

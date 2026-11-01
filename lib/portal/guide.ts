@@ -1,6 +1,6 @@
 import { adminClient } from '@/lib/supabase/server';
 import { exportNodes, fetchPage, scanFigmaPage, type ScanFrame } from '@/lib/figma/scan';
-import { blockText, frameToBlock, furnitureText, type Block, type BlockMedia, type FNode, type Visual } from '@/lib/figma/blocks';
+import { blockText, frameToBlock, furnitureText, furnitureVisuals, type Block, type BlockMedia, type FNode, type Visual } from '@/lib/figma/blocks';
 import { resolvedText } from '@/lib/kit/fromProject';
 
 // The client-facing guidelines, rebuilt from the Figma page as responsive web content.
@@ -13,7 +13,7 @@ export type GuideChapter = { id: string; key: string | null; title: string; kick
   /** Home page cover: an uploaded thumbnail, the type sample, and the tone-of-voice words */ thumb?: string; thumbSample?: string; thumbWords?: string };
 export type GuideColour = { name: string; hex: string; role: string };
 export type Guide = { version?: number; generatedAt: string; file: string; page: string; chapters: GuideChapter[]; colours: GuideColour[] };
-export const GUIDE_VERSION = 2;
+export const GUIDE_VERSION = 3;
 
 const KEYS: [RegExp, string][] = [
   [/logo|wordmark|marque|symbol|lock-?up|identity/i, 'logo'], [/typo|type|font/i, 'type'], [/colou?r|palette/i, 'colour'],
@@ -31,7 +31,7 @@ export function normaliseGuide(g: Guide | null | undefined): Guide | null {
   return { ...g, chapters: g.chapters.map((c) => {
     const legacy = (c as unknown as { frames?: { nodeId: string; path: string; w: number; h: number; text: string[]; hidden?: boolean }[] }).frames;
     if (c.blocks || !legacy) return { ...c, blocks: c.blocks || [] };
-    return { ...c, blocks: legacy.map((f) => ({ id: f.nodeId, source: f.nodeId, kind: 'media' as const, original: f.path, showOriginal: true, hidden: f.hidden, body: f.text.join('\n\n'), media: [] })) };
+    return { ...c, blocks: legacy.map((f) => ({ id: f.nodeId, source: f.nodeId, kind: 'text' as const, original: f.path, hidden: f.hidden, body: f.text.join('\n\n'), media: [] })) };
   }) };
 }
 
@@ -86,9 +86,10 @@ export async function buildGuide(projectId: string) {
   const nodeById = new Map<string, FNode>(((fetched.root as unknown as FNode).children || []).map((n) => [n.id, n]));
   const slides = scan.chapters.flatMap((c) => c.frames.map((f) => nodeById.get(f.id)).filter(Boolean) as FNode[]);
   const furniture = furnitureText(slides);
+  const furnitureVis = furnitureVisuals(slides);
 
   // 1. Blocks and the image layers they need
-  const perChapter = scan.chapters.map((c) => c.frames.map((f, i) => { const n = nodeById.get(f.id); const r = n ? frameToBlock(n, { cover: i === 0, colour: keyFor(clean(c.title)) === 'colour', furniture }) : null; return r ? { frame: f, ...r } : null; }).filter(Boolean) as { frame: ScanFrame; block: Omit<Block, 'original'>; visuals: Visual[] }[]);
+  const perChapter = scan.chapters.map((c) => c.frames.map((f, i) => { const n = nodeById.get(f.id); const r = n ? frameToBlock(n, { cover: i === 0, colour: keyFor(clean(c.title)) === 'colour', furniture, furnitureVis }) : null; return r ? { frame: f, ...r } : null; }).filter(Boolean) as { frame: ScanFrame; block: Omit<Block, 'original'>; visuals: Visual[] }[]);
   const all = perChapter.flat();
   const photos = all.flatMap((x) => x.visuals.filter((v) => v.kind === 'photo' || v.share > 0.25));
   const vectors = all.flatMap((x) => x.visuals.filter((v) => v.kind === 'graphic' && v.share <= 0.25));
@@ -131,9 +132,11 @@ export async function buildGuide(projectId: string) {
     const title = clean(c.title) || 'Untitled';
     const key = keyFor(title);
     const blocks: Block[] = perChapter[ci].map(({ frame, block, visuals }) => {
-      const media: BlockMedia[] = visuals.filter((v) => !v.backdrop && stored[v.nodeId]).map((v) => ({ path: stored[v.nodeId], w: v.w, h: v.h, caption: v.caption, kind: v.kind, nodeId: v.nodeId }));
+      const toMedia = (v: Visual): BlockMedia => ({ path: stored[v.nodeId], w: v.w, h: v.h, caption: v.caption, kind: v.kind, nodeId: v.nodeId });
+      const media: BlockMedia[] = visuals.filter((v) => !v.backdrop && !v.item && stored[v.nodeId]).map(toMedia);
+      const items = block.items?.map((it) => { const v = visuals.find((x) => x.item === it.id && stored[x.nodeId]); return v ? { ...it, media: toMedia(v) } : it; });
       const back = visuals.find((v) => v.backdrop && stored[v.nodeId]);
-      return { ...block, media, backdrop: back ? { path: stored[back.nodeId], w: back.w, h: back.h, kind: back.kind, nodeId: back.nodeId } : undefined, original: stored['slide:' + frame.id] };
+      return { ...block, items, media, backdrop: back ? { path: stored[back.nodeId], w: back.w, h: back.h, kind: back.kind, nodeId: back.nodeId } : undefined, original: stored['slide:' + frame.id] };
     });
     const prev = prevCh.get(c.id);
     const cover = blocks[0]?.kind === 'cover' ? blocks[0] : undefined;
@@ -177,7 +180,7 @@ export async function buildGuide(projectId: string) {
 
 /** Every stored image a guide refers to. */
 export function guidePaths(g: Guide) {
-  return g.chapters.flatMap((c) => [c.thumb, ...c.blocks.flatMap((b) => [b.original, b.backdrop?.path, ...(b.media || []).map((m) => m.path)])]).filter(Boolean) as string[];
+  return g.chapters.flatMap((c) => [c.thumb, ...c.blocks.flatMap((b) => [b.original, b.backdrop?.path, ...(b.media || []).map((m) => m.path), ...(b.items || []).map((i) => i.media?.path)])]).filter(Boolean) as string[];
 }
 
 /** Plain text of a chapter, for the brand chat and the connector. */
