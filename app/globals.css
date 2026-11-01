@@ -3,7 +3,7 @@
 @font-face { font-family: 'KMR Waldenburg'; src: url('/fonts/kmr-waldenburg-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'KMR Waldenburg'; src: url('/fonts/kmr-waldenburg-halbfett.woff2') format('woff2'); font-weight: 500; font-display: swap; }
 @font-face { font-family: 'KMR Waldenburg'; src: url('/fonts/kmr-waldenburg-fett.woff2') format('woff2'); font-weight: 700; font-display: swap; }
-:root { --ink: #000; --mute: #767676; --line: #ededed; --fill: #f7f7f7; --fill-2: #efefef; --pink: #F28EE8; --font: 'KMR Waldenburg', 'Helvetica Neue', Arial, sans-serif; }
+:root { --sel: #0D99FF; --sel-soft: rgba(13, 153, 255, .45); --ink: #000; --mute: #767676; --line: #ededed; --fill: #f7f7f7; --fill-2: #efefef; --pink: #F28EE8; --font: 'KMR Waldenburg', 'Helvetica Neue', Arial, sans-serif; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: #fff; color: var(--ink); font-family: var(--font); font-size: 13px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
@@ -582,10 +582,10 @@ html { scroll-behavior: smooth; }
 .ve-eye { all: unset; cursor: pointer; width: 26px; text-align: center; font-size: 9px; color: var(--mute); }
 .ve-canvas { display: block; min-height: 0; grid-template-columns: none; border-radius: 10px; box-shadow: 0 0 0 1px var(--line); background: #fff; overflow: visible; }
 .ve-page { max-width: none; padding: 40px clamp(20px, 4vw, 56px) 80px; }
-.ve-chhead .ed { outline: none; }
+
 .ve-blocks { gap: 0; }
-.ve-block { position: relative; border-radius: 6px; outline: 1px dashed transparent; outline-offset: 10px; transition: outline-color .1s; }
-.ve-block:hover, .ve-block:focus-within { outline-color: #c9c9c9; }
+.ve-block { position: relative; border-radius: 0; outline: 1px solid transparent; outline-offset: 10px; transition: outline-color .1s; }
+.ve-block:hover, .ve-block:focus-within { outline: 1px solid var(--sel-soft); }
 .ve-block.off > .gb { opacity: .35; }
 .ve-block.over { outline: 2px solid #000; }
 .ve-hidden { margin: 0 0 8px; font-size: 12px; color: var(--mute); }
@@ -605,10 +605,10 @@ html { scroll-behavior: smooth; }
 .ve-seg { display: flex; gap: 2px; background: var(--fill); border-radius: 8px; padding: 2px; }
 .ve-seg button { all: unset; cursor: pointer; flex: 1; text-align: center; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
 .ve-seg button.on { background: #000; color: #fff; }
-.ed { outline: none; border-radius: 3px; cursor: text; min-width: 1ch; }
-.ed:hover { box-shadow: 0 0 0 1px rgba(0,0,0,.12); }
-.ed:focus { box-shadow: 0 0 0 2px #000; background: rgba(255,255,255,.04); }
-.on-dark .ed:focus, .ve-sw .ed:focus { box-shadow: 0 0 0 2px currentColor; }
+.ed { outline: 1px solid transparent; outline-offset: 2px; border-radius: 0; cursor: text; min-width: 1ch; }
+.ed:hover { outline: 1px solid var(--sel-soft); outline-offset: 2px; }
+.ed:focus { outline: 1px solid var(--sel); outline-offset: 2px; }
+
 .ed:empty::before { content: attr(data-ph); opacity: .35; pointer-events: none; }
 .ed.gb-body:empty { min-height: 1.4em; }
 p.ed:empty, span.ed:empty { display: inline-block; }
@@ -986,7 +986,7 @@ p.ed:empty, span.ed:empty { display: inline-block; }
 
 /* Editor: the toolbar stays with the section you clicked, in the flow above it, and sticks while you scroll */
 .ve-block { cursor: default; }
-.ve-block.sel { outline: 1px solid #000; outline-offset: 10px; }
+.ve-block.sel { outline: 1px solid var(--sel); outline-offset: 10px; }
 .ve-block .ve-bar { position: sticky; top: 10px; display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; margin: 0 0 14px; }
 .ve-hint { position: absolute; top: -30px; left: 0; font-family: var(--font); font-size: 11px; color: var(--mute); background: #fff; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); opacity: 0; pointer-events: none; transition: opacity .1s; }
 .ve-block:hover .ve-hint { opacity: 1; }
@@ -1007,10 +1007,10 @@ p.ed:empty, span.ed:empty { display: inline-block; }
 /* Editor dock: always at the bottom; tools follow the selection */
 .ve { padding-bottom: 120px; }
 /* Selected text and images */
-.ed.ed-on { outline: 2px solid #000; outline-offset: 3px; border-radius: 2px; }
+.ed.ed-on { outline: 1px solid var(--sel); outline-offset: 2px; border-radius: 0; }
 .ve-img { display: block; position: relative; cursor: pointer; }
-.ve-img.on { outline: 2px solid #000; outline-offset: 3px; }
-.ve-handle-tab { display: inline-flex; align-items: center; gap: 4px; position: absolute; top: -26px; left: 0; z-index: 3; font: 11px var(--font); background: #000; color: #fff; padding: 3px 8px; border-radius: 6px 6px 0 0; cursor: grab; user-select: none; }
+.ve-img.on { outline: 1px solid var(--sel); outline-offset: 2px; }
+.ve-handle-tab { display: inline-flex; align-items: center; gap: 4px; position: absolute; top: -26px; left: 0; z-index: 3; font: 11px var(--font); background: var(--sel); color: #fff; padding: 2px 7px; border-radius: 2px; cursor: grab; user-select: none; }
 /* Chapter delete and restore */
 .ve-ch .ve-del { opacity: 0; }
 .ve-ch:hover .ve-del, .ve-ch .ve-del:focus-visible { opacity: 1; }
@@ -1134,3 +1134,4 @@ p.tc-sentence, div.tc-sentence, h1.tc-sentence, h2.tc-sentence, h3.tc-sentence {
 .fd-lic { display: flex; gap: 6px; }
 .fd-err { margin: 0; color: #b3261e; }
 .ed-raw, .ed-raw * { text-transform: none !important; }
+.ve-block .gb { overflow: visible; }
