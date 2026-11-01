@@ -30,6 +30,8 @@ export type EditKit = {
   /** Elements added freely inside a box */
   itemElText?: (i: number, e: ItemEl, el: El) => React.ReactNode;
   itemElImage?: (i: number, e: ItemEl, img: React.ReactNode) => React.ReactNode;
+  /** A handle to pick an element up and move it */
+  grip?: (i: number, elId: string) => React.ReactNode;
 };
 
 function Paras({ text, className, style }: { text?: string; className?: string; style?: React.CSSProperties }) {
@@ -101,9 +103,9 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     const CLS: Record<ItemEl['kind'], string> = { label: 'gi-label', heading: 'gi-h', text: 'gi-body', image: 'gi-media' };
     const elsOf = (i: number, it: BlockItem) => { const els = it.els || []; const push = els.findIndex((e) => e.kind === 'heading' || e.kind === 'text'); const pushOk = push > 0 && els.slice(0, push).every((e) => e.kind === 'label' || e.kind === 'image'); return els.map((e, k) => {
       const cls = (k === push && pushOk ? 'gi-push ' : '') + 'gi-el';
-      if (e.kind === 'image') { const mm = e.media && urls[e.media.path] ? e.media : undefined; const img = mm ? <img src={urls[mm.path]} alt="" loading="lazy" /> : null; return <div key={e.id} data-el={e.id} className={cls + ' gi-media'}>{edit?.itemElImage ? edit.itemElImage(i, e, img) : img}</div>; }
+      if (e.kind === 'image') { const mm = e.media && urls[e.media.path] ? e.media : undefined; const img = mm ? <img src={urls[mm.path]} alt="" loading="lazy" /> : null; return <div key={e.id} data-el={e.id} className={cls + ' gi-media'}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElImage ? edit.itemElImage(i, e, img) : img}</div>; }
       const key = `${it.id}.${e.id}`; const tp = st(key); const el: El = { tag: e.kind === 'text' ? 'div' : 'p', className: CLS[e.kind] + (tp.className ? ' ' + tp.className : ''), placeholder: e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text', multiline: e.kind === 'text', style: tp.style, key };
-      return <div key={e.id} data-el={e.id} className={cls}>{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;
+      return <div key={e.id} data-el={e.id} className={cls}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;
     }); };
     const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const tp = st(key); const el = { ...el0, style: tp.style, className: tp.className ? `${el0.className} ${tp.className}` : el0.className, key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
     return (
@@ -119,12 +121,12 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
               <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '')} style={b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }}>
                 {edit?.itemBar ? edit.itemBar(i, it) : null}
                 {it.els ? elsOf(i, it) : <>
-                {m ? <div className="gi-media" data-el="media">{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
+                {m ? <div className="gi-media" data-el="media">{edit?.grip ? edit.grip(i, 'media') : null}{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
                 {onlyImage ? null : <div className="gi-txt">
-                  {it.label ? <div data-el="label">{itxt(i, 'label', it.label, { tag: 'p', className: 'gi-label', placeholder: 'Label' })}</div> : null}
+                  {it.label ? <div data-el="label">{edit?.grip ? edit.grip(i, 'label') : null}{itxt(i, 'label', it.label, { tag: 'p', className: 'gi-label', placeholder: 'Label' })}</div> : null}
                   <div className="gi-main">
-                    {it.heading ? <div data-el="heading">{itxt(i, 'heading', it.heading, { tag: 'p', className: 'gi-h', placeholder: 'Headline (optional)' })}</div> : null}
-                    {it.body ? <div data-el="body">{itxt(i, 'body', it.body, { tag: 'div', className: 'gi-body', placeholder: 'Text', multiline: true })}</div> : null}
+                    {it.heading ? <div data-el="heading">{edit?.grip ? edit.grip(i, 'heading') : null}{itxt(i, 'heading', it.heading, { tag: 'p', className: 'gi-h', placeholder: 'Headline (optional)' })}</div> : null}
+                    {it.body ? <div data-el="body">{edit?.grip ? edit.grip(i, 'body') : null}{itxt(i, 'body', it.body, { tag: 'div', className: 'gi-body', placeholder: 'Text', multiline: true })}</div> : null}
                   </div>
                 </div>}</>}
               </div>

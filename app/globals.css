@@ -1475,3 +1475,13 @@ a.ov-link:hover { background: var(--fill); }
 .tb-ctx .tb-crumb.on { display: inline-block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 26px; }
 .tb-fontname { max-width: 84px; }
 @media (max-width: 1000px) { .tb { flex-wrap: wrap; } }
+/* Drag to move: a handle on each element and on the selected box; a ghost follows the pointer, a blue line shows where it lands */
+.ve-block [data-el] { position: relative; }
+.ve-grip-el { position: absolute; left: -20px; top: 50%; transform: translateY(-50%); z-index: 3; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 22px; border-radius: 4px; color: var(--sel); background: #fff; box-shadow: 0 0 0 1px rgba(13,153,255,.35); cursor: grab; opacity: 0; transition: opacity .1s; touch-action: none; }
+.bx-corners > .gi .ve-grip-el, .bx-outline > .gi .ve-grip-el, .bx-fill > .gi .ve-grip-el, .gc-card .ve-grip-el { left: -18px; }
+.ve-block [data-el]:hover > .ve-grip-el, .ve-grip-el:focus-visible { opacity: 1; }
+.ve-grip-box { position: absolute; top: -22px; left: -3px; z-index: 4; display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 6px 0 3px; border-radius: 2px; background: var(--sel); color: #fff; font: 10px var(--font); cursor: grab; touch-action: none; }
+body.ve-moving, body.ve-moving * { cursor: grabbing !important; user-select: none !important; }
+.ve-ghost { position: fixed; z-index: 70; pointer-events: none; max-width: 240px; padding: 5px 10px; border-radius: 8px; background: #fff; box-shadow: 0 0 0 1px var(--sel), 0 8px 24px rgba(0,0,0,.18); font: 12px var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .95; }
+.ve-spot.vline { background: var(--sel); border-radius: 2px; }
+.ve-drag-src { opacity: .3; }

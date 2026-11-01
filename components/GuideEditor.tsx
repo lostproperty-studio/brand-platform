@@ -205,6 +205,79 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (blockEl) { const r = blockEl.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, label: `${WHAT[tool]} → ${addTarget(tool, ch, { block: blockEl.dataset.block! })}`, line: { top: r.top - 6, left: r.left - 6, width: r.width + 12, height: r.height + 12 } }; }
     return null;
   }
+  /** A box's content as a free list of elements, moving any styling with it */
+  function materialise(it: BlockItem, styles0: Record<string, TextStyle>) {
+    if (it.els) return { els: [...it.els], styles: styles0, ids: {} as Record<string, string> };
+    let styles = styles0; const ids: Record<string, string> = {};
+    const els = itemEls(it).map((x) => { const id = 'e-' + uid(); ids[x.id] = id; const old = `${it.id}.${x.id}`; if (styles[old]) { const { [old]: st0, ...rest } = styles; styles = { ...rest, [`${it.id}.${id}`]: st0 }; } return { ...x, id }; });
+    return { els, styles, ids };
+  }
+  // ---------- drag to move: an element within or between boxes, or a box among its neighbours. Snaps into place.
+  type Drag = { kind: 'el' | 'box'; block: string; item: number; el?: string; label: string; x: number; y: number; target?: { block: string; item: number; index: number }; line?: { top: number; left: number; width: number; height: number } };
+  const [moving, setMoving] = useState<Drag | null>(null);
+  function startMove(e: React.PointerEvent, kind: 'el' | 'box', blockId: string, item: number, el?: string) {
+    e.preventDefault(); e.stopPropagation();
+    const a0 = document.activeElement as HTMLElement | null; if (a0?.isContentEditable) a0.blur();
+    const src = (e.currentTarget as HTMLElement).closest(kind === 'el' ? '[data-el]' : '[data-item]') as HTMLElement | null;
+    const label = kind === 'box' ? 'Box' : (src?.innerText || 'Image').trim().slice(0, 40) || 'Image';
+    let d: Drag = { kind, block: blockId, item, el, label, x: e.clientX, y: e.clientY };
+    setMoving(d); document.body.classList.add('ve-moving'); src?.classList.add('ve-drag-src');
+    const move = (ev: PointerEvent) => {
+      const under = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+      const blockEl = under?.closest('[data-block]') as HTMLElement | null;
+      let target: Drag['target'], line: Drag['line'];
+      if (kind === 'el') {
+        const box = under?.closest('[data-item]') as HTMLElement | null;
+        if (box && blockEl) {
+          const r = box.getBoundingClientRect();
+          const els = ([...box.querySelectorAll('[data-el]')] as HTMLElement[]).filter((x) => x.closest('[data-item]') === box && x !== src);
+          const index = els.filter((x) => { const q = x.getBoundingClientRect(); return q.top + q.height / 2 < ev.clientY; }).length;
+          const y = !els.length ? r.top + r.height / 2 : index === 0 ? els[0].getBoundingClientRect().top - 6 : els[index - 1].getBoundingClientRect().bottom + 6;
+          target = { block: blockEl.dataset.block!, item: Number(box.dataset.item), index }; line = { top: y - 1, left: r.left + 16, width: r.width - 32, height: 2 };
+        }
+      } else if (blockEl?.dataset.block === blockId) {
+        // Boxes: before or after the nearest box, in reading order
+        const boxes = ([...blockEl.querySelectorAll('[data-item]')] as HTMLElement[]).filter((x) => x.closest('[data-block]') === blockEl);
+        let best = -1, dist = Infinity;
+        boxes.forEach((x, k) => { const q = x.getBoundingClientRect(); const dd = Math.hypot(ev.clientX - (q.left + q.width / 2), ev.clientY - (q.top + q.height / 2)); if (dd < dist) { dist = dd; best = k; } });
+        if (best >= 0) { const q = boxes[best].getBoundingClientRect(); const after = ev.clientX > q.left + q.width / 2; target = { block: blockId, item: best, index: best + (after ? 1 : 0) }; line = { top: q.top, left: after ? q.right + 3 : q.left - 5, width: 2, height: q.height }; }
+      }
+      d = { ...d, x: ev.clientX, y: ev.clientY, target, line }; setMoving(d);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.classList.remove('ve-moving'); src?.classList.remove('ve-drag-src');
+      setMoving(null); if (d.target) drop(d);
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
+  function drop(d: Drag) {
+    const cur = latest.current; const c = cur?.chapters.find((x) => x.id === chId); if (!cur || !c || !d.target) return;
+    if (d.kind === 'box') {
+      const b = c.blocks.find((x) => x.id === d.block); if (!b) return;
+      const items = [...(b.items || [])]; const [moved] = items.splice(d.item, 1); let to = d.target.index; if (to > d.item) to -= 1; if (to === d.item) return;
+      items.splice(to, 0, moved);
+      commit({ ...cur, chapters: cur.chapters.map((x) => (x.id !== chId ? x : { ...x, blocks: x.blocks.map((y) => (y.id === b.id ? { ...y, items, edited: true } : y)) })) });
+      setSel({ block: b.id, item: to }); return;
+    }
+    const sb = c.blocks.find((x) => x.id === d.block), tb = c.blocks.find((x) => x.id === d.target!.block); if (!sb || !tb) return;
+    if (!['columns', 'grid', 'carousel'].includes(tb.kind)) return;
+    const sIt = (sb.items || [])[d.item]; const tIt = (tb.items || [])[d.target.item]; if (!sIt || !tIt) return;
+    // Take it out of its box
+    const ms = materialise(sIt, sb.styles || {});
+    const fromId = ms.ids[d.el!] || d.el!; const k = ms.els.findIndex((x) => x.id === fromId); if (k < 0) return;
+    const [el] = ms.els.splice(k, 1);
+    const styleKey = `${sIt.id}.${el.id}`; const elStyle = ms.styles[styleKey];
+    let blocks = c.blocks.map((y) => (y.id !== sb.id ? y : { ...y, edited: true, styles: ms.styles, items: (y.items || []).map((z, n) => (n === d.item ? { ...z, els: ms.els, label: undefined, heading: undefined, body: undefined, media: undefined } : z)) }));
+    // And into the target box, at the line
+    const tb2 = blocks.find((x) => x.id === tb.id)!; const tIt2 = (tb2.items || [])[d.target.item];
+    const mt = materialise(tIt2, tb2.styles || {});
+    let index = d.target.index; if (sb.id === tb.id && d.item === d.target.item && k < index) index = index; // the line was measured without the moved element
+    mt.els.splice(Math.min(index, mt.els.length), 0, el);
+    let tStyles = mt.styles; if (elStyle) { const { [styleKey]: _x, ...rest } = tStyles; void _x; tStyles = { ...(sb.id === tb.id ? rest : tStyles), [`${tIt2.id}.${el.id}`]: elStyle }; }
+    blocks = blocks.map((y) => (y.id !== tb.id ? y : { ...y, edited: true, styles: tStyles, items: (y.items || []).map((z, n) => (n === d.target!.item ? { ...z, els: mt.els, label: undefined, heading: undefined, body: undefined, media: undefined } : z)) }));
+    commit({ ...cur, chapters: cur.chapters.map((x) => (x.id === chId ? { ...x, blocks } : x)) });
+    setSel({ block: tb.id, item: d.target.item, el: `${tIt2.id}.${el.id}` });
+  }
   function place(sp: Spot | null) {
     const what = tool; setTool(null); setSpot(null);
     if (!what || !ch) return;
@@ -214,8 +287,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (what === 'box') { add('box', { block: b.id, item: sp.item }); return; }
     // Into the box, at the point clicked. Its fixed fields become a free list of elements the first time.
     const items = b.items || []; const it = items[sp.item]; if (!it) return;
-    const legacy = !it.els; let styles = b.styles || {};
-    const els: ItemEl[] = itemEls(it).map((x) => { if (!legacy) return x; const id = 'e-' + uid(); const old = `${it.id}.${x.id}`; if (styles[old]) { const { [old]: st0, ...rest } = styles; styles = { ...rest, [`${it.id}.${id}`]: st0 }; } return { ...x, id }; });
+    const { els, styles } = materialise(it, b.styles || {});
     const kind: ItemEl['kind'] = what === 'headline' ? 'heading' : what === 'text' ? 'text' : what === 'label' ? 'label' : 'image';
     const ne: ItemEl = { id: 'e-' + uid(), kind, ...(kind === 'image' ? {} : { text: kind === 'heading' ? 'Headline' : kind === 'label' ? 'Label' : 'Write something…' }) };
     els.splice(Math.min(sp.index ?? els.length, els.length), 0, ne);
@@ -383,8 +455,10 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     itemImage: (i, m, pic) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `itemimg:${i}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `itemimg:${i}`, item: i }); }}>{pic}</span>,
     addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => { editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: b.kind === 'carousel' ? String((b.items || []).length + 1).padStart(2, '0') : 'Label', ...(b.kind === 'carousel' ? { heading: 'A headline for this card' } : { body: 'Text' }), w: b.kind === 'grid' ? 2 : 1, h: 2 }] }); setSel({ block: b.id, item: (b.items || []).length }); }}><Plus size={15} strokeWidth={1.75} aria-hidden />{b.kind === 'carousel' ? 'Card' : 'Box'}</button> : null,
     // The selected box: an outline and handles to drag its width (and height, in a grid) across the columns
+    grip: (i, elId) => ['columns', 'grid', 'carousel'].includes(b.kind) ? <span className="ve-grip-el" onPointerDown={(e) => startMove(e, 'el', b.id, i, elId)} title="Drag to move" aria-hidden><GripVertical size={14} strokeWidth={2} /></span> : null,
     itemBar: (i) => sel?.block === b.id && sel.item === i ? <>
       <span className="ve-itemsel" aria-hidden />
+      <span className="ve-grip-box" onPointerDown={(e) => startMove(e, 'box', b.id, i)} title="Drag to move this box" aria-hidden><GripVertical size={12} strokeWidth={2} />Box</span>
       {b.kind === 'columns' || b.kind === 'grid' ? <span className="ve-hd ve-hd-r" onPointerDown={(e) => startResize(e, b, i, 'x')} role="slider" aria-label="Drag to change width" aria-valuenow={b.items?.[i]?.w || 1} title="Drag to change width" /> : null}
       {b.kind === 'grid' ? <><span className="ve-hd ve-hd-b" onPointerDown={(e) => startResize(e, b, i, 'y')} title="Drag to change height" aria-hidden /><span className="ve-hd ve-hd-c" onPointerDown={(e) => startResize(e, b, i, 'xy')} title="Drag to resize" aria-hidden /></> : null}
     </> : null
@@ -528,6 +602,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           </article>
         </div></div> : null}
         {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={(k) => addSection(k)} /> : null}
+        {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
         {ch ? <Inspector sel={sel?.block === CHAPTER ? null : sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} /> : null}
       </div>
