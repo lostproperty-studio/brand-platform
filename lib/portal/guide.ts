@@ -81,14 +81,32 @@ export function mergeBlocks(fresh: Block[], prev: Block[]): Block[] {
 type Item = Parameters<typeof resolvedText>[0];
 
 /** Reads the Figma page, rebuilds every slide as a web block, exports its images, and stores the guide. */
-export async function buildGuide(projectId: string) {
+/** How a rebuild treats the studio's work: update refreshes from Figma and keeps edits; add keeps everything as it
+ *  is and only brings in chapters, sections and assets that are new in Figma; fresh starts over from the file. */
+export type BuildMode = 'update' | 'add' | 'fresh';
+
+/** Keeps the previous guidelines as they are and adds only what's new in the fresh build, each in its place. */
+export function addNewOnly(prev: Guide, next: Guide): Guide {
+  const after = <T extends { id: string }>(list: T[], fresh: T[], x: T) => { const i = fresh.indexOf(x); const before = fresh.slice(0, i).reverse().find((y) => list.some((o) => o.id === y.id)); return before ? list.findIndex((o) => o.id === before.id) + 1 : 0; };
+  const chapters = prev.chapters.map((c) => {
+    const n = next.chapters.find((x) => x.id === c.id); if (!n) return c;
+    const out = [...c.blocks];
+    for (const b of n.blocks) if (!out.some((o) => o.id === b.id)) out.splice(after(out, n.blocks, b), 0, b);
+    return out.length === c.blocks.length ? c : { ...c, blocks: out };
+  });
+  for (const n of next.chapters) if (!chapters.some((c) => c.id === n.id)) chapters.splice(after(chapters, next.chapters, n), 0, n);
+  const hexes = new Set(prev.colours.map((c) => c.hex.toUpperCase()));
+  return { ...prev, generatedAt: next.generatedAt, file: next.file, page: next.page, version: next.version, chapters, colours: [...prev.colours, ...next.colours.filter((c) => !hexes.has(c.hex.toUpperCase()))] };
+}
+
+export async function buildGuide(projectId: string, mode: BuildMode = 'update') {
   const sb = adminClient();
   const { data: p, error } = await sb.from('projects').select('figma_key, figma_page_id, content, brand').eq('id', projectId).single();
   if (error) throw error;
   if (!p.figma_key) throw new Error('Link a Figma file first.');
   // A file made from the studio's guidelines template is read by its layer names, not interpreted
   const tp = await templatePages(p.figma_key).catch(() => null);
-  if (tp) return buildGuideFromTemplate(projectId, p as { figma_key: string; content: unknown; brand: unknown }, tp);
+  if (tp) return buildGuideFromTemplate(projectId, p as { figma_key: string; content: unknown; brand: unknown }, tp, mode);
   const fetched = await fetchPage(p.figma_key, p.figma_page_id);
   const scan = await scanFigmaPage(p.figma_key, p.figma_page_id, fetched);
   const nodeById = new Map<string, FNode>(((fetched.root as unknown as FNode).children || []).map((n) => [n.id, n]));
@@ -132,7 +150,8 @@ export async function buildGuide(projectId: string) {
   const list = (items || []) as Item[];
   const content = (p.content || {}) as { guide?: Guide };
   const previous = normaliseGuide(content.guide);
-  const prevCh = new Map((previous?.chapters || []).map((c) => [c.id, c]));
+  // Starting over: the studio's earlier work isn't merged in
+  const prevCh = new Map((mode === 'fresh' ? [] : previous?.chapters || []).map((c) => [c.id, c]));
   const usedKeys = new Set<string>();
   const rulesFor = (key: string | null) => { if (!key || usedKeys.has(key)) return []; usedKeys.add(key); return list.filter((i) => i.chapter === key && i.kind !== 'asset' && i.kind !== 'issue').map((i) => ({ title: i.title, text: resolvedText(i) })).filter((r) => r.text); };
 
@@ -165,15 +184,16 @@ export async function buildGuide(projectId: string) {
     if (rules.length) chapters.push({ id: `rules-${key}`, key, title: prev?.title || CHAPTER_NAMES[key], kicker: 'Rules', lede: prev?.lede || '', hidden: prev?.hidden, edited: prev?.edited, blocks: prev?.blocks || [], rules });
   }
   // Chapters the studio added by hand, and chapters drafted for the tier, survive a rebuild
-  for (const c of previous?.chapters || []) if (c.id.startsWith('custom-') || c.id.startsWith('draft-')) chapters.push(c);
+  for (const c of mode === 'fresh' ? [] : previous?.chapters || []) if (c.id.startsWith('custom-') || c.id.startsWith('draft-')) chapters.push(c);
 
   const colourCh = chapters.filter((c) => c.key === 'colour');
   const colourFrames = scan.chapters.filter((c) => keyFor(clean(c.title)) === 'colour').flatMap((c) => c.frames);
-  const guide: Guide = { version: GUIDE_VERSION, generatedAt: new Date().toISOString(), file: scan.fileName, page: scan.pageName, chapters, colours: readColours(colourCh.flatMap((c) => c.blocks), colourFrames.length ? colourFrames : scan.chapters.flatMap((c) => c.frames)) };
+  const built: Guide = { version: GUIDE_VERSION, generatedAt: new Date().toISOString(), file: scan.fileName, page: scan.pageName, chapters, colours: readColours(colourCh.flatMap((c) => c.blocks), colourFrames.length ? colourFrames : scan.chapters.flatMap((c) => c.frames)) };
+  const guide = mode === 'add' && previous ? addNewOnly(previous, built) : built;
 
   const brand = (p.brand || {}) as { core?: { name: string; hex: string; note?: string }[] };
-  const update: Record<string, unknown> = { content: { ...content, guide } };
-  if (!brand.core?.length && guide.colours.length) update.brand = { ...brand, core: guide.colours.map((c) => ({ name: c.name, hex: c.hex, note: c.role })) };
+  const update: Record<string, unknown> = { content: { ...content, guide, ...(mode === 'fresh' ? { dismissedSlots: [] } : {}) } };
+  if ((mode === 'fresh' || !brand.core?.length) && guide.colours.length) update.brand = { ...brand, core: guide.colours.map((c) => ({ name: c.name, hex: c.hex, note: c.role })) };
   const { error: ue } = await sb.from('projects').update(update).eq('id', projectId);
   if (ue) throw ue;
 

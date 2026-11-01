@@ -1,7 +1,7 @@
 import { adminClient } from '@/lib/supabase/server';
 import { exportNodes } from '@/lib/figma/scan';
 import { frameToTemplateBlock, readTemplate, type TemplatePages } from '@/lib/figma/template';
-import { CHAPTER_NAMES, GUIDE_VERSION, guidePaths, keyFor, mergeBlocks, normaliseGuide, type Block, type BlockMedia, type Guide, type GuideChapter } from '@/lib/portal/guide';
+import { addNewOnly, CHAPTER_NAMES, GUIDE_VERSION, type BuildMode, guidePaths, keyFor, mergeBlocks, normaliseGuide, type Block, type BlockMedia, type Guide, type GuideChapter } from '@/lib/portal/guide';
 import { packageSettings, type PackageMap, type PkgFile } from '@/lib/portal/packages';
 import { lines } from '@/lib/brandForm';
 import { TIERS } from '@/lib/playbook';
@@ -15,10 +15,12 @@ import { readShowcase, type ShowcaseRow } from '@/lib/showcase';
 const slug = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item';
 const safe = (id: string) => id.replace(/[:;]/g, '-');
 
-export async function buildGuideFromTemplate(projectId: string, p: { figma_key: string; content: unknown; brand: unknown }, pages: TemplatePages & { file: string }) {
+export async function buildGuideFromTemplate(projectId: string, p: { figma_key: string; content: unknown; brand: unknown }, pages: TemplatePages & { file: string }, mode: BuildMode = 'update') {
   const sb = adminClient();
   const t = await readTemplate(p.figma_key, pages);
-  const content = (p.content || {}) as Record<string, unknown> & { guide?: Guide; homeIntro?: string };
+  const raw = (p.content || {}) as Record<string, unknown> & { guide?: Guide; homeIntro?: string };
+  // Starting over: the guidelines, showcase, form and welcome are rebuilt from the file as if new
+  const content = mode === 'fresh' ? { ...raw, guide: undefined, showcase: undefined, form: undefined, homeIntro: undefined, dismissedSlots: [] } : raw;
   const brand = (p.brand || {}) as { core?: { name: string; hex: string; note?: string }[]; fonts?: { role: string; name?: string; label?: string; files?: unknown[] }[] };
 
   // 1. Export pictures (PNG) and artwork (SVG or PNG), then store them
@@ -67,7 +69,8 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key: 
     };
   });
   for (const c of previous?.chapters || []) if (c.id.startsWith('custom-') || c.id.startsWith('draft-')) chapters.push(c);
-  const guide: Guide = { version: GUIDE_VERSION, generatedAt: new Date().toISOString(), file: pages.file, page: 'Guidelines (template)', chapters, colours: t.colours };
+  const built: Guide = { version: GUIDE_VERSION, generatedAt: new Date().toISOString(), file: pages.file, page: 'Guidelines (template)', chapters, colours: t.colours };
+  const guide = mode === 'add' && previous ? addNewOnly(previous, built) : built;
 
   // 3. Packages: files from the template replace the template's previous files; studio uploads stay
   const pkgs: PackageMap = { ...packageSettings(content) };
@@ -81,26 +84,29 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key: 
   }
   for (const key of new Set([...Object.keys(pkgs), ...fresh.keys()])) {
     const cur = pkgs[key] || {};
-    const keep = (cur.files || []).filter((f) => !f.fromFigma);
-    const add = fresh.get(key) || [];
+    const have = new Set((cur.files || []).map((f) => f.path));
+    const keep = mode === 'add' ? cur.files || [] : (cur.files || []).filter((f) => !f.fromFigma);
+    const add = (fresh.get(key) || []).filter((f) => mode !== 'add' || !have.has(f.path));
     if (!add.length && !(cur.files || []).some((f) => f.fromFigma)) continue;
     const title = key.startsWith('custom-') ? cur.title || t.assets.find((a) => a.pkg === key)?.title : cur.title;
     pkgs[key] = { ...cur, ...(title ? { title } : {}), files: [...keep, ...add], ...(add.length ? { enabled: true } : {}) };
   }
   const nowUsed = new Set([...fresh.values()].flat().map((f) => f.path));
-  const stale = oldFigma.filter((x) => !nowUsed.has(x));
+  const stale = mode === 'add' ? [] : oldFigma.filter((x) => !nowUsed.has(x));
   if (stale.length) await sb.storage.from('kits').remove(stale);
 
   // 4. Showcase: from the template until the studio changes it in the platform
   const sc = readShowcase(content);
   const studioEdited = sc.rows.some((r) => !r.fromFigma);
   const rows: ShowcaseRow[] = t.showcase.map((r, i) => ({ id: 'f-' + i + '-' + r.frames[0].nodeId.replace(/[^0-9a-z]/gi, ''), layout: r.layout, fromFigma: true, frames: r.frames.map((f) => (stored[f.nodeId] ? { kind: 'image' as const, path: stored[f.nodeId].path } : { kind: 'empty' as const })) }));
-  const showcase = studioEdited || !rows.length ? content.showcase : { ...sc, rows };
+  const known = new Set(sc.rows.map((r) => r.id));
+  const showcase = mode === 'add' ? (rows.some((r) => !known.has(r.id)) ? { ...sc, rows: [...sc.rows, ...rows.filter((r) => !known.has(r.id))] } : content.showcase) : studioEdited || !rows.length ? content.showcase : { ...sc, rows };
 
   // 5. Brand basics: palette and type roles from the template; line and welcome only where not already set
   const update: Record<string, unknown> = {};
   const nextBrand: Record<string, unknown> = { ...brand };
-  if (t.colours.length) nextBrand.core = t.colours.map((c) => ({ name: c.name, hex: c.hex, note: c.role }));
+  const core = (brand.core || []);
+  if (t.colours.length) nextBrand.core = mode === 'add' && core.length ? [...core, ...t.colours.filter((c) => !core.some((x) => x.hex.toUpperCase() === c.hex.toUpperCase())).map((c) => ({ name: c.name, hex: c.hex, note: c.role }))] : t.colours.map((c) => ({ name: c.name, hex: c.hex, note: c.role }));
   if (t.fonts.length) {
     const fonts = [...(brand.fonts || [])];
     for (const f of t.fonts) { const i = fonts.findIndex((x) => x.role === f.role); if (i < 0) fonts.push({ role: f.role, name: f.family, label: f.use || '', files: [] }); else if (!fonts[i].name) fonts[i] = { ...fonts[i], name: f.family }; }
@@ -109,16 +115,17 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key: 
   update.brand = nextBrand;
   // The form: kept whole, so the portal and every AI document read the same answers. Depth sets the tier once.
   const tier = TIERS.find((x) => t.form.depth && x.label.toLowerCase() === t.form.depth.trim().toLowerCase())?.id;
-  update.content = { ...content, form: t.form, ...(tier && !(content as { tier?: string }).tier ? { tier } : {}), guide, packages: pkgs, showcase, ...(t.brand.intro && !content.homeIntro ? { homeIntro: t.brand.intro } : {}), typeScale: t.styles.length ? t.styles : (content as { typeScale?: unknown }).typeScale };
+  update.content = { ...content, form: mode === 'add' ? { ...t.form, ...((content as { form?: object }).form || {}) } : t.form, ...(tier && !(content as { tier?: string }).tier ? { tier } : {}), guide, packages: pkgs, showcase, ...(t.brand.intro && !content.homeIntro ? { homeIntro: t.brand.intro } : {}), typeScale: t.styles.length ? t.styles : (content as { typeScale?: unknown }).typeScale };
   const { data: proj } = await sb.from('projects').select('line').eq('id', projectId).single();
-  if (t.brand.line && !proj?.line) update.line = t.brand.line;
+  if (t.brand.line && (mode === 'fresh' || !proj?.line)) update.line = t.brand.line;
   const { error } = await sb.from('projects').update(update).eq('id', projectId);
   if (error) throw error;
 
   // Tidy guide images from earlier builds that nothing uses any more
-  if (previous) {
+  const before = normaliseGuide(raw.guide);
+  if (before) {
     const keep = new Set(guidePaths(guide));
-    const old = guidePaths(previous).filter((x) => !keep.has(x) && !x.includes('/guide/uploads/'));
+    const old = guidePaths(before).filter((x) => !keep.has(x) && !x.includes('/guide/uploads/'));
     for (let i = 0; i < old.length; i += 100) await sb.storage.from('previews').remove(old.slice(i, i + 100));
   }
   return guide;

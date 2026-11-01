@@ -27,7 +27,7 @@ import { buildSnapshot } from '@/lib/projects/snapshot';
 import type { KitFileRow } from '@/lib/portal/context';
 import { tierLabel, tierOf } from '@/lib/playbook';
 
-const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['tools', 'Tools'], ['resources', 'Resources'], ['deliverables', 'Deliverables'], ['client', 'Client']] as const;
+const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['resources', 'Resources'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -35,7 +35,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (st instanceof Response) redirect('/');
   const { id } = await params;
   const sp = await searchParams;
-  const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : 'overview';
+  // Tools and Deliverables now live inside Resources
+  const asked = sp.tab === 'tools' || sp.tab === 'deliverables' ? 'resources' : sp.tab;
+  const tab = TABS.some(([k]) => k === asked) ? asked! : 'overview';
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content').eq('id', id).maybeSingle();
   if (!p) notFound();
@@ -44,7 +46,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     'use server';
     const s = await requireStaff(); if (s instanceof Response) return;
     await adminClient().from('deliverable_parts').update({ status: String(form.get('status')) }).eq('id', String(form.get('part')));
-    redirect(`/studio/projects/${id}?tab=deliverables`);
+    redirect(`/studio/projects/${id}?tab=resources#deliverables`);
   }
 
   const content = (p.content || {}) as { guide?: Guide };
@@ -106,7 +108,6 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { data: signedSc } = paths.length ? await sb.storage.from('previews').createSignedUrls(paths, 6 * 3600) : { data: [] };
     body = <ShowcaseEditor projectId={id} slug={p.slug} initial={sc} initialUrls={Object.fromEntries((signedSc || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]))} />;
   }
-  if (tab === 'tools') body = <ToolManager projectId={id} slug={p.slug} />;
   if (tab === 'resources') {
     const { data: parts } = await sb.from('deliverable_parts').select('key, status, deliverable_files(path, format, storage_path)').eq('project_id', id).order('ord');
     const files: KitFileRow[] = (parts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string })));
@@ -115,7 +116,22 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
     const logo = files.find((f) => /^assets\/logo\/.+\.svg$/i.test(f.path) && f.storage_path);
     const logoUrl = logo ? (await sb.storage.from('kits').createSignedUrl(logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
-    body = <ResourceManager projectId={id} slug={p.slug} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} />;
+    const { data: dparts } = await sb.from('deliverable_parts').select('id, title, contains, format, status, deliverable_files(path)').eq('project_id', id).order('ord');
+    body = <div className="rs-studio">
+      <nav className="rs-studio-nav" aria-label="Resources"><a href="#apps">Apps and tools</a><a href="#downloads">Downloads</a><a href="#deliverables">Deliverables</a></nav>
+      <section id="apps" className="rs-studio-sec"><h2 className="rs-studio-h">Apps and tools</h2><ToolManager projectId={id} slug={p.slug} /></section>
+      <section id="downloads" className="rs-studio-sec"><h2 className="rs-studio-h">Downloads</h2><ResourceManager projectId={id} slug={p.slug} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} /></section>
+      <section id="deliverables" className="rs-studio-sec"><h2 className="rs-studio-h">Deliverables</h2><p className="mute" style={{ marginTop: -4 }}>What the kit contains, and where each part is up to.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 900 }}>
+          {(dparts || []).map((d) => <div key={d.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <p style={{ margin: 0 }}>{d.title} <span className="mute">· {d.format}</span></p>
+            <p className="mute" style={{ margin: 0 }}>{d.contains} · {(d.deliverable_files || []).length} files</p>
+            <form action={setPartStatus} className="row"><input type="hidden" name="part" value={d.id} />{Object.entries(STATUS).map(([k, label]) => <button key={k} name="status" value={k} className={'btn' + (d.status === k ? ' solid' : '')}>{label}</button>)}</form>
+          </div>)}
+          {!dparts?.length ? <p className="mute">Build the kit to create the deliverables.</p> : null}
+        </div>
+      </section>
+    </div>;
   }
   if (tab === 'client') {
     // Everything about how the client uses their portal
@@ -186,17 +202,6 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { data: items } = scan ? await sb.from('review_items').select('*').eq('scan_id', scan.id).order('ord') : { data: [] };
     const withPrev = await Promise.all((items || []).map(async (it) => ({ ...it, preview: it.preview_path ? (await sb.storage.from('previews').createSignedUrl(it.preview_path, 3600)).data?.signedUrl ?? null : null })));
     body = scan ? <Review initial={withPrev as Item[]} figmaKey={scan.figma_key} scanId={scan.id} /> : <p className="mute">No scan yet.</p>;
-  }
-  if (tab === 'deliverables') {
-    const { data: parts } = await sb.from('deliverable_parts').select('id, title, contains, format, status, deliverable_files(path)').eq('project_id', id).order('ord');
-    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 900 }}>
-      {(parts || []).map((d) => <div key={d.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <p style={{ margin: 0 }}>{d.title} <span className="mute">· {d.format}</span></p>
-        <p className="mute" style={{ margin: 0 }}>{d.contains} · {(d.deliverable_files || []).length} files</p>
-        <form action={setPartStatus} className="row"><input type="hidden" name="part" value={d.id} />{Object.entries(STATUS).map(([k, label]) => <button key={k} name="status" value={k} className={'btn' + (d.status === k ? ' solid' : '')}>{label}</button>)}</form>
-      </div>)}
-      {!parts?.length ? <p className="mute">Build the kit to create the deliverables.</p> : null}
-    </div>;
   }
   return (
     <div>
