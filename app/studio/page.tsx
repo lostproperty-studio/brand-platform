@@ -4,7 +4,8 @@ import { requireStaff, userClient } from '@/lib/supabase/server';
 import { ProjectCard } from '@/components/ProjectCard';
 import { logoThumbs } from '@/lib/projects/logoThumb';
 import { RequestsInbox, type InboxReq } from '@/components/RequestsInbox';
-import { Inbox, Settings } from 'lucide-react';
+import { Inbox, LogOut, Settings } from 'lucide-react';
+import { signOut } from '@/lib/auth/signOut';
 import { fontsNeedingLicence, type ProjectFont } from '@/lib/fonts';
 
 type Row = { packages?: unknown; id: string; client: string; name: string; slug: string; status: 'draft' | 'live' | 'archived'; updated_at: string; repo_full_name: string | null; brand: { core?: { hex: string }[]; logo?: string; fonts?: ProjectFont[] } };
@@ -42,7 +43,14 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
         {FILTERS.map(([k, label]) => <Link key={k} href={`/studio?f=${k}`} className={'db-it' + (f === k ? ' on' : '')}>{label}<span className="n">{count(k)}</span></Link>)}
         <p className="db-h">Clients</p>
         {all.filter((p) => p.status !== 'archived').map((p) => <Link key={p.id} href={`/studio/projects/${p.id}`} className="db-it">{p.client}<span className="n">{p.status === 'live' ? 'Live' : 'Draft'}</span></Link>)}
-        {showAdmin ? <Link href="/studio/admin" className="db-it db-admin"><Settings size={15} strokeWidth={1.75} aria-hidden />Admin settings</Link> : null}
+        <div className="db-foot">
+          {showAdmin ? <Link href="/studio/admin" className="db-it"><Settings size={15} strokeWidth={1.75} aria-hidden />Admin settings</Link> : null}
+          <form action={signOut} className="db-me">
+            <span className="av sm db-av" aria-hidden>{(st.user.email || '?').slice(0, 1).toUpperCase()}</span>
+            <span className="db-me-e" title={st.user.email || ''}>{st.user.email}</span>
+            <button type="submit" className="db-out" aria-label="Log out" data-tip="Log out"><LogOut size={15} strokeWidth={1.75} aria-hidden /></button>
+          </form>
+        </div>
       </aside>
       <main className="db-main">
         <div className="db-top"><h1>{f === 'requests' ? 'Requests' : FILTERS.find(([k]) => k === f)?.[1]}</h1><Link className="btn pink" href="/studio/new">New project</Link></div>

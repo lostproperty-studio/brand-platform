@@ -1415,3 +1415,11 @@ a.ov-link:hover { background: var(--fill); }
 .auth-err { margin: 0; font-size: 13px; color: #b3261e; }
 .auth-or { display: flex; align-items: center; gap: 10px; margin: 6px 0; color: var(--mute); font-size: 12px; }
 .auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.db-foot { margin-top: auto; padding-top: 6px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.db-me { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 4px 0 10px; }
+.db-av { width: 22px; height: 22px; font-size: 10px; }
+.db-me-e { flex: 1; min-width: 0; font-size: 12px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-out { all: unset; cursor: pointer; position: relative; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; }
+.db-out:hover { background: var(--fill); }
+.db-out:focus-visible { outline: 2px solid #000; }
+.db-out[data-tip]:hover::after { top: auto; bottom: calc(100% + 6px); left: auto; right: 0; transform: none; }
