@@ -6,7 +6,7 @@ import type { Sel } from '@/components/GuideDock';
 import {
   AlignEndHorizontal, AlignCenterHorizontal, AlignStartHorizontal, ArrowLeft, ArrowRight, ArrowRightToLine, Copy, GalleryHorizontal, ImageOff, ImagePlus,
   ImageUp, Images, LayoutGrid, Minus, PanelLeft, PanelRight, Plus, RectangleHorizontal, Scan, Square, SquareDashed, Trash2, WrapText, Columns3, MousePointerClick,
-  type LucideIcon
+  ArrowLeftRight, ArrowUpDown, type LucideIcon
 } from 'lucide-react';
 
 const I = { size: 15, strokeWidth: 1.75, 'aria-hidden': true } as const;
@@ -23,6 +23,16 @@ function Row({ label, children, hint }: { label: string; children: React.ReactNo
 function Seg<T extends string | number>({ value, opts, set, label }: { value: T; opts: [T, string, LucideIcon?][]; set: (v: T) => void; label: string }) {
   return <div className="dp-seg" role="radiogroup" aria-label={label}>{opts.map(([v, l, Ic]) => <button type="button" key={String(v)} role="radio" aria-checked={value === v} className={value === v ? 'on' : ''} onClick={() => set(v)} aria-label={l} data-tip={Ic ? l : undefined}>{Ic ? <Ic {...I} /> : l}</button>)}</div>;
 }
+/** A pixel value you can type, or step with − and +; empty means the layout's default */
+function Px({ value, placeholder, set, label, icon: Ic, step = 4 }: { value?: number; placeholder: number; set: (n: number | undefined) => void; label: string; icon: LucideIcon; step?: number }) {
+  const v = value ?? placeholder;
+  return <div className="dp-px" role="group" aria-label={label} data-tip={label}>
+    <Ic {...I} />
+    <input type="number" min={0} max={200} step={step} value={value ?? ''} placeholder={String(placeholder)} onChange={(e) => set(e.target.value === '' ? undefined : Math.max(0, Math.min(200, Number(e.target.value))))} aria-label={`${label} in pixels`} />
+    <span className="dp-px-btns"><button type="button" onClick={() => set(Math.min(200, v + step))} aria-label={`More ${label.toLowerCase()}`}><Plus size={11} strokeWidth={2} aria-hidden /></button><button type="button" onClick={() => set(Math.max(0, v - step))} aria-label={`Less ${label.toLowerCase()}`}><Minus size={11} strokeWidth={2} aria-hidden /></button></span>
+  </div>;
+}
+
 /** − n + stepper */
 function Step({ value, min, max, set, label, suffix }: { value: number; min: number; max: number; set: (n: number) => void; label: string; suffix?: string }) {
   return <div className="dp-step" role="group" aria-label={label}>
@@ -68,15 +78,18 @@ export function Inspector({ sel, setSel, ch, colours, editBlock, pickImage }: {
           <Row label="Width" hint="Equal: every box is one column wide. Fill: boxes stretch to fill the row, including the last one."><Seg value={flow.width || 'equal'} opts={[['equal', 'Equal'], ['fill', 'Fill']]} set={(v) => setFlow({ width: v })} label="Width" /></Row>
           <Row label="Height" hint="Fill: boxes in a row match the tallest. Hug: each box fits its content."><Seg value={flow.height || 'fill'} opts={[['fill', 'Fill'], ['hug', 'Hug']]} set={(v) => setFlow({ height: v })} label="Height" /></Row>
           {flow.height === 'hug' ? <Row label="Align"><Seg value={flow.align || 'start'} opts={[['start', 'Top', AlignStartHorizontal], ['center', 'Middle', AlignCenterHorizontal], ['end', 'Bottom', AlignEndHorizontal]]} set={(v) => setFlow({ align: v })} label="Align" /></Row> : null}
-          <Row label="Gap"><Seg value={flow.gap || 'm'} opts={[['s', 'S'], ['m', 'M'], ['l', 'L']]} set={(v) => setFlow({ gap: v })} label="Gap" /></Row>
+<Row label="Spacing" hint="Between columns, and between rows, in pixels. Empty uses the default."><Px value={b.gapX} placeholder={({ s: 10, m: 20, l: 40 } as const)[flow.gap || 'm']} set={(n) => set({ gapX: n }, 'gapX')} label="Space between columns" icon={ArrowLeftRight} /><Px value={b.gapY} placeholder={b.gapX ?? ({ s: 10, m: 20, l: 40 } as const)[flow.gap || 'm']} set={(n) => set({ gapY: n }, 'gapY')} label="Space between rows" icon={ArrowUpDown} /></Row>
+          <Row label="Padding" hint="Space inside each box, in pixels"><Px value={b.pad} placeholder={b.box && b.box !== 'none' ? 24 : 0} set={(n) => set({ pad: n }, 'pad')} label="Padding inside boxes" icon={Square} /></Row>
         </> : null}
 
         {b.kind === 'grid' ? <>
           <Row label="Columns" hint="The grid every box snaps to"><Seg value={gcols} opts={[[4, '4'], [6, '6'], [8, '8'], [12, '12']]} set={(n) => set({ gridCols: n, items: items.map((x) => ({ ...x, w: Math.max(1, Math.round(((x.w || 2) / gcols) * n)) })) })} label="Grid columns" /></Row>
           <Row label="Row height"><Seg value={b.rowH || 'm'} opts={[['s', 'S'], ['m', 'M'], ['l', 'L']]} set={(v) => set({ rowH: v })} label="Row height" /></Row>
-          <Row label="Gap"><Seg value={b.gap || 'm'} opts={[['s', 'S'], ['m', 'M'], ['l', 'L']]} set={(v) => set({ gap: v })} label="Gap" /></Row>
+<Row label="Spacing" hint="Between columns, and between rows, in pixels. Empty uses the default."><Px value={b.gapX} placeholder={({ s: 6, m: 12, l: 24 } as const)[b.gap || 'm']} set={(n) => set({ gapX: n }, 'gapX')} label="Space between columns" icon={ArrowLeftRight} /><Px value={b.gapY} placeholder={b.gapX ?? ({ s: 6, m: 12, l: 24 } as const)[b.gap || 'm']} set={(n) => set({ gapY: n }, 'gapY')} label="Space between rows" icon={ArrowUpDown} /></Row>
+          <Row label="Padding" hint="Space inside each box, in pixels"><Px value={b.pad} placeholder={b.box && b.box !== 'none' ? 24 : 0} set={(n) => set({ pad: n }, 'pad')} label="Padding inside boxes" icon={Square} /></Row>
         </> : null}
 
+        {b.kind === 'carousel' && b.variant !== 'images' ? <Row label="Padding" hint="Space inside each card, in pixels"><Px value={b.pad} placeholder={40} set={(n) => set({ pad: n }, 'pad')} label="Padding inside cards" icon={Square} /></Row> : null}
         {b.kind === 'carousel' ? <Row label="Slides"><Seg value={b.variant || 'cards'} opts={[['cards', 'Cards of text', RectangleHorizontal], ['images', 'Images', Images]]} set={(v) => set(v === 'images' ? { variant: v } : { variant: v, box: b.box && b.box !== 'none' ? b.box : 'fill', items: items.length ? items : [{ id: iid(), label: '01', heading: 'A headline for this card' }] })} label="Slides" /></Row> : null}
         {b.kind === 'columns' || b.kind === 'grid' || (b.kind === 'carousel' && b.variant !== 'images') ? <Row label="Boxes" hint="How each box is held: free, corner marks, outline or a light fill"><Seg value={b.box || (b.kind === 'carousel' ? 'fill' : 'none')} opts={BOXES.map(([v, l]) => [v, l, BOX_ICON[v]] as [BoxStyle, string, LucideIcon])} set={(v) => set({ box: v })} label="Boxes" /></Row> : null}
         {b.kind === 'media' ? <Row label="Per row"><Step value={b.cols || 2} min={1} max={4} set={(n) => set({ cols: n })} label="Images per row" /></Row> : null}

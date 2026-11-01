@@ -2,10 +2,10 @@
 import { createElement, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
-import type { BlockItem, BoxStyle, TextStyle } from '@/lib/figma/blocks';
+import { itemEls, itemWords, type BlockItem, type BoxStyle, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
 import { Inspector } from '@/components/GuideInspector';
-import { AddBar, type AddWhat } from '@/components/GuideAddBar';
+import { AddBar, addTarget, type AddWhat } from '@/components/GuideAddBar';
 import { CHAPTER, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
@@ -29,7 +29,7 @@ export function convert(b: Block, kind: BlockKind): Partial<Block> {
   }
   if ((kind === 'columns' || kind === 'grid') && !(b.items || []).length) return { kind, items: toItems(), body: undefined, cols: kind === 'columns' ? 3 : undefined, box: b.box || 'none' };
   if (kind === 'columns' || kind === 'grid') return { kind, cols: kind === 'columns' ? Math.max(2, Math.min(4, b.cols || (b.items || []).length)) : undefined, items: (b.items || []).map((i) => ({ ...i, w: i.w || 3, h: i.h || 2 })) };
-  if ((b.kind === 'columns' || b.kind === 'grid') && b.items?.length) return { kind, items: undefined, body: [b.body, ...b.items.map((i) => [i.label, i.heading, i.body].filter(Boolean).join('\n'))].filter(Boolean).join('\n\n'), media: [...(b.media || []), ...b.items.map((i) => i.media).filter(Boolean) as BlockMedia[]] };
+  if ((b.kind === 'columns' || b.kind === 'grid') && b.items?.length) return { kind, items: undefined, body: [b.body, ...b.items.map((i) => itemWords(i).join('\n'))].filter(Boolean).join('\n\n'), media: [...(b.media || []), ...b.items.flatMap((i) => itemEls(i).map((e) => e.media)).filter(Boolean) as BlockMedia[]] };
   return { kind, side: kind === 'split' ? b.side || 'right' : b.side };
 }
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -160,7 +160,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       const typing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+      if (e.key === 'Escape' && tool) { setTool(null); return; }
       if (e.key === 'Escape' && !typing && !ask) setSel(null);
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !typing && !ask && sel) { e.preventDefault(); deleteSelection(); return; }
       if (!(e.metaKey || e.ctrlKey) || typing) return;
       const k = e.key.toLowerCase();
       if (k === 'z' && !e.shiftKey) { e.preventDefault(); step('undo'); }
@@ -181,26 +183,87 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const l = [...ch.blocks]; l.splice(i, 0, b); setBlocks(l); setMenu(null); setSel({ block: b.id });
     return b;
   };
+  // ---------- placing with the adding bar: pick a tool, the cursor becomes a cross, click where it goes
+  type Spot = { mode: 'line' | 'box'; block?: string; item?: number; index?: number; label: string; line: { top: number; left: number; width: number; height: number } };
+  const [tool, setTool] = useState<AddWhat | null>(null);
+  const [spot, setSpot] = useState<Spot | null>(null);
+  useEffect(() => { document.body.classList.toggle('ve-tool', !!tool); return () => document.body.classList.remove('ve-tool'); }, [tool]);
+  const WHAT: Record<AddWhat, string> = { headline: 'Headline', text: 'Text', label: 'Label', image: 'Image', box: 'Box', swatch: 'Colour' };
+  function findSpot(e: React.MouseEvent): Spot | null {
+    if (!tool || !ch) return null;
+    const t = e.target as HTMLElement;
+    const blockEl = t.closest('[data-block]') as HTMLElement | null;
+    const box = t.closest('[data-item]') as HTMLElement | null;
+    if (box && blockEl && tool !== 'box' && tool !== 'swatch') {
+      const r = box.getBoundingClientRect();
+      const els = [...box.querySelectorAll('[data-el]')].filter((x) => x.closest('[data-item]') === box) as HTMLElement[];
+      const index = els.filter((x) => { const q = x.getBoundingClientRect(); return q.top + q.height / 2 < e.clientY; }).length;
+      const y = !els.length ? r.top + r.height / 2 : index === 0 ? els[0].getBoundingClientRect().top - 6 : els[index - 1].getBoundingClientRect().bottom + 6;
+      return { mode: 'line', block: blockEl.dataset.block, item: Number(box.dataset.item), index, label: `${WHAT[tool]} here`, line: { top: y - 1, left: r.left + 16, width: r.width - 32, height: 2 } };
+    }
+    if (box && blockEl && tool === 'box') { const r = box.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, item: Number(box.dataset.item), label: 'New box after this one', line: { top: r.top, left: r.right + 4, width: 3, height: r.height } }; }
+    if (blockEl) { const r = blockEl.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, label: `${WHAT[tool]} → ${addTarget(tool, ch, { block: blockEl.dataset.block! })}`, line: { top: r.top - 6, left: r.left - 6, width: r.width + 12, height: r.height + 12 } }; }
+    return null;
+  }
+  function place(sp: Spot | null) {
+    const what = tool; setTool(null); setSpot(null);
+    if (!what || !ch) return;
+    if (!sp?.block) { setSel(null); add(what, null); return; }
+    const b = ch.blocks.find((x) => x.id === sp.block); if (!b) return;
+    if (sp.item === undefined) { add(what, { block: b.id }); return; }
+    if (what === 'box') { add('box', { block: b.id, item: sp.item }); return; }
+    // Into the box, at the point clicked. Its fixed fields become a free list of elements the first time.
+    const items = b.items || []; const it = items[sp.item]; if (!it) return;
+    const legacy = !it.els; let styles = b.styles || {};
+    const els: ItemEl[] = itemEls(it).map((x) => { if (!legacy) return x; const id = 'e-' + uid(); const old = `${it.id}.${x.id}`; if (styles[old]) { const { [old]: st0, ...rest } = styles; styles = { ...rest, [`${it.id}.${id}`]: st0 }; } return { ...x, id }; });
+    const kind: ItemEl['kind'] = what === 'headline' ? 'heading' : what === 'text' ? 'text' : what === 'label' ? 'label' : 'image';
+    const ne: ItemEl = { id: 'e-' + uid(), kind, ...(kind === 'image' ? {} : { text: kind === 'heading' ? 'Headline' : kind === 'label' ? 'Label' : 'Write something…' }) };
+    els.splice(Math.min(sp.index ?? els.length, els.length), 0, ne);
+    editBlock(b.id, { items: items.map((x, n) => (n === sp.item ? { ...x, els, label: undefined, heading: undefined, body: undefined, media: undefined } : x)), styles });
+    if (kind === 'image') { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); pickImage(b.id, `itemel:${sp.item}:${ne.id}`); }
+    else { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); focusNext.current = true; }
+  }
+  // ---------- Backspace or Delete removes what's selected: a text, an image, a box, or the section
+  function deleteSelection() {
+    if (!ch || !sel || sel.block === CHAPTER) return;
+    const b = ch.blocks.find((x) => x.id === sel.block); if (!b) return;
+    const items = b.items || [];
+    if (sel.el?.startsWith('img:')) { const k = Number(sel.el.slice(4)); editBlock(b.id, { media: (b.media || []).filter((_, n) => n !== k) }); setSel({ block: b.id }); return; }
+    if (sel.el?.startsWith('itemimg:')) { editBlock(b.id, { items: items.map((x, n) => (n === sel.item ? { ...x, media: undefined } : x)) }); setSel({ block: b.id, item: sel.item }); return; }
+    if (sel.el && sel.item !== undefined) {
+      const [, field] = sel.el.split('.'); const it = items[sel.item];
+      if (it?.els) editBlock(b.id, { items: items.map((x, n) => (n === sel.item ? { ...x, els: (x.els || []).filter((y) => y.id !== field) } : x)) });
+      else editBlock(b.id, { items: items.map((x, n) => (n === sel.item ? { ...x, [field]: undefined } : x)), off: [...new Set([...(b.off || []), sel.el])] });
+      setSel({ block: b.id, item: sel.item }); return;
+    }
+    if (sel.el) { editBlock(b.id, { [sel.el]: undefined, off: [...new Set([...(b.off || []), sel.el])] } as Partial<Block>); setSel({ block: b.id }); return; }
+    if (sel.item !== undefined) { editBlock(b.id, { items: items.filter((_, n) => n !== sel.item) }); setSel({ block: b.id }); return; }
+    if (b.source) editBlock(b.id, { hidden: true }); else setBlocks(ch.blocks.filter((x) => x.id !== b.id));
+    setSel(null);
+  }
   // ---------- adding from the bottom bar: into the selected box, then the section, else a new section below
   const focusNext = useRef(false);
+  const selRef = sel;
   useEffect(() => {
     if (!focusNext.current) return; focusNext.current = false;
     const el = document.querySelector('.ed.ed-on') as HTMLElement | null;
     if (el) { el.focus(); const r = document.createRange(); r.selectNodeContents(el); const s0 = window.getSelection(); s0?.removeAllRanges(); s0?.addRange(r); }
   });
   const PH: Record<string, string> = { heading: 'Headline', eyebrow: 'Label', label: 'Label', body: 'Write something…' };
-  function addSection(kind: BlockKind) {
+  function addSection(kind: BlockKind, from?: Sel | null) {
     if (!ch) return;
+    const sel = from === undefined ? selRef : from;
     const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length;
     return insertAt(at > 0 ? at : ch.blocks.length, kind);
   }
-  function add(what: AddWhat) {
+  function add(what: AddWhat, at?: Sel | null) {
     if (!ch) return;
+    const sel = at === undefined ? selRef : at;
     const b = sel ? ch.blocks.find((x) => x.id === sel.block) : undefined;
     const itemish = !!b && ['columns', 'grid', 'carousel'].includes(b.kind) && b.variant !== 'images';
     const items = b?.items || [];
     const newBox = (p: Partial<BlockItem>) => { if (!b) return; const i = sel?.item !== undefined ? sel.item + 1 : items.length; const it = { id: iid(), w: b.kind === 'grid' ? 2 : 1, h: 2, ...p }; editBlock(b.id, { items: [...items.slice(0, i), it, ...items.slice(i)] }); return { i, it }; };
-    const afterSection = (kind: BlockKind, then?: (nb: Block) => void) => { const nb = addSection(kind); if (nb && then) then(nb); };
+    const afterSection = (kind: BlockKind, then?: (nb: Block) => void) => { const nb = addSection(kind, sel); if (nb && then) then(nb); };
     if (!b) { // nothing selected: a new section at the end
       const kind: BlockKind = what === 'headline' ? 'divider' : what === 'image' ? 'image' : what === 'box' ? 'columns' : what === 'swatch' ? 'swatches' : 'text';
       afterSection(kind, (nb) => { if (what === 'image') pickImage(nb.id, 'new'); });
@@ -242,6 +305,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const up = await upload(f); if (!up) return;
     if (t.target === 'thumb') { setCh({ thumb: up.path }); return; }
     const b = ch.blocks.find((x) => x.id === t.block); if (!b) return;
+    if (typeof t.target === 'string' && t.target.startsWith('itemel:')) { const [, k, elId] = t.target.split(':'); editBlock(b.id, { items: (b.items || []).map((x, n) => (n === Number(k) ? { ...x, els: (x.els || []).map((e) => (e.id === elId ? { ...e, media: up } : e)) } : x)) }); return; }
     if (typeof t.target === 'string' && t.target.startsWith('item:')) { const k = Number(t.target.slice(5)); editBlock(b.id, { items: (b.items || []).map((x, n) => (n === k ? { ...x, media: up } : x)) }); return; }
     if (t.target === 'backdrop') editBlock(b.id, { backdrop: up });
     else if (t.target === 'new') editBlock(b.id, { media: [...(b.media || []), up] });
@@ -269,6 +333,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     addSwatch: () => <button key="add" className="gb-swc ve-add" onClick={() => editBlock(b.id, { swatches: [...(b.swatches || []), { name: 'Colour', hex: '#000000' }] })}>+ Swatch</button>,
     addImage: () => <button key="addimg" className="ve-add ve-addimg" onClick={() => pickImage(b.id, 'new')}>+ Add image</button>,
     itemText: (i, field, value, el) => (!value ? null : <Editable key={field} value={value} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === el.key} onFocus={() => setSel({ block: b.id, el: el.key, item: i })} onSave={(v) => editBlock(b.id, { items: (b.items || []).map((x, n) => (n === i ? { ...x, [field]: v || undefined } : x)) })} />),
+    itemElText: (i, e, el) => <Editable key={e.id} value={e.text} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === el.key} onFocus={() => setSel({ block: b.id, el: el.key, item: i })} onSave={(v) => editBlock(b.id, { items: (b.items || []).map((x, n) => (n === i ? { ...x, els: (x.els || []).map((y) => (y.id === e.id ? { ...y, text: v || undefined } : y)) } : x)) })} />,
+    itemElImage: (i, e, img) => { const key = `${(b.items || [])[i]?.id}.${e.id}`; return img ? <span className={'ve-img' + (sel?.block === b.id && sel.el === key ? ' on' : '')} onMouseDown={(ev) => { ev.stopPropagation(); setSel({ block: b.id, el: key, item: i }); }}>{img}</span> : <button className={'ve-add ve-elimg' + (sel?.block === b.id && sel.el === key ? ' on' : '')} onMouseDown={(ev) => { ev.stopPropagation(); setSel({ block: b.id, el: key, item: i }); }} onClick={() => pickImage(b.id, `itemel:${i}:${e.id}`)}><ImageIcon size={16} strokeWidth={1.75} aria-hidden />Choose an image</button>; },
     itemImage: (i, m, pic) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `itemimg:${i}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `itemimg:${i}`, item: i }); }}>{pic}</span>,
     addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => { editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: b.kind === 'carousel' ? String((b.items || []).length + 1).padStart(2, '0') : 'Label', ...(b.kind === 'carousel' ? { heading: 'A headline for this card' } : { body: 'Text' }), w: b.kind === 'grid' ? 2 : 1, h: 2 }] }); setSel({ block: b.id, item: (b.items || []).length }); }}><Plus size={15} strokeWidth={1.75} aria-hidden />{b.kind === 'carousel' ? 'Card' : 'Box'}</button> : null,
     // The selected box: an outline and handles to drag its width (and height, in a grid) across the columns
@@ -377,7 +443,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                 </div>
               </div>
           </section>
-          <div className="ve-canvas pt">
+          <div className={'ve-canvas pt' + (tool ? ' ve-adding' : '')} onMouseMoveCapture={(e) => { if (tool) setSpot(findSpot(e)); }} onMouseLeave={() => setSpot(null)} onMouseDownCapture={(e) => { if (!tool) return; e.preventDefault(); e.stopPropagation(); place(findSpot(e)); }} onClickCapture={(e) => { if (tool) { e.preventDefault(); e.stopPropagation(); } }}>
           <article className="pt-page ve-page">
             <header className="pt-chhead ve-chhead">
               <p className="mute"><span className="pt-n">{String(g.chapters.indexOf(ch) + 1).padStart(2, '0')}</span><Editable value={ch.kicker} tag="span" {...chText('kicker', '')} placeholder="Label" onSave={(v) => setCh({ kicker: v, edited: true })} /></p>
@@ -402,7 +468,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                     const t = e.target as HTMLElement; const box = t.closest('[data-item]') as HTMLElement | null;
                     if (box && !t.closest('.ed, .ve-img, .ve-hd') && box.closest('.ve-block') === e.currentTarget) setSel({ block: b.id, item: Number(box.dataset.item) });
                     else if (sel?.block !== b.id) setSel({ block: b.id });
-                  }} className={'ve-block' + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
+                  }} data-block={b.id} className={'ve-block' + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
                     onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }}>
                     {sel?.block === b.id ? <span className="ve-handle-tab" draggable onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragEnd={() => { setDrag(null); setOver(null); }} title="Drag to move" aria-label="Drag to move"><GripVertical size={12} strokeWidth={2} aria-hidden />{KINDS.find(([k]) => k === b.kind)?.[1]}</span> : <span className="ve-hint">Click to edit</span>}
                     {b.hidden ? <p className="ve-hidden">Hidden from the client · <button onClick={() => editBlock(b.id, { hidden: false })}>Show</button></p> : null}
@@ -416,7 +482,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
             {ch.rules.length ? <section className="pt-blk"><h2 className="pt-h2">The rules</h2><p className="mute" style={{ marginTop: -6 }}>From the review. Change them in the Review tab.</p><div className="pt-rules">{ch.rules.map((r, k) => <div key={k} className="pt-rule"><p className="pt-rule-h">{r.title}</p><p>{r.text}</p></div>)}</div></section> : null}
           </article>
         </div></div> : null}
-        {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} onAdd={add} onSection={(k) => addSection(k)} /> : null}
+        {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={(k) => addSection(k)} /> : null}
+        {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
         {ch ? <Inspector sel={sel?.block === CHAPTER ? null : sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} /> : null}
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}

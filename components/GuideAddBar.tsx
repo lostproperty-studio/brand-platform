@@ -31,10 +31,11 @@ export function addTarget(what: AddWhat, ch: GuideChapter, sel: Sel | null): str
 
 // The adding bar at the bottom of the screen, like Figma's: top and side are for changing what's there; this is for
 // adding. Each tool adds to whatever you've selected (a box, then a section), or below it when there's no room.
-export function AddBar({ ch, sel, onAdd, onSection }: { ch: GuideChapter; sel: Sel | null; onAdd: (what: AddWhat) => void; onSection: (kind: BlockKind) => void }) {
+export function AddBar({ ch, sel, tool, onTool, onSection }: { ch: GuideChapter; sel: Sel | null; tool: AddWhat | null; onTool: (w: AddWhat | null) => void; onSection: (kind: BlockKind) => void }) {
   const [menu, setMenu] = useState(false);
   useEffect(() => { if (!menu) return; const off = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.ab-menu-wrap')) setMenu(false); }; document.addEventListener('mousedown', off); return () => document.removeEventListener('mousedown', off); }, [menu]);
   const b: Block | undefined = sel ? ch.blocks.find((x) => x.id === sel.block) : undefined;
+  void addTarget;
   const tools: [AddWhat, string, LucideIcon][] = [['headline', 'Headline', Heading], ['text', 'Text', Type], ['label', 'Label', Tag], ['image', 'Image', ImagePlus], ['box', 'Box', SquarePlus], ...(b?.kind === 'swatches' ? [['swatch', 'Colour', Palette] as [AddWhat, string, LucideIcon]] : [])];
   return (
     <div className="ab" role="toolbar" aria-label="Add to the page" onMouseDown={(e) => e.preventDefault()}>
@@ -43,8 +44,8 @@ export function AddBar({ ch, sel, onAdd, onSection }: { ch: GuideChapter; sel: S
         {menu ? <div className="ab-menu" role="menu"><p className="ab-menu-h">{b ? 'New section below' : 'New section'}</p>{KINDS.map(([k, l]) => <button type="button" key={k} role="menuitem" onClick={() => { setMenu(false); onSection(k); }}><KindIcon k={k} />{l}</button>)}</div> : null}
       </div>
       <span className="ab-sep" />
-      {tools.map(([w, l, Ic]) => { const where = addTarget(w, ch, sel); return (
-        <button key={w} type="button" className="ab-btn" onClick={() => onAdd(w)} aria-label={`Add ${l.toLowerCase()} to ${where}`} data-tip={`${l} → ${where}`}><Ic {...I} /></button>); })}
+      {tools.map(([w, l, Ic]) => (
+        <button key={w} type="button" className={'ab-btn' + (tool === w ? ' on' : '')} onClick={() => onTool(tool === w ? null : w)} aria-pressed={tool === w} aria-label={`${l}: click, then click on the page where it goes`} data-tip={tool === w ? `Click where the ${l.toLowerCase()} goes · Esc to cancel` : `${l} · click, then point where it goes`}><Ic {...I} /></button>))}
     </div>
   );
 }

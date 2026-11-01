@@ -1441,3 +1441,28 @@ a.ov-link:hover { background: var(--fill); }
 .ab-menu button:hover, .ab-menu button:focus-visible { background: rgba(255,255,255,.1); }
 .ve-main { padding-bottom: 90px; }
 @media (max-width: 1180px) { .ab { left: calc(50% - 140px); } }
+/* Placing with the adding bar: a cross cursor and a blue line or outline where it will go */
+.ve-adding, .ve-adding * { cursor: crosshair !important; }
+.ab-btn.on { background: var(--sel); }
+.ve-spot { position: fixed; z-index: 44; pointer-events: none; }
+.ve-spot.line { background: var(--sel); border-radius: 2px; }
+.ve-spot.line::before, .ve-spot.line::after { content: ''; position: absolute; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 2px var(--sel); }
+.ve-spot.line::before { left: -4px; } .ve-spot.line::after { right: -4px; }
+.ve-spot.box { outline: 2px solid var(--sel); outline-offset: 0; border-radius: 3px; background: rgba(13, 153, 255, .04); }
+.ve-spot span { position: absolute; left: 0; bottom: calc(100% + 6px); padding: 3px 8px; border-radius: 6px; background: var(--sel); color: #fff; font: 11px var(--font); white-space: nowrap; }
+.ve-spot.box span { bottom: auto; top: -24px; }
+.gi-el { min-width: 0; }
+.bx-corners > .gi > .gi-push, .bx-outline > .gi > .gi-push, .bx-fill > .gi > .gi-push { margin-top: auto; padding-top: 28px; }
+.ve-elimg { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 120px; border-radius: 4px; }
+.ve-elimg.on { outline: 1px solid var(--sel); }
+.gb-columns { gap: var(--rgap, var(--gap)) var(--gap); }
+.gb-grid { gap: var(--rgap, var(--gap)) var(--gap); }
+.gb-columns[style*="--pad"] > .gi, .gb-grid[style*="--pad"] > .gi { padding: var(--pad); }
+.dp-px { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; height: 30px; padding: 0 2px 0 8px; border-radius: 8px; background: var(--fill); color: var(--mute); }
+.dp-px input { flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; font: inherit; color: #000; -moz-appearance: textfield; }
+.dp-px input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.dp-px input:focus { outline: none; }
+.dp-px:focus-within { box-shadow: inset 0 0 0 1px var(--sel); }
+.dp-px-btns { display: flex; flex-direction: column; }
+.dp-px-btns button { all: unset; cursor: pointer; width: 18px; height: 13px; display: inline-flex; align-items: center; justify-content: center; border-radius: 3px; color: #000; }
+.dp-px-btns button:hover { background: rgba(0,0,0,.06); }

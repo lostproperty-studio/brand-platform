@@ -17,7 +17,23 @@ export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';
 export type TextCase = 'upper' | 'lower' | 'sentence' | 'title';
 /** Text styling set in the editor. font is a typeface role on the project; tracking is in em (-0.02 = -2%); leading is a line-height multiple. */
 export type TextStyle = { size?: number; weight?: number; color?: string; font?: string; tracking?: number; leading?: number; case?: TextCase };
-export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number };
+/** One element inside a box, in order: a small label, a headline, text or an image */
+export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image'; text?: string; media?: BlockMedia };
+export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number;
+  /** When set, the box's content as a free list of elements (added with the adding bar), instead of the fixed fields */
+  els?: ItemEl[] };
+/** A box's elements in order, from its free list or from the fixed fields (image, label, headline, text) */
+export function itemEls(it: BlockItem): ItemEl[] {
+  if (it.els) return it.els;
+  return [
+    ...(it.media ? [{ id: 'media', kind: 'image' as const, media: it.media }] : []),
+    ...(it.label ? [{ id: 'label', kind: 'label' as const, text: it.label }] : []),
+    ...(it.heading ? [{ id: 'heading', kind: 'heading' as const, text: it.heading }] : []),
+    ...(it.body ? [{ id: 'body', kind: 'text' as const, text: it.body }] : [])
+  ];
+}
+/** All the words in a box */
+export const itemWords = (it: BlockItem) => itemEls(it).filter((e) => e.kind !== 'image').map((e) => e.text).filter(Boolean) as string[];
 export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string };
 export type BlockSwatch = { name: string; hex: string; note?: string };
 export type Block = {
@@ -33,6 +49,8 @@ export type Block = {
   flow?: { wrap?: boolean; width?: 'equal' | 'fill'; height?: 'fill' | 'hug'; gap?: 's' | 'm' | 'l'; align?: 'start' | 'center' | 'end' };
   /** Grid: number of columns (default 6) and row height */
   gridCols?: number; rowH?: 's' | 'm' | 'l'; gap?: 's' | 'm' | 'l';
+  /** Exact spacing in pixels, set in the design panel: between columns, between rows, and inside each box */
+  gapX?: number; gapY?: number; pad?: number;
   /** Carousel: cards of hero text (from items) or images to click through (from media) */
   variant?: 'cards' | 'images';
   /** Per-text styling set in the editor, keyed by field ('heading', 'body', 'eyebrow') or '<itemId>.<field>' */
@@ -348,5 +366,5 @@ function groupItems({ rest, vis, boxes, marks, F, tidy }: { rest: T[]; vis: V[];
 
 /** Plain text of a block, for search, the brand chat and the connector. */
 export function blockText(b: Block) {
-  return [b.eyebrow, b.heading, b.body, ...(b.items || []).flatMap((i) => [i.label, i.heading, i.body]), ...(b.media || []).map((m) => m.caption), ...(b.swatches || []).map((s) => `${s.name} ${s.hex}${s.note ? ' ' + s.note : ''}`)].filter(Boolean) as string[];
+  return [b.eyebrow, b.heading, b.body, ...(b.items || []).flatMap((i) => itemWords(i)), ...(b.media || []).map((m) => m.caption), ...(b.swatches || []).map((s) => `${s.name} ${s.hex}${s.note ? ' ' + s.note : ''}`)].filter(Boolean) as string[];
 }

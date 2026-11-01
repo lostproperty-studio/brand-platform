@@ -1,4 +1,4 @@
-import type { Block, BlockItem, BlockMedia, BlockSwatch } from '@/lib/figma/blocks';
+import type { Block, BlockItem, BlockMedia, BlockSwatch, ItemEl } from '@/lib/figma/blocks';
 import { Swatch } from '@/components/portal/Swatch';
 import { textProps } from '@/lib/textStyle';
 import { Carousel } from '@/components/portal/Carousel';
@@ -27,6 +27,9 @@ export type EditKit = {
   itemImage?: (i: number, m: BlockMedia | undefined, img: React.ReactNode) => React.ReactNode;
   itemBar?: (i: number, it: BlockItem) => React.ReactNode;
   addItem?: () => React.ReactNode;
+  /** Elements added freely inside a box */
+  itemElText?: (i: number, e: ItemEl, el: El) => React.ReactNode;
+  itemElImage?: (i: number, e: ItemEl, img: React.ReactNode) => React.ReactNode;
 };
 
 function Paras({ text, className, style }: { text?: string; className?: string; style?: React.CSSProperties }) {
@@ -94,27 +97,36 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     const items = b.items || [];
     const f = b.flow || {};
     const cols = Math.max(1, Math.min(6, b.cols || items.length || 2)), gcols = b.gridCols || 6;
+    // A box with its own list of elements, in the order they were placed
+    const CLS: Record<ItemEl['kind'], string> = { label: 'gi-label', heading: 'gi-h', text: 'gi-body', image: 'gi-media' };
+    const elsOf = (i: number, it: BlockItem) => { const els = it.els || []; const push = els.findIndex((e) => e.kind === 'heading' || e.kind === 'text'); const pushOk = push > 0 && els.slice(0, push).every((e) => e.kind === 'label' || e.kind === 'image'); return els.map((e, k) => {
+      const cls = (k === push && pushOk ? 'gi-push ' : '') + 'gi-el';
+      if (e.kind === 'image') { const mm = e.media && urls[e.media.path] ? e.media : undefined; const img = mm ? <img src={urls[mm.path]} alt="" loading="lazy" /> : null; return <div key={e.id} data-el={e.id} className={cls + ' gi-media'}>{edit?.itemElImage ? edit.itemElImage(i, e, img) : img}</div>; }
+      const key = `${it.id}.${e.id}`; const tp = st(key); const el: El = { tag: e.kind === 'text' ? 'div' : 'p', className: CLS[e.kind] + (tp.className ? ' ' + tp.className : ''), placeholder: e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text', multiline: e.kind === 'text', style: tp.style, key };
+      return <div key={e.id} data-el={e.id} className={cls}>{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;
+    }); };
     const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const tp = st(key); const el = { ...el0, style: tp.style, className: tp.className ? `${el0.className} ${tp.className}` : el0.className, key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
     return (
       <section className={'gb gb-items ' + tone}>
         {edit || b.heading || b.eyebrow ? head : null}
         {edit || b.body ? body('gb-body gb-intro') : null}
-        <div className={'gb-' + b.kind + ' bx-' + (b.box || 'none') + (b.kind === 'columns' ? ` fl-${f.wrap === false ? 'row' : 'wrap'} fw-${f.width || 'equal'} fh-${f.height || 'fill'} ia-${f.align || 'start'}` : '')} style={b.kind === 'columns' ? { ['--cols' as string]: String(cols), ['--gap' as string]: GAP_COL[f.gap || 'm'] } : { ['--gcols' as string]: String(gcols), ['--row' as string]: ROW_H[b.rowH || 'm'], ['--gap' as string]: GAP_GRID[b.gap || 'm'] }}>
+        <div className={'gb-' + b.kind + ' bx-' + (b.box || 'none') + (b.kind === 'columns' ? ` fl-${f.wrap === false ? 'row' : 'wrap'} fw-${f.width || 'equal'} fh-${f.height || 'fill'} ia-${f.align || 'start'}` : '')} style={{ ...(b.kind === 'columns' ? { ['--cols' as string]: String(cols), ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_COL[f.gap || 'm'] } : { ['--gcols' as string]: String(gcols), ['--row' as string]: ROW_H[b.rowH || 'm'], ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_GRID[b.gap || 'm'] }), ...(b.gapY !== undefined ? { ['--rgap' as string]: `${b.gapY}px` } : {}), ...(b.pad !== undefined ? { ['--pad' as string]: `${b.pad}px` } : {}) }}>
           {items.map((it, i) => {
             const m = it.media && urls[it.media.path] ? it.media : undefined;
             const pic = m ? <img src={urls[m.path]} alt="" loading="lazy" /> : null;
-            const onlyImage = !!m && !it.label && !it.heading && !it.body && !edit;
+            const onlyImage = !!m && !it.label && !it.heading && !it.body && !it.els && !edit;
             return (
               <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '')} style={b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }}>
                 {edit?.itemBar ? edit.itemBar(i, it) : null}
-                {m ? <div className="gi-media">{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
+                {it.els ? elsOf(i, it) : <>
+                {m ? <div className="gi-media" data-el="media">{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
                 {onlyImage ? null : <div className="gi-txt">
-                  {itxt(i, 'label', it.label, { tag: 'p', className: 'gi-label', placeholder: 'Label' })}
+                  {it.label ? <div data-el="label">{itxt(i, 'label', it.label, { tag: 'p', className: 'gi-label', placeholder: 'Label' })}</div> : null}
                   <div className="gi-main">
-                    {itxt(i, 'heading', it.heading, { tag: 'p', className: 'gi-h', placeholder: 'Headline (optional)' })}
-                    {itxt(i, 'body', it.body, { tag: 'div', className: 'gi-body', placeholder: 'Text', multiline: true })}
+                    {it.heading ? <div data-el="heading">{itxt(i, 'heading', it.heading, { tag: 'p', className: 'gi-h', placeholder: 'Headline (optional)' })}</div> : null}
+                    {it.body ? <div data-el="body">{itxt(i, 'body', it.body, { tag: 'div', className: 'gi-body', placeholder: 'Text', multiline: true })}</div> : null}
                   </div>
-                </div>}
+                </div>}</>}
               </div>
             );
           })}
@@ -133,7 +145,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
       ? [...media.map(({ m, i }) => <figure key={m.path} className="gc-fig">{img(m, i, <img src={urls[m.path]} alt={m.caption || ''} loading="lazy" />)}{edit ? edit.caption(i, m.caption) : m.caption ? <figcaption>{m.caption}</figcaption> : null}</figure>), ...(edit ? [edit.addImage()] : [])]
       : [...items.map((it, i) => {
           const m = it.media && urls[it.media.path] ? it.media : undefined;
-          return <div key={it.id} data-item={edit ? i : undefined} className={'gc-card bx-' + (b.box || 'fill')}>
+          return <div key={it.id} data-item={edit ? i : undefined} className={'gc-card bx-' + (b.box || 'fill')} style={b.pad !== undefined ? { padding: b.pad } : undefined}>
             {edit?.itemBar ? edit.itemBar(i, it) : null}
             {itxt(i, 'label', it.label, { tag: 'p', className: 'gc-label', placeholder: 'Label' })}
             {itxt(i, 'heading', it.heading, { tag: 'p', className: 'gc-h', placeholder: 'A headline' })}
