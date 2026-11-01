@@ -16,7 +16,7 @@ export const CHAPTER = '__chapter';
 /** Typefaces with files uploaded to the project, and the weights uploaded for each */
 export type ToolbarFont = { role: string; label: string; name: string; weights: number[] };
 const CASES: [TextCase, string][] = [['upper', 'UPPERCASE'], ['lower', 'lowercase'], ['sentence', 'Sentence case'], ['title', 'Title Case']];
-const CH_FIELD: Record<string, string> = { kicker: 'Label', title: 'Title', lede: 'Introduction' };
+const CH_FIELD: Record<string, string> = { kicker: 'Label', title: 'Title', lede: 'Introduction' }; // on the home page, lede is the welcome
 
 const WEIGHT_NAME: Record<number, string> = { 100: 'Thin', 200: 'Extra Light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra Bold', 900: 'Black' };
 const pct = (n?: number) => (n === undefined ? '' : String(Math.round(n * 1000) / 10));
@@ -98,7 +98,7 @@ export function Toolbar({ sel, setSel, ch, colours, fonts, onAddFont, setChStyle
     const field = sel.el;
     const style = ch.styles?.[field] || {};
     return <div className="tb" role="toolbar" aria-label="Editing tools" onMouseDown={keep}>{history}
-      <span className="tb-ctx"><span className="tb-crumb">Chapter heading</span><ChevronRight size={14} strokeWidth={1.75} aria-hidden /><span className="tb-crumb on">{CH_FIELD[field] || 'Text'}</span></span>
+      <span className="tb-ctx"><span className="tb-crumb">{ch.id === '__home' ? 'Home page' : 'Chapter heading'}</span><ChevronRight size={14} strokeWidth={1.75} aria-hidden /><span className="tb-crumb on">{CH_FIELD[field] || 'Text'}</span></span>
       {textTools(style, (p, key) => setChStyle(field, clean({ ...style, ...p }), key))}
       <div className="tb-grp tb-end"><Btn icon={X} tip="Deselect (Esc)" onClick={() => setSel(null)} /></div>
     </div>;

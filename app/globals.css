@@ -1423,3 +1423,21 @@ a.ov-link:hover { background: var(--fill); }
 .db-out:hover { background: var(--fill); }
 .db-out:focus-visible { outline: 2px solid #000; }
 .db-out[data-tip]:hover::after { top: auto; bottom: calc(100% + 6px); left: auto; right: 0; transform: none; }
+
+/* Adding bar at the bottom, like Figma's: top and side change things, the bottom adds them */
+.ab { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 46; display: flex; align-items: center; gap: 2px; padding: 6px; border-radius: 14px; background: #1f1f1f; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.ab-btn { all: unset; box-sizing: border-box; cursor: pointer; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: 42px; height: 40px; border-radius: 9px; color: #fff; }
+.ab-btn:hover { background: rgba(255,255,255,.1); }
+.ab-btn:focus-visible { outline: 2px solid var(--sel); outline-offset: -2px; }
+.ab-sec { width: 54px; background: var(--sel); }
+.ab-sec:hover, .ab-sec.on { background: #0a85e0; }
+.ab-chev { opacity: .8; }
+.ab-sep { width: 1px; height: 22px; background: rgba(255,255,255,.16); margin: 0 4px; }
+.ab [data-tip]:hover::after { top: auto; bottom: calc(100% + 10px); }
+.ab-menu-wrap { position: relative; }
+.ab-menu { position: absolute; left: 0; bottom: calc(100% + 10px); min-width: 210px; padding: 5px; border-radius: 12px; background: #1f1f1f; box-shadow: 0 12px 32px rgba(0,0,0,.3); display: flex; flex-direction: column; }
+.ab-menu-h { margin: 4px 10px 6px; font: 11px var(--font); color: rgba(255,255,255,.55); }
+.ab-menu button { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; font: 13px var(--font); color: #fff; }
+.ab-menu button:hover, .ab-menu button:focus-visible { background: rgba(255,255,255,.1); }
+.ve-main { padding-bottom: 90px; }
+@media (max-width: 1180px) { .ab { left: calc(50% - 140px); } }

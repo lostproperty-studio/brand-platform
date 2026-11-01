@@ -1,3 +1,5 @@
+import { textProps } from '@/lib/textStyle';
+import type { TextStyle } from '@/lib/figma/blocks';
 import Link from 'next/link';
 import { adminClient } from '@/lib/supabase/server';
 import { chapterNum, chapterSlug, portalContext, signFrames } from '@/lib/portal/context';
@@ -18,7 +20,8 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
   const chapters = guide?.chapters || [];
   const base = `/p/${slug}`;
   const sb = adminClient();
-  const content = (ctx.project.content || {}) as { homeIntro?: string };
+  const content = (ctx.project.content || {}) as { homeIntro?: string; homeTitle?: string; homeStyles?: Record<string, TextStyle> };
+  const hs = (k: string, cls: string) => { const t = textProps(content.homeStyles?.[k]); return { className: [cls, t.className].filter(Boolean).join(' '), style: t.style }; };
 
   // Version: the published one for clients, the working copy for the studio
   const { data: v } = await sb.from('project_versions').select('version').eq('project_id', ctx.project.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
@@ -42,9 +45,9 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
       {rows.length ? <HeroReel rows={rows} urls={urls} href={`${base}/showcase`} label={`${ctx.project.client} showcase`} /> : null}
       <div className="pt-page hm-body">
         <header className="hm-head">
-          <h1 className="pt-display">{ctx.project.client}</h1>
+          <h1 {...hs('title', 'pt-display')}>{content.homeTitle || ctx.project.client}</h1>
           <p className="mute hm-ver">Brand hub{version ? ` · v${version}` : ''}{ctx.preview ? ' · working copy' : ''}</p>
-          <p className="pt-lede hm-intro">{content.homeIntro || defaultIntro(ctx.project.client)}</p>
+          <p {...hs('lede', 'pt-lede hm-intro')}>{content.homeIntro || defaultIntro(ctx.project.client)}</p>
         </header>
 
         {chapters.length ? <section aria-labelledby="h-ch">

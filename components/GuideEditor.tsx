@@ -5,6 +5,7 @@ import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/po
 import type { BlockItem, BoxStyle, TextStyle } from '@/lib/figma/blocks';
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
 import { Inspector } from '@/components/GuideInspector';
+import { AddBar, type AddWhat } from '@/components/GuideAddBar';
 import { CHAPTER, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
@@ -56,7 +57,7 @@ function Editable({ value, onSave, tag, className, placeholder, multiline, style
 // The studio's guidelines editor: the client's view, editable in place.
 const toolbarFonts = (fs: ProjectFont[]): ToolbarFont[] => fs.filter((f) => f.files.length).map((f) => ({ role: f.role, label: f.label, name: f.name, weights: [...new Set(f.files.map((x) => x.weight))].sort((a, b) => a - b) }));
 
-export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, fonts: initialFonts = [], tier, colours = [], logoUrl = null, home }: { home?: { client: string; line: string; intro: string; fallback: string; version?: string }; projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; fonts?: ProjectFont[]; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
+export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, fonts: initialFonts = [], tier, colours = [], logoUrl = null, home }: { home?: HomeData; projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; fonts?: ProjectFont[]; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
   // Typefaces: only those uploaded to the project. A new one uploaded from the toolbar is loaded straight away.
   const [fonts, setFonts] = useState(initialFonts);
   const [liveFontCss, setLiveFontCss] = useState('');
@@ -178,7 +179,51 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const items = kind === 'carousel' ? [1, 2, 3].map((n) => ({ id: iid(), label: String(n).padStart(2, '0'), heading: 'A headline for this card', body: 'A sentence or two to go with it.' })) : kind === 'columns' ? [1, 2, 3].map(() => ({ id: iid(), label: 'Label', body: 'Text' })) : kind === 'grid' ? [[4, 4], [2, 2], [2, 2], [3, 2], [3, 2]].map(([w, h]) => ({ id: iid(), label: 'Label', body: 'Text', w, h })) : undefined;
     const b: Block = { id: 'b-' + uid(), kind, heading: kind === 'swatches' ? 'Colours' : kind === 'divider' ? 'New subsection' : kind === 'statement' ? 'A statement in the brand’s voice' : kind === 'image' || kind === 'columns' || kind === 'grid' ? undefined : 'New section', body: kind === 'text' || kind === 'split' ? 'Write something…' : '', media: [], swatches: kind === 'swatches' ? [{ name: 'Colour', hex: '#000000' }] : undefined, cols: kind === 'media' ? 2 : kind === 'columns' ? 3 : undefined, side: kind === 'split' ? 'right' : undefined, items, box: kind === 'carousel' ? 'fill' : items ? 'none' : undefined, variant: kind === 'carousel' ? 'cards' : undefined, edited: true };
     const l = [...ch.blocks]; l.splice(i, 0, b); setBlocks(l); setMenu(null); setSel({ block: b.id });
+    return b;
   };
+  // ---------- adding from the bottom bar: into the selected box, then the section, else a new section below
+  const focusNext = useRef(false);
+  useEffect(() => {
+    if (!focusNext.current) return; focusNext.current = false;
+    const el = document.querySelector('.ed.ed-on') as HTMLElement | null;
+    if (el) { el.focus(); const r = document.createRange(); r.selectNodeContents(el); const s0 = window.getSelection(); s0?.removeAllRanges(); s0?.addRange(r); }
+  });
+  const PH: Record<string, string> = { heading: 'Headline', eyebrow: 'Label', label: 'Label', body: 'Write something…' };
+  function addSection(kind: BlockKind) {
+    if (!ch) return;
+    const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length;
+    return insertAt(at > 0 ? at : ch.blocks.length, kind);
+  }
+  function add(what: AddWhat) {
+    if (!ch) return;
+    const b = sel ? ch.blocks.find((x) => x.id === sel.block) : undefined;
+    const itemish = !!b && ['columns', 'grid', 'carousel'].includes(b.kind) && b.variant !== 'images';
+    const items = b?.items || [];
+    const newBox = (p: Partial<BlockItem>) => { if (!b) return; const i = sel?.item !== undefined ? sel.item + 1 : items.length; const it = { id: iid(), w: b.kind === 'grid' ? 2 : 1, h: 2, ...p }; editBlock(b.id, { items: [...items.slice(0, i), it, ...items.slice(i)] }); return { i, it }; };
+    const afterSection = (kind: BlockKind, then?: (nb: Block) => void) => { const nb = addSection(kind); if (nb && then) then(nb); };
+    if (!b) { // nothing selected: a new section at the end
+      const kind: BlockKind = what === 'headline' ? 'divider' : what === 'image' ? 'image' : what === 'box' ? 'columns' : what === 'swatch' ? 'swatches' : 'text';
+      afterSection(kind, (nb) => { if (what === 'image') pickImage(nb.id, 'new'); });
+      return;
+    }
+    if (what === 'swatch') { if (b.kind === 'swatches') editBlock(b.id, { swatches: [...(b.swatches || []), { name: 'Colour', hex: '#000000' }] }); else afterSection('swatches'); return; }
+    if (what === 'box') { if (itemish) { const r = newBox(b.kind === 'carousel' ? { label: String(items.length + 1).padStart(2, '0'), heading: 'A headline for this card' } : { label: 'Label', body: 'Text' }); if (r) setSel({ block: b.id, item: r.i }); } else afterSection('columns'); return; }
+    // Inside a selected box
+    const it = sel?.item !== undefined && itemish ? items[sel.item] : undefined;
+    if (it && sel?.item !== undefined) {
+      const field = what === 'headline' ? 'heading' : what === 'label' ? 'label' : 'body';
+      if (what === 'image') { if (!it.media) { pickImage(b.id, `item:${sel.item}`); return; } const r = newBox({}); if (r) { setSel({ block: b.id, item: r.i }); pickImage(b.id, `item:${r.i}`); } return; }
+      if (!it[field as 'heading']) { editBlock(b.id, { items: items.map((x, n) => (n === sel.item ? { ...x, [field]: PH[field] } : x)), off: (b.off || []).filter((k) => k !== `${it.id}.${field}`) }); setSel({ block: b.id, item: sel.item, el: `${it.id}.${field}` }); focusNext.current = true; return; }
+      const r = newBox({ [field]: PH[field] }); if (r) { setSel({ block: b.id, item: r.i, el: `${r.it.id}.${field}` }); focusNext.current = true; } return;
+    }
+    // Inside a section with boxes: text and images arrive as a new box
+    if (itemish && (what === 'text' || what === 'image')) { const r = newBox(what === 'text' ? { body: PH.body } : {}); if (r) { setSel({ block: b.id, item: r.i, el: what === 'text' ? `${r.it.id}.body` : undefined }); if (what === 'image') pickImage(b.id, `item:${r.i}`); else focusNext.current = true; } return; }
+    if (what === 'image') { if (['split', 'media', 'image', 'text'].includes(b.kind) || b.kind === 'carousel') pickImage(b.id, 'new'); else afterSection('image', (nb) => pickImage(nb.id, 'new')); return; }
+    const field = what === 'headline' ? 'heading' : what === 'label' ? 'eyebrow' : 'body';
+    if (b.kind === 'divider' && what !== 'headline') { afterSection(what === 'text' ? 'text' : 'text'); return; }
+    if (!b[field as 'heading']) { editBlock(b.id, { [field]: PH[field], off: (b.off || []).filter((k) => k !== field) } as Partial<Block>); setSel({ block: b.id, el: field }); focusNext.current = true; return; }
+    afterSection(what === 'headline' ? 'divider' : 'text');
+  }
   const moveBlock = (id: string, toId: string) => { if (!ch || id === toId) return; const l = [...ch.blocks]; const from = l.findIndex((b) => b.id === id); const [b] = l.splice(from, 1); l.splice(l.findIndex((x) => x.id === toId), 0, b); setBlocks(l); };
   const moveChapter = (id: string, toId: string) => { if (!g || id === toId) return; const l = [...g.chapters]; const from = l.findIndex((c) => c.id === id); const [c] = l.splice(from, 1); l.splice(l.findIndex((x) => x.id === toId), 0, c); setChapters(l); };
 
@@ -314,8 +359,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           <button className="btn ic" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); setSel(null); }}><Plus size={15} strokeWidth={1.75} aria-hidden />Chapter</button>
         </nav>
 
-        {chId === HOME && home ? <><HomeEditor projectId={projectId} home={home} chapters={g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => c.title)} />
-          <aside className="dp" aria-label="About the home page"><div className="dp-sec"><p className="dp-h"><House size={15} strokeWidth={1.75} aria-hidden />Home page</p><p className="dp-tip" style={{ padding: 0 }}>The first page clients see. The brand name and version are set for you; the welcome is yours to write. Leave it empty to use the standard one. Changes here show straight away, without publishing.</p><p className="dp-tip" style={{ padding: 0 }}>The showcase reel runs above it, and the chapters and recently used apps follow below.</p></div></aside></> : null}
+        {chId === HOME && home ? <><HomeEditor projectId={projectId} home={home} colours={colours} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} chapters={g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => c.title)} />
+          <aside className="dp" aria-label="About the home page"><div className="dp-sec"><p className="dp-h"><House size={15} strokeWidth={1.75} aria-hidden />Home page</p><p className="dp-tip" style={{ padding: 0 }}>The first page clients see. Click the title or the welcome to edit them, with the same text tools as the guidelines. Leave the welcome empty to use the standard one. Changes here show straight away, without publishing.</p><p className="dp-tip" style={{ padding: 0 }}>The showcase reel runs above it, and the chapters and recently used apps follow below.</p></div></aside></> : null}
         {ch ? <div className="ve-main">
           <Toolbar sel={sel} setSel={setSel} ch={ch} colours={colours} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} setChStyle={setChStyle} setBlocks={setBlocks} editBlock={editBlock} pickImage={pickImage} undo={() => step('undo')} redo={() => step('redo')} canUndo={past.current.length > 0} canRedo={future.current.length > 0}
             onDelete={(b) => { if (b.source) editBlock(b.id, { hidden: true }); else setBlocks(ch.blocks.filter((x) => x.id !== b.id)); setSel(null); }}
@@ -371,6 +416,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
             {ch.rules.length ? <section className="pt-blk"><h2 className="pt-h2">The rules</h2><p className="mute" style={{ marginTop: -6 }}>From the review. Change them in the Review tab.</p><div className="pt-rules">{ch.rules.map((r, k) => <div key={k} className="pt-rule"><p className="pt-rule-h">{r.title}</p><p>{r.text}</p></div>)}</div></section> : null}
           </article>
         </div></div> : null}
+        {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} onAdd={add} onSection={(k) => addSection(k)} /> : null}
         {ch ? <Inspector sel={sel?.block === CHAPTER ? null : sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} /> : null}
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}
@@ -434,20 +480,29 @@ function FontDialog({ projectId, fonts, onClose, onDone }: { projectId: string; 
 
 const HOME = '__home';
 /** The portal's home page as the first item in the guidelines: the brand's line and the welcome, edited in place */
-function HomeEditor({ projectId, home, chapters }: { projectId: string; home: { client: string; line: string; intro: string; fallback: string; version?: string }; chapters: string[] }) {
+type HomeData = { client: string; line: string; intro: string; fallback: string; version?: string; title?: string; styles?: Record<string, TextStyle> };
+function HomeEditor({ projectId, home, chapters, colours, fonts, onAddFont }: { projectId: string; home: HomeData; chapters: string[]; colours: { name: string; hex: string }[]; fonts: ToolbarFont[]; onAddFont: (then: (role: string) => void) => void }) {
   const [msg, setMsg] = useState('');
+  const [sel, setSel] = useState<Sel | null>(null);
+  const [styles, setStyles] = useState<Record<string, TextStyle>>(home.styles || {});
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const save = async (patch: Record<string, unknown>) => {
     setMsg('Saving…');
     const r = await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
     setMsg(r.ok ? 'Saved · shows on the portal straight away' : 'Couldn’t save. Check your connection.');
   };
+  // The home page's title and welcome use the same text tools as everything else
+  const setStyle = (field: string, st: TextStyle) => { const next = { ...styles, [field]: st }; setStyles(next); if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => save({ content: { homeStyles: next } }), 500); };
+  const fake: GuideChapter = { id: HOME, key: null, title: 'Home page', kicker: '', lede: '', rules: [], blocks: [], styles };
+  const t = (k: string, cls: string) => { const p = textProps(styles[k]); return { className: [cls, p.className].filter(Boolean).join(' '), style: p.style, on: sel?.el === k, onFocus: () => setSel({ block: CHAPTER, el: k }) }; };
   return <div className="ve-main">
-    <div className="tb" role="status"><span className="tb-ctx tb-empty" style={{ borderLeft: 0 }}><House size={15} strokeWidth={1.75} aria-hidden />Home page · {msg || 'Click the line or the welcome to edit it'}</span></div>
+    {sel ? <Toolbar sel={sel} setSel={setSel} ch={fake} colours={colours} fonts={fonts} onAddFont={onAddFont} setChStyle={setStyle} setBlocks={() => {}} editBlock={() => {}} pickImage={() => {}} undo={() => {}} redo={() => {}} canUndo={false} canRedo={false} onDelete={() => {}} onReset={() => {}} />
+      : <div className="tb" role="status"><span className="tb-ctx tb-empty" style={{ borderLeft: 0 }}><House size={15} strokeWidth={1.75} aria-hidden />Home page · {msg || 'Click the title or the welcome to edit it'}</span></div>}
     <div className="ve-canvas pt"><article className="pt-page ve-page hm-body">
       <header className="hm-head">
-        <h1 className="pt-display">{home.client}</h1>
+        <Editable value={home.title || home.client} tag="h1" {...t('title', 'pt-display')} placeholder={home.client} onSave={(v) => save({ content: { homeTitle: v.trim() && v.trim() !== home.client ? v.trim() : null } })} />
         <p className="mute hm-ver">Brand hub{home.version ? ` · v${home.version}` : ''}</p>
-        <Editable value={home.intro} tag="p" className="pt-lede hm-intro" placeholder={home.fallback} multiline onSave={(v) => save({ content: { homeIntro: v.trim() || null } })} />
+        <Editable value={home.intro} tag="p" {...t('lede', 'pt-lede hm-intro')} placeholder={home.fallback} multiline onSave={(v) => save({ content: { homeIntro: v.trim() || null } })} />
       </header>
       <div className="ve-homenext" aria-hidden>
         <p className="pt-h2">Chapters</p>
