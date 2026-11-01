@@ -5,14 +5,9 @@ import { RESKIN } from '@/lib/reskin';
 export type Tool = { id: string; project_id: string; kind: 'html' | 'layouts'; name: string; icon: string; description: string; html_path: string | null; styling: 'full' | 'light' | 'none'; ai_enabled: boolean; visible: boolean; ord: number; updated_at: string };
 export const TOOL_BUCKET = 'uploads';
 
-/** Every project gets the built-in layout maker as its first tool. */
+/** The project's tools: only the ones the studio has added. Nothing is added automatically. */
 export async function listTools(projectId: string, includeHidden: boolean) {
-  const sb = adminClient();
-  let { data } = await sb.from('tools').select('*').eq('project_id', projectId).order('ord').order('created_at');
-  if (!(data || []).some((t) => t.kind === 'layouts')) {
-    await sb.from('tools').insert({ project_id: projectId, kind: 'layouts', name: 'Layout maker', icon: 'layout', description: 'Social posts, posters and more from the kit’s templates. Logo and grid stay locked; you write the copy and pick the image.', ord: 0 });
-    ({ data } = await sb.from('tools').select('*').eq('project_id', projectId).order('ord').order('created_at'));
-  }
+  const { data } = await adminClient().from('tools').select('*').eq('project_id', projectId).order('ord').order('created_at');
   return ((data || []) as Tool[]).filter((t) => includeHidden || t.visible);
 }
 

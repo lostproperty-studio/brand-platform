@@ -819,3 +819,4 @@ p.ed:empty, span.ed:empty { display: inline-block; }
 .rs-tok-pill span { overflow: hidden; text-overflow: ellipsis; }
 .rs-tok-pill i { flex: none; }
 .pt-credit { width: fit-content; }
+.pt-credit { margin-top: auto; }

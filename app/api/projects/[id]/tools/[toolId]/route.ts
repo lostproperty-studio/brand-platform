@@ -47,7 +47,6 @@ export async function DELETE(_: Request, ctx: { params: Promise<{ id: string; to
   const sb = adminClient();
   const { data: tool } = await sb.from('tools').select('kind, html_path').eq('id', toolId).eq('project_id', id).maybeSingle();
   if (!tool) return NextResponse.json({ tools: await listTools(id, true) });
-  if (tool.kind === 'layouts') return NextResponse.json({ error: 'The layout maker is built in. Hide it instead.' }, { status: 400 });
   if (tool.html_path) await sb.storage.from(TOOL_BUCKET).remove([tool.html_path]);
   await sb.from('tools').delete().eq('id', toolId);
   return NextResponse.json({ tools: await listTools(id, true) });

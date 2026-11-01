@@ -7,5 +7,5 @@ export default async function CanvasPage({ params }: { params: Promise<{ slug: s
   const { slug } = await params;
   const ctx = await portalContext(slug);
   const t = ctx ? (await listTools(ctx.project.id, true)).find((x) => x.kind === 'layouts') : null;
-  redirect(t ? `/p/${slug}/tools/${t.id}` : `/p/${slug}/resources`);
+  redirect(t && t.visible ? `/p/${slug}/tools/${t.id}` : `/p/${slug}/resources`);
 }

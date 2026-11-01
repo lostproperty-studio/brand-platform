@@ -26,7 +26,6 @@ export function PortalNav({ slug, client, logoUrl, chapters, showSettings }: { s
           {label === 'Guidelines' && path.startsWith(href) ? <div className="pt-sub">{chapters.map((c, k) => { const h = `${href}/${c.id.replace(/[:;]/g, '-')}`; const on = path === h; return <Link key={c.id} href={h} className={'pt-subit' + (on ? ' on' : '')} aria-current={on ? 'page' : undefined} onClick={() => setOpen(false)}><span className="pt-n">{String(k + 1).padStart(2, '0')}</span>{c.title}</Link>; })}</div> : null}
         </div>)}
       </nav>
-      <p className="pt-foot mute">{client} brand guidelines</p>
       <Credit className="pt-credit" />
     </aside>
   );
