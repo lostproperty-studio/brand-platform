@@ -1,3 +1,4 @@
+import { appOrigin } from '@/lib/origin';
 import { NextResponse } from 'next/server';
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { projectBySlug } from '@/lib/projects/snapshot';
@@ -15,5 +16,5 @@ export async function POST(_: Request, ctx: { params: Promise<{ slug: string }> 
   if (!acc.clientAdmin) return new Response('Only a client admin can create the connector', { status: 403 });
   const token = newToken();
   await adminClient().from('projects').update({ mcp_token_hash: hashToken(token) }).eq('id', p.id);
-  return NextResponse.json({ url: `${env.appUrl()}/api/mcp/${slug}?token=${token}`, note: 'Add this URL in Claude as a custom connector. Anyone with it can read the published kit, so treat it like a password. Rotating it here stops the old one.' });
+  return NextResponse.json({ url: `${await appOrigin()}/api/mcp/${slug}?token=${token}`, note: 'Add this URL in Claude as a custom connector. Anyone with it can read the published kit, so treat it like a password. Rotating it here stops the old one.' });
 }

@@ -1,3 +1,4 @@
+import { appOrigin } from '@/lib/origin';
 import { createHash, randomBytes } from 'node:crypto';
 import { adminClient, ROLE_OF, type ClientRole } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
@@ -50,7 +51,7 @@ export async function inviteMember(projectId: string, slug: string, email: strin
     } catch (e) { console.error('[invite email]', e); }
     return { userId: user.id, emailed };
   }
-  const { data: inv, error } = await sb.auth.admin.inviteUserByEmail(clean, { redirectTo: `${env.appUrl()}/auth/confirm?next=${encodeURIComponent('/p/' + slug)}` });
+  const { data: inv, error } = await sb.auth.admin.inviteUserByEmail(clean, { redirectTo: `${await appOrigin()}/auth/confirm?next=${encodeURIComponent('/p/' + slug)}` });
   if (inv?.user) { userId = inv.user.id; emailed = true; }
   else if (error && /already|registered|exists/i.test(error.message)) { const { data: link } = await sb.auth.admin.generateLink({ type: 'magiclink', email: clean }); userId = link?.user?.id ?? null; }
   else if (error) throw new Error(/rate|limit/i.test(error.message) ? 'Too many invite emails in the last hour. Try again later, or share an invite link instead.' : error.message);
@@ -67,7 +68,7 @@ export async function createInviteLink(projectId: string, role: ClientRole, by: 
   const token = randomBytes(18).toString('base64url');
   const { error } = await adminClient().from('invite_links').insert({ project_id: projectId, role: DB[role], token_hash: hashToken(token), label: opts.label || '', created_by: by, expires_at: opts.days ? new Date(Date.now() + opts.days * 864e5).toISOString() : null, max_uses: opts.maxUses || null });
   if (error) throw error;
-  return `${env.appUrl()}/join/${token}`;
+  return `${await appOrigin()}/join/${token}`;
 }
 
 export async function listInviteLinks(projectId: string): Promise<InviteLink[]> {

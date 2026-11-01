@@ -1,3 +1,4 @@
+import { appOrigin } from '@/lib/origin';
 import { adminClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
 
@@ -24,5 +25,5 @@ export async function signInUrl(email: string, next: string) {
   if (error || !data?.properties?.hashed_token) { await ensureUser(clean); ({ data, error } = await sb.auth.admin.generateLink({ type: 'magiclink', email: clean })); }
   if (error || !data?.properties?.hashed_token) throw new Error(error?.message || 'Couldn’t create a sign-in link.');
   const safeNext = next.startsWith('/') ? next : '/';
-  return { url: `${env.appUrl()}/auth/verify?token_hash=${encodeURIComponent(data.properties.hashed_token)}&type=magiclink&next=${encodeURIComponent(safeNext)}`, user: data.user };
+  return { url: `${await appOrigin()}/auth/verify?token_hash=${encodeURIComponent(data.properties.hashed_token)}&type=magiclink&next=${encodeURIComponent(safeNext)}`, user: data.user };
 }

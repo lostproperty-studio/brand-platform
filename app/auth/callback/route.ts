@@ -1,3 +1,4 @@
+import { appOrigin } from '@/lib/origin';
 import { NextResponse } from 'next/server';
 import { adminClient, userClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
@@ -15,5 +16,5 @@ export async function GET(req: Request) {
       await adminClient().from('staff').upsert({ user_id: u.id, email: u.email }, { onConflict: 'user_id', ignoreDuplicates: true });
     }
   }
-  return NextResponse.redirect(new URL(next.startsWith('/') ? next : '/', env.appUrl()));
+  return NextResponse.redirect(new URL(next.startsWith('/') ? next : '/', await appOrigin()));
 }

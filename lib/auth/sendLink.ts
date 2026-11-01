@@ -1,4 +1,5 @@
 'use server';
+import { appOrigin } from '@/lib/origin';
 import { redirect } from 'next/navigation';
 import { userClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
@@ -23,7 +24,7 @@ export async function sendSignInLink(form: FormData) {
     } catch (e) { console.error('[sign-in email]', e); failed = true; }
   } else {
     const sb = await userClient();
-    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${env.appUrl()}/auth/callback?next=${encodeURIComponent(next)}`, shouldCreateUser: true } });
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${await appOrigin()}/auth/callback?next=${encodeURIComponent(next)}`, shouldCreateUser: true } });
     failed = !!error;
   }
   redirect(`${back}${back.includes('?') ? '&' : '?'}${failed ? 'error=1' : 'sent=1'}&next=${encodeURIComponent(next)}`);
