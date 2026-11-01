@@ -18,7 +18,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const { figmaUrl, tier, content, ...rest } = b.data;
   const { slug, ...fields } = rest;
   const update: Record<string, unknown> = { ...fields };
-  // The portal address: brand.lostproperty.studio/<slug>
+  // The portal address: platform.lostproperty.studio/<slug>
   if (slug !== undefined) {
     const s = slug.trim().toLowerCase();
     if (!validSlug(s)) return NextResponse.json({ error: 'Use lowercase letters, numbers and hyphens (and not a word the platform uses, like studio or login).' }, { status: 400 });

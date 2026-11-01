@@ -2,9 +2,9 @@ import { resolveCname, resolve4 } from 'node:dns/promises';
 import { adminClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
 
-// The platform's own address, e.g. brand.lostproperty.studio, with each portal at brand.lostproperty.studio/<slug>.
+// The platform's own address, e.g. platform.lostproperty.studio, with each portal at platform.lostproperty.studio/<slug>.
 export type DomainSetting = { host: string; live?: boolean; checkedAt?: string };
-export const DEFAULT_HOST = 'brand.lostproperty.studio';
+export const DEFAULT_HOST = 'platform.lostproperty.studio';
 
 export async function getDomain(): Promise<DomainSetting | null> {
   const { data } = await adminClient().from('studio_settings').select('value').eq('key', 'domain').maybeSingle();

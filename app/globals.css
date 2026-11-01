@@ -1401,3 +1401,8 @@ a.ov-link:hover { background: var(--fill); }
 .rq-item { width: 100%; box-sizing: border-box; }
 .rq-status { margin-left: auto; }
 .rq-body .ta { width: 100%; box-sizing: border-box; min-height: 56px; }
+.em-ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.em-ctl .dp-seg { flex: 0 1 auto; }
+.em-ctl .dp-seg button { padding: 0 12px; font-size: 12px; }
+.em-sel { flex: 1; min-width: 200px; border-radius: 8px; }
+.em-frame { width: 100%; height: 640px; border: 0; border-radius: 12px; background: #F7F7F7; box-shadow: inset 0 0 0 1px var(--line); }

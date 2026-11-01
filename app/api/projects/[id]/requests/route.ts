@@ -2,6 +2,12 @@ import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
+import { env } from '@/lib/env';
+import { emailProvider, sendEmail } from '@/lib/email/send';
+import { clientBrand } from '@/lib/email/brand';
+import { requestUpdateEmail } from '@/lib/email/templates';
+
+const STATUS_LABEL: Record<string, string> = { open: 'Received', in_progress: 'In progress', done: 'Done', declined: 'Declined' };
 
 // Studio: update a client request's status and reply (the client sees both in their Settings).
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -11,6 +17,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const b = z.object({ requestId: z.string().uuid(), status: z.enum(['open', 'in_progress', 'done', 'declined']).optional(), reply: z.string().max(4000).optional() }).safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const { requestId, ...patch } = b.data;
-  await adminClient().from('requests').update(patch).eq('id', requestId).eq('project_id', id);
+  const sb = adminClient();
+  const { data: before } = await sb.from('requests').select('title, status, reply, email').eq('id', requestId).eq('project_id', id).maybeSingle();
+  await sb.from('requests').update(patch).eq('id', requestId).eq('project_id', id);
+  // Tell the client when their request moves on or gets a reply
+  const changed = before && ((patch.status && patch.status !== before.status) || (patch.reply !== undefined && patch.reply.trim() && patch.reply !== before.reply));
+  if (changed && before.email && emailProvider()) {
+    try {
+      const { data: p } = await sb.from('projects').select('slug').eq('id', id).single();
+      const status = STATUS_LABEL[patch.status || before.status] || 'updated';
+      await sendEmail({ to: String(before.email), ...requestUpdateEmail(await clientBrand(p!.slug), `${env.appUrl()}/p/${p!.slug}/settings`, String(before.title), status, (patch.reply ?? before.reply) || undefined) });
+    } catch (e) { console.error('[request email]', e); }
+  }
   return NextResponse.json({ ok: true });
 }

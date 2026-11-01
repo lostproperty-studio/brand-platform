@@ -15,7 +15,7 @@ export default async function ClientLogin({ params, searchParams }: { params: Pr
       {sp.sent ? <p className="ls-msg">Check your email for a sign-in link. It works once, for the next hour.</p> : <form action={sendSignInLink} className="ls-form">
         <label htmlFor="email">Your work email</label>
         <input id="email" name="email" type="email" required autoComplete="email" className="ls-in" />
-        <input type="hidden" name="next" value={next} /><input type="hidden" name="back" value={`/login/${slug}`} />
+        <input type="hidden" name="next" value={next} /><input type="hidden" name="back" value={`/login/${slug}`} /><input type="hidden" name="brand" value={slug} />
         <button className="ls-btn" type="submit">Email me a sign-in link</button>
         {sp.error ? <p className="ls-msg">That didn’t work. Check the address and try again.</p> : null}
         <p className="ls-fine">No password needed. If you haven’t been invited yet, ask your team’s admin.</p>

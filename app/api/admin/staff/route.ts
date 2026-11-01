@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { adminClient } from '@/lib/supabase/server';
 import { requireAdmin, listStaff } from '@/lib/admin';
 import { env } from '@/lib/env';
+import { emailProvider, sendEmail } from '@/lib/email/send';
+import { studioBrand } from '@/lib/email/brand';
+import { studioInviteEmail } from '@/lib/email/templates';
+import { ensureUser, signInUrl } from '@/lib/auth/links';
 
 // Studio members: everyone at Lost Property who can use the platform. Members create projects, edit content and
 // manage client access; admins also manage the team and the domain.
@@ -31,7 +35,11 @@ export async function POST(req: Request) {
   const sb = adminClient();
   let user = await findUser(email);
   let invited = false;
-  if (!user) {
+  if (emailProvider()) {
+    // The platform's own welcome email, with a link that signs them straight in
+    user = user || (await ensureUser(email));
+    try { const { url } = await signInUrl(email, '/studio'); const { data: me } = await sb.from('staff').select('name, email').eq('user_id', st.user.id).maybeSingle(); await sendEmail({ to: email, ...studioInviteEmail(studioBrand(), url, (me?.name as string) || (me?.email as string) || null) }); invited = true; } catch (e) { console.error('[studio invite]', e); }
+  } else if (!user) {
     const { data, error } = await sb.auth.admin.inviteUserByEmail(email, { redirectTo: `${env.appUrl()}/auth/callback?next=/studio` });
     if (error || !data.user) {
       // Email may not be set up for invites: create the account; they sign in with their email at the usual page

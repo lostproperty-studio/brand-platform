@@ -7,7 +7,7 @@ import { parseFigmaUrl } from '@/lib/figma/scan';
 
 const Body = z.object({ client: z.string().min(1).max(120), name: z.string().max(120).optional(), line: z.string().max(300).optional(), figmaUrl: z.string().max(500).optional(), tier: z.enum(['essentials', 'standard', 'comprehensive']).optional() });
 
-// Creates a project. Its address is the client's name (brand.lostproperty.studio/tileyard); a short suffix is added
+// Creates a project. Its address is the client's name (platform.lostproperty.studio/tileyard); a short suffix is added
 // only if that name is taken. Portals still need a sign-in, so the address being guessable doesn't expose anything.
 export async function POST(req: Request) {
   const st = await requireStaff();

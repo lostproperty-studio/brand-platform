@@ -33,7 +33,7 @@ export default async function Join({ params, searchParams }: { params: Promise<{
       {sp.sent ? <p className="ls-msg">Check your email for a sign-in link. Open it on this device to finish joining.</p> : <form action={sendSignInLink} className="ls-form">
         <label htmlFor="email">Your work email</label>
         <input id="email" name="email" type="email" required autoComplete="email" className="ls-in" />
-        <input type="hidden" name="next" value={`/join/${token}`} /><input type="hidden" name="back" value={`/join/${token}`} />
+        <input type="hidden" name="next" value={`/join/${token}`} /><input type="hidden" name="back" value={`/join/${token}`} />{b ? <input type="hidden" name="brand" value={b.slug} /> : null}
         <button className="ls-btn" type="submit">Join</button>
         {sp.error ? <p className="ls-msg">That didn’t work. Check the address and try again.</p> : null}
       </form>}

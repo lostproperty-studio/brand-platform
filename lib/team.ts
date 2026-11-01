@@ -1,6 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { adminClient, ROLE_OF, type ClientRole } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
+import { emailProvider, sendEmail } from '@/lib/email/send';
+import { clientBrand } from '@/lib/email/brand';
+import { clientInviteEmail } from '@/lib/email/templates';
+import { ensureUser, signInUrl } from '@/lib/auth/links';
 
 export type Member = { user_id: string; email: string | null; role: ClientRole; created_at: string; last_sign_in_at?: string | null };
 export const ROLE_LABEL: Record<ClientRole, string> = { creator: 'Creator', manager: 'Manager', admin: 'Admin' };
@@ -33,6 +37,19 @@ export async function inviteMember(projectId: string, slug: string, email: strin
   const sb = adminClient();
   const clean = email.trim().toLowerCase();
   let userId: string | null = null, emailed = false;
+  // With the platform's own email set up: a branded invite in the client's look, signing them straight in
+  if (emailProvider()) {
+    const user = await ensureUser(clean);
+    await addMember(projectId, user.id, role, clean, invitedBy);
+    try {
+      const { url } = await signInUrl(clean, '/p/' + slug);
+      const { data: by } = await sb.auth.admin.getUserById(invitedBy);
+      const { data: st } = await sb.from('staff').select('name').eq('user_id', invitedBy).maybeSingle();
+      await sendEmail({ to: clean, ...clientInviteEmail(await clientBrand(slug), url, ROLE_LABEL[role].toLowerCase() === 'admin' ? 'an admin' : `a ${ROLE_LABEL[role].toLowerCase()}`, (st?.name as string) || by.user?.email || null) });
+      emailed = true;
+    } catch (e) { console.error('[invite email]', e); }
+    return { userId: user.id, emailed };
+  }
   const { data: inv, error } = await sb.auth.admin.inviteUserByEmail(clean, { redirectTo: `${env.appUrl()}/auth/confirm?next=${encodeURIComponent('/p/' + slug)}` });
   if (inv?.user) { userId = inv.user.id; emailed = true; }
   else if (error && /already|registered|exists/i.test(error.message)) { const { data: link } = await sb.auth.admin.generateLink({ type: 'magiclink', email: clean }); userId = link?.user?.id ?? null; }

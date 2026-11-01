@@ -21,7 +21,7 @@ const Body = z.object({ host: z.string().regex(/^(?=.{4,253}$)([a-z0-9-]+\.)+[a-
 export async function PUT(req: Request) {
   const st = await requireAdmin(); if (st instanceof Response) return st;
   const b = Body.safeParse(await req.json().catch(() => ({})));
-  if (!b.success) return NextResponse.json({ error: 'That doesn’t look like a domain, e.g. brand.lostproperty.studio' }, { status: 400 });
+  if (!b.success) return NextResponse.json({ error: 'That doesn’t look like a domain, e.g. platform.lostproperty.studio' }, { status: 400 });
   const host = b.data.host.toLowerCase();
   if (b.data.addToVercel) { try { await addToVercel(host); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 400 }); } }
   const check = await checkDomain(host);
