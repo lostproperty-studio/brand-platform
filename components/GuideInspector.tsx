@@ -1,6 +1,6 @@
 'use client';
 import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
-import type { BlockItem, BoxStyle } from '@/lib/figma/blocks';
+import type { BlockItem, BoxAlign, BoxStyle } from '@/lib/figma/blocks';
 import { BOXES, KINDS, KindIcon, convert } from '@/components/GuideEditor';
 import type { Sel } from '@/components/GuideDock';
 import {
@@ -30,6 +30,22 @@ function Px({ value, placeholder, set, label, icon: Ic, step = 4 }: { value?: nu
     <Ic {...I} />
     <input type="number" min={0} max={200} step={step} value={value ?? ''} placeholder={String(placeholder)} onChange={(e) => set(e.target.value === '' ? undefined : Math.max(0, Math.min(200, Number(e.target.value))))} aria-label={`${label} in pixels`} />
     <span className="dp-px-btns"><button type="button" onClick={() => set(Math.min(200, v + step))} aria-label={`More ${label.toLowerCase()}`}><Plus size={11} strokeWidth={2} aria-hidden /></button><button type="button" onClick={() => set(Math.max(0, v - step))} aria-label={`Less ${label.toLowerCase()}`}><Minus size={11} strokeWidth={2} aria-hidden /></button></span>
+  </div>;
+}
+
+/** Figma's alignment grid: click a cell to place the content there; double-click to spread it out evenly */
+function AlignGrid({ value, set, label }: { value?: BoxAlign; set: (a: BoxAlign | undefined) => void; label: string }) {
+  const X = ['start', 'center', 'end'] as const, Y = ['start', 'center', 'end'] as const;
+  const x = value?.x || 'start', y = value?.y || 'start', between = y === 'between';
+  const NAME = { start: ['left', 'top'], center: ['centre', 'middle'], end: ['right', 'bottom'] } as const;
+  return <div className={'dp-align' + (value ? ' set' : '')} role="radiogroup" aria-label={`${label}. Double-click to spread the content out evenly`}>
+    {Y.map((yy) => X.map((xx) => {
+      const on = xx === x && (between || yy === y);
+      return <button type="button" key={yy + xx} role="radio" aria-checked={on && !between ? true : on} aria-label={between ? `Spread out, aligned ${NAME[xx][0]}` : `${NAME[yy][1]} ${NAME[xx][0]}`}
+        className={on ? 'on' + (between ? ' between' : '') : ''} onClick={() => set({ x: xx, y: yy })} onDoubleClick={() => set({ x: xx, y: between && xx === x ? yy : 'between' })}>
+        {on ? <span className={'dp-bars x-' + xx}><i /><i /><i /></span> : <span className="dp-dot" />}
+      </button>;
+    }))}
   </div>;
 }
 
@@ -91,6 +107,7 @@ export function Inspector({ sel, setSel, ch, colours, editBlock, pickImage }: {
 
         {b.kind === 'carousel' && b.variant !== 'images' ? <Row label="Padding" hint="Space inside each card, in pixels"><Px value={b.pad} placeholder={40} set={(n) => set({ pad: n }, 'pad')} label="Padding inside cards" icon={Square} /></Row> : null}
         {b.kind === 'carousel' ? <Row label="Slides"><Seg value={b.variant || 'cards'} opts={[['cards', 'Cards of text', RectangleHorizontal], ['images', 'Images', Images]]} set={(v) => set(v === 'images' ? { variant: v } : { variant: v, box: b.box && b.box !== 'none' ? b.box : 'fill', items: items.length ? items : [{ id: iid(), label: '01', heading: 'A headline for this card' }] })} label="Slides" /></Row> : null}
+        {b.kind === 'columns' || b.kind === 'grid' || (b.kind === 'carousel' && b.variant !== 'images') ? <Row label="In boxes" hint="How the content sits in every box, and the space between its elements. Double-click the grid to spread it out evenly."><div className="dp-alignrow"><AlignGrid value={b.boxAlign} set={(a) => set({ boxAlign: a })} label="Alignment in every box" /><div className="dp-alignside"><Px value={b.boxGap} placeholder={14} set={(n) => set({ boxGap: n }, 'boxGap')} label="Space between elements" icon={ArrowUpDown} />{b.boxAlign || b.boxGap !== undefined ? <button type="button" className="dp-link" onClick={() => set({ boxAlign: undefined, boxGap: undefined })}>Reset</button> : null}</div></div></Row> : null}
         {b.kind === 'columns' || b.kind === 'grid' || (b.kind === 'carousel' && b.variant !== 'images') ? <Row label="Boxes" hint="How each box is held: free, corner marks, outline or a light fill"><Seg value={b.box || (b.kind === 'carousel' ? 'fill' : 'none')} opts={BOXES.map(([v, l]) => [v, l, BOX_ICON[v]] as [BoxStyle, string, LucideIcon])} set={(v) => set({ box: v })} label="Boxes" /></Row> : null}
         {b.kind === 'media' ? <Row label="Per row"><Step value={b.cols || 2} min={1} max={4} set={(n) => set({ cols: n })} label="Images per row" /></Row> : null}
         {b.kind === 'split' ? <Row label="Image"><Seg value={b.side || 'right'} opts={[['left', 'Image left', PanelLeft], ['right', 'Image right', PanelRight]]} set={(v) => set({ side: v })} label="Image side" /></Row> : null}
@@ -102,6 +119,7 @@ export function Inspector({ sel, setSel, ch, colours, editBlock, pickImage }: {
         <p className="dp-h">Box {i! + 1} of {items.length}</p>
         {b.kind === 'columns' || b.kind === 'grid' ? <Row label="Width" hint="How many columns this box spans. Or drag its right edge."><Step value={span} min={1} max={b.kind === 'grid' ? gcols : cols} set={(n) => setItem({ w: n }, 'w')} label="Columns spanned" suffix={` / ${b.kind === 'grid' ? gcols : cols}`} /><button type="button" className={'dp-pill' + (span === (b.kind === 'grid' ? gcols : cols) ? ' on' : '')} onClick={() => setItem({ w: b.kind === 'grid' ? gcols : cols })}>Full</button></Row> : null}
         {b.kind === 'grid' ? <Row label="Height" hint="How many rows this box spans. Or drag its bottom edge."><Step value={it.h || 2} min={1} max={8} set={(n) => setItem({ h: n }, 'h')} label="Rows spanned" /></Row> : null}
+        {b.variant !== 'images' ? <Row label="Content" hint="How this box's content sits, overriding the section. Double-click the grid to spread it out evenly."><div className="dp-alignrow"><AlignGrid value={it.align || b.boxAlign} set={(a) => setItem({ align: a })} label="Alignment in this box" /><div className="dp-alignside"><Px value={it.gap} placeholder={b.boxGap ?? 14} set={(n) => setItem({ gap: n }, 'gap')} label="Space between elements" icon={ArrowUpDown} />{it.align || it.gap !== undefined ? <button type="button" className="dp-link" onClick={() => setItem({ align: undefined, gap: undefined })}>Use the section’s</button> : null}</div></div></Row> : null}
         <Row label="Order"><div className="dp-btns"><button type="button" onClick={() => moveItem(-1)} disabled={i === 0} aria-label="Move earlier" data-tip="Earlier"><ArrowLeft {...I} /></button><button type="button" onClick={() => moveItem(1)} disabled={i === items.length - 1} aria-label="Move later" data-tip="Later"><ArrowRight {...I} /></button></div></Row>
         <Row label="Image"><div className="dp-btns"><button type="button" onClick={() => pickImage(b.id, `item:${i}`)} aria-label={it.media ? 'Replace image' : 'Add an image'} data-tip={it.media ? 'Replace' : 'Add'}>{it.media ? <ImageUp {...I} /> : <ImagePlus {...I} />}</button>{it.media ? <button type="button" onClick={() => setItem({ media: undefined })} aria-label="Remove image" data-tip="Remove"><ImageOff {...I} /></button> : null}</div></Row>
         <div className="dp-foot">

@@ -21,7 +21,11 @@ export type TextStyle = { size?: number; weight?: number; color?: string; font?:
 export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image'; text?: string; media?: BlockMedia };
 export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number;
   /** When set, the box's content as a free list of elements (added with the adding bar), instead of the fixed fields */
-  els?: ItemEl[] };
+  els?: ItemEl[];
+  /** How the content sits in the box (overrides the section's setting), and the space between its elements in pixels */
+  align?: BoxAlign; gap?: number };
+/** Content alignment inside a box, like Figma's auto layout: x across, y down; 'between' spreads elements evenly */
+export type BoxAlign = { x?: 'start' | 'center' | 'end'; y?: 'start' | 'center' | 'end' | 'between' };
 /** A box's elements in order, from its free list or from the fixed fields (image, label, headline, text) */
 export function itemEls(it: BlockItem): ItemEl[] {
   if (it.els) return it.els;
@@ -51,6 +55,8 @@ export type Block = {
   gridCols?: number; rowH?: 's' | 'm' | 'l'; gap?: 's' | 'm' | 'l';
   /** Exact spacing in pixels, set in the design panel: between columns, between rows, and inside each box */
   gapX?: number; gapY?: number; pad?: number;
+  /** Alignment and element spacing for every box in the section (a box can override it) */
+  boxAlign?: BoxAlign; boxGap?: number;
   /** Carousel: cards of hero text (from items) or images to click through (from media) */
   variant?: 'cards' | 'images';
   /** Per-text styling set in the editor, keyed by field ('heading', 'body', 'eyebrow') or '<itemId>.<field>' */

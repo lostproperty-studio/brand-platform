@@ -51,6 +51,9 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const style = { ...(bg && !back ? { background: bg } : {}), ...(ink ? { color: ink } : {}) } as React.CSSProperties;
   const tone = [b.headSize ? `hs-${b.headSize}` : '', b.bodySize ? `bs-${b.bodySize}` : '', b.bodyCols && b.bodyCols > 1 ? `bc-${b.bodyCols}` : '', b.align === 'center' ? 'al-c' : ''].filter(Boolean).join(' ');
 
+  // How content sits inside each box: the box's own setting, else the section's
+  const alignCls = (it: BlockItem) => { const a = it.align || b.boxAlign; return a && (a.x || a.y) ? ` ga ga-x-${a.x || 'start'} ga-y-${a.y || 'start'}` : ''; };
+  const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return g !== undefined ? { ['--egap' as string]: `${g}px` } : {}; };
   // Per-text styling from the editor: size, weight, colour
   const st = (key: string) => textProps(b.styles?.[key]);
   const txt = (field: TextField, value: string | undefined, tag: El['tag'], className0: string, placeholder: string, multiline = false) => {
@@ -118,7 +121,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
             const pic = m ? <img src={urls[m.path]} alt="" loading="lazy" /> : null;
             const onlyImage = !!m && !it.label && !it.heading && !it.body && !it.els && !edit;
             return (
-              <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '')} style={b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }}>
+              <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '') + alignCls(it)} style={{ ...(b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }), ...gapVar(it) }}>
                 {edit?.itemBar ? edit.itemBar(i, it) : null}
                 {it.els ? elsOf(i, it) : <>
                 {m ? <div className="gi-media" data-el="media">{edit?.grip ? edit.grip(i, 'media') : null}{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
@@ -147,7 +150,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
       ? [...media.map(({ m, i }) => <figure key={m.path} className="gc-fig">{img(m, i, <img src={urls[m.path]} alt={m.caption || ''} loading="lazy" />)}{edit ? edit.caption(i, m.caption) : m.caption ? <figcaption>{m.caption}</figcaption> : null}</figure>), ...(edit ? [edit.addImage()] : [])]
       : [...items.map((it, i) => {
           const m = it.media && urls[it.media.path] ? it.media : undefined;
-          return <div key={it.id} data-item={edit ? i : undefined} className={'gc-card bx-' + (b.box || 'fill')} style={b.pad !== undefined ? { padding: b.pad } : undefined}>
+          return <div key={it.id} data-item={edit ? i : undefined} className={'gc-card bx-' + (b.box || 'fill') + alignCls(it)} style={{ ...(b.pad !== undefined ? { padding: b.pad } : {}), ...gapVar(it) }}>
             {edit?.itemBar ? edit.itemBar(i, it) : null}
             {itxt(i, 'label', it.label, { tag: 'p', className: 'gc-label', placeholder: 'Label' })}
             {itxt(i, 'heading', it.heading, { tag: 'p', className: 'gc-h', placeholder: 'A headline' })}
