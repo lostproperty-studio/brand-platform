@@ -14,7 +14,10 @@ export async function getDomain(): Promise<DomainSetting | null> {
 /** The address to share for a portal: the studio's own domain once it's live, otherwise the current one */
 export async function portalUrl(slug: string) {
   const d = await getDomain().catch(() => null);
-  return d?.live ? `https://${d.host}/${slug}` : `${env.appUrl()}/${slug}`;
+  if (d?.live) return `https://${d.host}/${slug}`;
+  // Otherwise the address the studio is using right now (only the platform's own addresses count)
+  const { appOrigin } = await import('@/lib/origin');
+  return `${await appOrigin()}/${slug}`;
 }
 
 const within = <T,>(p: Promise<T>, ms: number, fallback: T) => Promise.race([p.catch(() => fallback), new Promise<T>((ok) => setTimeout(() => ok(fallback), ms))]);
@@ -22,7 +25,7 @@ const within = <T,>(p: Promise<T>, ms: number, fallback: T) => Promise.race([p.c
 /** Checks each step of putting the platform on the domain */
 export async function checkDomain(host: string) {
   const [cname, a] = await Promise.all([within(resolveCname(host), 4000, [] as string[]), within(resolve4(host), 4000, [] as string[])]);
-  const dns = cname.some((c) => /vercel-dns\.com\.?$/i.test(c)) || a.some((ip) => ip === '76.76.21.21' || ip.startsWith('76.76.21.'));
+  const dns = cname.some((c) => /vercel-dns(-\d+)?\.com\.?$/i.test(c)) || a.some((ip) => ip === '76.76.21.21' || ip.startsWith('76.76.21.'));
   const health = await within(fetch(`https://${host}/api/health`, { cache: 'no-store', redirect: 'manual' }).then(async (r) => (r.ok ? ((await r.json().catch(() => null)) as { ok?: unknown } | null) : null)), 6000, null);
   const serving = !!health && typeof health === 'object';
   const appUrlSet = (() => { try { return new URL(env.appUrl()).hostname === host; } catch { return false; } })();
