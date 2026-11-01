@@ -18,7 +18,7 @@ export function AskDock({ slug, client, aiConnected, canConnect }: { slug: strin
   const [busy, setBusy] = useState(false);
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const here = path.includes('/guidelines/') ? 'this chapter' : path.includes('/tools/') ? 'this tool' : path.endsWith('/downloads') ? 'the downloads' : `the ${client} brand`;
+  const here = path.includes('/guidelines/') ? 'this chapter' : path.includes('/tools/') ? 'this tool' : path.includes('/resources') ? 'the resources' : `the ${client} brand`;
   const hidden = path.includes('/tools/'); // tools have their own chat panel
 
   useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight }); }, [msgs]);

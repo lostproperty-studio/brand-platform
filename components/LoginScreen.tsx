@@ -20,7 +20,7 @@ export function LoginScreen({ b, children, preview = false, heading }: { b: Bran
         {b.look.message ? <p className="ls-msg">{b.look.message}</p> : null}
         {children}
       </div>
-      <p className="ls-credit">{lp ? `For ${b.client}` : <>Brand platform by <img src="/lp-logo.svg" alt="" className="ls-credit-logo" style={dark ? { filter: 'invert(1)' } : undefined} /> Lost Property</>}</p>
+      <p className="ls-credit">{lp ? `For ${b.client}` : <>Designed and built by <img src="/lp-logo.svg" alt="" className="ls-credit-logo" /> Lost Property Studio</>}</p>
     </div>
   );
 }

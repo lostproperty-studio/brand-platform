@@ -32,7 +32,7 @@ export function ToolManager({ projectId, slug }: { projectId: string; slug: stri
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 880 }}>
       <p className="mute" style={{ margin: 0 }}>Upload an HTML tool you’ve built for this client and it appears as an app in their portal. The platform applies the brand fonts and the portal’s look to anything the tool doesn’t style itself, gives it the brand files (<code>window.LP_BRAND</code>), and, with AI on, lets the client drive it by describing what they want. The tool works as it did before.</p>
-      <div className="row"><button className="btn solid" onClick={() => setAdding(!adding)}>{adding ? 'Cancel' : '+ Add a tool'}</button><a className="btn" href={`/p/${slug}/tools`} target="_blank" rel="noopener">Open Tools in the portal ↗</a><span className="mute" role="status">{msg}</span></div>
+      <div className="row"><button className="btn solid" onClick={() => setAdding(!adding)}>{adding ? 'Cancel' : '+ Add a tool'}</button><a className="btn" href={`/p/${slug}/resources`} target="_blank" rel="noopener">Open Resources in the portal ↗</a><span className="mute" role="status">{msg}</span></div>
       {adding ? <form className="card ge-chhead" onSubmit={add}>
         <div className="ge-two">
           <div className="cv-f"><label className="mute" htmlFor="tl-n">Name</label><input id="tl-n" className="in" required maxLength={60} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Event poster maker" /></div>

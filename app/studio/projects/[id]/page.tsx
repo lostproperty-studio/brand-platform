@@ -17,9 +17,13 @@ import { fontFaceCss } from '@/lib/fonts';
 import { readFonts } from '@/lib/projects/fonts';
 import { fontState, fontsNeedingLicence } from '@/lib/fonts';
 import { TierSetting } from '@/components/TierPicker';
+import { ResourceManager } from '@/components/ResourceManager';
+import { resolvePackages } from '@/lib/portal/packages';
+import { buildSnapshot } from '@/lib/projects/snapshot';
+import type { KitFileRow } from '@/lib/portal/context';
 import { tierLabel, tierOf } from '@/lib/playbook';
 
-const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['typefaces', 'Typefaces'], ['tools', 'Tools'], ['deliverables', 'Deliverables'], ['client', 'Client']] as const;
+const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['typefaces', 'Typefaces'], ['tools', 'Tools'], ['resources', 'Resources'], ['deliverables', 'Deliverables'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -89,6 +93,16 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} tier={tier} />;
   }
   if (tab === 'tools') body = <ToolManager projectId={id} slug={p.slug} />;
+  if (tab === 'resources') {
+    const { data: parts } = await sb.from('deliverable_parts').select('key, status, deliverable_files(path, format, storage_path)').eq('project_id', id).order('ord');
+    const files: KitFileRow[] = (parts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string })));
+    const snap = await buildSnapshot(id).catch(() => null);
+    const { fonts } = await readFonts(id);
+    const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
+    const logo = files.find((f) => /^assets\/logo\/.+\.svg$/i.test(f.path) && f.storage_path);
+    const logoUrl = logo ? (await sb.storage.from('kits').createSignedUrl(logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
+    body = <ResourceManager projectId={id} slug={p.slug} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} />;
+  }
   if (tab === 'client') {
     // Everything about how the client uses their portal
     const since = new Date(Date.now() - 30 * 864e5).toISOString();

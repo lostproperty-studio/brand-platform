@@ -9,7 +9,7 @@ export async function publishedSnapshot(projectId: string): Promise<Snapshot | n
 }
 
 export async function projectBySlug(slug: string) {
-  const { data } = await adminClient().from('projects').select('id, client, name, slug, status, repo_full_name, mcp_token_hash, ai_key_hint, ai_provider').eq('slug', slug).maybeSingle();
+  const { data } = await adminClient().from('projects').select('id, client, name, slug, status, repo_full_name, mcp_token_hash, ai_key_hint, ai_provider, content').eq('slug', slug).maybeSingle();
   return data;
 }
 

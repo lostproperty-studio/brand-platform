@@ -16,7 +16,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   if (!tool) notFound();
   if (!ctx.access.staff) await logActivity(ctx.project.id, ctx.access.user.id, 'tool', tool.name);
   // Full-screen: a slim bar with Back, then the tool fills the rest of the space beside the portal sidebar
-  const head = <><Link className="btn" href={`/p/${slug}/tools`}>← Tools</Link><span className="tl-icon sm"><Icon name={tool.icon} size={16} /></span><h1>{tool.name}</h1><span className="mute tl-desc">{tool.description}</span></>;
+  const head = <><Link className="btn" href={`/p/${slug}/resources#apps`}>← Resources</Link><span className="tl-icon sm"><Icon name={tool.icon} size={16} /></span><h1>{tool.name}</h1><span className="mute tl-desc">{tool.description}</span></>;
   if (tool.kind === 'layouts') return <div className="tl-full"><header className="tl-bar">{head}</header><div className="tl-body"><LayoutMaker slug={slug} toolId={tool.id} /></div></div>;
 
   // Brand files the tool can use (logos, tokens, imagery), as signed links in window.LP_BRAND.assets

@@ -3,16 +3,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
-// Portal navigation: Home, Guidelines (with its chapters), Downloads, Canvas, Ask. Collapses to a menu on phones.
+// Portal navigation: Home, Guidelines (with its chapters), Resources, Settings. Collapses to a menu on phones.
 export function PortalNav({ slug, client, logoUrl, chapters, showSettings }: { slug: string; client: string; logoUrl: string | null; chapters: { id: string; title: string }[]; showSettings: boolean }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const base = `/p/${slug}`;
   const items = [
-    ['Home', base], ['Guidelines', `${base}/guidelines`], ['Tools', `${base}/tools`], ['Downloads', `${base}/downloads`],
+    ['Home', base], ['Guidelines', `${base}/guidelines`], ['Resources', `${base}/resources`],
     ...(showSettings ? [['Settings', `${base}/settings`]] : [])
   ] as const;
-  const isOn = (href: string) => (href === base ? path === base : path.startsWith(href));
+  const isOn = (href: string) => (href === base ? path === base : path.startsWith(href) || (href.endsWith('/resources') && path.startsWith(`${base}/tools`)));
   return (
     <aside className={'pt-side' + (open ? ' open' : '')}>
       <div className="pt-brand">
@@ -25,7 +25,8 @@ export function PortalNav({ slug, client, logoUrl, chapters, showSettings }: { s
           {label === 'Guidelines' && path.startsWith(href) ? <div className="pt-sub">{chapters.map((c, k) => { const h = `${href}/${c.id.replace(/[:;]/g, '-')}`; const on = path === h; return <Link key={c.id} href={h} className={'pt-subit' + (on ? ' on' : '')} aria-current={on ? 'page' : undefined} onClick={() => setOpen(false)}><span className="pt-n">{String(k + 1).padStart(2, '0')}</span>{c.title}</Link>; })}</div> : null}
         </div>)}
       </nav>
-      <p className="pt-foot mute">{client} brand guidelines<br />By Lost Property</p>
+      <p className="pt-foot mute">{client} brand guidelines</p>
+      <p className="pt-credit">Designed and built by <img src="/lp-logo.svg" alt="" /> Lost Property Studio</p>
     </aside>
   );
 }
