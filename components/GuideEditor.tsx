@@ -2,19 +2,20 @@
 import { createElement, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
-import type { BlockItem, BoxStyle } from '@/lib/figma/blocks';
+import type { BlockItem, BoxStyle, TextStyle } from '@/lib/figma/blocks';
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
+import { Dock, type Sel } from '@/components/GuideDock';
 import { TimedProgress } from '@/components/Progress';
 import { tierLabel, type Tier } from '@/lib/playbook';
 import { ChapterCover } from '@/components/portal/ChapterCover';
 import { coverKind } from '@/lib/portal/covers';
 
-const KINDS: [BlockKind, string][] = [['divider', 'Subsection headline'], ['text', 'Text'], ['columns', 'Columns'], ['grid', 'Grid'], ['statement', 'Statement'], ['split', 'Text + image'], ['image', 'Full-width image'], ['media', 'Images'], ['swatches', 'Colour swatches'], ['cover', 'Cover']];
-const BOXES: [BoxStyle, string][] = [['none', 'None'], ['corners', 'Corner marks'], ['outline', 'Outline'], ['fill', 'Fill']];
+export const KINDS: [BlockKind, string][] = [['divider', 'Subsection headline'], ['text', 'Text'], ['columns', 'Columns'], ['grid', 'Grid'], ['statement', 'Statement'], ['split', 'Text + image'], ['image', 'Full-width image'], ['media', 'Images'], ['swatches', 'Colour swatches']];
+export const BOXES: [BoxStyle, string][] = [['none', 'None'], ['corners', 'Corner marks'], ['outline', 'Outline'], ['fill', 'Fill']];
 const iid = () => 'i-' + Math.random().toString(36).slice(2, 9);
 
 /** Switching layout keeps the words: text splits into items, items join back into text. */
-function convert(b: Block, kind: BlockKind): Partial<Block> {
+export function convert(b: Block, kind: BlockKind): Partial<Block> {
   const toItems = (): BlockItem[] => { const paras = (b.body || '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean); return (paras.length ? paras : ['']).slice(0, 8).map((p) => ({ id: iid(), body: p || undefined, w: 3, h: 2 })); };
   if ((kind === 'columns' || kind === 'grid') && !(b.items || []).length) return { kind, items: toItems(), body: undefined, cols: kind === 'columns' ? 3 : undefined, box: b.box || 'none' };
   if (kind === 'columns' || kind === 'grid') return { kind, cols: kind === 'columns' ? Math.max(2, Math.min(4, b.cols || (b.items || []).length)) : undefined, items: (b.items || []).map((i) => ({ ...i, w: i.w || 3, h: i.h || 2 })) };
@@ -27,11 +28,11 @@ const toHtml = (v: string | undefined, multiline: boolean) => (!v ? '' : multili
 const fromEl = (el: HTMLElement) => el.innerText.replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 
 // Text you edit in place, in the brand's own type. Enter ends a headline; in body text, Enter starts a new paragraph.
-function Editable({ value, onSave, tag, className, placeholder, multiline }: { value?: string; onSave: (v: string) => void; tag: string; className: string; placeholder: string; multiline?: boolean }) {
+function Editable({ value, onSave, tag, className, placeholder, multiline, style, onFocus, on }: { value?: string; onSave: (v: string) => void; tag: string; className: string; placeholder: string; multiline?: boolean; style?: React.CSSProperties; onFocus?: () => void; on?: boolean }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { const el = ref.current; if (el && document.activeElement !== el) el.innerHTML = toHtml(value, !!multiline); }, [value, multiline]);
   return createElement(tag, {
-    ref, className: className + ' ed', contentEditable: true, suppressContentEditableWarning: true, 'data-ph': placeholder, spellCheck: true, role: 'textbox', 'aria-label': placeholder, 'aria-multiline': multiline || undefined,
+    ref, className: className + ' ed' + (on ? ' ed-on' : ''), style, onFocus, contentEditable: true, suppressContentEditableWarning: true, 'data-ph': placeholder, spellCheck: true, role: 'textbox', 'aria-label': placeholder, 'aria-multiline': multiline || undefined,
     onBlur: () => { const el = ref.current; if (!el) return; const v = fromEl(el); if (v !== (value || '').trim()) onSave(v); if (!v) el.innerHTML = ''; },
     onPaste: (e: React.ClipboardEvent) => { e.preventDefault(); document.execCommand('insertText', false, e.clipboardData.getData('text/plain')); },
     onKeyDown: (e: React.KeyboardEvent) => {
@@ -56,7 +57,20 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(guide);
   const fileFor = useRef<{ block: string; target: number | 'backdrop' | 'new' | 'thumb' | string } | null>(null);
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSel] = useState<Sel | null>(null);
+  const [showRemoved, setShowRemoved] = useState(false);
+  // Keep what you selected clear of the dock at the bottom of the screen
+  useEffect(() => {
+    if (!sel) return;
+    const t = requestAnimationFrame(() => {
+      const el = document.querySelector('.ed.ed-on, .ve-img.on') || document.querySelector('.ve-block.sel');
+      const dock = document.querySelector('.dk');
+      if (!el || !dock) return;
+      const r = el.getBoundingClientRect(), limit = dock.getBoundingClientRect().top - 24;
+      if (r.bottom > limit) window.scrollBy({ top: Math.min(r.bottom - limit, Math.max(0, r.top - 90)), behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(t);
+  }, [sel]);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => { setGuide(initial); latest.current = initial; setUrls(thumbs); }, [initial, thumbs]);
 
@@ -101,7 +115,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (!ch) return;
     const items = kind === 'columns' ? [1, 2, 3].map(() => ({ id: iid(), label: 'Label', body: 'Text' })) : kind === 'grid' ? [[4, 4], [2, 2], [2, 2], [3, 2], [3, 2]].map(([w, h]) => ({ id: iid(), label: 'Label', body: 'Text', w, h })) : undefined;
     const b: Block = { id: 'b-' + uid(), kind, heading: kind === 'swatches' ? 'Colours' : kind === 'divider' ? 'New subsection' : kind === 'statement' ? 'A statement in the brand’s voice' : kind === 'image' || kind === 'columns' || kind === 'grid' ? undefined : 'New section', body: kind === 'text' || kind === 'split' ? 'Write something…' : '', media: [], swatches: kind === 'swatches' ? [{ name: 'Colour', hex: '#000000' }] : undefined, cols: kind === 'media' ? 2 : kind === 'columns' ? 3 : undefined, side: kind === 'split' ? 'right' : undefined, items, box: items ? 'none' : undefined, edited: true };
-    const l = [...ch.blocks]; l.splice(i, 0, b); setBlocks(l); setMenu(null); setSel(b.id);
+    const l = [...ch.blocks]; l.splice(i, 0, b); setBlocks(l); setMenu(null); setSel({ block: b.id });
   };
   const moveBlock = (id: string, toId: string) => { if (!ch || id === toId) return; const l = [...ch.blocks]; const from = l.findIndex((b) => b.id === id); const [b] = l.splice(from, 1); l.splice(l.findIndex((x) => x.id === toId), 0, b); setBlocks(l); };
   const moveChapter = (id: string, toId: string) => { if (!g || id === toId) return; const l = [...g.chapters]; const from = l.findIndex((c) => c.id === id); const [c] = l.splice(from, 1); l.splice(l.findIndex((x) => x.id === toId), 0, c); setChapters(l); };
@@ -136,13 +150,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   );
 
   const kitFor = (b: Block): EditKit => ({
-    text: (field: TextField, value, el) => <Editable key={field} value={value} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} onSave={(v) => editBlock(b.id, { [field]: v || undefined } as Partial<Block>)} />,
-    image: (target, m, imgEl) => <span className="ve-img">{imgEl}<span className="ve-imgbar">
-      <button onClick={() => pickImage(b.id, target)}>Replace</button>
-      {target !== 'backdrop' ? <button onClick={() => editBlock(b.id, { media: (b.media || []).map((x, i) => (i === target ? { ...x, kind: x.kind === 'photo' ? 'graphic' : 'photo' } : x)) })}>{m.kind === 'photo' ? 'Fit' : 'Fill'}</button> : null}
-      {target !== 'backdrop' && m.caption === undefined ? <button onClick={() => editBlock(b.id, { media: (b.media || []).map((x, i) => (i === target ? { ...x, caption: '' } : x)) })}>Caption</button> : null}
-      <button onClick={() => (target === 'backdrop' ? editBlock(b.id, { backdrop: undefined }) : editBlock(b.id, { media: (b.media || []).filter((_, i) => i !== target) }))}>Remove</button>
-    </span></span>,
+    text: (field: TextField, value, el) => (!value ? null : <Editable key={field} value={value} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === field} onFocus={() => setSel({ block: b.id, el: field })} onSave={(v) => editBlock(b.id, { [field]: v || undefined } as Partial<Block>)} />),
+    image: (target, _m, imgEl) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `img:${target}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `img:${target}` }); }}>{imgEl}</span>,
     caption: (i, value) => (value === undefined ? null : <Editable value={value} tag="p" className="gb-cap" placeholder="Caption" onSave={(v) => editBlock(b.id, { media: (b.media || []).map((x, k) => (k === i ? { ...x, caption: v || undefined } : x)) })} />),
     swatch: (i, s) => { const set = (p: Partial<typeof s>) => editBlock(b.id, { swatches: (b.swatches || []).map((x, k) => (k === i ? { ...x, ...p } : x)) }); return (
       <div key={i} className="gb-swc ve-sw" style={{ background: s.hex, color: textOn(s.hex) }}>
@@ -152,30 +161,21 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       </div>); },
     addSwatch: () => <button key="add" className="gb-swc ve-add" onClick={() => editBlock(b.id, { swatches: [...(b.swatches || []), { name: 'Colour', hex: '#000000' }] })}>+ Swatch</button>,
     addImage: () => <button key="addimg" className="ve-add ve-addimg" onClick={() => pickImage(b.id, 'new')}>+ Add image</button>,
-    itemText: (i, field, value, el) => <Editable key={field} value={value} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} onSave={(v) => editBlock(b.id, { items: (b.items || []).map((x, n) => (n === i ? { ...x, [field]: v || undefined } : x)) })} />,
-    itemImage: (i, m, pic) => <span className="ve-img">{pic}<span className="ve-imgbar"><button onClick={() => pickImage(b.id, `item:${i}`)}>Replace</button><button onClick={() => editBlock(b.id, { items: (b.items || []).map((x, n) => (n === i ? { ...x, media: undefined } : x)) })}>Remove</button></span></span>,
-    itemBar: (i, it) => {
-      if (sel !== b.id) return null;
-      const items = b.items || [];
-      const set = (p: Partial<BlockItem>) => editBlock(b.id, { items: items.map((x, n) => (n === i ? { ...x, ...p } : x)) });
-      const mv = (d: number) => { const l = [...items]; const [x] = l.splice(i, 1); l.splice(Math.max(0, Math.min(l.length, i + d)), 0, x); editBlock(b.id, { items: l }); };
-      return <span className="ve-ibar" onMouseDown={(e) => e.stopPropagation()}>
-        <button onClick={() => mv(-1)} disabled={i === 0} aria-label="Move earlier">←</button>
-        <button onClick={() => mv(1)} disabled={i === items.length - 1} aria-label="Move later">→</button>
-        {b.kind === 'grid' ? <>
-          <span className="ve-ilab">W</span><button onClick={() => set({ w: Math.max(1, (it.w || 2) - 1) })} aria-label="Narrower">−</button><span className="ve-ival">{it.w || 2}</span><button onClick={() => set({ w: Math.min(6, (it.w || 2) + 1) })} aria-label="Wider">+</button>
-          <span className="ve-ilab">H</span><button onClick={() => set({ h: Math.max(1, (it.h || 1) - 1) })} aria-label="Shorter">−</button><span className="ve-ival">{it.h || 1}</span><button onClick={() => set({ h: Math.min(8, (it.h || 1) + 1) })} aria-label="Taller">+</button>
-        </> : null}
-        <button onClick={() => pickImage(b.id, `item:${i}`)}>{it.media ? 'Image' : '+ Image'}</button>
-        <button onClick={() => editBlock(b.id, { items: [...items.slice(0, i + 1), { ...it, id: iid() }, ...items.slice(i + 1)] })} aria-label="Duplicate item">⧉</button>
-        <button onClick={() => editBlock(b.id, { items: items.filter((_, n) => n !== i) })} aria-label="Delete item">×</button>
-      </span>;
-    },
-    addItem: () => sel === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: 'Label', body: 'Text', w: 2, h: 2 }] })}>+ Item</button> : null
+    itemText: (i, field, value, el) => (!value ? null : <Editable key={field} value={value} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === el.key} onFocus={() => setSel({ block: b.id, el: el.key, item: i })} onSave={(v) => editBlock(b.id, { items: (b.items || []).map((x, n) => (n === i ? { ...x, [field]: v || undefined } : x)) })} />),
+    itemImage: (i, m, pic) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `itemimg:${i}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `itemimg:${i}`, item: i }); }}>{pic}</span>,
+    addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: 'Label', body: 'Text', w: 2, h: 2 }] })}>+ Item</button> : null
   });
 
   const subsIdx = (id: string) => { const subs = ch ? ch.blocks.filter((b) => b.kind === 'divider' && !b.hidden) : []; const k = subs.findIndex((b) => b.id === id); return k >= 0 ? String(k + 1).padStart(2, '0') : undefined; };
   const hiddenCount = ch ? ch.blocks.filter((b) => b.hidden).length : 0;
+  function deleteChapter(c: GuideChapter) {
+    if (!g) return;
+    const fromFigma = !c.id.startsWith('custom-') && !c.id.startsWith('draft-');
+    if (!confirm(`Delete “${c.title}”?${fromFigma ? ' It stays deleted when you rebuild from Figma, and you can restore it from Deleted chapters.' : ''}`)) return;
+    const next = fromFigma ? g.chapters.map((x) => (x.id === c.id ? { ...x, removed: true } : x)) : g.chapters.filter((x) => x.id !== c.id);
+    setChapters(next);
+    if (c.id === chId) setChId(next.find((x) => !x.removed)?.id || '');
+  }
   const all = g.chapters.flatMap((c) => c.blocks);
   const nDraft = all.filter((b) => b.draft === 'draft').length, nMissing = all.filter((b) => b.draft === 'missing').length;
   const chDrafts = (c: GuideChapter) => c.blocks.filter((b) => b.draft).length;
@@ -200,11 +200,14 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       <div className="ve-grid">
         <nav className="ve-chs" aria-label="Chapters">
           <p className="ve-label">Chapters · drag to reorder</p>
-          {g.chapters.map((c, i) => <div key={c.id} draggable onDragStart={() => setDrag({ kind: 'chapter', id: c.id })} onDragOver={(e) => { if (drag?.kind === 'chapter') { e.preventDefault(); setOver(c.id); } }} onDrop={() => { if (drag?.kind === 'chapter') moveChapter(drag.id, c.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }}
+          {g.chapters.filter((c) => !c.removed).map((c, i) => <div key={c.id} draggable onDragStart={() => setDrag({ kind: 'chapter', id: c.id })} onDragOver={(e) => { if (drag?.kind === 'chapter') { e.preventDefault(); setOver(c.id); } }} onDrop={() => { if (drag?.kind === 'chapter') moveChapter(drag.id, c.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }}
             className={'ve-ch' + (c.id === chId ? ' on' : '') + (c.hidden ? ' off' : '') + (over === c.id && drag?.kind === 'chapter' ? ' over' : '')}>
             <button onClick={() => setChId(c.id)}><span className="pt-n">{String(i + 1).padStart(2, '0')}</span>{c.title}{chDrafts(c) ? <span className="ve-dcount" title="Drafts and missing items to check">{chDrafts(c)}</span> : null}</button>
             <button className="ve-eye" onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, hidden: !x.hidden } : x)))} aria-label={c.hidden ? `Show ${c.title}` : `Hide ${c.title}`} title={c.hidden ? 'Hidden from the client' : 'Hide from the client'}>{c.hidden ? '○' : '●'}</button>
+            <button className="ve-eye ve-del" onClick={() => deleteChapter(c)} aria-label={`Delete ${c.title}`} title="Delete chapter">×</button>
           </div>)}
+          {g.chapters.some((c) => c.removed) ? <div className="ve-removed"><button className="ve-linkbtn" onClick={() => setShowRemoved(!showRemoved)} aria-expanded={showRemoved}>Deleted chapters ({g.chapters.filter((c) => c.removed).length})</button>
+            {showRemoved ? g.chapters.filter((c) => c.removed).map((c) => <div key={c.id} className="ve-removed-row"><span>{c.title}</span><button className="ve-linkbtn" onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, removed: false } : x)))}>Restore</button></div>) : null}</div> : null}
           <button className="btn" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); }}>+ Chapter</button>
         </nav>
 
@@ -237,13 +240,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                       : <><button className="btn solid" onClick={() => editBlock(b.id, { draft: undefined, draftNote: undefined, body: '' })}>Write it now</button><button className="btn" onClick={() => { removeBlock(b); dismissSlot(b.slot); }} title="Not needed for this client; it won’t be flagged again">Not needed</button></>}
                     <span className="mute">Hidden from the client until accepted.</span>
                   </div> : null}
-                  <div onMouseDown={() => setSel(b.id)} onFocus={() => setSel(b.id)} className={'ve-block' + (sel === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
+                  <div onMouseDown={() => { if (sel?.block !== b.id) setSel({ block: b.id }); }} className={'ve-block' + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
                     onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }}>
-                    {sel === b.id ? <BlockBar b={b} onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragEnd={() => { setDrag(null); setOver(null); }} edit={(p) => editBlock(b.id, p)}
-                      onDuplicate={() => { const l = [...ch.blocks]; l.splice(i + 1, 0, { ...b, id: 'b-' + uid(), source: undefined, edited: true }); setBlocks(l); }}
-                      onDelete={() => (b.source ? editBlock(b.id, { hidden: true }) : setBlocks(ch.blocks.filter((x) => x.id !== b.id)))}
-                      onReset={b.source && b.edited ? () => { if (confirm('Discard your edits to this section? It refreshes from Figma on the next rebuild.')) setBlocks(ch.blocks.map((x) => (x.id === b.id ? { ...x, edited: false } : x))); } : undefined}
-                      onImage={() => pickImage(b.id, 'new')} onBackdrop={() => pickImage(b.id, 'backdrop')} /> : <span className="ve-hint">Click to edit</span>}
+                    {sel?.block === b.id ? <span className="ve-handle-tab" draggable onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragEnd={() => { setDrag(null); setOver(null); }} title="Drag to move" aria-label="Drag to move">⋮⋮ {KINDS.find(([k]) => k === b.kind)?.[1]}</span> : <span className="ve-hint">Click to edit</span>}
                     {b.hidden ? <p className="ve-hidden">Hidden from the client · <button onClick={() => editBlock(b.id, { hidden: false })}>Show</button></p> : null}
                     <GuideBlock b={{ ...b, hidden: false }} urls={urls} headingLevel={3} number={b.kind === 'divider' ? subsIdx(b.id) : undefined} chapter={ch.title} edit={kitFor(b)} />
                   </div>
@@ -256,6 +255,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           </article>
         </div> : null}
       </div>
+      {ch ? <Dock sel={sel} setSel={setSel} ch={ch} colours={colours} setBlocks={setBlocks} editBlock={editBlock} pickImage={pickImage} onReset={(b) => { if (confirm('Discard your edits to this section? It refreshes from Figma on the next rebuild.')) setBlocks(ch.blocks.map((x) => (x.id === b.id ? { ...x, edited: false } : x))); }} /> : null}
       <p className="mute">Built {new Date(g.generatedAt).toLocaleString('en-GB')} from “{g.page}” in {g.file}. Sections you edit or add are kept when you rebuild.</p>
     </div>
   );
@@ -268,48 +268,8 @@ function Inserter({ open, onOpen, onPick }: { open: boolean; onOpen: () => void;
   </div>;
 }
 
-function KindIcon({ k }: { k: BlockKind }) {
+export function KindIcon({ k }: { k: BlockKind }) {
   const r = { cover: 'M3 3h18v18H3z M6 15h8', divider: 'M3 9h14 M3 14h9', text: 'M4 6h16 M4 10h16 M4 14h11', columns: 'M3 5h5v14H3z M10 5h4v14h-4z M16 5h5v14h-5z', grid: 'M3 4h11v9H3z M16 4h5v5h-5z M16 11h5v9h-5z M3 15h11v5H3z', statement: 'M4 8h16 M4 13h12', image: 'M2 6h20v12H2z M2 15l6-5 5 4 3-2 6 5', split: 'M3 5h8v14H3z M14 7h7 M14 11h7 M14 15h5', media: 'M3 5h8v6H3z M13 5h8v6h-8z M3 13h8v6H3z M13 13h8v6h-8z', swatches: 'M3 6h5v12H3z M10 6h5v12h-5z M17 6h4v12h-4z' }[k];
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden><path d={r} /></svg>;
 }
 
-// The toolbar that appears on a section: layout, text style, colour, images, order, visibility.
-function BlockBar({ b, edit, onDragStart, onDragEnd, onDuplicate, onDelete, onReset, onImage, onBackdrop }: { b: Block; edit: (p: Partial<Block>) => void; onDragStart: () => void; onDragEnd: () => void; onDuplicate: () => void; onDelete: () => void; onReset?: () => void; onImage: () => void; onBackdrop: () => void }) {
-  const [pop, setPop] = useState<'layout' | 'type' | 'colour' | null>(null);
-  // Close an open menu when clicking anywhere else (not when the pointer wanders off)
-  useEffect(() => { if (!pop) return; const off = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.ve-bar')) setPop(null); }; document.addEventListener('mousedown', off); return () => document.removeEventListener('mousedown', off); }, [pop]);
-  const panel = b.kind === 'cover' || b.kind === 'statement';
-  const seg = <T extends string | number>(cur: T | undefined, opts: [T, string][], set: (v: T) => void) => <div className="ve-seg">{opts.map(([v, l]) => <button key={String(v)} className={cur === v ? 'on' : ''} onClick={() => set(v)}>{l}</button>)}</div>;
-  return (
-    <div className="ve-bar">
-      <span className="ve-handle" draggable onDragStart={onDragStart} onDragEnd={onDragEnd} title="Drag to move" aria-label="Drag to move">⋮⋮</span>
-      <div className="ve-pop-wrap"><button onClick={() => setPop(pop === 'layout' ? null : 'layout')} aria-expanded={pop === 'layout'}><KindIcon k={b.kind} />{KINDS.find(([k]) => k === b.kind)?.[1]}</button>
-        {pop === 'layout' ? <div className="ve-pop">
-          {KINDS.map(([k, l]) => <button key={k} className={'ve-row' + (b.kind === k ? ' on' : '')} onClick={() => { edit(convert(b, k)); }}><KindIcon k={k} />{l}</button>)}
-          {b.kind === 'split' ? <><p className="ve-label">Image side</p>{seg(b.side || 'right', [['left', 'Left'], ['right', 'Right']], (v) => edit({ side: v }))}</> : null}
-          {b.kind === 'columns' ? <><p className="ve-label">Columns</p>{seg(b.cols || 3, [[2, '2'], [3, '3'], [4, '4']], (v) => edit({ cols: v }))}</> : null}
-          {b.kind === 'media' ? <><p className="ve-label">Columns</p>{seg(b.cols || 2, [[1, '1'], [2, '2'], [3, '3'], [4, '4']], (v) => edit({ cols: v }))}</> : null}
-        </div> : null}</div>
-      <div className="ve-pop-wrap"><button onClick={() => setPop(pop === 'type' ? null : 'type')} aria-expanded={pop === 'type'} title="Text style"><span style={{ fontWeight: 500 }}>Aa</span></button>
-        {pop === 'type' ? <div className="ve-pop">
-          <p className="ve-label">Headline size</p>{seg(b.headSize, [['S', 'S'], ['M', 'M'], ['L', 'L'], ['XL', 'XL']], (v) => edit({ headSize: v }))}
-          <p className="ve-label">Text size</p>{seg(b.bodySize, [['S', 'S'], ['M', 'M'], ['L', 'L']], (v) => edit({ bodySize: v }))}
-          <p className="ve-label">Text columns</p>{seg(b.bodyCols || 1, [[1, '1'], [2, '2'], [3, '3']], (v) => edit({ bodyCols: v }))}
-          <p className="ve-label">Align</p>{seg(b.align || 'left', [['left', 'Left'], ['center', 'Centre']], (v) => edit({ align: v }))}
-        </div> : null}</div>
-      {b.kind === 'columns' || b.kind === 'grid' ? <div className="ve-seg ve-boxseg" title="How items are held">{BOXES.map(([v, l]) => <button key={v} className={(b.box || 'none') === v ? 'on' : ''} onClick={() => edit({ box: v })}>{l}</button>)}</div> : null}
-      <div className="ve-pop-wrap"><button onClick={() => setPop(pop === 'colour' ? null : 'colour')} aria-expanded={pop === 'colour'} title="Colours"><span className="ve-dot" style={{ background: b.bg || '#fff' }} /></button>
-        {pop === 'colour' ? <div className="ve-pop">
-          {panel ? <><p className="ve-label">Panel colour</p><div className="row"><input type="color" value={b.bg && /^#[0-9A-F]{6}$/i.test(b.bg) ? b.bg : '#FFFFFF'} onChange={(e) => edit({ bg: e.target.value.toUpperCase() })} aria-label="Panel colour" /><button className="btn" onClick={() => edit({ bg: undefined })}>None</button></div></> : <p className="ve-label">Guidance sits on the page; only covers and statements take a panel colour.</p>}
-          <p className="ve-label">Text</p><div className="row"><input type="color" value={b.ink && /^#[0-9A-F]{6}$/i.test(b.ink) ? b.ink : '#000000'} onChange={(e) => edit({ ink: e.target.value.toUpperCase() })} aria-label="Text colour" /><button className="btn" onClick={() => edit({ ink: undefined })}>Auto</button></div>
-          {panel ? <><p className="ve-label">Background image</p><div className="row"><button className="btn" onClick={onBackdrop}>{b.backdrop ? 'Replace' : 'Add'}</button>{b.backdrop ? <button className="btn" onClick={() => edit({ backdrop: undefined })}>Remove</button> : null}</div></> : null}
-        </div> : null}</div>
-      {['split', 'media', 'image', 'swatches'].includes(b.kind) ? <button onClick={onImage} title="Add image">+ Image</button> : null}
-      <span className="ve-sep" />
-      <button onClick={onDuplicate} title="Duplicate">Duplicate</button>
-      {onReset ? <button onClick={onReset} title="Discard edits">Reset</button> : null}
-      <button onClick={() => edit({ hidden: !b.hidden })}>{b.hidden ? 'Show' : 'Hide'}</button>
-      {!b.source ? <button onClick={onDelete} title="Delete">Delete</button> : null}
-    </div>
-  );
-}

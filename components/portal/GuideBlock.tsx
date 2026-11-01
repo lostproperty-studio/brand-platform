@@ -12,7 +12,7 @@ const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB
 
 export type TextField = 'eyebrow' | 'heading' | 'body';
 export type ItemField = 'label' | 'heading' | 'body';
-type El = { tag: 'p' | 'span' | 'h2' | 'h3' | 'div'; className: string; placeholder: string; multiline?: boolean };
+type El = { tag: 'p' | 'span' | 'h2' | 'h3' | 'div'; className: string; placeholder: string; multiline?: boolean; style?: React.CSSProperties; key?: string };
 export type EditKit = {
   text: (field: TextField, value: string | undefined, el: El) => React.ReactNode;
   image: (target: number | 'backdrop', m: BlockMedia, img: React.ReactNode) => React.ReactNode;
@@ -26,9 +26,9 @@ export type EditKit = {
   addItem?: () => React.ReactNode;
 };
 
-function Paras({ text, className }: { text?: string; className?: string }) {
+function Paras({ text, className, style }: { text?: string; className?: string; style?: React.CSSProperties }) {
   if (!text) return null;
-  return <div className={className}>{text.split(/\n{2,}/).map((p, i) => <p key={i}>{p.split('\n').map((l, j, a) => <span key={j}>{l}{j < a.length - 1 ? <br /> : null}</span>)}</p>)}</div>;
+  return <div className={className} style={style}>{text.split(/\n{2,}/).map((p, i) => <p key={i}>{p.split('\n').map((l, j, a) => <span key={j}>{l}{j < a.length - 1 ? <br /> : null}</span>)}</p>)}</div>;
 }
 
 export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter, edit }: { b: Block; urls: Record<string, string>; headingLevel?: 2 | 3; number?: string; anchor?: string; chapter?: string; edit?: EditKit }) {
@@ -36,15 +36,19 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const H = (headingLevel === 2 ? 'h2' : 'h3') as 'h2';
   // Panels only for covers and statements
   const panel = b.kind === 'cover' || b.kind === 'statement';
-  const back = panel && b.backdrop ? urls[b.backdrop.path] : undefined;
+  const back = b.kind === 'cover' && b.backdrop ? urls[b.backdrop.path] : undefined;
   const bg = panel && b.bg && /^#[0-9A-F]{6}$/i.test(b.bg) ? b.bg : undefined;
   const darkBack = !!back && (!b.ink || lum(b.ink) > 0.6);
   const ink = panel ? (b.ink && (!bg || Math.abs(lum(b.ink) - lum(bg)) > 0.3 || back) ? b.ink : bg ? textOn(bg) : undefined) : (b.ink && lum(b.ink) < 0.5 ? b.ink : undefined);
   const style = { ...(bg && !back ? { background: bg } : {}), ...(ink ? { color: ink } : {}) } as React.CSSProperties;
   const tone = [b.headSize ? `hs-${b.headSize}` : '', b.bodySize ? `bs-${b.bodySize}` : '', b.bodyCols && b.bodyCols > 1 ? `bc-${b.bodyCols}` : '', b.align === 'center' ? 'al-c' : ''].filter(Boolean).join(' ');
 
-  const txt = (field: TextField, value: string | undefined, tag: El['tag'], className: string, placeholder: string, multiline = false) =>
-    edit ? edit.text(field, value, { tag, className, placeholder, multiline }) : !value ? null : multiline ? <Paras text={value} className={className} /> : tag === 'p' ? <p className={className}>{value}</p> : tag === 'span' ? <span className={className}>{value}</span> : <H className={className}>{value}</H>;
+  // Per-text styling from the editor: size, weight, colour
+  const st = (key: string): React.CSSProperties | undefined => { const s = b.styles?.[key]; return s ? { ...(s.size ? { fontSize: s.size } : {}), ...(s.weight ? { fontWeight: s.weight } : {}), ...(s.color ? { color: s.color } : {}) } : undefined; };
+  const txt = (field: TextField, value: string | undefined, tag: El['tag'], className: string, placeholder: string, multiline = false) => {
+    const style = st(field);
+    return edit ? edit.text(field, value, { tag, className, placeholder, multiline, style, key: field }) : !value ? null : multiline ? <Paras text={value} className={className} style={style} /> : tag === 'p' ? <p className={className} style={style}>{value}</p> : tag === 'span' ? <span className={className} style={style}>{value}</span> : <H className={className} style={style}>{value}</H>;
+  };
   const eyebrow = (cls = 'gb-eb', tag: 'p' | 'span' = 'p') => txt('eyebrow', b.eyebrow, tag, cls, 'Small label');
   const heading = (cls: string) => txt('heading', b.heading, H, cls, 'Headline');
   const body = (cls = 'gb-body') => txt('body', b.body, 'div', cls, 'Write something…', true);
@@ -72,8 +76,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     </section>
   );
   if (b.kind === 'statement') return (
-    <section className={'gb gb-stmt' + (bg || back ? ' pad' : '') + (back ? ' has-back on-dark' : '') + ' ' + tone} style={style}>
-      {backEl}
+    <section className={'gb gb-stmt' + (bg ? ' pad' : '') + ' ' + tone} style={bg ? style : ink ? { color: ink } : undefined}>
       <div className="gb-in">{eyebrow()}{txt('heading', b.heading, 'p', 'gb-stmt-h', 'A statement')}{body()}</div>
     </section>
   );
@@ -86,7 +89,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   );
   if (b.kind === 'columns' || b.kind === 'grid') {
     const items = b.items || [];
-    const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el: El) => (edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} /> : <p className={el.className}>{v}</p>);
+    const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const el = { ...el0, style: st(key), key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
     return (
       <section className={'gb gb-items ' + tone}>
         {edit || b.heading || b.eyebrow ? head : null}

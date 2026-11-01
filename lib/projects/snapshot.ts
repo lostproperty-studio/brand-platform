@@ -24,7 +24,7 @@ export async function buildSnapshot(projectId: string): Promise<Snapshot> {
   const brand = (p.brand || {}) as { core?: { name: string; hex: string; note?: string }[]; fonts?: { role: string; name: string; label?: string }[] };
   const content = (p.content || {}) as { guide?: Guide };
   const g = normaliseGuide(content.guide);
-  const guide = g ? { ...g, chapters: g.chapters.filter((c) => !c.hidden).map((c) => ({ ...c, blocks: c.blocks.filter((b) => !b.hidden && !b.draft) })).filter((c) => !c.id.startsWith('draft-') || c.blocks.length) } : undefined;
+  const guide = g ? { ...g, chapters: g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => ({ ...c, blocks: c.blocks.filter((b) => !b.hidden && !b.draft) })).filter((c) => !c.id.startsWith('draft-') || c.blocks.length) } : undefined;
   // The palette: the studio's saved core colours, plus every swatch shown in the guidelines (so a palette saved
   // early with one or two colours doesn't hide the rest). Falls back to colours read from the Figma file.
   const seen = new Set<string>();

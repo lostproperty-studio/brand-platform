@@ -14,6 +14,7 @@ export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swat
 /** How a group of text or content is held: free-standing, or in a container (corner marks as in the brand's own layouts, a fine outline, or a light fill). */
 export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';
 /** One item in a columns or grid section: a small label, a headline, body text and/or an image. Grid items span columns and rows. */
+export type TextStyle = { size?: number; weight?: number; color?: string };
 export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number };
 export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string };
 export type BlockSwatch = { name: string; hex: string; note?: string };
@@ -25,6 +26,10 @@ export type Block = {
   backdrop?: BlockMedia; // full-bleed image behind the text (chapter dividers, hero slides)
   swatches?: BlockSwatch[];
   items?: BlockItem[]; box?: BoxStyle;
+  /** Per-text styling set in the editor, keyed by field ('heading', 'body', 'eyebrow') or '<itemId>.<field>' */
+  styles?: Record<string, TextStyle>;
+  /** Text the studio deleted, so it doesn't come back as an empty placeholder */
+  off?: string[];
   original?: string; showOriginal?: boolean;
   // Studio text styling: headline size, body size, body columns, alignment
   headSize?: 'S' | 'M' | 'L' | 'XL'; bodySize?: 'S' | 'M' | 'L'; bodyCols?: 1 | 2 | 3; align?: 'left' | 'center';
@@ -217,8 +222,11 @@ export function frameToBlock(frame: FNode, opts: { cover?: boolean; colour?: boo
 
   const textBox = rest.length ? union(rest.map((t) => t.box)) : null;
   const visBox = vis.length ? union(vis.map((v) => v.box)) : null;
-  let kind: BlockKind = opts.cover || (backdrop && !vis.length && rest.length) ? 'cover' : swatches.length >= 2 ? 'swatches' : !vis.length ? (backdrop && !rest.length ? 'media' : 'text') : 'media';
-  if (kind === 'media' && !vis.length && backdrop) vis = [backdrop];
+  // Images are shown whole, never with text laid over them: a picture behind text becomes a full-width image with
+  // the text set below it. A chapter's opening slide that only repeats the title is dropped.
+  if (opts.cover && !vis.length && !backdrop && swatches.length < 2 && rest.length <= 2) return null;
+  let kind: BlockKind = swatches.length >= 2 ? 'swatches' : backdrop && !vis.length ? 'image' : !vis.length ? 'text' : 'media';
+  if (kind === 'image' && backdrop) vis = [backdrop];
   const otherChars = rest.filter((t) => !joinedHeading.includes(t) && t !== eyebrow).reduce((n, t) => n + t.text.length, 0);
   const bigHead = !!heading && (heading.size >= F.w * 0.03 || rest.length === 1);
   const headWords = joinedHeading.map((t) => t.text).join(' ').split(/\s+/).filter(Boolean).length;
@@ -235,7 +243,7 @@ export function frameToBlock(frame: FNode, opts: { cover?: boolean; colour?: boo
   for (const v of vis) { const r = rows.find((row) => Math.abs(row[0].box.y - v.box.y) < v.box.h * 0.3); if (r) r.push(v); else rows.push([v]); }
   const cols = Math.max(1, Math.min(4, Math.max(0, ...rows.map((r) => r.length))));
   // Only covers and statements sit on a coloured panel; guidance stands free on the page
-  const keepBg = kind === 'cover' || kind === 'statement';
+  const keepBg = kind === 'statement';
   if (kind === 'divider') vis = [];
 
   const block: Omit<Block, 'original'> = {
@@ -248,7 +256,7 @@ export function frameToBlock(frame: FNode, opts: { cover?: boolean; colour?: boo
     swatches: swatches.length ? swatches : undefined
   };
   const visualsOut = vis.map((v) => toVisual(v));
-  if (backdrop && !vis.includes(backdrop) && (kind === 'cover' || kind === 'statement')) visualsOut.push(toVisual(backdrop, true));
+
   return { block, visuals: visualsOut };
 }
 
