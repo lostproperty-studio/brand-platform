@@ -1,3 +1,5 @@
+import { ProjectTabs } from '@/components/ProjectTabs';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
@@ -205,8 +207,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   }
   return (
     <div>
-      <div className="pj-head"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn" href="/studio">← Projects</Link><span className="pj-client">{p.client}</span><nav className="pj-tabs">{TABS.map(([k, l]) => <Link key={k} className={'pj-tab' + (k === tab ? ' on' : '')} href={`/studio/projects/${id}?tab=${k}`}>{l}</Link>)}</nav><a className="btn solid" style={{ marginLeft: 'auto' }} href={`/p/${p.slug}`}>Preview as client</a></div>
-      <div style={{ padding: '20px 20px 80px' }}>{body}</div>
+      <header className="pj-head">
+        <div className="pj-bar"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn ic" href="/studio"><ArrowLeft size={15} strokeWidth={1.75} aria-hidden />Projects</Link></div>
+        <h1 className="pj-title">{p.client}</h1>
+        <div className="pj-nav"><ProjectTabs id={id} tabs={TABS} current={tab} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
+      </header>
+      <div id="pj-panel" role="tabpanel" aria-label={TABS.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>{body}</div>
     </div>
   );
 }
