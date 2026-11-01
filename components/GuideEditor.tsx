@@ -5,6 +5,8 @@ import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/po
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
 import { TimedProgress } from '@/components/Progress';
 import { tierLabel, type Tier } from '@/lib/playbook';
+import { ChapterCover } from '@/components/portal/ChapterCover';
+import { coverKind } from '@/lib/portal/covers';
 
 const KINDS: [BlockKind, string][] = [['cover', 'Cover'], ['divider', 'Subsection start'], ['text', 'Text'], ['split', 'Text + image'], ['media', 'Images'], ['swatches', 'Colour swatches']];
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -28,7 +30,7 @@ function Editable({ value, onSave, tag, className, placeholder, multiline }: { v
 }
 
 // The studio's guidelines editor: the client's view, editable in place.
-export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, tier }: { projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; tier?: Tier }) {
+export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, tier, colours = [], logoUrl = null }: { projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
   const router = useRouter();
   const [guide, setGuide] = useState(initial);
   const [urls, setUrls] = useState(thumbs);
@@ -41,7 +43,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [menu, setMenu] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(guide);
-  const fileFor = useRef<{ block: string; target: number | 'backdrop' | 'new' } | null>(null);
+  const fileFor = useRef<{ block: string; target: number | 'backdrop' | 'new' | 'thumb' } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => { setGuide(initial); latest.current = initial; setUrls(thumbs); }, [initial, thumbs]);
 
@@ -95,10 +97,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     setUrls((u) => ({ ...u, [j.path]: j.url })); setMsg('');
     return { path: j.path, w: dims.w, h: dims.h, kind: file.type === 'image/svg+xml' ? 'graphic' : 'photo' };
   }
-  function pickImage(block: string, target: number | 'backdrop' | 'new') { fileFor.current = { block, target }; fileInput.current?.click(); }
+  function pickImage(block: string, target: number | 'backdrop' | 'new' | 'thumb') { fileFor.current = { block, target }; fileInput.current?.click(); }
   async function onFile(f?: File) {
     const t = fileFor.current; if (!f || !t || !ch) return;
     const up = await upload(f); if (!up) return;
+    if (t.target === 'thumb') { setCh({ thumb: up.path }); return; }
     const b = ch.blocks.find((x) => x.id === t.block); if (!b) return;
     if (t.target === 'backdrop') editBlock(b.id, { backdrop: up });
     else if (t.target === 'new') editBlock(b.id, { media: [...(b.media || []), up] });
@@ -173,6 +176,15 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
               <Editable value={ch.title} tag="h1" className="pt-display" placeholder="Chapter title" onSave={(v) => setCh({ title: v || 'Untitled', edited: true })} />
               <Editable value={ch.lede} tag="p" className="pt-lede" placeholder="Add an introduction (optional)" multiline onSave={(v) => setCh({ lede: v, edited: true })} />
               {ch.hidden ? <p className="tag">This chapter is hidden from the client</p> : null}
+              <div className="ve-cover">
+                <div className="ve-cover-pv pt-chthumb"><ChapterCover c={ch} i={g.chapters.indexOf(ch)} g={g} urls={urls} colours={colours} logoUrl={logoUrl} /></div>
+                <div className="ve-cover-txt">
+                  <p className="ve-label">Cover on the home page · {({ upload: 'your thumbnail', slide: 'the opening slide', logo: 'the logo', type: 'the typeface', colour: 'the palette', grid: 'the dot grid', imagery: 'a carousel of the photography', voice: 'three key words', image: 'the chapter’s first image', title: 'the chapter title' } as Record<string, string>)[coverKind(ch, g.chapters.indexOf(ch))]}</p>
+                  {coverKind({ ...ch, thumb: undefined }, g.chapters.indexOf(ch)) === 'type' && !ch.thumb ? <label className="ve-cover-f">Type sample<input className="in" defaultValue={ch.thumbSample || ''} placeholder="Auto: abc or Abc, matching the brand" onBlur={(e) => setCh({ thumbSample: e.target.value.trim() || undefined })} /></label> : null}
+                  {coverKind({ ...ch, thumb: undefined }, g.chapters.indexOf(ch)) === 'voice' && !ch.thumb ? <label className="ve-cover-f">Three key words<input className="in" defaultValue={ch.thumbWords || ''} placeholder="Auto from the headlines. e.g. Warm, Curious, Direct" onBlur={(e) => setCh({ thumbWords: e.target.value.trim() || undefined })} /></label> : null}
+                  <div className="row"><button className="btn" onClick={() => pickImage('', 'thumb')}>{ch.thumb ? 'Replace thumbnail' : 'Upload a thumbnail'}</button>{ch.thumb ? <button className="btn" onClick={() => setCh({ thumb: undefined })}>Use the generated cover</button> : null}</div>
+                </div>
+              </div>
             </header>
 
             <div className="pt-blocks ve-blocks">

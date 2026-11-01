@@ -90,7 +90,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { fonts } = await readFonts(id);
     const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
     const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.ve-canvas.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
-    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} tier={tier} />;
+    const snapG = await buildSnapshot(id).catch(() => null);
+    const { data: logoRow } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%.svg').limit(1).maybeSingle();
+    const logoUrl = logoRow?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoRow.storage_path, 3600)).data?.signedUrl ?? null : null;
+    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} />;
   }
   if (tab === 'tools') body = <ToolManager projectId={id} slug={p.slug} />;
   if (tab === 'resources') {

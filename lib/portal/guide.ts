@@ -9,7 +9,8 @@ import { resolvedText } from '@/lib/kit/fromProject';
 
 export type { Block, BlockKind, BlockMedia } from '@/lib/figma/blocks';
 export type GuideRule = { title: string; text: string };
-export type GuideChapter = { id: string; key: string | null; title: string; kicker: string; lede: string; hidden?: boolean; edited?: boolean; blocks: Block[]; rules: GuideRule[]; /** Added to fill a gap for the tier */ slot?: string };
+export type GuideChapter = { id: string; key: string | null; title: string; kicker: string; lede: string; hidden?: boolean; edited?: boolean; blocks: Block[]; rules: GuideRule[]; /** Added to fill a gap for the tier */ slot?: string;
+  /** Home page cover: an uploaded thumbnail, the type sample, and the tone-of-voice words */ thumb?: string; thumbSample?: string; thumbWords?: string };
 export type GuideColour = { name: string; hex: string; role: string };
 export type Guide = { version?: number; generatedAt: string; file: string; page: string; chapters: GuideChapter[]; colours: GuideColour[] };
 export const GUIDE_VERSION = 2;
@@ -141,7 +142,7 @@ export async function buildGuide(projectId: string) {
       title: prev?.edited ? prev.title : (cover?.heading?.replace(/\n/g, ' ') || title),
       kicker: prev?.edited ? prev.kicker : (key ? CHAPTER_NAMES[key] || '' : ''),
       lede: prev?.edited ? prev.lede : '',
-      hidden: prev?.hidden, edited: prev?.edited,
+      hidden: prev?.hidden, edited: prev?.edited, thumb: prev?.thumb, thumbSample: prev?.thumbSample, thumbWords: prev?.thumbWords,
       blocks: prev ? mergeBlocks(blocks, prev.blocks) : blocks,
       rules: rulesFor(key)
     };
@@ -176,7 +177,7 @@ export async function buildGuide(projectId: string) {
 
 /** Every stored image a guide refers to. */
 export function guidePaths(g: Guide) {
-  return g.chapters.flatMap((c) => c.blocks.flatMap((b) => [b.original, b.backdrop?.path, ...(b.media || []).map((m) => m.path)])).filter(Boolean) as string[];
+  return g.chapters.flatMap((c) => [c.thumb, ...c.blocks.flatMap((b) => [b.original, b.backdrop?.path, ...(b.media || []).map((m) => m.path)])]).filter(Boolean) as string[];
 }
 
 /** Plain text of a chapter, for the brand chat and the connector. */

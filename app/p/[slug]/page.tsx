@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { chapterNum, chapterSlug, portalContext, signFrames } from '@/lib/portal/context';
 import type { GuideChapter } from '@/lib/portal/guide';
+import { ChapterCover } from '@/components/portal/ChapterCover';
+import { coverPaths } from '@/lib/portal/covers';
 
 // The picture that stands for a chapter: its divider's backdrop, first image, or the slide itself
 const thumbOf = (c: GuideChapter) => { for (const b of c.blocks) { const m = b.backdrop || b.media?.[0]; if (m) return { path: m.path, w: m.w, h: m.h }; if (b.original) return { path: b.original, w: 16, h: 9 }; } return null; };
@@ -12,7 +14,7 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
   const guide = ctx.snap?.guide;
   const chapters = guide?.chapters || [];
   const cover = chapters.map(thumbOf).find(Boolean) || null;
-  const thumbs = await signFrames([...(cover ? [cover.path] : []), ...chapters.map((c) => thumbOf(c)?.path).filter(Boolean) as string[]]);
+  const thumbs = await signFrames([...new Set([...(cover ? [cover.path] : []), ...(guide ? coverPaths(guide) : [])])]);
   const base = `/p/${slug}`;
   return (
     <div className="pt-page">
@@ -34,11 +36,11 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
       {chapters.length ? <section aria-labelledby="h-ch">
         <h2 id="h-ch" className="pt-h2">Chapters</h2>
         <div className="pt-chgrid">
-          {chapters.map((c, i) => { const t = thumbOf(c); return (
+          {chapters.map((c, i) => (
             <Link key={c.id} href={`${base}/guidelines/${chapterSlug(c.id)}`} className="pt-chcard">
-              <div className="pt-chthumb">{t && thumbs[t.path] ? <img src={thumbs[t.path]} alt="" loading="lazy" /> : <span>{c.title}</span>}</div>
+              <div className="pt-chthumb"><ChapterCover c={c} i={i} g={guide!} urls={thumbs} colours={ctx.snap?.colours || []} logoUrl={ctx.logoUrl} /></div>
               <p><span className="pt-n">{chapterNum(i)}</span>{c.title}</p>
-            </Link>); })}
+            </Link>))}
         </div>
       </section> : null}
 
