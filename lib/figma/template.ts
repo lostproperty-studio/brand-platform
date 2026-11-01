@@ -159,7 +159,7 @@ export async function readTemplate(fileKey: string, pages: TemplatePages): Promi
 }
 
 // ── Guideline frames to blocks, by layout name
-const LAYOUT: [RegExp, BlockKind][] = [[/^headline/, 'divider'], [/^text\s*\+\s*image/, 'split'], [/^text/, 'text'], [/^columns?/, 'columns'], [/^grid/, 'grid'], [/^statement/, 'statement'], [/^images/, 'media'], [/^image/, 'image']];
+const LAYOUT: [RegExp, BlockKind][] = [[/^carousel/, 'carousel'], [/^headline/, 'divider'], [/^text\s*\+\s*image/, 'split'], [/^text/, 'text'], [/^columns?/, 'columns'], [/^grid/, 'grid'], [/^statement/, 'statement'], [/^images/, 'media'], [/^image/, 'image']];
 
 export function frameToTemplateBlock(f: N, media: (nodeId: string) => BlockMedia | undefined): Block | null {
   const [layoutName, style] = f.name.toLowerCase().split('·').map((s) => s.trim());
@@ -172,6 +172,13 @@ export function frameToTemplateBlock(f: N, media: (nodeId: string) => BlockMedia
   const b: Block = { id: f.id, source: f.id, kind, eyebrow: named(f, 'label', true), heading: named(f, 'headline', true), body: named(f, 'body', true), media: [] };
   if (kind === 'divider') return { id: f.id, source: f.id, kind, heading: b.heading || b.eyebrow };
   if (kind === 'statement') { const bg = solid(f); return { ...b, bg: bg && bg !== '#FFFFFF' ? bg : undefined }; }
+  if (kind === 'carousel') {
+    const items = findAll(f, (x) => x.name.trim().toLowerCase() === 'item', true).sort(byPos);
+    const imgs = /images?/.test(style || '') || !items.length;
+    if (imgs) { const ms = pics(f, true).map(toMedia).filter(Boolean) as BlockMedia[]; return ms.length ? { ...b, variant: 'images', media: ms } : null; }
+    const cards: BlockItem[] = items.map((it) => { const pic = pics(it, false)[0]; return { id: it.id, label: named(it, 'label'), heading: named(it, 'headline'), body: named(it, 'body'), media: pic ? toMedia(pic) : undefined }; }).filter((i) => i.label || i.heading || i.body || i.media);
+    return cards.length ? { ...b, variant: 'cards', items: cards, box: /corners?|outline|none/.test(style || '') ? boxStyle : 'fill' } : null;
+  }
   if (kind === 'columns' || kind === 'grid') {
     const items = findAll(f, (x) => x.name.trim().toLowerCase() === 'item', true).sort(byPos);
     const all = items.reduce((u, it) => { const bb = box(it); return { x: Math.min(u.x, bb.x), r: Math.max(u.r, bb.x + bb.width) }; }, { x: Infinity, r: -Infinity });

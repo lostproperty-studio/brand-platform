@@ -976,7 +976,7 @@ p.ed:empty, span.ed:empty { display: inline-block; }
 .bx-corners > .gi .gi-main, .bx-outline > .gi .gi-main, .bx-fill > .gi .gi-main { margin-top: auto; padding-top: 28px; }
 .bx-corners > .gi.gi-img, .bx-outline > .gi.gi-img, .bx-fill > .gi.gi-img { padding: 0; }
 .bx-corners > .gi { border: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
-.bx-corners > .gi::before { content: ''; position: absolute; inset: -4px; pointer-events: none; --mk: color-mix(in srgb, currentColor 48%, transparent);
+.bx-corners > .gi::before, .gc-card.bx-corners::before { content: ''; position: absolute; inset: -4px; pointer-events: none; --mk: color-mix(in srgb, currentColor 48%, transparent);
   background: linear-gradient(var(--mk), var(--mk)) 0 0 / 7px 7px no-repeat, linear-gradient(var(--mk), var(--mk)) 100% 0 / 7px 7px no-repeat, linear-gradient(var(--mk), var(--mk)) 0 100% / 7px 7px no-repeat, linear-gradient(var(--mk), var(--mk)) 100% 100% / 7px 7px no-repeat; }
 .bx-outline > .gi { border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 2px; }
 .bx-fill > .gi { background: color-mix(in srgb, currentColor 5%, transparent); border-radius: 3px; }
@@ -1135,3 +1135,34 @@ p.tc-sentence, div.tc-sentence, h1.tc-sentence, h2.tc-sentence, h3.tc-sentence {
 .fd-err { margin: 0; color: #b3261e; }
 .ed-raw, .ed-raw * { text-transform: none !important; }
 .ve-block .gb { overflow: visible; }
+
+/* Carousel: cards of hero text or images to click through; the next slide peeks in */
+.gc { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.gc-track { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; scrollbar-width: none; overscroll-behavior-x: contain; padding: 4px; margin: -4px; }
+.gc-track::-webkit-scrollbar { display: none; }
+.gc-track:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.gc-slide { flex: 0 0 78%; scroll-snap-align: start; min-width: 0; display: flex; }
+.gc-images .gc-slide { flex-basis: 84%; }
+.gc-slide > * { flex: 1; min-width: 0; }
+.gc-card { position: relative; display: flex; flex-direction: column; gap: 10px; min-height: clamp(260px, 32vw, 420px); padding: clamp(22px, 3vw, 40px); }
+.gc-card.bx-fill { background: color-mix(in srgb, currentColor 5%, transparent); border-radius: 3px; }
+.gc-card.bx-outline { border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 2px; }
+.gc-card.bx-corners { border: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
+.gc-card.bx-none { padding-left: 0; padding-right: 0; }
+.gc-label { margin: 0; font-size: 12px; letter-spacing: .02em; opacity: .6; }
+.gc-h { margin: auto 0 0; font-family: var(--pt-display, inherit); font-size: clamp(26px, 3.4vw, 48px); line-height: 1.05; letter-spacing: -.01em; max-width: 18ch; }
+.gc-body { max-width: 52ch; font-size: 15px; line-height: 1.5; }
+.gc-body p { margin: 0 0 .6em; }
+.gc-cardimg img { display: block; width: 100%; height: auto; border-radius: 2px; }
+.gc-fig { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.gc-fig img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 3px; }
+.gc-fig .ve-img { display: block; }
+.gc-fig figcaption, .gc-fig .gb-cap { font-size: 13px; opacity: .65; }
+.gc-ctl { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.gc-count { margin-right: auto; font-size: 12px; opacity: .6; font-variant-numeric: tabular-nums; }
+.gc-btn { all: unset; box-sizing: border-box; cursor: pointer; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 20%, transparent); }
+.gc-btn:hover { background: color-mix(in srgb, currentColor 6%, transparent); }
+.gc-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.gc-btn:disabled { opacity: .3; cursor: default; background: none; }
+.gc-slide > .ve-add { min-height: 200px; display: flex; align-items: center; justify-content: center; }
+@media (max-width: 640px) { .gc-slide, .gc-images .gc-slide { flex-basis: 88%; } }

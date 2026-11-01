@@ -4,7 +4,7 @@ import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
 import type { BlockItem, BoxStyle, TextCase, TextStyle } from '@/lib/figma/blocks';
 import { BOXES, KINDS, KindIcon, convert } from '@/components/GuideEditor';
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Baseline, Captions, ChevronDown, ChevronRight, Columns2, Columns3, Columns4, Copy, Eye, EyeOff,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Baseline, Captions, ChevronDown, ChevronRight, Columns2, Columns3, Columns4, Copy, Images, RectangleHorizontal, Eye, EyeOff,
   ImageOff, ImagePlus, ImageUp, Maximize2, Minimize2, Minus, MoreHorizontal, MoveHorizontal, MoveVertical, PaintBucket, PanelLeft, PanelRight,
   Plus, Redo2, RotateCcw, CaseSensitive, Type, Upload, ArrowLeftRight, ArrowUpDown, Scan, Square, SquareDashed, Trash2, Undo2, X, type LucideIcon
 } from 'lucide-react';
@@ -132,8 +132,9 @@ export function Toolbar({ sel, setSel, ch, colours, fonts, onAddFont, setChStyle
   const seg = <T extends string | number>(cur: T | undefined, opts: [T, string, LucideIcon?][], set: (v: T) => void, label: string) => <div className="tb-seg" role="group" aria-label={label}>{opts.map(([v, l, Ic]) => <button type="button" key={String(v)} className={'tb-btn' + (cur === v ? ' on' : '') + (Ic ? '' : ' wide')} aria-pressed={cur === v} aria-label={`${label}: ${l}`} data-tip={`${label}: ${l}`} onClick={() => set(v)}>{Ic ? <Ic {...I} /> : l}</button>)}</div>;
   const addable: { label: string; run: () => void }[] = [
     ...offFields.map((f) => ({ label: FIELD[f], run: () => editBlock(b.id, { off: (b.off || []).filter((k) => k !== f), [f]: FIELD[f] } as Partial<Block>) })),
-    ...(['split', 'media', 'image'].includes(b.kind) ? [{ label: 'Image', run: () => pickImage(b.id, 'new') }] : []),
-    ...(b.kind === 'columns' || b.kind === 'grid' ? [{ label: 'Item', run: () => editBlock(b.id, { items: [...items, { id: iid(), label: 'Label', body: 'Text', w: 2, h: 2 }] }) }] : [])
+    ...(['split', 'media', 'image'].includes(b.kind) || (b.kind === 'carousel' && b.variant === 'images') ? [{ label: b.kind === 'carousel' ? 'Slide' : 'Image', run: () => pickImage(b.id, 'new') }] : []),
+    ...(b.kind === 'columns' || b.kind === 'grid' ? [{ label: 'Item', run: () => editBlock(b.id, { items: [...items, { id: iid(), label: 'Label', body: 'Text', w: 2, h: 2 }] }) }] : []),
+    ...(b.kind === 'carousel' && b.variant !== 'images' ? [{ label: 'Card', run: () => editBlock(b.id, { items: [...items, { id: iid(), label: String(items.length + 1).padStart(2, '0'), heading: 'A headline for this card' }] }) }] : [])
   ];
   const itemAdd = it ? (['label', 'heading', 'body'] as const).filter((f) => !it[f]) : [];
 
@@ -184,7 +185,8 @@ export function Toolbar({ sel, setSel, ch, colours, fonts, onAddFont, setChStyle
         </Pop>
         {b.kind === 'columns' ? seg(b.cols || 3, [[2, '2 columns', Columns2], [3, '3 columns', Columns3], [4, '4 columns', Columns4]], (v) => editBlock(b.id, { cols: v }), 'Columns') : null}
         {b.kind === 'media' ? seg(b.cols || 2, [[1, '1'], [2, '2'], [3, '3'], [4, '4']], (v) => editBlock(b.id, { cols: v }), 'Images per row') : null}
-        {b.kind === 'columns' || b.kind === 'grid' ? seg(b.box || 'none', BOXES.map(([v, l]) => [v, l, BOX_ICON[v]] as [BoxStyle, string, LucideIcon]), (v) => editBlock(b.id, { box: v }), 'Containers') : null}
+        {b.kind === 'carousel' ? seg(b.variant || 'cards', [['cards', 'Cards of text', RectangleHorizontal], ['images', 'Images', Images]], (v) => editBlock(b.id, v === 'images' ? { variant: v } : { variant: v, box: b.box && b.box !== 'none' ? b.box : 'fill', items: items.length ? items : [{ id: iid(), label: '01', heading: 'A headline for this card' }] }), 'Carousel of') : null}
+        {b.kind === 'columns' || b.kind === 'grid' || (b.kind === 'carousel' && b.variant !== 'images') ? seg(b.box || (b.kind === 'carousel' ? 'fill' : 'none'), BOXES.map(([v, l]) => [v, l, BOX_ICON[v]] as [BoxStyle, string, LucideIcon]), (v) => editBlock(b.id, { box: v }), 'Containers') : null}
         {b.kind === 'split' ? seg(b.side || 'right', [['left', 'Image left', PanelLeft], ['right', 'Image right', PanelRight]], (v) => editBlock(b.id, { side: v }), 'Image side') : null}
         {b.kind === 'statement' ? <Pop pop={pop} setPop={setPop} id="panel" tip="Panel colour" icon={<span className="tb-colour"><PaintBucket {...I} /><i style={{ background: b.bg || 'transparent' }} /></span>}>{chips(b.bg, (hex) => editBlock(b.id, { bg: hex }), 'No panel')}</Pop> : null}
         {addable.length ? <Pop pop={pop} setPop={setPop} id="add" tip="Add to this section" icon={<Plus {...I} />} label="Add">{addable.map((a) => <button type="button" key={a.label} className="tb-menu-item" onClick={() => { a.run(); setPop(null); }}>{a.label}</button>)}</Pop> : null}

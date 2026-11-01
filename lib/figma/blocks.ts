@@ -10,7 +10,7 @@ export type FNode = {
   style?: { fontSize?: number; fontWeight?: number; textCase?: string; fontFamily?: string };
 };
 
-export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swatches' | 'columns' | 'grid' | 'statement' | 'image';
+export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swatches' | 'columns' | 'grid' | 'statement' | 'image' | 'carousel';
 /** How a group of text or content is held: free-standing, or in a container (corner marks as in the brand's own layouts, a fine outline, or a light fill). */
 export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';
 /** One item in a columns or grid section: a small label, a headline, body text and/or an image. Grid items span columns and rows. */
@@ -28,6 +28,8 @@ export type Block = {
   backdrop?: BlockMedia; // full-bleed image behind the text (chapter dividers, hero slides)
   swatches?: BlockSwatch[];
   items?: BlockItem[]; box?: BoxStyle;
+  /** Carousel: cards of hero text (from items) or images to click through (from media) */
+  variant?: 'cards' | 'images';
   /** Per-text styling set in the editor, keyed by field ('heading', 'body', 'eyebrow') or '<itemId>.<field>' */
   styles?: Record<string, TextStyle>;
   /** Text the studio deleted, so it doesn't come back as an empty placeholder */

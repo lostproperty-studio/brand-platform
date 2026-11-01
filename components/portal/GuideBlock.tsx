@@ -1,6 +1,7 @@
 import type { Block, BlockItem, BlockMedia, BlockSwatch } from '@/lib/figma/blocks';
 import { Swatch } from '@/components/portal/Swatch';
 import { textProps } from '@/lib/textStyle';
+import { Carousel } from '@/components/portal/Carousel';
 
 // Renders one guideline section as responsive web content. Used by the client portal, and by the studio's visual
 // editor, which passes `edit` so the same layout becomes editable in place.
@@ -117,6 +118,31 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
           {edit?.addItem ? edit.addItem() : null}
         </div>
         {media.length ? mediaEl : null}
+      </section>
+    );
+  }
+  if (b.kind === 'carousel') {
+    const items = b.items || [];
+    const itxt = (i: number, f: ItemField, v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const tp = st(key); const el = { ...el0, style: tp.style, className: tp.className ? `${el0.className} ${tp.className}` : el0.className, key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
+    const images = b.variant === 'images';
+    const addCard = !images && edit?.addItem ? edit.addItem() : null; const sel0 = !!addCard;
+    const slides = images
+      ? [...media.map(({ m, i }) => <figure key={m.path} className="gc-fig">{img(m, i, <img src={urls[m.path]} alt={m.caption || ''} loading="lazy" />)}{edit ? edit.caption(i, m.caption) : m.caption ? <figcaption>{m.caption}</figcaption> : null}</figure>), ...(edit ? [edit.addImage()] : [])]
+      : [...items.map((it, i) => {
+          const m = it.media && urls[it.media.path] ? it.media : undefined;
+          return <div key={it.id} className={'gc-card bx-' + (b.box || 'fill')}>
+            {edit?.itemBar ? edit.itemBar(i, it) : null}
+            {itxt(i, 'label', it.label, { tag: 'p', className: 'gc-label', placeholder: 'Label' })}
+            {itxt(i, 'heading', it.heading, { tag: 'p', className: 'gc-h', placeholder: 'A headline' })}
+            {itxt(i, 'body', it.body, { tag: 'div', className: 'gc-body', placeholder: 'Text', multiline: true })}
+            {m ? <div className="gc-cardimg">{edit?.itemImage ? edit.itemImage(i, m, <img src={urls[m.path]} alt="" loading="lazy" />) : <img src={urls[m.path]} alt="" loading="lazy" />}</div> : null}
+          </div>;
+        }), ...(addCard ? [addCard] : [])];
+    return (
+      <section className={'gb gb-items ' + tone}>
+        {edit || b.heading || b.eyebrow ? head : null}
+        {edit || b.body ? body('gb-body gb-intro') : null}
+        <Carousel slides={slides} variant={images ? 'images' : 'cards'} label={b.heading || (images ? 'Images' : 'Cards')} editing={!!edit} extra={edit ? (images ? 1 : edit.addItem && sel0 ? 1 : 0) : 0} />
       </section>
     );
   }
