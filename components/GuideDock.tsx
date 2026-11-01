@@ -142,35 +142,9 @@ export function Toolbar({ sel, setSel, ch, colours, fonts, onAddFont, setChStyle
     <div className="tb" role="toolbar" aria-label="Editing tools" onMouseDown={keep}>
       {history}
       {/* Where you are, as a breadcrumb: click the section to get its layout tools */}
-      <span className="tb-ctx">{inner ? <button type="button" className="tb-crumb" onClick={() => setSel({ block: b.id })} data-tip="Select the whole section"><KindIcon k={b.kind} />{kindLabel}</button> : <span className="tb-crumb on">Section</span>}{inner ? <><ChevronRight size={14} strokeWidth={1.75} aria-hidden /><span className="tb-crumb on">{ctx}</span></> : null}</span>
+      <span className="tb-ctx">{inner ? <button type="button" className="tb-crumb" onClick={() => setSel({ block: b.id })} data-tip={`Select the whole ${kindLabel.toLowerCase()} section`} aria-label={`Select the whole ${kindLabel.toLowerCase()} section`}><KindIcon k={b.kind} /></button> : <span className="tb-crumb on">Section</span>}{inner ? <><ChevronRight size={14} strokeWidth={1.75} aria-hidden /><span className="tb-crumb on">{ctx}</span></> : null}</span>
 
       {isText ? textTools(style, setStyle, deleteText) : null}
-
-      {it && isText ? <div className="tb-grp" aria-label="Item"><Pop pop={pop} setPop={setPop} id="item" tip="Item tools" label={`Item ${i! + 1}`}><div className="tb-pop-row">
-        <Btn icon={ArrowLeft} tip="Move item earlier" disabled={i === 0} onClick={() => { const l = [...items]; const [x] = l.splice(i!, 1); l.splice(Math.max(0, i! - 1), 0, x); setItems(l); setSel({ block: b.id, item: Math.max(0, i! - 1), el: sel.el }); }} />
-        <Btn icon={ArrowRight} tip="Move item later" disabled={i === items.length - 1} onClick={() => { const l = [...items]; const [x] = l.splice(i!, 1); l.splice(Math.min(items.length - 1, i! + 1), 0, x); setItems(l); setSel({ block: b.id, item: Math.min(items.length - 1, i! + 1), el: sel.el }); }} />
-        {b.kind === 'grid' ? <>
-          <span className="tb-step" data-tip="Width, in grid columns"><MoveHorizontal {...I} /><button type="button" onClick={() => setItems(items.map((x, n) => (n === i ? { ...x, w: Math.max(1, (x.w || 2) - 1) } : x)))} aria-label="Narrower">−</button><b>{it.w || 2}</b><button type="button" onClick={() => setItems(items.map((x, n) => (n === i ? { ...x, w: Math.min(6, (x.w || 2) + 1) } : x)))} aria-label="Wider">+</button></span>
-          <span className="tb-step" data-tip="Height, in rows"><MoveVertical {...I} /><button type="button" onClick={() => setItems(items.map((x, n) => (n === i ? { ...x, h: Math.max(1, (x.h || 2) - 1) } : x)))} aria-label="Shorter">−</button><b>{it.h || 2}</b><button type="button" onClick={() => setItems(items.map((x, n) => (n === i ? { ...x, h: Math.min(8, (x.h || 2) + 1) } : x)))} aria-label="Taller">+</button></span>
-        </> : null}
-        <Btn icon={it.media ? ImageUp : ImagePlus} tip={it.media ? 'Replace image' : 'Add an image'} onClick={() => pickImage(b.id, `item:${i}`)} />
-        {it.media ? <Btn icon={ImageOff} tip="Remove image" onClick={() => { setItems(items.map((x, n) => (n === i ? { ...x, media: undefined } : x))); setSel({ block: b.id, item: i }); }} /> : null}
-        {itemAdd.length ? <Pop pop={pop} setPop={setPop} id="itemadd" tip="Add text to this item" icon={<Plus {...I} />}>{itemAdd.map((f) => <button type="button" key={f} className="tb-menu-item" onClick={() => { setItems(items.map((x, n) => (n === i ? { ...x, [f]: f === 'heading' ? 'Headline' : f === 'label' ? 'Label' : 'Text' } : x))); editBlock(b.id, { off: (b.off || []).filter((k) => k !== `${it.id}.${f}`) }); setPop(null); }}>{FIELD[f]}</button>)}</Pop> : null}
-        <Btn icon={Copy} tip="Duplicate item" onClick={() => setItems([...items.slice(0, i! + 1), { ...it, id: iid() }, ...items.slice(i! + 1)])} />
-        <Btn icon={Trash2} tip="Delete item" danger onClick={() => { setItems(items.filter((_, n) => n !== i)); setSel({ block: b.id }); }} />
-      </div></Pop></div> : it ? <div className="tb-grp" aria-label="Item">
-        <Btn icon={ArrowLeft} tip="Move item earlier" disabled={i === 0} onClick={() => { const l = [...items]; const [x] = l.splice(i!, 1); l.splice(Math.max(0, i! - 1), 0, x); setItems(l); setSel({ block: b.id, item: Math.max(0, i! - 1), el: sel.el }); }} />
-        <Btn icon={ArrowRight} tip="Move item later" disabled={i === items.length - 1} onClick={() => { const l = [...items]; const [x] = l.splice(i!, 1); l.splice(Math.min(items.length - 1, i! + 1), 0, x); setItems(l); setSel({ block: b.id, item: Math.min(items.length - 1, i! + 1), el: sel.el }); }} />
-        {b.kind === 'grid' ? <>
-          <span className="tb-step" data-tip="Width, in grid columns"><MoveHorizontal {...I} /><button type="button" onClick={() => setItems(items.map((x, n) => (n === i ? { ...x, w: Math.max(1, (x.w || 2) - 1) } : x)))} aria-label="Narrower">−</button><b>{it.w || 2}</b><button type="button" onClick={() => setItems(items.map((x, n) => (n === i ? { ...x, w: Math.min(6, (x.w || 2) + 1) } : x)))} aria-label="Wider">+</button></span>
-          <span className="tb-step" data-tip="Height, in rows"><MoveVertical {...I} /><button type="button" onClick={() => setItems(items.map((x, n) => (n === i ? { ...x, h: Math.max(1, (x.h || 2) - 1) } : x)))} aria-label="Shorter">−</button><b>{it.h || 2}</b><button type="button" onClick={() => setItems(items.map((x, n) => (n === i ? { ...x, h: Math.min(8, (x.h || 2) + 1) } : x)))} aria-label="Taller">+</button></span>
-        </> : null}
-        <Btn icon={it.media ? ImageUp : ImagePlus} tip={it.media ? 'Replace image' : 'Add an image'} onClick={() => pickImage(b.id, `item:${i}`)} />
-        {it.media ? <Btn icon={ImageOff} tip="Remove image" onClick={() => { setItems(items.map((x, n) => (n === i ? { ...x, media: undefined } : x))); setSel({ block: b.id, item: i }); }} /> : null}
-        {itemAdd.length ? <Pop pop={pop} setPop={setPop} id="itemadd" tip="Add text to this item" icon={<Plus {...I} />}>{itemAdd.map((f) => <button type="button" key={f} className="tb-menu-item" onClick={() => { setItems(items.map((x, n) => (n === i ? { ...x, [f]: f === 'heading' ? 'Headline' : f === 'label' ? 'Label' : 'Text' } : x))); editBlock(b.id, { off: (b.off || []).filter((k) => k !== `${it.id}.${f}`) }); setPop(null); }}>{FIELD[f]}</button>)}</Pop> : null}
-        <Btn icon={Copy} tip="Duplicate item" onClick={() => setItems([...items.slice(0, i! + 1), { ...it, id: iid() }, ...items.slice(i! + 1)])} />
-        <Btn icon={Trash2} tip="Delete item" danger onClick={() => { setItems(items.filter((_, n) => n !== i)); setSel({ block: b.id }); }} />
-      </div> : null}
 
       {media ? <div className="tb-grp" aria-label="Image">
         <Btn icon={ImageUp} tip="Replace image" onClick={() => pickImage(b.id, imgIdx!)} />
@@ -183,12 +157,6 @@ export function Toolbar({ sel, setSel, ch, colours, fonts, onAddFont, setChStyle
         <Pop pop={pop} setPop={setPop} id="layout" tip="Change layout" icon={<KindIcon k={b.kind} />} label={kindLabel}>
           {KINDS.map(([k, l]) => <button type="button" key={k} role="menuitemradio" aria-checked={b.kind === k} className={'tb-menu-item' + (b.kind === k ? ' on' : '')} onClick={() => { editBlock(b.id, convert(b, k as BlockKind)); setPop(null); }}><KindIcon k={k} />{l}</button>)}
         </Pop>
-        {b.kind === 'columns' ? seg(b.cols || 3, [[2, '2 columns', Columns2], [3, '3 columns', Columns3], [4, '4 columns', Columns4]], (v) => editBlock(b.id, { cols: v }), 'Columns') : null}
-        {b.kind === 'media' ? seg(b.cols || 2, [[1, '1'], [2, '2'], [3, '3'], [4, '4']], (v) => editBlock(b.id, { cols: v }), 'Images per row') : null}
-        {b.kind === 'carousel' ? seg(b.variant || 'cards', [['cards', 'Cards of text', RectangleHorizontal], ['images', 'Images', Images]], (v) => editBlock(b.id, v === 'images' ? { variant: v } : { variant: v, box: b.box && b.box !== 'none' ? b.box : 'fill', items: items.length ? items : [{ id: iid(), label: '01', heading: 'A headline for this card' }] }), 'Carousel of') : null}
-        {b.kind === 'columns' || b.kind === 'grid' || (b.kind === 'carousel' && b.variant !== 'images') ? seg(b.box || (b.kind === 'carousel' ? 'fill' : 'none'), BOXES.map(([v, l]) => [v, l, BOX_ICON[v]] as [BoxStyle, string, LucideIcon]), (v) => editBlock(b.id, { box: v }), 'Containers') : null}
-        {b.kind === 'split' ? seg(b.side || 'right', [['left', 'Image left', PanelLeft], ['right', 'Image right', PanelRight]], (v) => editBlock(b.id, { side: v }), 'Image side') : null}
-        {b.kind === 'statement' ? <Pop pop={pop} setPop={setPop} id="panel" tip="Panel colour" icon={<span className="tb-colour"><PaintBucket {...I} /><i style={{ background: b.bg || 'transparent' }} /></span>}>{chips(b.bg, (hex) => editBlock(b.id, { bg: hex }), 'No panel')}</Pop> : null}
         {addable.length ? <Pop pop={pop} setPop={setPop} id="add" tip="Add to this section" icon={<Plus {...I} />} label="Add">{addable.map((a) => <button type="button" key={a.label} className="tb-menu-item" onClick={() => { a.run(); setPop(null); }}>{a.label}</button>)}</Pop> : null}
       </div> : null}
 

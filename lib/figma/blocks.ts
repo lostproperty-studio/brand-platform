@@ -28,6 +28,11 @@ export type Block = {
   backdrop?: BlockMedia; // full-bleed image behind the text (chapter dividers, hero slides)
   swatches?: BlockSwatch[];
   items?: BlockItem[]; box?: BoxStyle;
+  /** Columns as an auto-layout stack, like Figma: wrap onto new rows or keep one row; items share the width equally or
+   *  fill the space left; boxes match the tallest (fill) or fit their content (hug); gap and vertical alignment. */
+  flow?: { wrap?: boolean; width?: 'equal' | 'fill'; height?: 'fill' | 'hug'; gap?: 's' | 'm' | 'l'; align?: 'start' | 'center' | 'end' };
+  /** Grid: number of columns (default 6) and row height */
+  gridCols?: number; rowH?: 's' | 'm' | 'l'; gap?: 's' | 'm' | 'l';
   /** Carousel: cards of hero text (from items) or images to click through (from media) */
   variant?: 'cards' | 'images';
   /** Per-text styling set in the editor, keyed by field ('heading', 'body', 'eyebrow') or '<itemId>.<field>' */

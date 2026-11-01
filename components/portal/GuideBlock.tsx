@@ -10,6 +10,7 @@ import { Carousel } from '@/components/portal/Carousel';
 
 const lum = (hex?: string) => { if (!hex || !/^#[0-9A-F]{6}$/i.test(hex)) return 1; const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
 export const textOn = (hex: string) => (lum(hex) > 0.6 ? '#000' : '#fff');
+const GAP_COL = { s: '10px', m: '20px', l: '40px' }, GAP_GRID = { s: '6px', m: '12px', l: '24px' }, ROW_H = { s: '44px', m: '64px', l: '96px' };
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB ${n >> 16} ${(n >> 8) & 255} ${n & 255}`; };
 
 export type TextField = 'eyebrow' | 'heading' | 'body';
@@ -91,18 +92,20 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   );
   if (b.kind === 'columns' || b.kind === 'grid') {
     const items = b.items || [];
+    const f = b.flow || {};
+    const cols = Math.max(1, Math.min(6, b.cols || items.length || 2)), gcols = b.gridCols || 6;
     const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const tp = st(key); const el = { ...el0, style: tp.style, className: tp.className ? `${el0.className} ${tp.className}` : el0.className, key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
     return (
       <section className={'gb gb-items ' + tone}>
         {edit || b.heading || b.eyebrow ? head : null}
         {edit || b.body ? body('gb-body gb-intro') : null}
-        <div className={'gb-' + b.kind + ' bx-' + (b.box || 'none')} style={b.kind === 'columns' ? { ['--cols' as string]: String(Math.max(2, Math.min(4, b.cols || items.length || 2))) } : undefined}>
+        <div className={'gb-' + b.kind + ' bx-' + (b.box || 'none') + (b.kind === 'columns' ? ` fl-${f.wrap === false ? 'row' : 'wrap'} fw-${f.width || 'equal'} fh-${f.height || 'fill'} ia-${f.align || 'start'}` : '')} style={b.kind === 'columns' ? { ['--cols' as string]: String(cols), ['--gap' as string]: GAP_COL[f.gap || 'm'] } : { ['--gcols' as string]: String(gcols), ['--row' as string]: ROW_H[b.rowH || 'm'], ['--gap' as string]: GAP_GRID[b.gap || 'm'] }}>
           {items.map((it, i) => {
             const m = it.media && urls[it.media.path] ? it.media : undefined;
             const pic = m ? <img src={urls[m.path]} alt="" loading="lazy" /> : null;
             const onlyImage = !!m && !it.label && !it.heading && !it.body && !edit;
             return (
-              <div key={it.id} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '')} style={b.kind === "grid" ? { gridColumn: `span ${it.w || 2}`, gridRow: `span ${it.h || 2}` } : undefined}>
+              <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '')} style={b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }}>
                 {edit?.itemBar ? edit.itemBar(i, it) : null}
                 {m ? <div className="gi-media">{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
                 {onlyImage ? null : <div className="gi-txt">
@@ -130,7 +133,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
       ? [...media.map(({ m, i }) => <figure key={m.path} className="gc-fig">{img(m, i, <img src={urls[m.path]} alt={m.caption || ''} loading="lazy" />)}{edit ? edit.caption(i, m.caption) : m.caption ? <figcaption>{m.caption}</figcaption> : null}</figure>), ...(edit ? [edit.addImage()] : [])]
       : [...items.map((it, i) => {
           const m = it.media && urls[it.media.path] ? it.media : undefined;
-          return <div key={it.id} className={'gc-card bx-' + (b.box || 'fill')}>
+          return <div key={it.id} data-item={edit ? i : undefined} className={'gc-card bx-' + (b.box || 'fill')}>
             {edit?.itemBar ? edit.itemBar(i, it) : null}
             {itxt(i, 'label', it.label, { tag: 'p', className: 'gc-label', placeholder: 'Label' })}
             {itxt(i, 'heading', it.heading, { tag: 'p', className: 'gc-h', placeholder: 'A headline' })}

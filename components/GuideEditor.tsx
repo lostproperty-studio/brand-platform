@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
 import type { BlockItem, BoxStyle, TextStyle } from '@/lib/figma/blocks';
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
+import { Inspector } from '@/components/GuideInspector';
 import { CHAPTER, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
@@ -224,9 +225,38 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     addImage: () => <button key="addimg" className="ve-add ve-addimg" onClick={() => pickImage(b.id, 'new')}>+ Add image</button>,
     itemText: (i, field, value, el) => (!value ? null : <Editable key={field} value={value} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === el.key} onFocus={() => setSel({ block: b.id, el: el.key, item: i })} onSave={(v) => editBlock(b.id, { items: (b.items || []).map((x, n) => (n === i ? { ...x, [field]: v || undefined } : x)) })} />),
     itemImage: (i, m, pic) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `itemimg:${i}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `itemimg:${i}`, item: i }); }}>{pic}</span>,
-    addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: 'Label', body: 'Text', w: 2, h: 2 }] })}>+ Item</button> : null
+    addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => { editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: b.kind === 'carousel' ? String((b.items || []).length + 1).padStart(2, '0') : 'Label', ...(b.kind === 'carousel' ? { heading: 'A headline for this card' } : { body: 'Text' }), w: b.kind === 'grid' ? 2 : 1, h: 2 }] }); setSel({ block: b.id, item: (b.items || []).length }); }}><Plus size={15} strokeWidth={1.75} aria-hidden />{b.kind === 'carousel' ? 'Card' : 'Box'}</button> : null,
+    // The selected box: an outline and handles to drag its width (and height, in a grid) across the columns
+    itemBar: (i) => sel?.block === b.id && sel.item === i ? <>
+      <span className="ve-itemsel" aria-hidden />
+      {b.kind === 'columns' || b.kind === 'grid' ? <span className="ve-hd ve-hd-r" onPointerDown={(e) => startResize(e, b, i, 'x')} role="slider" aria-label="Drag to change width" aria-valuenow={b.items?.[i]?.w || 1} title="Drag to change width" /> : null}
+      {b.kind === 'grid' ? <><span className="ve-hd ve-hd-b" onPointerDown={(e) => startResize(e, b, i, 'y')} title="Drag to change height" aria-hidden /><span className="ve-hd ve-hd-c" onPointerDown={(e) => startResize(e, b, i, 'xy')} title="Drag to resize" aria-hidden /></> : null}
+    </> : null
   });
 
+  // Drag a box's edge across the columns (and rows): snaps to the grid, one column or row at a time
+  function startResize(e: React.PointerEvent, b: Block, i: number, axis: 'x' | 'y' | 'xy') {
+    e.preventDefault(); e.stopPropagation();
+    const box = (e.currentTarget as HTMLElement).closest('[data-item]')?.parentElement; if (!box) return;
+    const cs = getComputedStyle(box); const rect = box.getBoundingClientRect();
+    const grid = b.kind === 'grid';
+    const n = grid ? b.gridCols || 6 : Math.max(1, Math.min(6, b.cols || (b.items || []).length || 2));
+    const gap = parseFloat(cs.columnGap) || 0, rgap = parseFloat(cs.rowGap) || 0;
+    const colW = (rect.width - gap * (n - 1)) / n;
+    const rowH = grid ? parseFloat(cs.gridAutoRows.split(' ').pop() || '64') || 64 : 0;
+    const items = b.items || []; const it = items[i];
+    const w0 = Math.min(n, it.w || (grid ? 2 : 1)), h0 = it.h || 2;
+    const x0 = e.clientX, y0 = e.clientY; let last = `${w0}x${h0}`;
+    document.body.classList.add(axis === 'y' ? 've-resizing-y' : 've-resizing');
+    const move = (ev: PointerEvent) => {
+      const w = axis === 'y' ? w0 : Math.max(1, Math.min(n, w0 + Math.round((ev.clientX - x0) / (colW + gap))));
+      const h = axis === 'x' ? h0 : Math.max(1, Math.min(8, h0 + Math.round((ev.clientY - y0) / (rowH + rgap))));
+      if (`${w}x${h}` === last) return; last = `${w}x${h}`;
+      editBlock(b.id, { items: items.map((x, k) => (k === i ? { ...x, w, ...(grid ? { h } : {}) } : x)) }, `resize-${i}`);
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.classList.remove('ve-resizing', 've-resizing-y'); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
   const subsIdx = (id: string) => { const subs = ch ? ch.blocks.filter((b) => b.kind === 'divider' && !b.hidden) : []; const k = subs.findIndex((b) => b.id === id); return k >= 0 ? String(k + 1).padStart(2, '0') : undefined; };
   const hiddenCount = ch ? ch.blocks.filter((b) => b.hidden).length : 0;
   function deleteChapter(c: GuideChapter) {
@@ -319,7 +349,12 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                       : <><button className="btn solid" onClick={() => editBlock(b.id, { draft: undefined, draftNote: undefined, body: '' })}>Write it now</button><button className="btn" onClick={() => { removeBlock(b); dismissSlot(b.slot); }} title="Not needed for this client; it won’t be flagged again">Not needed</button></>}
                     <span className="mute">Hidden from the client until accepted.</span>
                   </div> : null}
-                  <div onMouseDown={() => { if (sel?.block !== b.id) setSel({ block: b.id }); }} className={'ve-block' + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
+                  <div onMouseDown={(e) => {
+                    // A click on a box (not its text or image) selects the box; anywhere else selects the section
+                    const t = e.target as HTMLElement; const box = t.closest('[data-item]') as HTMLElement | null;
+                    if (box && !t.closest('.ed, .ve-img, .ve-hd') && box.closest('.ve-block') === e.currentTarget) setSel({ block: b.id, item: Number(box.dataset.item) });
+                    else if (sel?.block !== b.id) setSel({ block: b.id });
+                  }} className={'ve-block' + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
                     onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }}>
                     {sel?.block === b.id ? <span className="ve-handle-tab" draggable onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragEnd={() => { setDrag(null); setOver(null); }} title="Drag to move" aria-label="Drag to move"><GripVertical size={12} strokeWidth={2} aria-hidden />{KINDS.find(([k]) => k === b.kind)?.[1]}</span> : <span className="ve-hint">Click to edit</span>}
                     {b.hidden ? <p className="ve-hidden">Hidden from the client · <button onClick={() => editBlock(b.id, { hidden: false })}>Show</button></p> : null}
@@ -333,6 +368,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
             {ch.rules.length ? <section className="pt-blk"><h2 className="pt-h2">The rules</h2><p className="mute" style={{ marginTop: -6 }}>From the review. Change them in the Review tab.</p><div className="pt-rules">{ch.rules.map((r, k) => <div key={k} className="pt-rule"><p className="pt-rule-h">{r.title}</p><p>{r.text}</p></div>)}</div></section> : null}
           </article>
         </div></div> : null}
+        {ch ? <Inspector sel={sel?.block === CHAPTER ? null : sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} /> : null}
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}
       {fontAsk ? <FontDialog projectId={projectId} fonts={fonts} onClose={() => setFontAsk(null)} onDone={(next, urls, role) => { setFonts(next); setLiveFontCss(fontFaceCss(next, urls)); fontAsk(role); setFontAsk(null); }} /> : null}
