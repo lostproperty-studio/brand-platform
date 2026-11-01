@@ -920,3 +920,26 @@ p.ed:empty, span.ed:empty { display: inline-block; }
 .se-code textarea { height: auto; font: 12px/1.5 ui-monospace, Menlo, monospace; padding: 10px; resize: vertical; }
 .se-cap { all: unset; display: block; width: 100%; box-sizing: border-box; padding: 6px 2px; font-size: 13px; color: var(--mute); }
 .se-cap:focus { color: #000; box-shadow: inset 0 -1px 0 #000; }
+
+/* Home */
+.hm { display: flex; flex-direction: column; }
+.hm-body { padding-top: 40px; }
+.hm-head { display: flex; flex-direction: column; gap: 6px; }
+.hm-head .pt-display { margin: 0; }
+.hm-ver { margin: 0; font-size: 14px; }
+.hm-intro { margin-top: 14px; max-width: 720px; }
+.hm-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.hm-row a { font-size: 13px; text-decoration: none; }
+
+/* Home hero: the showcase, 3:2, hard cuts */
+.hr { position: relative; aspect-ratio: 3 / 2; max-height: 86vh; width: 100%; overflow: hidden; background: var(--fill); }
+.hr-slide { position: absolute; inset: 0; display: grid; gap: 4px; }
+.hr-slide.full { grid-template-columns: 1fr; }
+.hr-slide.half { grid-template-columns: 1fr 1fr; }
+.hr-frame { position: relative; overflow: hidden; background: var(--fill); }
+.hr-frame img, .hr-frame video, .hr-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; display: block; }
+.hr-cta { position: absolute; right: 20px; bottom: 20px; display: inline-flex; gap: 8px; align-items: center; height: 36px; padding: 0 16px; border-radius: 999px; background: #fff; color: #000; text-decoration: none; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.hr-cta:hover { background: #000; color: #fff; }
+.hr-dots { position: absolute; left: 20px; bottom: 34px; display: flex; gap: 5px; }
+.hr-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.5); box-shadow: 0 0 0 1px rgba(0,0,0,.1); }
+.hr-dots i.on { background: #fff; }

@@ -1,0 +1,2 @@
+/** The home page welcome when the studio hasn't written one: what the hub is and what's in it. */
+export const defaultIntro = (client: string) => `Welcome to the ${client} brand hub. Everything you need to make ${client} work is here: the guidelines, explained chapter by chapter; apps with the brand built in; and the logos, colours, fonts and files to take away. If you’re not sure about something, ask at the bottom of any page.`;

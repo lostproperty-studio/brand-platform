@@ -19,6 +19,8 @@ import { fontState, fontsNeedingLicence } from '@/lib/fonts';
 import { TierSetting } from '@/components/TierPicker';
 import { ResourceManager } from '@/components/ResourceManager';
 import { ShowcaseEditor } from '@/components/ShowcaseEditor';
+import { HomeIntro } from '@/components/HomeIntro';
+import { defaultIntro } from '@/lib/portal/home';
 import { readShowcase, showcasePaths } from '@/lib/showcase';
 import { resolvePackages } from '@/lib/portal/packages';
 import { buildSnapshot } from '@/lib/projects/snapshot';
@@ -81,6 +83,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <p style={{ margin: 0 }}>Client AI: {p.ai_key_hint ? `connected (key ending ${p.ai_key_hint})` : <span className="mute">not connected; the client adds their key in portal settings</span>}</p>
       </div>
       <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
+      <HomeIntro projectId={p.id} value={(content as { homeIntro?: string }).homeIntro || ''} fallback={defaultIntro(p.client)} />
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
       <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
     </div>;
