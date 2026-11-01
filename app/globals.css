@@ -1466,3 +1466,12 @@ a.ov-link:hover { background: var(--fill); }
 .dp-px-btns { display: flex; flex-direction: column; }
 .dp-px-btns button { all: unset; cursor: pointer; width: 18px; height: 13px; display: inline-flex; align-items: center; justify-content: center; border-radius: 3px; color: #000; }
 .dp-px-btns button:hover { background: rgba(0,0,0,.06); }
+.tb-ai { color: #000; background: linear-gradient(90deg, rgba(13,153,255,.10), rgba(242,142,232,.14)); }
+.tb-ai:hover { background: linear-gradient(90deg, rgba(13,153,255,.18), rgba(242,142,232,.22)); }
+.tb-ai.busy { opacity: 1 !important; }
+.tb { flex-wrap: nowrap; }
+.tb-grp { flex: none; }
+.tb-ctx { min-width: 0; flex: 0 1 auto; overflow: hidden; }
+.tb-ctx .tb-crumb.on { display: inline-block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 26px; }
+.tb-fontname { max-width: 84px; }
+@media (max-width: 1000px) { .tb { flex-wrap: wrap; } }

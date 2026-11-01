@@ -6,7 +6,7 @@ import { BOXES, KINDS, KindIcon, convert } from '@/components/GuideEditor';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Baseline, Captions, ChevronDown, ChevronRight, Columns2, Columns3, Columns4, Copy, Images, RectangleHorizontal, Eye, EyeOff,
   ImageOff, ImagePlus, ImageUp, Maximize2, Minimize2, Minus, MoreHorizontal, MoveHorizontal, MoveVertical, PaintBucket, PanelLeft, PanelRight,
-  Plus, Redo2, RotateCcw, CaseSensitive, Type, Upload, ArrowLeftRight, ArrowUpDown, Scan, Square, SquareDashed, Trash2, Undo2, X, type LucideIcon
+  Plus, Redo2, RotateCcw, Sparkles, Loader2, CaseSensitive, Type, Upload, ArrowLeftRight, ArrowUpDown, Scan, Square, SquareDashed, Trash2, Undo2, X, type LucideIcon
 } from 'lucide-react';
 
 /** What's selected in the editor: a section, and optionally a piece of text, an item or an image inside it. */
@@ -41,8 +41,9 @@ function Pop({ id, pop, setPop, label, icon, children, tip }: { id: string; pop:
 
 // The editing toolbar: fixed above the page, like Google Docs. Undo and redo are always there; the rest follows the
 // selection: the text you clicked (size, weight, colour), the item or image, and the section (layout and order).
-export function Toolbar({ sel, setSel, ch, colours, fonts, onAddFont, setChStyle, setBlocks, editBlock, pickImage, onReset, onDelete, undo, redo, canUndo, canRedo }: {
+export function Toolbar({ onFill, filling, sel, setSel, ch, colours, fonts, onAddFont, setChStyle, setBlocks, editBlock, pickImage, onReset, onDelete, undo, redo, canUndo, canRedo }: {
   sel: Sel | null; setSel: (s: Sel | null) => void; ch: GuideChapter; colours: { name: string; hex: string }[];
+  onFill?: () => void; filling?: boolean;
   fonts: ToolbarFont[]; onAddFont: (then: (role: string) => void) => void; setChStyle: (field: string, s: TextStyle, key?: string) => void;
   setBlocks: (b: Block[]) => void; editBlock: (id: string, p: Partial<Block>, key?: string) => void; pickImage: (block: string, target: number | 'new' | string) => void;
   onReset: (b: Block) => void; onDelete: (b: Block) => void; undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean;
@@ -63,6 +64,7 @@ export function Toolbar({ sel, setSel, ch, colours, fonts, onAddFont, setChStyle
     const weights = [...new Set((font ? font.weights : fonts.flatMap((f) => f.weights)))].sort((a, z) => a - z);
     const weightList = weights.length ? weights : [300, 400, 500, 700];
     return <div className="tb-grp" aria-label="Text">
+      {onFill ? <button type="button" className={'tb-btn wide tb-ai' + (filling ? ' busy' : '')} onClick={onFill} disabled={filling} aria-label="Fill with AI: a first draft from what's around it" data-tip="Fill with AI: a first draft from what’s around it">{filling ? <Loader2 {...I} className="spin" /> : <Sparkles {...I} />}{filling ? 'Writing…' : 'AI'}</button> : null}
       <Pop pop={pop} setPop={setPop} id="font" tip="Typeface" icon={<Type {...I} />} label={<span className="tb-fontname">{font ? font.name || font.label : 'Default'}</span>}>
         <p className="tb-menu-h">Typefaces on this project</p>
         <button type="button" role="menuitemradio" aria-checked={!style.font} className={'tb-menu-item' + (!style.font ? ' on' : '')} onClick={() => { setStyle({ font: undefined }); setPop(null); }}>Default for this text</button>

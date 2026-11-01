@@ -2,7 +2,7 @@
 import { createElement, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
-import { itemEls, itemWords, type BlockItem, type BoxStyle, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
+import { blockText, itemEls, itemWords, type BlockItem, type BoxStyle, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
 import { Inspector } from '@/components/GuideInspector';
 import { AddBar, addTarget, type AddWhat } from '@/components/GuideAddBar';
@@ -223,6 +223,51 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (kind === 'image') { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); pickImage(b.id, `itemel:${sp.item}:${ne.id}`); }
     else { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); focusNext.current = true; }
   }
+  // ---------- Fill with AI: a first draft of the selected text, from what's around it
+  const [filling, setFilling] = useState(false);
+  async function fillWithAi() {
+    if (!ch || !sel?.el || filling) return;
+    const a0 = document.activeElement as HTMLElement | null; if (a0?.isContentEditable) a0.blur();
+    const cur0 = latest.current; const c0 = cur0?.chapters.find((x) => x.id === chId); if (!c0) return;
+    const KIND: Record<string, 'label' | 'heading' | 'text'> = { eyebrow: 'label', label: 'label', kicker: 'label', heading: 'heading', title: 'heading', body: 'text', lede: 'text', text: 'text' };
+    let kind: 'label' | 'heading' | 'text' = 'text', current = '', box: { kind: string; text: string; target?: boolean }[] | undefined, others: string[] | undefined;
+    let apply: (t: string) => void;
+    let section: { kind: string; eyebrow?: string; heading?: string; body?: string } = { kind: 'chapter heading', eyebrow: c0.kicker, heading: c0.title, body: c0.lede };
+    let before = '', after = '';
+    const writeChapter = (fn: (c: GuideChapter) => GuideChapter) => { const cur = latest.current; if (!cur) return; commit({ ...cur, chapters: cur.chapters.map((x) => (x.id === chId ? fn(x) : x)) }); };
+    const writeBlock = (id: string, fn: (b: Block) => Block) => writeChapter((c) => ({ ...c, blocks: c.blocks.map((x) => (x.id === id ? { ...fn(x), edited: true } : x)) }));
+    if (sel.block === CHAPTER) {
+      const k = sel.el as 'kicker' | 'title' | 'lede'; kind = KIND[k] || 'text'; current = String(c0[k] || '');
+      apply = (t) => writeChapter((c) => ({ ...c, [k]: t, edited: true }));
+    } else {
+      const b = c0.blocks.find((x) => x.id === sel.block); if (!b) return;
+      const idx = c0.blocks.indexOf(b);
+      before = c0.blocks[idx - 1] ? blockText(c0.blocks[idx - 1]).join(' · ').slice(0, 1200) : '';
+      after = c0.blocks[idx + 1] ? blockText(c0.blocks[idx + 1]).join(' · ').slice(0, 1200) : '';
+      section = { kind: b.kind, eyebrow: b.eyebrow, heading: b.heading, body: b.body };
+      const items = b.items || [];
+      if (sel.el.includes('.') && sel.item !== undefined) {
+        const field = sel.el.split('.')[1]; const it = items[sel.item]; if (!it) return;
+        const els = itemEls(it); const target = els.find((e) => e.id === field);
+        kind = target ? (target.kind === 'image' ? 'text' : target.kind) : KIND[field] || 'text'; current = target?.text || '';
+        box = els.filter((e) => e.kind !== 'image').map((e) => ({ kind: e.kind, text: e.text || '', target: e.id === field }));
+        others = items.filter((_, n) => n !== sel.item).map((x) => itemWords(x).join(' · ')).filter(Boolean).slice(0, 8);
+        const n = sel.item;
+        apply = (t) => writeBlock(b.id, (x) => ({ ...x, items: (x.items || []).map((y, k) => (k !== n ? y : y.els ? { ...y, els: y.els.map((e) => (e.id === field ? { ...e, text: t } : e)) } : { ...y, [field]: t })) }));
+      } else {
+        const field = sel.el as 'eyebrow' | 'heading' | 'body'; if (!['eyebrow', 'heading', 'body'].includes(field)) return;
+        kind = KIND[field]; current = String(b[field] || '');
+        others = items.map((x) => itemWords(x).join(' · ')).filter(Boolean).slice(0, 8);
+        apply = (t) => writeBlock(b.id, (x) => ({ ...x, [field]: t }));
+      }
+    }
+    setFilling(true); setMsg('Writing a first draft…');
+    const r = await fetch(`/api/projects/${projectId}/guide/fill`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, current, chapter: { title: c0.title, lede: c0.lede || undefined }, section: { kind: section.kind, eyebrow: section.eyebrow || undefined, heading: section.heading || undefined, body: section.body || undefined }, box, others, before: before || undefined, after: after || undefined }) });
+    const j = await r.json().catch(() => ({}));
+    setFilling(false);
+    if (!r.ok || !j.text) { setMsg(j.error || 'The AI couldn’t write a draft just now.'); return; }
+    apply!(j.text); setMsg('Drafted with AI. Check it, then edit or undo (⌘Z).');
+  }
   // ---------- Backspace or Delete removes what's selected: a text, an image, a box, or the section
   function deleteSelection() {
     if (!ch || !sel || sel.block === CHAPTER) return;
@@ -428,7 +473,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {chId === HOME && home ? <><HomeEditor projectId={projectId} home={home} colours={colours} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} chapters={g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => c.title)} />
           <aside className="dp" aria-label="About the home page"><div className="dp-sec"><p className="dp-h"><House size={15} strokeWidth={1.75} aria-hidden />Home page</p><p className="dp-tip" style={{ padding: 0 }}>The first page clients see. Click the title or the welcome to edit them, with the same text tools as the guidelines. Leave the welcome empty to use the standard one. Changes here show straight away, without publishing.</p><p className="dp-tip" style={{ padding: 0 }}>The showcase reel runs above it, and the chapters and recently used apps follow below.</p></div></aside></> : null}
         {ch ? <div className="ve-main">
-          <Toolbar sel={sel} setSel={setSel} ch={ch} colours={colours} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} setChStyle={setChStyle} setBlocks={setBlocks} editBlock={editBlock} pickImage={pickImage} undo={() => step('undo')} redo={() => step('redo')} canUndo={past.current.length > 0} canRedo={future.current.length > 0}
+          <Toolbar onFill={fillWithAi} filling={filling} sel={sel} setSel={setSel} ch={ch} colours={colours} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} setChStyle={setChStyle} setBlocks={setBlocks} editBlock={editBlock} pickImage={pickImage} undo={() => step('undo')} redo={() => step('redo')} canUndo={past.current.length > 0} canRedo={future.current.length > 0}
             onDelete={(b) => { if (b.source) editBlock(b.id, { hidden: true }); else setBlocks(ch.blocks.filter((x) => x.id !== b.id)); setSel(null); }}
             onReset={(b) => setAsk({ title: 'Reset this section?', body: 'Your edits to it are discarded and it refreshes from Figma on the next rebuild. You can undo this.', yes: 'Reset section', run: () => setBlocks(ch.blocks.map((x) => (x.id === b.id ? { ...x, edited: false } : x))) })} />
           <section className="ve-chset" aria-label="Chapter settings">
