@@ -1,3 +1,4 @@
+import type { TextStyle } from '@/lib/figma/blocks';
 import { adminClient } from '@/lib/supabase/server';
 import { exportNodes, fetchPage, scanFigmaPage, type ScanFrame } from '@/lib/figma/scan';
 import { blockText, frameToBlock, furnitureText, furnitureVisuals, type Block, type BlockMedia, type FNode, type Visual } from '@/lib/figma/blocks';
@@ -13,7 +14,8 @@ export type { Block, BlockKind, BlockMedia } from '@/lib/figma/blocks';
 export type GuideRule = { title: string; text: string };
 export type GuideChapter = { id: string; key: string | null; title: string; kicker: string; lede: string; hidden?: boolean; edited?: boolean; blocks: Block[]; rules: GuideRule[]; /** Added to fill a gap for the tier */ slot?: string;
   /** Deleted by the studio: kept out of the guide, and stays deleted when rebuilt from Figma */ removed?: boolean;
-  /** Home page cover: an uploaded thumbnail, the type sample, and the tone-of-voice words */ thumb?: string; thumbSample?: string; thumbWords?: string };
+  /** Home page cover: an uploaded thumbnail, the type sample, and the tone-of-voice words */ thumb?: string; thumbSample?: string; thumbWords?: string;
+  /** Styling for the chapter's label, title and introduction, set in the editor */ styles?: Record<string, TextStyle> };
 export type GuideColour = { name: string; hex: string; role: string };
 export type Guide = { version?: number; generatedAt: string; file: string; page: string; chapters: GuideChapter[]; colours: GuideColour[] };
 export const GUIDE_VERSION = 3;

@@ -100,7 +100,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const snapG = await buildSnapshot(id).catch(() => null);
     const { data: logoRow } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%.svg').limit(1).maybeSingle();
     const logoUrl = logoRow?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoRow.storage_path, 3600)).data?.signedUrl ?? null : null;
-    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} />;
+    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} fonts={fonts} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} />;
   }
   if (tab === 'showcase') {
     const sc = readShowcase(p.content);

@@ -1,3 +1,4 @@
+import { textProps } from '@/lib/textStyle';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { chapterNum, chapterSlug, downloadUrl, portalContext, signFrames } from '@/lib/portal/context';
@@ -27,13 +28,15 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   const dlLinks = await Promise.all(dl.slice(0, 24).map(async (f) => ({ ...f, href: await downloadUrl(f, ctx.preview, slug) })));
   const prev = chapters[idx - 1], next = chapters[idx + 1];
   const base = `/p/${slug}/guidelines`;
+  // Styling set in the editor for the label, title and introduction
+  const cls = (k: string, base0 = '') => { const t = textProps(c.styles?.[k]); return { style: t.style, className: [base0, t.className].filter(Boolean).join(' ') }; };
 
   return (
     <article className="pt-page">
       <header className="pt-chhead">
-        <p className="mute"><span className="pt-n">{chapterNum(idx)}</span>{c.kicker || 'Chapter'}</p>
-        <h1 className={hasCover ? 'sr' : 'pt-display'}>{c.title}</h1>
-        {c.lede ? <p className="pt-lede">{c.lede}</p> : null}
+        <p className="mute"><span className="pt-n">{chapterNum(idx)}</span><span {...cls('kicker')}>{c.kicker || 'Chapter'}</span></p>
+        <h1 className={hasCover ? 'sr' : 'pt-display ' + cls('title').className} style={hasCover ? undefined : cls('title').style}>{c.title}</h1>
+        {c.lede ? <p {...cls('lede', 'pt-lede')}>{c.lede}</p> : null}
       </header>
 
       {c.key === 'colour' && ctx.snap?.colours.length && !c.blocks.some((b) => b.kind === 'swatches' && !b.hidden) ? <section className="pt-blk" aria-labelledby="h-c">

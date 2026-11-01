@@ -14,7 +14,9 @@ export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swat
 /** How a group of text or content is held: free-standing, or in a container (corner marks as in the brand's own layouts, a fine outline, or a light fill). */
 export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';
 /** One item in a columns or grid section: a small label, a headline, body text and/or an image. Grid items span columns and rows. */
-export type TextStyle = { size?: number; weight?: number; color?: string };
+export type TextCase = 'upper' | 'lower' | 'sentence' | 'title';
+/** Text styling set in the editor. font is a typeface role on the project; tracking is in em (-0.02 = -2%); leading is a line-height multiple. */
+export type TextStyle = { size?: number; weight?: number; color?: string; font?: string; tracking?: number; leading?: number; case?: TextCase };
 export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number };
 export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string };
 export type BlockSwatch = { name: string; hex: string; note?: string };

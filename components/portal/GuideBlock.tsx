@@ -1,5 +1,6 @@
 import type { Block, BlockItem, BlockMedia, BlockSwatch } from '@/lib/figma/blocks';
 import { Swatch } from '@/components/portal/Swatch';
+import { textProps } from '@/lib/textStyle';
 
 // Renders one guideline section as responsive web content. Used by the client portal, and by the studio's visual
 // editor, which passes `edit` so the same layout becomes editable in place.
@@ -44,9 +45,9 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const tone = [b.headSize ? `hs-${b.headSize}` : '', b.bodySize ? `bs-${b.bodySize}` : '', b.bodyCols && b.bodyCols > 1 ? `bc-${b.bodyCols}` : '', b.align === 'center' ? 'al-c' : ''].filter(Boolean).join(' ');
 
   // Per-text styling from the editor: size, weight, colour
-  const st = (key: string): React.CSSProperties | undefined => { const s = b.styles?.[key]; return s ? { ...(s.size ? { fontSize: s.size } : {}), ...(s.weight ? { fontWeight: s.weight } : {}), ...(s.color ? { color: s.color } : {}) } : undefined; };
-  const txt = (field: TextField, value: string | undefined, tag: El['tag'], className: string, placeholder: string, multiline = false) => {
-    const style = st(field);
+  const st = (key: string) => textProps(b.styles?.[key]);
+  const txt = (field: TextField, value: string | undefined, tag: El['tag'], className0: string, placeholder: string, multiline = false) => {
+    const { style, className: tc } = st(field); const className = tc ? `${className0} ${tc}` : className0;
     return edit ? edit.text(field, value, { tag, className, placeholder, multiline, style, key: field }) : !value ? null : multiline ? <Paras text={value} className={className} style={style} /> : tag === 'p' ? <p className={className} style={style}>{value}</p> : tag === 'span' ? <span className={className} style={style}>{value}</span> : <H className={className} style={style}>{value}</H>;
   };
   const eyebrow = (cls = 'gb-eb', tag: 'p' | 'span' = 'p') => txt('eyebrow', b.eyebrow, tag, cls, 'Small label');
@@ -89,7 +90,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   );
   if (b.kind === 'columns' || b.kind === 'grid') {
     const items = b.items || [];
-    const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const el = { ...el0, style: st(key), key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
+    const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const tp = st(key); const el = { ...el0, style: tp.style, className: tp.className ? `${el0.className} ${tp.className}` : el0.className, key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
     return (
       <section className={'gb gb-items ' + tone}>
         {edit || b.heading || b.eyebrow ? head : null}

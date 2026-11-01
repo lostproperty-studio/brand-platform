@@ -1108,3 +1108,23 @@ button.tb-crumb { cursor: pointer; }
 button.tb-crumb:hover { background: var(--fill); color: #000; }
 .tb-crumb.on { color: #000; }
 .tb-ctx { gap: 2px; padding: 0 6px; }
+.tc-sentence::first-letter, .tc-sentence > p:first-child::first-letter { text-transform: uppercase; }
+.tc-sentence { display: inline-block; }
+p.tc-sentence, div.tc-sentence, h1.tc-sentence, h2.tc-sentence, h3.tc-sentence { display: block; }
+.tb-fontname { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+.tb-menu-h { margin: 4px 10px 4px; font-size: 11px; color: var(--mute); }
+.tb-menu-note { margin-left: auto; padding-left: 16px; font: 11px var(--font); color: var(--mute); }
+.tb-menu-empty { margin: 4px 10px; font-size: 12px; color: var(--mute); }
+.tb-field { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 13px; }
+.tb-field span { flex: 1; }
+.tb-field .tb-num { width: 58px; }
+.tb-field i { font-style: normal; color: var(--mute); width: 10px; }
+.tb-pop-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 2px; }
+.fd-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; font-size: 12px; color: var(--mute); }
+.fd-form label { display: flex; flex-direction: column; gap: 4px; }
+.fd-drop { position: relative; padding: 16px; border: 1px dashed #ccc; border-radius: 10px; text-align: center; color: #000; cursor: pointer; }
+.fd-drop:hover { background: var(--fill); }
+.fd-drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.fd-lic { display: flex; gap: 6px; }
+.fd-err { margin: 0; color: #b3261e; }
+.ed-raw, .ed-raw * { text-transform: none !important; }

@@ -4,7 +4,9 @@ import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
 import type { BlockItem, BoxStyle, TextStyle } from '@/lib/figma/blocks';
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
-import { Toolbar, type Sel } from '@/components/GuideDock';
+import { CHAPTER, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
+import { textProps } from '@/lib/textStyle';
+import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
 import { AlignLeft, Columns3, ExternalLink, Eye, EyeOff, GripVertical, Heading, Image as ImageIcon, Images, LayoutGrid, PanelLeft, PanelTop, Palette, Plus, Quote, RefreshCw, FilePlus2, TriangleAlert, ScanSearch, Trash2, Upload, type LucideIcon } from 'lucide-react';
 import { TimedProgress } from '@/components/Progress';
 import { tierLabel, type Tier } from '@/lib/playbook';
@@ -26,7 +28,9 @@ export function convert(b: Block, kind: BlockKind): Partial<Block> {
 const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const toHtml = (v: string | undefined, multiline: boolean) => (!v ? '' : multiline ? v.split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('') : esc(v).replace(/\n/g, '<br>'));
-const fromEl = (el: HTMLElement) => el.innerText.replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+// innerText follows CSS case changes, so read it with them switched off; otherwise UPPERCASE styling would be saved into the words
+const fromEl = (el: HTMLElement) => { el.classList.add('ed-raw'); const t = el.innerText; el.classList.remove('ed-raw'); return tidy(t); };
+const tidy = (t: string) => t.replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 
 // Text you edit in place, in the brand's own type. Enter ends a headline; in body text, Enter starts a new paragraph.
 function Editable({ value, onSave, tag, className, placeholder, multiline, style, onFocus, on }: { value?: string; onSave: (v: string) => void; tag: string; className: string; placeholder: string; multiline?: boolean; style?: React.CSSProperties; onFocus?: () => void; on?: boolean }) {
@@ -44,7 +48,13 @@ function Editable({ value, onSave, tag, className, placeholder, multiline, style
 }
 
 // The studio's guidelines editor: the client's view, editable in place.
-export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, tier, colours = [], logoUrl = null }: { projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
+const toolbarFonts = (fs: ProjectFont[]): ToolbarFont[] => fs.filter((f) => f.files.length).map((f) => ({ role: f.role, label: f.label, name: f.name, weights: [...new Set(f.files.map((x) => x.weight))].sort((a, b) => a - b) }));
+
+export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, fonts: initialFonts = [], tier, colours = [], logoUrl = null }: { projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; fonts?: ProjectFont[]; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
+  // Typefaces: only those uploaded to the project. A new one uploaded from the toolbar is loaded straight away.
+  const [fonts, setFonts] = useState(initialFonts);
+  const [liveFontCss, setLiveFontCss] = useState('');
+  const [fontAsk, setFontAsk] = useState<((role: string) => void) | null>(null);
   const router = useRouter();
   const [guide, setGuide] = useState(initial);
   const [urls, setUrls] = useState(thumbs);
@@ -229,6 +239,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       }
     });
   }
+  // The chapter's label, title and introduction use the same toolbar as any other text
+  const chText = (k: string, cls: string) => { const t = textProps(ch?.styles?.[k]); return { className: [cls, t.className].filter(Boolean).join(' '), style: t.style, on: sel?.block === CHAPTER && sel.el === k, onFocus: () => setSel({ block: CHAPTER, el: k }) }; };
+  const setChStyle = (field: string, st: TextStyle, key?: string) => ch && setCh({ styles: { ...(ch.styles || {}), [field]: st }, edited: true }, key && `ch:${field}:${key}`);
   const all = g.chapters.flatMap((c) => c.blocks);
   const nDraft = all.filter((b) => b.draft === 'draft').length, nMissing = all.filter((b) => b.draft === 'missing').length;
   const chDrafts = (c: GuideChapter) => c.blocks.filter((b) => b.draft).length;
@@ -237,7 +250,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
 
   return (
     <div className="ve">
-      <style>{fontCss}</style>
+      <style>{fontCss}</style>{liveFontCss ? <style>{liveFontCss}</style> : null}
       <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
       <div className="ve-top">
         <button className="btn solid ic" disabled={busy} onClick={() => setRebuildOpen(true)} aria-haspopup="dialog"><RefreshCw size={15} strokeWidth={1.75} aria-hidden />Rebuild from Figma</button>
@@ -266,7 +279,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         </nav>
 
         {ch ? <div className="ve-main">
-          <Toolbar sel={sel} setSel={setSel} ch={ch} colours={colours} setBlocks={setBlocks} editBlock={editBlock} pickImage={pickImage} undo={() => step('undo')} redo={() => step('redo')} canUndo={past.current.length > 0} canRedo={future.current.length > 0}
+          <Toolbar sel={sel} setSel={setSel} ch={ch} colours={colours} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} setChStyle={setChStyle} setBlocks={setBlocks} editBlock={editBlock} pickImage={pickImage} undo={() => step('undo')} redo={() => step('redo')} canUndo={past.current.length > 0} canRedo={future.current.length > 0}
             onDelete={(b) => { if (b.source) editBlock(b.id, { hidden: true }); else setBlocks(ch.blocks.filter((x) => x.id !== b.id)); setSel(null); }}
             onReset={(b) => setAsk({ title: 'Reset this section?', body: 'Your edits to it are discarded and it refreshes from Figma on the next rebuild. You can undo this.', yes: 'Reset section', run: () => setBlocks(ch.blocks.map((x) => (x.id === b.id ? { ...x, edited: false } : x))) })} />
           <section className="ve-chset" aria-label="Chapter settings">
@@ -284,9 +297,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           <div className="ve-canvas pt">
           <article className="pt-page ve-page">
             <header className="pt-chhead ve-chhead">
-              <p className="mute"><span className="pt-n">{String(g.chapters.indexOf(ch) + 1).padStart(2, '0')}</span><Editable value={ch.kicker} tag="span" className="" placeholder="Label" onSave={(v) => setCh({ kicker: v, edited: true })} /></p>
-              <Editable value={ch.title} tag="h1" className="pt-display" placeholder="Chapter title" onSave={(v) => setCh({ title: v || 'Untitled', edited: true })} />
-              <Editable value={ch.lede} tag="p" className="pt-lede" placeholder="Add an introduction (optional)" multiline onSave={(v) => setCh({ lede: v, edited: true })} />
+              <p className="mute"><span className="pt-n">{String(g.chapters.indexOf(ch) + 1).padStart(2, '0')}</span><Editable value={ch.kicker} tag="span" {...chText('kicker', '')} placeholder="Label" onSave={(v) => setCh({ kicker: v, edited: true })} /></p>
+              <Editable value={ch.title} tag="h1" {...chText('title', 'pt-display')} placeholder="Chapter title" onSave={(v) => setCh({ title: v || 'Untitled', edited: true })} />
+              <Editable value={ch.lede} tag="p" {...chText('lede', 'pt-lede')} placeholder="Add an introduction (optional)" multiline onSave={(v) => setCh({ lede: v, edited: true })} />
               {ch.hidden ? <p className="tag">This chapter is hidden from the client</p> : null}
             </header>
 
@@ -317,6 +330,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         </div></div> : null}
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}
+      {fontAsk ? <FontDialog projectId={projectId} fonts={fonts} onClose={() => setFontAsk(null)} onDone={(next, urls, role) => { setFonts(next); setLiveFontCss(fontFaceCss(next, urls)); fontAsk(role); setFontAsk(null); }} /> : null}
       {rebuildOpen ? <RebuildDialog onClose={() => setRebuildOpen(false)} onRun={rebuild} /> : null}
       <p className="mute">Built {new Date(g.generatedAt).toLocaleString('en-GB')} from “{g.page}” in {g.file}. Sections you edit or add are kept when you rebuild.</p>
     </div>
@@ -334,6 +348,44 @@ const KIND_ICON: Record<BlockKind, LucideIcon> = { cover: PanelTop, divider: Hea
 export function KindIcon({ k }: { k: BlockKind }) {
   const Ic = KIND_ICON[k] || AlignLeft;
   return <Ic size={16} strokeWidth={1.75} aria-hidden />;
+}
+
+/** Upload a typeface from the editor. It's added to the project's Typefaces, so it's also in the kit and the portal. */
+function FontDialog({ projectId, fonts, onClose, onDone }: { projectId: string; fonts: ProjectFont[]; onClose: () => void; onDone: (fonts: ProjectFont[], urls: Record<string, string>, role: string) => void }) {
+  const [name, setName] = useState(''); const [label, setLabel] = useState('');
+  const [files, setFiles] = useState<File[]>([]); const [licence, setLicence] = useState<'trial' | 'licensed'>('trial');
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) { e.stopPropagation(); onClose(); } }; window.addEventListener('keydown', k, true); return () => window.removeEventListener('keydown', k, true); }, [onClose, busy]);
+  async function go() {
+    if (!name.trim() || !files.length) { setErr('Add the family name and at least one font file.'); return; }
+    setBusy(true); setErr('');
+    const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'font';
+    let role = base; for (let n = 2; fonts.some((f) => f.role === role); n++) role = `${base}-${n}`;
+    const meta = [...fonts.map(({ role, label, name, licenceNote }) => ({ role, label, name, ...(licenceNote ? { licenceNote } : {}) })), { role, label: label.trim() || name.trim(), name: name.trim() }];
+    const put = await fetch(`/api/projects/${projectId}/fonts`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fonts: meta }) });
+    if (!put.ok) { setBusy(false); setErr('Couldn’t add the typeface. A project holds up to eight.'); return; }
+    const fd = new FormData(); fd.set('role', role); fd.set('licence', licence); files.forEach((f) => fd.append('files', f));
+    const r = await fetch(`/api/projects/${projectId}/fonts`, { method: 'POST', body: fd });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) { setErr((j.problems || []).join(' ') || j.error || 'The upload didn’t work.'); return; }
+    onDone(j.fonts, j.urls || {}, role);
+  }
+  return <div className="cf-back" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+    <div className="cf" role="dialog" aria-modal="true" aria-labelledby="fd-t">
+      <span className="cf-ic" aria-hidden><Upload size={18} strokeWidth={1.75} /></span>
+      <h2 id="fd-t" className="cf-t">Upload a typeface</h2>
+      <p className="cf-b">It’s added to this project’s Typefaces, so it can be used here, in the portal and in the kit.</p>
+      <div className="fd-form">
+        <label>Family name<input className="in" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tiempos Headline" /></label>
+        <label>Used for<input className="in" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Pull quotes" /></label>
+        <label className="fd-drop">{files.length ? `${files.length} file${files.length === 1 ? '' : 's'}: ${files.map((f) => f.name).join(', ')}` : 'Choose .woff2, .woff, .otf or .ttf files, one per weight'}<input type="file" multiple accept=".woff2,.woff,.otf,.ttf" onChange={(e) => setFiles([...(e.target.files || [])])} /></label>
+        <div className="fd-lic" role="radiogroup" aria-label="Licence">{(['trial', 'licensed'] as const).map((l) => <button key={l} role="radio" aria-checked={licence === l} className={'btn' + (licence === l ? ' solid' : '')} onClick={() => setLicence(l)}>{l === 'trial' ? 'Trial files' : 'Licensed files'}</button>)}</div>
+        {err ? <p className="fd-err" role="alert">{err}</p> : null}
+      </div>
+      <div className="cf-row"><button className="btn" disabled={busy} onClick={onClose}>Cancel</button><button className="btn solid" disabled={busy} onClick={go}>{busy ? 'Uploading…' : 'Upload and use'}</button></div>
+    </div>
+  </div>;
 }
 
 type RebuildMode = 'update' | 'add' | 'fresh';
