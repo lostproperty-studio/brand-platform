@@ -65,7 +65,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const r = await fetch(`/api/projects/${projectId}/guide`, { method: 'POST' });
     const j = await r.json().catch(() => ({}));
     setBusy(false);
-    setMsg(r.ok ? `Rebuilt ${j.chapters} chapters from ${j.frames} Figma slides. Your edits were kept.${gapText(j.gaps)}` : 'The rebuild didn’t finish: ' + (j.error || r.status) + ' Try again in a minute; Figma is sometimes busy.');
+    setMsg(r.ok ? `Rebuilt ${j.chapters} chapters from ${j.frames} Figma slides. Your edits were kept.${gapText(j.gaps)}` : 'The rebuild didn’t finish: ' + (j.error || r.status) + (/token|can’t find/i.test(j.error || '') ? '' : ' Try again in a minute; Figma is sometimes busy.'));
     router.refresh();
   }
   const gapText = (x?: { tier: string | null; drafts: number; missing: number; error?: string }) => !x ? '' : x.error ? ' The tier check didn’t run: ' + x.error : !x.tier ? ' Set a tier on the Overview to have gaps drafted.' : ` ${x.drafts} draft section${x.drafts === 1 ? '' : 's'} and ${x.missing} missing item${x.missing === 1 ? '' : 's'} for the ${tierLabel(x.tier as Tier)} tier.`;

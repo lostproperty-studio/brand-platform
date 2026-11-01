@@ -30,7 +30,11 @@ async function figma<T>(path: string, tries = 3): Promise<T> {
   for (let i = 0; i < tries; i++) {
     const r = await fetch(API + path, { headers: { 'X-Figma-Token': env.figmaToken() }, cache: 'no-store' });
     if (r.ok) return r.json() as Promise<T>;
-    last = `Figma API ${r.status} on ${path.slice(0, 80)}: ${(await r.text()).slice(0, 160)}`;
+    const text = (await r.text()).slice(0, 160);
+    // An expired or revoked token isn't something a retry fixes: say what to do
+    if (r.status === 403 && /token/i.test(text)) throw new Error('The platform’s Figma access token has expired. Create a new personal access token in Figma (Settings → Security), replace FIGMA_TOKEN in Vercel, and redeploy.');
+    if (r.status === 404) throw new Error('Figma can’t find that file or page. Check the link, and that the token’s account can open the file.');
+    last = `Figma API ${r.status} on ${path.slice(0, 80)}: ${text}`;
     if (![429, 500, 502, 503, 504].includes(r.status)) break;
     await new Promise((w) => setTimeout(w, (r.status === 429 ? 4000 : 1500) * (i + 1)));
   }
