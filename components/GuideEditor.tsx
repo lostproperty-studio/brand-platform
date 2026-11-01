@@ -8,7 +8,7 @@ import { Inspector } from '@/components/GuideInspector';
 import { CHAPTER, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
-import { AlignLeft, Columns3, ExternalLink, Eye, EyeOff, GripVertical, Heading, GalleryHorizontal, Image as ImageIcon, Images, LayoutGrid, PanelLeft, PanelTop, Palette, Plus, Quote, RefreshCw, FilePlus2, TriangleAlert, ScanSearch, Trash2, Upload, type LucideIcon } from 'lucide-react';
+import { House, AlignLeft, Columns3, ExternalLink, Eye, EyeOff, GripVertical, Heading, GalleryHorizontal, Image as ImageIcon, Images, LayoutGrid, PanelLeft, PanelTop, Palette, Plus, Quote, RefreshCw, FilePlus2, TriangleAlert, ScanSearch, Trash2, Upload, type LucideIcon } from 'lucide-react';
 import { TimedProgress } from '@/components/Progress';
 import { tierLabel, type Tier } from '@/lib/playbook';
 import { ChapterCover } from '@/components/portal/ChapterCover';
@@ -56,7 +56,7 @@ function Editable({ value, onSave, tag, className, placeholder, multiline, style
 // The studio's guidelines editor: the client's view, editable in place.
 const toolbarFonts = (fs: ProjectFont[]): ToolbarFont[] => fs.filter((f) => f.files.length).map((f) => ({ role: f.role, label: f.label, name: f.name, weights: [...new Set(f.files.map((x) => x.weight))].sort((a, b) => a - b) }));
 
-export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, fonts: initialFonts = [], tier, colours = [], logoUrl = null }: { projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; fonts?: ProjectFont[]; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
+export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, fonts: initialFonts = [], tier, colours = [], logoUrl = null, home }: { home?: { client: string; line: string; intro: string; fallback: string; version?: string }; projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; fonts?: ProjectFont[]; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
   // Typefaces: only those uploaded to the project. A new one uploaded from the toolbar is loaded straight away.
   const [fonts, setFonts] = useState(initialFonts);
   const [liveFontCss, setLiveFontCss] = useState('');
@@ -300,6 +300,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
 
       <div className="ve-grid">
         <nav className="ve-chs" aria-label="Chapters">
+          {home ? <div className={'ve-ch ve-home' + (chId === HOME ? ' on' : '')}><button onClick={() => { setChId(HOME); setSel(null); }}><House size={14} strokeWidth={1.75} aria-hidden />Home page</button></div> : null}
           <p className="ve-label">Chapters · drag to reorder</p>
           {g.chapters.filter((c) => !c.removed).map((c, i) => <div key={c.id} draggable onDragStart={() => setDrag({ kind: 'chapter', id: c.id })} onDragOver={(e) => { if (drag?.kind === 'chapter') { e.preventDefault(); setOver(c.id); } }} onDrop={() => { if (drag?.kind === 'chapter') moveChapter(drag.id, c.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }}
             className={'ve-ch' + (c.id === chId ? ' on' : '') + (c.hidden ? ' off' : '') + (over === c.id && drag?.kind === 'chapter' ? ' over' : '')}>
@@ -313,6 +314,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           <button className="btn ic" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); setSel(null); }}><Plus size={15} strokeWidth={1.75} aria-hidden />Chapter</button>
         </nav>
 
+        {chId === HOME && home ? <><HomeEditor projectId={projectId} home={home} chapters={g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => c.title)} />
+          <aside className="dp" aria-label="About the home page"><div className="dp-sec"><p className="dp-h"><House size={15} strokeWidth={1.75} aria-hidden />Home page</p><p className="dp-tip" style={{ padding: 0 }}>The first page clients see. The brand name and version are set for you; the welcome is yours to write. Leave it empty to use the standard one. Changes here show straight away, without publishing.</p><p className="dp-tip" style={{ padding: 0 }}>The showcase reel runs above it, and the chapters and recently used apps follow below.</p></div></aside></> : null}
         {ch ? <div className="ve-main">
           <Toolbar sel={sel} setSel={setSel} ch={ch} colours={colours} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} setChStyle={setChStyle} setBlocks={setBlocks} editBlock={editBlock} pickImage={pickImage} undo={() => step('undo')} redo={() => step('redo')} canUndo={past.current.length > 0} canRedo={future.current.length > 0}
             onDelete={(b) => { if (b.source) editBlock(b.id, { hidden: true }); else setBlocks(ch.blocks.filter((x) => x.id !== b.id)); setSel(null); }}
@@ -426,6 +429,32 @@ function FontDialog({ projectId, fonts, onClose, onDone }: { projectId: string; 
       </div>
       <div className="cf-row"><button className="btn" disabled={busy} onClick={onClose}>Cancel</button><button className="btn solid" disabled={busy} onClick={go}>{busy ? 'Uploading…' : 'Upload and use'}</button></div>
     </div>
+  </div>;
+}
+
+const HOME = '__home';
+/** The portal's home page as the first item in the guidelines: the brand's line and the welcome, edited in place */
+function HomeEditor({ projectId, home, chapters }: { projectId: string; home: { client: string; line: string; intro: string; fallback: string; version?: string }; chapters: string[] }) {
+  const [msg, setMsg] = useState('');
+  const save = async (patch: Record<string, unknown>) => {
+    setMsg('Saving…');
+    const r = await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+    setMsg(r.ok ? 'Saved · shows on the portal straight away' : 'Couldn’t save. Check your connection.');
+  };
+  return <div className="ve-main">
+    <div className="tb" role="status"><span className="tb-ctx tb-empty" style={{ borderLeft: 0 }}><House size={15} strokeWidth={1.75} aria-hidden />Home page · {msg || 'Click the line or the welcome to edit it'}</span></div>
+    <div className="ve-canvas pt"><article className="pt-page ve-page hm-body">
+      <header className="hm-head">
+        <h1 className="pt-display">{home.client}</h1>
+        <p className="mute hm-ver">Brand hub{home.version ? ` · v${home.version}` : ''}</p>
+        <Editable value={home.intro} tag="p" className="pt-lede hm-intro" placeholder={home.fallback} multiline onSave={(v) => save({ content: { homeIntro: v.trim() || null } })} />
+      </header>
+      <div className="ve-homenext" aria-hidden>
+        <p className="pt-h2">Chapters</p>
+        <div className="ve-homechs">{chapters.slice(0, 6).map((c, i) => <span key={i}><i />{String(i + 1).padStart(2, '0')} {c}</span>)}</div>
+        <p className="pt-h2">Recently used apps</p>
+      </div>
+    </article></div>
   </div>;
 }
 

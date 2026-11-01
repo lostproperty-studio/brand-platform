@@ -1,3 +1,4 @@
+import { validSlug } from '@/lib/slugs';
 import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -5,7 +6,7 @@ import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { deleteKitRepo } from '@/lib/github/kitRepo';
 import { parseFigmaUrl } from '@/lib/figma/scan';
 
-const Body = z.object({ client: z.string().max(120).optional(), name: z.string().max(120).optional(), line: z.string().max(300).optional(), status: z.enum(['draft', 'live', 'archived']).optional(), brand: z.record(z.unknown()).optional(), content: z.record(z.unknown()).optional(), kit_version: z.string().max(20).optional(), figmaUrl: z.string().max(500).optional(), tier: z.enum(['essentials', 'standard', 'comprehensive']).optional() });
+const Body = z.object({ client: z.string().max(120).optional(), name: z.string().max(120).optional(), line: z.string().max(300).optional(), status: z.enum(['draft', 'live', 'archived']).optional(), brand: z.record(z.unknown()).optional(), content: z.record(z.unknown()).optional(), kit_version: z.string().max(20).optional(), figmaUrl: z.string().max(500).optional(), tier: z.enum(['essentials', 'standard', 'comprehensive']).optional(), slug: z.string().max(48).optional() });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff();
@@ -15,7 +16,16 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const { figmaUrl, tier, content, ...rest } = b.data;
-  const update: Record<string, unknown> = { ...rest };
+  const { slug, ...fields } = rest;
+  const update: Record<string, unknown> = { ...fields };
+  // The portal address: brand.lostproperty.studio/<slug>
+  if (slug !== undefined) {
+    const s = slug.trim().toLowerCase();
+    if (!validSlug(s)) return NextResponse.json({ error: 'Use lowercase letters, numbers and hyphens (and not a word the platform uses, like studio or login).' }, { status: 400 });
+    const { data: other } = await adminClient().from('projects').select('id').eq('slug', s).neq('id', id).maybeSingle();
+    if (other) return NextResponse.json({ error: 'Another project already uses that address.' }, { status: 409 });
+    update.slug = s;
+  }
   // Content is merged key by key, so saving the guide never wipes the tier or other settings
   if (content || tier) {
     const { data: cur } = await adminClient().from('projects').select('content').eq('id', id).maybeSingle();

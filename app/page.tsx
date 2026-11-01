@@ -6,8 +6,8 @@ export default async function Home() {
   const user = await currentUser();
   if (!user) redirect('/login');
   const sb = adminClient();
-  const { data: staff } = await sb.from('staff').select('user_id').eq('user_id', user.id).maybeSingle();
-  if (staff) redirect('/studio');
+  const { data: staff } = await sb.from('staff').select('*').eq('user_id', user.id).maybeSingle();
+  if (staff && (staff as { active?: boolean }).active !== false) redirect('/studio');
   const { data: m } = await sb.from('project_members').select('projects(slug, client)').eq('user_id', user.id);
   const list = (m || []).map((r) => r.projects as unknown as { slug: string; client: string }).filter(Boolean);
   if (list.length === 1) redirect(`/p/${list[0].slug}`);

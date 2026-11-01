@@ -3,8 +3,10 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DeleteProjectDialog } from '@/components/DeleteProject';
+import { LogoThumb } from '@/components/LogoThumb';
+import type { LogoThumb as LogoThumbData } from '@/lib/projects/logoThumb';
 
-export type CardProject = { id: string; client: string; slug: string; status: 'draft' | 'live' | 'archived'; updated_at: string; repo_full_name: string | null; thumb: string; logo?: string; trialFonts: number; requests?: number };
+export type CardProject = { id: string; client: string; slug: string; status: 'draft' | 'live' | 'archived'; updated_at: string; repo_full_name: string | null; thumb: LogoThumbData; trialFonts: number; requests?: number };
 
 // Dashboard card with a ⋯ menu: open, preview, archive or restore, delete.
 export function ProjectCard({ p }: { p: CardProject }) {
@@ -26,7 +28,7 @@ export function ProjectCard({ p }: { p: CardProject }) {
   return (
     <div className="db-card" ref={box}>
       <Link href={`/studio/projects/${p.id}`} className="db-card-link">
-        <div className="db-thumb" style={{ background: p.thumb }}>{p.logo ? <img src={p.logo} alt="" style={{ maxWidth: '48%', maxHeight: '22%' }} /> : <span style={{ color: '#fff', fontSize: 18 }}>{p.client}</span>}</div>
+        <div className="db-thumb"><LogoThumb t={p.thumb} /></div>
         <div className="db-meta">
           <div><p>{p.client}</p><p className="mute">Edited {new Date(p.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{p.trialFonts ? ' · trial fonts' : ''}</p>{p.requests ? <p style={{ margin: 0 }}><span className="tag draft">{p.requests} new request{p.requests > 1 ? 's' : ''}</span></p> : null}</div>
           <span className={'tag ' + p.status}>{p.status === 'live' ? 'Live' : p.status === 'draft' ? 'Draft' : 'Archived'}</span>

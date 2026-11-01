@@ -30,8 +30,8 @@ export type Staff = { user: NonNullable<Awaited<ReturnType<typeof currentUser>>>
 export async function requireStaff(): Promise<Staff | Response> {
   const user = await currentUser();
   if (!user) return new Response('Sign in required', { status: 401 });
-  const { data } = await adminClient().from('staff').select('role').eq('user_id', user.id).maybeSingle();
-  if (!data) return new Response('Studio access only', { status: 403 });
+  const { data } = await adminClient().from('staff').select('*').eq('user_id', user.id).maybeSingle();
+  if (!data || (data as { active?: boolean }).active === false) return new Response('Studio access only', { status: 403 });
   return { user, role: data.role as Staff['role'] };
 }
 

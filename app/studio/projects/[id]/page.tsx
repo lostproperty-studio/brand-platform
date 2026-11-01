@@ -30,6 +30,9 @@ import type { KitFileRow } from '@/lib/portal/context';
 import { tierLabel, tierOf } from '@/lib/playbook';
 import { Overview, type OverviewData } from '@/components/Overview';
 import { portalShot } from '@/lib/projects/overview';
+import { logoThumbs } from '@/lib/projects/logoThumb';
+import { portalUrl } from '@/lib/domain';
+import { PortalAddress } from '@/components/PortalAddress';
 import { env } from '@/lib/env';
 import { teamGate, teamRole } from '@/lib/studioTeam';
 
@@ -45,7 +48,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const asked = sp.tab === 'tools' || sp.tab === 'deliverables' ? 'resources' : sp.tab;
   const tab = TABS.some(([k]) => k === asked) ? asked! : 'overview';
   const sb = adminClient();
-  const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content').eq('id', id).maybeSingle();
+  const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
   // The studio team: people not on a project's team can't open it; viewers see it read-only
   const me = await requireStaff();
@@ -92,6 +95,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       sb.from('staff').select('user_id, email, name'),
       portalShot(id, content, p.figma_key)
     ]);
+    const thumb = (await logoThumbs([{ id, client: p.client, brand: p.brand, content }]))[id];
     const staffName = (uid?: string | null) => { const s0 = (staffRows || []).find((x) => x.user_id === uid); return s0 ? s0.name || String(s0.email).split('@')[0] : null; };
     const memberName = (uid?: string | null) => members.find((m) => m.user_id === uid)?.email || staffName(uid) || 'Someone';
     const a30 = act || [];
@@ -103,8 +107,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const lastEdit = (edited as { last_edited_by?: string; last_edited_at?: string } | null)?.last_edited_at ? edited as { last_edited_by?: string; last_edited_at: string } : null;
     const editAt = lastEdit?.last_edited_at || (edited as { updated_at?: string } | null)?.updated_at || null;
     const data: OverviewData = {
-      projectId: id, client: p.client, line: p.line || '', slug: p.slug, status: p.status as OverviewData['status'], portalUrl: `${env.appUrl()}/p/${p.slug}`,
-      heroUrl: shot.hero, logoUrl: shot.logo,
+      projectId: id, client: p.client, line: p.line || '', slug: p.slug, status: p.status as OverviewData['status'], portalUrl: await portalUrl(p.slug),
+      thumb,
       published: ver ? { at: ver.created_at, version: ver.version, by: staffName(ver.published_by) } : null,
       changedSince: !!ver && !!editAt && new Date(editAt) > new Date(ver.created_at),
       share: { links: activeLinks.length, linkUses: (links || []).reduce((n, l) => n + (l.uses || 0), 0), members: members.length, firstAt: [...(links || []).map((l) => l.created_at), ...members.map((m) => m.created_at)].sort()[0] || null, pending: 0 },
@@ -121,8 +125,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <Overview d={data} created={!!sp.created} skipped={!!sp.skipped} />
       <h2 className="ov-sec-h">Settings</h2>
       <div className="ov-settings">
+      <PortalAddress projectId={p.id} host={data.portalUrl.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />
       <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
-      <HomeIntro projectId={p.id} value={(content as { homeIntro?: string }).homeIntro || ''} fallback={defaultIntro(p.client)} />
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
       <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
       </div>
@@ -136,9 +140,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
     const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.ve-canvas.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
     const snapG = await buildSnapshot(id).catch(() => null);
+    const { data: homeVer } = await sb.from('project_versions').select('version').eq('project_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle();
     const { data: logoRow } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%.svg').limit(1).maybeSingle();
     const logoUrl = logoRow?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoRow.storage_path, 3600)).data?.signedUrl ?? null : null;
-    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} fonts={fonts} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} />;
+    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} fonts={fonts} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} home={{ client: p.client, line: p.line || '', intro: (content as { homeIntro?: string }).homeIntro || '', fallback: defaultIntro(p.client), version: homeVer?.version }} />;
   }
   if (tab === 'showcase') {
     const sc = readShowcase(p.content);

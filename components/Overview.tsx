@@ -5,10 +5,12 @@ import {
 } from 'lucide-react';
 import { CopyLink } from '@/components/CopyLink';
 import { ProjectTeam } from '@/components/ProjectTeam';
+import { LogoThumb } from '@/components/LogoThumb';
+import type { LogoThumb as Thumb } from '@/lib/projects/logoThumb';
 
 export type OverviewData = {
   projectId: string; client: string; line: string; slug: string; status: 'draft' | 'live' | 'archived'; portalUrl: string;
-  heroUrl: string | null; logoUrl: string | null;
+  thumb: Thumb;
   published: { at: string; version: string; by: string | null } | null; changedSince: boolean;
   share: { links: number; linkUses: number; members: number; firstAt: string | null; pending: number };
   views: { total: number; viewers: number; last: { who: string; at: string } | null; days: number[]; recent: { who: string; what: string; at: string; kind: string }[] };
@@ -59,7 +61,7 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
       {/* The portal: preview, status and link */}
       <section className="ov-hero" aria-label="Client portal">
         <a className="ov-shot" href={`/p/${d.slug}`} aria-label={`Open the ${d.client} portal`}>
-          {d.heroUrl ? <img src={d.heroUrl} alt="" /> : d.logoUrl ? <span className="ov-shot-logo"><img src={d.logoUrl} alt="" /></span> : <span className="ov-shot-name">{d.client}</span>}
+          <LogoThumb t={d.thumb} size="lg" />
           <span className={'ov-pill ' + d.status}><span className="ov-pip" />{d.status === 'live' ? 'Live' : d.status === 'archived' ? 'Archived' : 'Draft'}</span>
         </a>
         <div className="ov-hero-txt">
