@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { Credit } from '@/components/Credit';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
@@ -26,7 +27,7 @@ export function PortalNav({ slug, client, logoUrl, chapters, showSettings }: { s
         </div>)}
       </nav>
       <p className="pt-foot mute">{client} brand guidelines</p>
-      <p className="pt-credit">Designed and built by <img src="/lp-logo.svg" alt="" /> Lost Property Studio</p>
+      <Credit className="pt-credit" />
     </aside>
   );
 }

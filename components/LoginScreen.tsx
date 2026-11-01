@@ -1,4 +1,5 @@
 import type { Branding } from '@/lib/branding';
+import { Credit } from '@/components/Credit';
 
 const lum = (hex?: string) => { if (!hex || !/^#[0-9A-F]{6}$/i.test(hex)) return 1; const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
 
@@ -20,7 +21,7 @@ export function LoginScreen({ b, children, preview = false, heading }: { b: Bran
         {b.look.message ? <p className="ls-msg">{b.look.message}</p> : null}
         {children}
       </div>
-      <p className="ls-credit">{lp ? `For ${b.client}` : <>Designed and built by <img src="/lp-logo.svg" alt="" className="ls-credit-logo" /> Lost Property Studio</>}</p>
+      {lp ? <p className="ls-credit">For {b.client}</p> : <Credit className="ls-credit" />}
     </div>
   );
 }

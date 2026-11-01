@@ -457,8 +457,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ls.dark .ls-btn { background: #fff; color: #000; }
 .ls-fine { font-size: 12px; opacity: .6; margin: 4px 0 0; }
 /* Studio credit, as in the Lost Property design system: mid grey, logo in the same grey */
-.ls-credit { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; margin: 0; font-size: 11px; color: #8C8C8C; display: flex; align-items: center; justify-content: center; gap: 5px; }
-.ls-credit-logo { height: 10px; width: auto; filter: brightness(0) invert(55%); }
+.ls-credit { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); white-space: nowrap; text-align: center; margin: 0; font-size: 11px; color: #8C8C8C; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.ls-credit img { height: 10px; width: auto; filter: brightness(0) invert(55%); }
+a.ls-credit, a.pt-credit { text-decoration: none; }
+a.ls-credit:hover, a.pt-credit:hover { color: #555; }
+a.ls-credit:hover img, a.pt-credit:hover img { filter: brightness(0) invert(33%); }
 /* backend identity */
 .db-ws { flex-direction: row; }
 .db-ws-txt { display: flex; flex-direction: column; gap: 1px; line-height: 1.15; }
@@ -815,3 +818,4 @@ p.ed:empty, span.ed:empty { display: inline-block; }
 .rs-tok-pill { max-width: 62%; white-space: nowrap; }
 .rs-tok-pill span { overflow: hidden; text-overflow: ellipsis; }
 .rs-tok-pill i { flex: none; }
+.pt-credit { width: fit-content; }
