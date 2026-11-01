@@ -7,7 +7,9 @@ export type Mail = { to: string; subject: string; html: string; text: string; re
 export const emailProvider = (): 'resend' | 'smtp' | null => (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS ? 'smtp' : process.env.RESEND_API_KEY ? 'resend' : null);
 export const emailFrom = () => process.env.EMAIL_FROM || `Lost Property Brand Platform <${process.env.SMTP_USER || 'platform@lostproperty.studio'}>`;
 
-export async function sendEmail(m: Mail) {
+export async function sendEmail(m0: Mail) {
+  // Replies go to a real inbox when EMAIL_REPLY_TO is set (the sending address may not receive mail)
+  const m = { ...m0, replyTo: m0.replyTo || process.env.EMAIL_REPLY_TO || undefined };
   const provider = emailProvider();
   if (!provider) throw new Error('No email service is set up.');
   if (provider === 'resend') {
