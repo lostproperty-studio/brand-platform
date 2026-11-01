@@ -1,3 +1,4 @@
+import type { Showcase } from '@/lib/showcase';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminClient } from '@/lib/supabase/server';
 import { decryptSecret } from '@/lib/crypto';
@@ -25,7 +26,7 @@ export async function verifyAnthropicKey(apiKey: string) {
   }
 }
 
-export type Snapshot = { client: string; line: string; chapters: { id: string; title: string; rules: { title: string; text: string }[] }[]; colours: { name: string; hex: string; role: string }[]; fonts: { role: string; name: string; usage: string }[]; deliverables: { title: string; status: string }[]; guide?: Guide };
+export type Snapshot = { client: string; line: string; chapters: { id: string; title: string; rules: { title: string; text: string }[] }[]; colours: { name: string; hex: string; role: string }[]; fonts: { role: string; name: string; usage: string }[]; deliverables: { title: string; status: string }[]; guide?: Guide; showcase?: Showcase };
 
 export function brandSystemPrompt(s: Snapshot) {
   return `You are the brand assistant for ${s.client}, inside their brand portal. ${s.line}

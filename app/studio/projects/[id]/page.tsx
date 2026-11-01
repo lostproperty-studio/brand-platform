@@ -18,12 +18,14 @@ import { readFonts } from '@/lib/projects/fonts';
 import { fontState, fontsNeedingLicence } from '@/lib/fonts';
 import { TierSetting } from '@/components/TierPicker';
 import { ResourceManager } from '@/components/ResourceManager';
+import { ShowcaseEditor } from '@/components/ShowcaseEditor';
+import { readShowcase, showcasePaths } from '@/lib/showcase';
 import { resolvePackages } from '@/lib/portal/packages';
 import { buildSnapshot } from '@/lib/projects/snapshot';
 import type { KitFileRow } from '@/lib/portal/context';
 import { tierLabel, tierOf } from '@/lib/playbook';
 
-const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['typefaces', 'Typefaces'], ['tools', 'Tools'], ['resources', 'Resources'], ['deliverables', 'Deliverables'], ['client', 'Client']] as const;
+const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['tools', 'Tools'], ['resources', 'Resources'], ['deliverables', 'Deliverables'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -94,6 +96,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { data: logoRow } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%.svg').limit(1).maybeSingle();
     const logoUrl = logoRow?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoRow.storage_path, 3600)).data?.signedUrl ?? null : null;
     body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} />;
+  }
+  if (tab === 'showcase') {
+    const sc = readShowcase(p.content);
+    const paths = showcasePaths(sc);
+    const { data: signedSc } = paths.length ? await sb.storage.from('previews').createSignedUrls(paths, 6 * 3600) : { data: [] };
+    body = <ShowcaseEditor projectId={id} slug={p.slug} initial={sc} initialUrls={Object.fromEntries((signedSc || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]))} />;
   }
   if (tab === 'tools') body = <ToolManager projectId={id} slug={p.slug} />;
   if (tab === 'resources') {

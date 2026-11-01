@@ -1,3 +1,4 @@
+import { readShowcase } from '@/lib/showcase';
 import { adminClient } from '@/lib/supabase/server';
 import type { Snapshot } from '@/lib/ai/project';
 import { chapterText, normaliseGuide, type Guide } from '@/lib/portal/guide';
@@ -40,6 +41,7 @@ export async function buildSnapshot(projectId: string): Promise<Snapshot> {
     // What the chat and connector know: each chapter's rules plus the text written on its Figma frames
     chapters: (guide?.chapters || []).map((c) => ({ id: c.id, title: c.title, rules: [...c.rules, ...chapterText(c).filter((t) => t.length > 24).map((t) => ({ title: 'From the guidelines', text: t }))].slice(0, 60) })),
     deliverables: (parts || []).filter((d) => d.visible).map((d) => ({ title: d.title, status: d.status })),
-    guide: guide ? { ...guide, colours } : undefined
+    guide: guide ? { ...guide, colours } : undefined,
+    showcase: readShowcase(p.content)
   };
 }

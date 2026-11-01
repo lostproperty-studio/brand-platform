@@ -5,12 +5,12 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
 // Portal navigation: Home, Guidelines (with its chapters), Resources, Settings. Collapses to a menu on phones.
-export function PortalNav({ slug, client, logoUrl, chapters, showSettings }: { slug: string; client: string; logoUrl: string | null; chapters: { id: string; title: string }[]; showSettings: boolean }) {
+export function PortalNav({ slug, client, logoUrl, chapters, showSettings, showShowcase }: { slug: string; client: string; logoUrl: string | null; chapters: { id: string; title: string }[]; showSettings: boolean; showShowcase: boolean }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const base = `/p/${slug}`;
   const items = [
-    ['Home', base], ['Guidelines', `${base}/guidelines`], ['Resources', `${base}/resources`],
+    ['Home', base], ['Guidelines', `${base}/guidelines`], ...(showShowcase ? [['Showcase', `${base}/showcase`] as const] : []), ['Resources', `${base}/resources`],
     ...(showSettings ? [['Settings', `${base}/settings`]] : [])
   ] as const;
   const isOn = (href: string) => (href === base ? path === base : path.startsWith(href) || (href.endsWith('/resources') && path.startsWith(`${base}/tools`)));
