@@ -30,6 +30,8 @@ export type EditKit = {
   /** Elements added freely inside a box */
   itemElText?: (i: number, e: ItemEl, el: El) => React.ReactNode;
   itemElImage?: (i: number, e: ItemEl, img: React.ReactNode) => React.ReactNode;
+  /** A handle to move one of the section's parts (headline, text, images, boxes) */
+  partGrip?: (part: string) => React.ReactNode;
   /** A handle to pick an element up and move it */
   grip?: (i: number, elId: string) => React.ReactNode;
 };
@@ -51,6 +53,21 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const style = { ...(bg && !back ? { background: bg } : {}), ...(ink ? { color: ink } : {}) } as React.CSSProperties;
   const tone = [b.headSize ? `hs-${b.headSize}` : '', b.bodySize ? `bs-${b.bodySize}` : '', b.bodyCols && b.bodyCols > 1 ? `bc-${b.bodyCols}` : '', b.align === 'center' ? 'al-c' : ''].filter(Boolean).join(' ');
 
+    // A box with its own list of elements, in the order they were placed
+  const CLS: Record<ItemEl['kind'], string> = { label: 'gi-label', heading: 'gi-h', text: 'gi-body', image: 'gi-media', spacer: '' };
+  const CARD_CLS: Record<ItemEl['kind'], string> = { label: 'gc-label', heading: 'gc-h', text: 'gc-body', image: 'gc-cardimg', spacer: '' };
+  const elsOf = (i: number, it: BlockItem, card = false) => { const els = it.els || []; const push = els.findIndex((e) => e.kind === 'heading' || e.kind === 'text'); const pushOk = push > 0 && els.slice(0, push).every((e) => e.kind === 'label' || e.kind === 'image') && !els.some((e) => e.kind === 'spacer'); return els.map((e, k) => {
+    const cls = (k === push && pushOk ? 'gi-push ' : '') + 'gi-el';
+    if (e.kind === 'spacer') return <div key={e.id} data-el={e.id} data-spacer="" className={'gi-el gi-spacer' + (edit ? ' ed-spacer' : '')} style={{ height: e.size ?? 32 }}>{edit?.grip ? edit.grip(i, e.id) : null}{edit ? <span>Spacer · {e.size ?? 32}px</span> : null}</div>;
+    if (e.kind === 'image') { const mm = e.media && urls[e.media.path] ? e.media : undefined; const img = mm ? <img src={urls[mm.path]} alt="" loading="lazy" /> : null; return <div key={e.id} data-el={e.id} className={cls + ' gi-media'}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElImage ? edit.itemElImage(i, e, img) : img}</div>; }
+    const key = `${it.id}.${e.id}`; const tp = st(key); const el: El = { tag: e.kind === 'text' ? 'div' : 'p', className: (card ? CARD_CLS[e.kind] : CLS[e.kind]) + (tp.className ? ' ' + tp.className : ''), placeholder: e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text', multiline: e.kind === 'text', style: tp.style, key };
+    return <div key={e.id} data-el={e.id} className={cls}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;
+  }); };
+  // The section's parts in the order set in the editor (or the layout's own order), each movable
+  const parts = (def: string[], map: Record<string, React.ReactNode>) => {
+    const saved = (b.order || []).filter((p) => def.includes(p));
+    return [...saved, ...def.filter((p) => !saved.includes(p))].map((p) => (map[p] ? <div key={p} data-part={p} className={'gb-part gb-part-' + p}>{edit?.partGrip ? edit.partGrip(p) : null}{map[p]}</div> : null));
+  };
   // How content sits inside each box: the box's own setting, else the section's
   const alignCls = (it: BlockItem) => { const a = it.align || b.boxAlign; return a && (a.x || a.y) ? ` ga ga-x-${a.x || 'start'} ga-y-${a.y || 'start'}` : ''; };
   const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return g !== undefined ? { ['--egap' as string]: `${g}px` } : {}; };
@@ -102,19 +119,10 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     const items = b.items || [];
     const f = b.flow || {};
     const cols = Math.max(1, Math.min(6, b.cols || items.length || 2)), gcols = b.gridCols || 6;
-    // A box with its own list of elements, in the order they were placed
-    const CLS: Record<ItemEl['kind'], string> = { label: 'gi-label', heading: 'gi-h', text: 'gi-body', image: 'gi-media' };
-    const elsOf = (i: number, it: BlockItem) => { const els = it.els || []; const push = els.findIndex((e) => e.kind === 'heading' || e.kind === 'text'); const pushOk = push > 0 && els.slice(0, push).every((e) => e.kind === 'label' || e.kind === 'image'); return els.map((e, k) => {
-      const cls = (k === push && pushOk ? 'gi-push ' : '') + 'gi-el';
-      if (e.kind === 'image') { const mm = e.media && urls[e.media.path] ? e.media : undefined; const img = mm ? <img src={urls[mm.path]} alt="" loading="lazy" /> : null; return <div key={e.id} data-el={e.id} className={cls + ' gi-media'}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElImage ? edit.itemElImage(i, e, img) : img}</div>; }
-      const key = `${it.id}.${e.id}`; const tp = st(key); const el: El = { tag: e.kind === 'text' ? 'div' : 'p', className: CLS[e.kind] + (tp.className ? ' ' + tp.className : ''), placeholder: e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text', multiline: e.kind === 'text', style: tp.style, key };
-      return <div key={e.id} data-el={e.id} className={cls}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;
-    }); };
     const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const tp = st(key); const el = { ...el0, style: tp.style, className: tp.className ? `${el0.className} ${tp.className}` : el0.className, key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
     return (
       <section className={'gb gb-items ' + tone}>
-        {edit || b.heading || b.eyebrow ? head : null}
-        {edit || b.body ? body('gb-body gb-intro') : null}
+        {parts(['head', 'body', 'items', 'media'], { head: edit || b.heading || b.eyebrow ? head : null, body: edit || b.body ? body('gb-body gb-intro') : null, media: media.length ? mediaEl : null, items: <>
         <div className={'gb-' + b.kind + ' bx-' + (b.box || 'none') + (b.kind === 'columns' ? ` fl-${f.wrap === false ? 'row' : 'wrap'} fw-${f.width || 'equal'} fh-${f.height || 'fill'} ia-${f.align || 'start'}` : '')} style={{ ...(b.kind === 'columns' ? { ['--cols' as string]: String(cols), ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_COL[f.gap || 'm'] } : { ['--gcols' as string]: String(gcols), ['--row' as string]: ROW_H[b.rowH || 'm'], ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_GRID[b.gap || 'm'] }), ...(b.gapY !== undefined ? { ['--rgap' as string]: `${b.gapY}px` } : {}), ...(b.pad !== undefined ? { ['--pad' as string]: `${b.pad}px` } : {}) }}>
           {items.map((it, i) => {
             const m = it.media && urls[it.media.path] ? it.media : undefined;
@@ -123,7 +131,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
             return (
               <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '') + alignCls(it)} style={{ ...(b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }), ...gapVar(it) }}>
                 {edit?.itemBar ? edit.itemBar(i, it) : null}
-                {it.els ? elsOf(i, it) : <>
+                {it.els ? elsOf(i, it, true) : <>
                 {m ? <div className="gi-media" data-el="media">{edit?.grip ? edit.grip(i, 'media') : null}{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
                 {onlyImage ? null : <div className="gi-txt">
                   {it.label ? <div data-el="label">{edit?.grip ? edit.grip(i, 'label') : null}{itxt(i, 'label', it.label, { tag: 'p', className: 'gi-label', placeholder: 'Label' })}</div> : null}
@@ -136,8 +144,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
             );
           })}
           {edit?.addItem ? edit.addItem() : null}
-        </div>
-        {media.length ? mediaEl : null}
+        </div></> })}
       </section>
     );
   }
@@ -152,38 +159,36 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
           const m = it.media && urls[it.media.path] ? it.media : undefined;
           return <div key={it.id} data-item={edit ? i : undefined} className={'gc-card bx-' + (b.box || 'fill') + alignCls(it)} style={{ ...(b.pad !== undefined ? { padding: b.pad } : {}), ...gapVar(it) }}>
             {edit?.itemBar ? edit.itemBar(i, it) : null}
-            {itxt(i, 'label', it.label, { tag: 'p', className: 'gc-label', placeholder: 'Label' })}
-            {itxt(i, 'heading', it.heading, { tag: 'p', className: 'gc-h', placeholder: 'A headline' })}
-            {itxt(i, 'body', it.body, { tag: 'div', className: 'gc-body', placeholder: 'Text', multiline: true })}
-            {m ? <div className="gc-cardimg">{edit?.itemImage ? edit.itemImage(i, m, <img src={urls[m.path]} alt="" loading="lazy" />) : <img src={urls[m.path]} alt="" loading="lazy" />}</div> : null}
+            {it.els ? elsOf(i, it, true) : <>
+            {it.label ? <div data-el="label" className="gc-el">{edit?.grip ? edit.grip(i, 'label') : null}{itxt(i, 'label', it.label, { tag: 'p', className: 'gc-label', placeholder: 'Label' })}</div> : null}
+            {it.heading ? <div data-el="heading" className="gc-el gc-push">{edit?.grip ? edit.grip(i, 'heading') : null}{itxt(i, 'heading', it.heading, { tag: 'p', className: 'gc-h', placeholder: 'A headline' })}</div> : null}
+            {it.body ? <div data-el="body" className="gc-el">{edit?.grip ? edit.grip(i, 'body') : null}{itxt(i, 'body', it.body, { tag: 'div', className: 'gc-body', placeholder: 'Text', multiline: true })}</div> : null}
+            {m ? <div className="gc-cardimg" data-el="media">{edit?.grip ? edit.grip(i, 'media') : null}{edit?.itemImage ? edit.itemImage(i, m, <img src={urls[m.path]} alt="" loading="lazy" />) : <img src={urls[m.path]} alt="" loading="lazy" />}</div> : null}
+            </>}
           </div>;
         }), ...(addCard ? [addCard] : [])];
     return (
       <section className={'gb gb-items ' + tone}>
-        {edit || b.heading || b.eyebrow ? head : null}
-        {edit || b.body ? body('gb-body gb-intro') : null}
-        <Carousel slides={slides} variant={images ? 'images' : 'cards'} label={b.heading || (images ? 'Images' : 'Cards')} editing={!!edit} extra={edit ? (images ? 1 : edit.addItem && sel0 ? 1 : 0) : 0} />
+        {parts(['head', 'body', 'items'], { head: edit || b.heading || b.eyebrow ? head : null, body: edit || b.body ? body('gb-body gb-intro') : null, items: <Carousel slides={slides} variant={images ? 'images' : 'cards'} label={b.heading || (images ? 'Images' : 'Cards')} editing={!!edit} extra={edit ? (images ? 1 : edit.addItem && sel0 ? 1 : 0) : 0} /> })}
       </section>
     );
   }
+  if (b.kind === 'spacer') return <div className={'gb-spacer' + (edit ? ' ed-spacer' : '')} style={{ height: b.size ?? 64 }} aria-hidden={!edit}>{edit ? <span>Spacer · {b.size ?? 64}px</span> : null}</div>;
   if (b.kind === 'image') return (
     <section className={'gb gb-full ' + tone}>
-      {edit || b.heading ? head : null}
-      {mediaEl}
-      {edit || b.body ? body() : null}
+      {parts(['head', 'media', 'body'], { head: edit || b.heading ? head : null, media: mediaEl, body: edit || b.body ? body() : null })}
     </section>
   );
   if (b.kind === 'split') return (
     <section className={'gb gb-split' + (b.side === 'left' ? ' left' : '') + ' ' + tone}>
-      <div className="gb-txt">{head}{body()}</div>
+      <div className="gb-txt">{parts(['head', 'body'], { head, body: body() })}</div>
       {mediaEl}
     </section>
   );
   const longBody = (b.body || '').length > 280 && !media.length && !b.bodyCols;
   return (
     <section className={'gb' + (longBody ? ' gb-two' : '') + ' ' + tone}>
-      <div className="gb-in">{head}{body()}</div>
-      {b.kind === 'media' ? mediaEl : media.length ? mediaEl : null}
+      {parts(['head', 'body', 'media'], { head, body: body(), media: b.kind === 'media' ? mediaEl : media.length ? mediaEl : null })}
     </section>
   );
 }

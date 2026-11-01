@@ -9,13 +9,13 @@ import { AddBar, addTarget, type AddWhat } from '@/components/GuideAddBar';
 import { CHAPTER, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
-import { House, AlignLeft, Columns3, ExternalLink, Eye, EyeOff, GripVertical, Heading, GalleryHorizontal, Image as ImageIcon, Images, LayoutGrid, PanelLeft, PanelTop, Palette, Plus, Quote, RefreshCw, FilePlus2, TriangleAlert, ScanSearch, Trash2, Upload, type LucideIcon } from 'lucide-react';
+import { House, AlignLeft, Columns3, ExternalLink, Eye, EyeOff, GripVertical, Heading, GalleryHorizontal, UnfoldVertical, Image as ImageIcon, Images, LayoutGrid, PanelLeft, PanelTop, Palette, Plus, Quote, RefreshCw, FilePlus2, TriangleAlert, ScanSearch, Trash2, Upload, type LucideIcon } from 'lucide-react';
 import { TimedProgress } from '@/components/Progress';
 import { tierLabel, type Tier } from '@/lib/playbook';
 import { ChapterCover } from '@/components/portal/ChapterCover';
 import { coverKind } from '@/lib/portal/covers';
 
-export const KINDS: [BlockKind, string][] = [['divider', 'Subsection headline'], ['text', 'Text'], ['columns', 'Columns'], ['grid', 'Grid'], ['statement', 'Statement'], ['split', 'Text + image'], ['image', 'Full-width image'], ['media', 'Images'], ['carousel', 'Carousel'], ['swatches', 'Colour swatches']];
+export const KINDS: [BlockKind, string][] = [['divider', 'Subsection headline'], ['text', 'Text'], ['columns', 'Columns'], ['grid', 'Grid'], ['statement', 'Statement'], ['split', 'Text + image'], ['image', 'Full-width image'], ['media', 'Images'], ['carousel', 'Carousel'], ['swatches', 'Colour swatches'], ['spacer', 'Spacer']];
 export const BOXES: [BoxStyle, string][] = [['none', 'None'], ['corners', 'Corner marks'], ['outline', 'Outline'], ['fill', 'Fill']];
 const iid = () => 'i-' + Math.random().toString(36).slice(2, 9);
 
@@ -179,7 +179,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const insertAt = (i: number, kind: BlockKind) => {
     if (!ch) return;
     const items = kind === 'carousel' ? [1, 2, 3].map((n) => ({ id: iid(), label: String(n).padStart(2, '0'), heading: 'A headline for this card', body: 'A sentence or two to go with it.' })) : kind === 'columns' ? [1, 2, 3].map(() => ({ id: iid(), label: 'Label', body: 'Text' })) : kind === 'grid' ? [[4, 4], [2, 2], [2, 2], [3, 2], [3, 2]].map(([w, h]) => ({ id: iid(), label: 'Label', body: 'Text', w, h })) : undefined;
-    const b: Block = { id: 'b-' + uid(), kind, heading: kind === 'swatches' ? 'Colours' : kind === 'divider' ? 'New subsection' : kind === 'statement' ? 'A statement in the brand’s voice' : kind === 'image' || kind === 'columns' || kind === 'grid' ? undefined : 'New section', body: kind === 'text' || kind === 'split' ? 'Write something…' : '', media: [], swatches: kind === 'swatches' ? [{ name: 'Colour', hex: '#000000' }] : undefined, cols: kind === 'media' ? 2 : kind === 'columns' ? 3 : undefined, side: kind === 'split' ? 'right' : undefined, items, box: kind === 'carousel' ? 'fill' : items ? 'none' : undefined, variant: kind === 'carousel' ? 'cards' : undefined, edited: true };
+    const b: Block = { id: 'b-' + uid(), kind, heading: kind === 'swatches' ? 'Colours' : kind === 'divider' ? 'New subsection' : kind === 'statement' ? 'A statement in the brand’s voice' : kind === 'image' || kind === 'columns' || kind === 'grid' ? undefined : 'New section', body: kind === 'text' || kind === 'split' ? 'Write something…' : '', media: [], swatches: kind === 'swatches' ? [{ name: 'Colour', hex: '#000000' }] : undefined, cols: kind === 'media' ? 2 : kind === 'columns' ? 3 : undefined, side: kind === 'split' ? 'right' : undefined, items, box: kind === 'carousel' ? 'fill' : items ? 'none' : undefined, variant: kind === 'carousel' ? 'cards' : undefined, ...(kind === 'spacer' ? { heading: undefined, body: '', size: 64 } : {}), edited: true };
     const l = [...ch.blocks]; l.splice(i, 0, b); setBlocks(l); setMenu(null); setSel({ block: b.id });
     return b;
   };
@@ -188,7 +188,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [tool, setTool] = useState<AddWhat | null>(null);
   const [spot, setSpot] = useState<Spot | null>(null);
   useEffect(() => { document.body.classList.toggle('ve-tool', !!tool); return () => document.body.classList.remove('ve-tool'); }, [tool]);
-  const WHAT: Record<AddWhat, string> = { headline: 'Headline', text: 'Text', label: 'Label', image: 'Image', box: 'Box', swatch: 'Colour' };
+  const WHAT: Record<AddWhat, string> = { headline: 'Headline', text: 'Text', label: 'Label', image: 'Image', box: 'Box', swatch: 'Colour', spacer: 'Spacer' };
   function findSpot(e: React.MouseEvent): Spot | null {
     if (!tool || !ch) return null;
     const t = e.target as HTMLElement;
@@ -213,20 +213,31 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     return { els, styles, ids };
   }
   // ---------- drag to move: an element within or between boxes, or a box among its neighbours. Snaps into place.
-  type Drag = { kind: 'el' | 'box'; block: string; item: number; el?: string; label: string; x: number; y: number; target?: { block: string; item: number; index: number }; line?: { top: number; left: number; width: number; height: number } };
+  type Drag = { kind: 'el' | 'box' | 'part'; block: string; item: number; el?: string; order?: string[]; label: string; x: number; y: number; target?: { block: string; item: number; index: number }; line?: { top: number; left: number; width: number; height: number } };
   const [moving, setMoving] = useState<Drag | null>(null);
-  function startMove(e: React.PointerEvent, kind: 'el' | 'box', blockId: string, item: number, el?: string) {
+  function startMove(e: React.PointerEvent, kind: 'el' | 'box' | 'part', blockId: string, item: number, el?: string) {
     e.preventDefault(); e.stopPropagation();
     const a0 = document.activeElement as HTMLElement | null; if (a0?.isContentEditable) a0.blur();
-    const src = (e.currentTarget as HTMLElement).closest(kind === 'el' ? '[data-el]' : '[data-item]') as HTMLElement | null;
-    const label = kind === 'box' ? 'Box' : (src?.innerText || 'Image').trim().slice(0, 40) || 'Image';
-    let d: Drag = { kind, block: blockId, item, el, label, x: e.clientX, y: e.clientY };
+    const src = (e.currentTarget as HTMLElement).closest(kind === 'el' ? '[data-el]' : kind === 'part' ? '[data-part]' : '[data-item]') as HTMLElement | null;
+    // Parts move among their siblings: headline, text, images and boxes within the section
+    const siblings = kind === 'part' && src?.parentElement ? ([...src.parentElement.children] as HTMLElement[]).filter((x) => x.dataset.part) : [];
+    const PART: Record<string, string> = { head: 'Headline', body: 'Text', media: 'Images', items: 'Boxes' };
+    const label = kind === 'part' ? PART[el || ''] || 'Part' : kind === 'box' ? 'Box' : (src?.innerText || 'Image').trim().slice(0, 40) || 'Image';
+    let d: Drag = { kind, block: blockId, item, el, label, x: e.clientX, y: e.clientY, order: siblings.map((x) => x.dataset.part!) };
     setMoving(d); document.body.classList.add('ve-moving'); src?.classList.add('ve-drag-src');
     const move = (ev: PointerEvent) => {
       const under = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
       const blockEl = under?.closest('[data-block]') as HTMLElement | null;
       let target: Drag['target'], line: Drag['line'];
-      if (kind === 'el') {
+      if (kind === 'part') {
+        const others = siblings.filter((x) => x !== src);
+        if (others.length && src?.parentElement) {
+          const pr = src.parentElement.getBoundingClientRect();
+          const index = others.filter((x) => { const q = x.getBoundingClientRect(); return q.top + q.height / 2 < ev.clientY; }).length;
+          const y = index === 0 ? others[0].getBoundingClientRect().top - 8 : others[index - 1].getBoundingClientRect().bottom + 8;
+          target = { block: blockId, item: -1, index }; line = { top: y - 1, left: pr.left, width: pr.width, height: 2 };
+        }
+      } else if (kind === 'el') {
         const box = under?.closest('[data-item]') as HTMLElement | null;
         if (box && blockEl) {
           const r = box.getBoundingClientRect();
@@ -252,6 +263,13 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   }
   function drop(d: Drag) {
     const cur = latest.current; const c = cur?.chapters.find((x) => x.id === chId); if (!cur || !c || !d.target) return;
+    if (d.kind === 'part') {
+      const order = (d.order || []).filter((p) => p !== d.el); order.splice(Math.min(d.target.index, order.length), 0, d.el!);
+      if (order.join() === (d.order || []).join()) return;
+      const b = c.blocks.find((x) => x.id === d.block); if (!b) return;
+      commit({ ...cur, chapters: cur.chapters.map((x) => (x.id !== chId ? x : { ...x, blocks: x.blocks.map((y) => (y.id === b.id ? { ...y, order: [...order, ...(y.order || []).filter((p) => !order.includes(p))], edited: true } : y)) })) });
+      setSel({ block: b.id }); return;
+    }
     if (d.kind === 'box') {
       const b = c.blocks.find((x) => x.id === d.block); if (!b) return;
       const items = [...(b.items || [])]; const [moved] = items.splice(d.item, 1); let to = d.target.index; if (to > d.item) to -= 1; if (to === d.item) return;
@@ -278,8 +296,17 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     commit({ ...cur, chapters: cur.chapters.map((x) => (x.id === chId ? { ...x, blocks } : x)) });
     setSel({ block: tb.id, item: d.target.item, el: `${tIt2.id}.${el.id}` });
   }
-  function place(sp: Spot | null) {
-    const what = tool; setTool(null); setSpot(null);
+  /** Adds a label, headline, text or spacer to a box from the design panel, in its natural place */
+  function addToBox(blockId: string, item: number, what: 'label' | 'headline' | 'text' | 'spacer') {
+    const c = latest.current?.chapters.find((x) => x.id === chId); const b = c?.blocks.find((x) => x.id === blockId); const it = b?.items?.[item]; if (!b || !it) return;
+    const els = itemEls(it);
+    const last = (k: string[]) => { let n = -1; els.forEach((e, i) => { if (k.includes(e.kind)) n = i; }); return n; };
+    const index = what === 'label' ? 0 : what === 'headline' ? last(['label', 'image']) + 1 : what === 'text' ? Math.max(last(['heading']), last(['text'])) + 1 || els.length : els.length;
+    setTool(null);
+    place({ mode: 'line', block: blockId, item, index: index <= 0 && what === 'text' ? els.length : index, label: '', line: { top: 0, left: 0, width: 0, height: 0 } }, what);
+  }
+  function place(sp: Spot | null, forced?: AddWhat) {
+    const what = forced || tool; setTool(null); setSpot(null);
     if (!what || !ch) return;
     if (!sp?.block) { setSel(null); add(what, null); return; }
     const b = ch.blocks.find((x) => x.id === sp.block); if (!b) return;
@@ -288,11 +315,12 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     // Into the box, at the point clicked. Its fixed fields become a free list of elements the first time.
     const items = b.items || []; const it = items[sp.item]; if (!it) return;
     const { els, styles } = materialise(it, b.styles || {});
-    const kind: ItemEl['kind'] = what === 'headline' ? 'heading' : what === 'text' ? 'text' : what === 'label' ? 'label' : 'image';
-    const ne: ItemEl = { id: 'e-' + uid(), kind, ...(kind === 'image' ? {} : { text: kind === 'heading' ? 'Headline' : kind === 'label' ? 'Label' : 'Write something…' }) };
+    const kind: ItemEl['kind'] = what === 'headline' ? 'heading' : what === 'text' ? 'text' : what === 'label' ? 'label' : what === 'spacer' ? 'spacer' : 'image';
+    const ne: ItemEl = { id: 'e-' + uid(), kind, ...(kind === 'image' ? {} : kind === 'spacer' ? { size: 32 } : { text: kind === 'heading' ? 'Headline' : kind === 'label' ? 'Label' : 'Write something…' }) };
     els.splice(Math.min(sp.index ?? els.length, els.length), 0, ne);
     editBlock(b.id, { items: items.map((x, n) => (n === sp.item ? { ...x, els, label: undefined, heading: undefined, body: undefined, media: undefined } : x)), styles });
     if (kind === 'image') { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); pickImage(b.id, `itemel:${sp.item}:${ne.id}`); }
+    else if (kind === 'spacer') setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` });
     else { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); focusNext.current = true; }
   }
   // ---------- Fill with AI: a first draft of the selected text, from what's around it
@@ -321,8 +349,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       if (sel.el.includes('.') && sel.item !== undefined) {
         const field = sel.el.split('.')[1]; const it = items[sel.item]; if (!it) return;
         const els = itemEls(it); const target = els.find((e) => e.id === field);
+        if (target?.kind === 'spacer') return;
         kind = target ? (target.kind === 'image' ? 'text' : target.kind) : KIND[field] || 'text'; current = target?.text || '';
-        box = els.filter((e) => e.kind !== 'image').map((e) => ({ kind: e.kind, text: e.text || '', target: e.id === field }));
+        box = els.filter((e) => e.kind !== 'image' && e.kind !== 'spacer').map((e) => ({ kind: e.kind, text: e.text || '', target: e.id === field }));
         others = items.filter((_, n) => n !== sel.item).map((x) => itemWords(x).join(' · ')).filter(Boolean).slice(0, 8);
         const n = sel.item;
         apply = (t) => writeBlock(b.id, (x) => ({ ...x, items: (x.items || []).map((y, k) => (k !== n ? y : y.els ? { ...y, els: y.els.map((e) => (e.id === field ? { ...e, text: t } : e)) } : { ...y, [field]: t })) }));
@@ -382,12 +411,13 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const newBox = (p: Partial<BlockItem>) => { if (!b) return; const i = sel?.item !== undefined ? sel.item + 1 : items.length; const it = { id: iid(), w: b.kind === 'grid' ? 2 : 1, h: 2, ...p }; editBlock(b.id, { items: [...items.slice(0, i), it, ...items.slice(i)] }); return { i, it }; };
     const afterSection = (kind: BlockKind, then?: (nb: Block) => void) => { const nb = addSection(kind, sel); if (nb && then) then(nb); };
     if (!b) { // nothing selected: a new section at the end
-      const kind: BlockKind = what === 'headline' ? 'divider' : what === 'image' ? 'image' : what === 'box' ? 'columns' : what === 'swatch' ? 'swatches' : 'text';
+      const kind: BlockKind = what === 'headline' ? 'divider' : what === 'image' ? 'image' : what === 'box' ? 'columns' : what === 'swatch' ? 'swatches' : what === 'spacer' ? 'spacer' : 'text';
       afterSection(kind, (nb) => { if (what === 'image') pickImage(nb.id, 'new'); });
       return;
     }
+    if (what === 'spacer') { afterSection('spacer'); return; }
     if (what === 'swatch') { if (b.kind === 'swatches') editBlock(b.id, { swatches: [...(b.swatches || []), { name: 'Colour', hex: '#000000' }] }); else afterSection('swatches'); return; }
-    if (what === 'box') { if (itemish) { const r = newBox(b.kind === 'carousel' ? { label: String(items.length + 1).padStart(2, '0'), heading: 'A headline for this card' } : { label: 'Label', body: 'Text' }); if (r) setSel({ block: b.id, item: r.i }); } else afterSection('columns'); return; }
+    if (what === 'box') { if (itemish) { const r = newBox(b.kind === 'carousel' ? { label: String(items.length + 1).padStart(2, '0'), heading: 'A headline for this card', body: 'A sentence or two to go with it.' } : { label: 'Label', body: 'Text' }); if (r) setSel({ block: b.id, item: r.i }); } else afterSection('columns'); return; }
     // Inside a selected box
     const it = sel?.item !== undefined && itemish ? items[sel.item] : undefined;
     if (it && sel?.item !== undefined) {
@@ -455,6 +485,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     itemImage: (i, m, pic) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `itemimg:${i}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `itemimg:${i}`, item: i }); }}>{pic}</span>,
     addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => { editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: b.kind === 'carousel' ? String((b.items || []).length + 1).padStart(2, '0') : 'Label', ...(b.kind === 'carousel' ? { heading: 'A headline for this card' } : { body: 'Text' }), w: b.kind === 'grid' ? 2 : 1, h: 2 }] }); setSel({ block: b.id, item: (b.items || []).length }); }}><Plus size={15} strokeWidth={1.75} aria-hidden />{b.kind === 'carousel' ? 'Card' : 'Box'}</button> : null,
     // The selected box: an outline and handles to drag its width (and height, in a grid) across the columns
+    partGrip: (part) => <span className="ve-grip-el ve-grip-part" onPointerDown={(e) => startMove(e, 'part', b.id, -1, part)} title="Drag to move" aria-hidden><GripVertical size={14} strokeWidth={2} /></span>,
     grip: (i, elId) => ['columns', 'grid', 'carousel'].includes(b.kind) ? <span className="ve-grip-el" onPointerDown={(e) => startMove(e, 'el', b.id, i, elId)} title="Drag to move" aria-hidden><GripVertical size={14} strokeWidth={2} /></span> : null,
     itemBar: (i) => sel?.block === b.id && sel.item === i ? <>
       <span className="ve-itemsel" aria-hidden />
@@ -585,6 +616,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                   <div onMouseDown={(e) => {
                     // A click on a box (not its text or image) selects the box; anywhere else selects the section
                     const t = e.target as HTMLElement; const box = t.closest('[data-item]') as HTMLElement | null;
+                    const spacer = t.closest('[data-spacer]') as HTMLElement | null;
+                    if (spacer && box && !t.closest('.ve-grip-el')) { const it0 = (b.items || [])[Number(box.dataset.item)]; if (it0) { setSel({ block: b.id, item: Number(box.dataset.item), el: `${it0.id}.${spacer.dataset.el}` }); return; } }
                     if (box && !t.closest('.ed, .ve-img, .ve-hd') && box.closest('.ve-block') === e.currentTarget) setSel({ block: b.id, item: Number(box.dataset.item) });
                     else if (sel?.block !== b.id) setSel({ block: b.id });
                   }} data-block={b.id} className={'ve-block' + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
@@ -604,7 +637,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={(k) => addSection(k)} /> : null}
         {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
-        {ch ? <Inspector sel={sel?.block === CHAPTER ? null : sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} /> : null}
+        {ch ? <Inspector onAddToBox={addToBox} sel={sel?.block === CHAPTER ? null : sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} /> : null}
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}
       {fontAsk ? <FontDialog projectId={projectId} fonts={fonts} onClose={() => setFontAsk(null)} onDone={(next, urls, role) => { setFonts(next); setLiveFontCss(fontFaceCss(next, urls)); fontAsk(role); setFontAsk(null); }} /> : null}
@@ -621,7 +654,7 @@ function Inserter({ open, onOpen, onPick }: { open: boolean; onOpen: () => void;
   </div>;
 }
 
-const KIND_ICON: Record<BlockKind, LucideIcon> = { cover: PanelTop, divider: Heading, text: AlignLeft, columns: Columns3, grid: LayoutGrid, statement: Quote, split: PanelLeft, image: ImageIcon, media: Images, carousel: GalleryHorizontal, swatches: Palette };
+const KIND_ICON: Record<BlockKind, LucideIcon> = { cover: PanelTop, divider: Heading, text: AlignLeft, columns: Columns3, grid: LayoutGrid, statement: Quote, split: PanelLeft, image: ImageIcon, media: Images, carousel: GalleryHorizontal, swatches: Palette, spacer: UnfoldVertical };
 export function KindIcon({ k }: { k: BlockKind }) {
   const Ic = KIND_ICON[k] || AlignLeft;
   return <Ic size={16} strokeWidth={1.75} aria-hidden />;

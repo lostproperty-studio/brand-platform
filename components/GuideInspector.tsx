@@ -6,7 +6,7 @@ import type { Sel } from '@/components/GuideDock';
 import {
   AlignEndHorizontal, AlignCenterHorizontal, AlignStartHorizontal, ArrowLeft, ArrowRight, ArrowRightToLine, Copy, GalleryHorizontal, ImageOff, ImagePlus,
   ImageUp, Images, LayoutGrid, Minus, PanelLeft, PanelRight, Plus, RectangleHorizontal, Scan, Square, SquareDashed, Trash2, WrapText, Columns3, MousePointerClick,
-  ArrowLeftRight, ArrowUpDown, type LucideIcon
+  ArrowLeftRight, ArrowUpDown, UnfoldVertical, Tag, Heading, Type, type LucideIcon
 } from 'lucide-react';
 
 const I = { size: 15, strokeWidth: 1.75, 'aria-hidden': true } as const;
@@ -61,7 +61,8 @@ function Step({ value, min, max, set, label, suffix }: { value: number; min: num
 // The design panel on the right, like Figma's or Framer's: the selected section's layout (how many columns, whether
 // the stack wraps, whether boxes fill the space or hug their content, gap, alignment, containers), and below it the
 // selected item (how many columns and rows it spans, its order, its image).
-export function Inspector({ sel, setSel, ch, colours, editBlock, pickImage }: {
+export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pickImage }: {
+  onAddToBox?: (block: string, item: number, what: 'label' | 'headline' | 'text' | 'spacer') => void;
   sel: Sel | null; setSel: (s: Sel | null) => void; ch: GuideChapter; colours: { name: string; hex: string }[];
   editBlock: (id: string, p: Partial<Block>, key?: string) => void; pickImage: (block: string, target: number | 'new' | string) => void;
 }) {
@@ -79,6 +80,7 @@ export function Inspector({ sel, setSel, ch, colours, editBlock, pickImage }: {
   const i = sel.item, it: BlockItem | undefined = i !== undefined ? items[i] : undefined;
   const setItem = (p: Partial<BlockItem>, key?: string) => set({ items: items.map((x, n) => (n === i ? { ...x, ...p } : x)) }, key);
   const moveItem = (d: number) => { if (i === undefined) return; const l = [...items]; const [x] = l.splice(i, 1); const to = Math.max(0, Math.min(items.length - 1, i + d)); l.splice(to, 0, x); set({ items: l }); setSel({ ...sel, item: to, el: sel.el?.includes('.') ? sel.el : undefined }); };
+  const spacerEl = it && sel.el?.includes('.') ? it.els?.find((e) => e.id === sel.el!.split('.')[1] && e.kind === 'spacer') : undefined;
   const span = b.kind === 'grid' ? Math.min(gcols, it?.w || 2) : Math.min(cols, it?.w || 1);
 
   return (
@@ -109,6 +111,7 @@ export function Inspector({ sel, setSel, ch, colours, editBlock, pickImage }: {
         {b.kind === 'carousel' ? <Row label="Slides"><Seg value={b.variant || 'cards'} opts={[['cards', 'Cards of text', RectangleHorizontal], ['images', 'Images', Images]]} set={(v) => set(v === 'images' ? { variant: v } : { variant: v, box: b.box && b.box !== 'none' ? b.box : 'fill', items: items.length ? items : [{ id: iid(), label: '01', heading: 'A headline for this card' }] })} label="Slides" /></Row> : null}
         {b.kind === 'columns' || b.kind === 'grid' || (b.kind === 'carousel' && b.variant !== 'images') ? <Row label="In boxes" hint="How the content sits in every box, and the space between its elements. Double-click the grid to spread it out evenly."><div className="dp-alignrow"><AlignGrid value={b.boxAlign} set={(a) => set({ boxAlign: a })} label="Alignment in every box" /><div className="dp-alignside"><Px value={b.boxGap} placeholder={14} set={(n) => set({ boxGap: n }, 'boxGap')} label="Space between elements" icon={ArrowUpDown} />{b.boxAlign || b.boxGap !== undefined ? <button type="button" className="dp-link" onClick={() => set({ boxAlign: undefined, boxGap: undefined })}>Reset</button> : null}</div></div></Row> : null}
         {b.kind === 'columns' || b.kind === 'grid' || (b.kind === 'carousel' && b.variant !== 'images') ? <Row label="Boxes" hint="How each box is held: free, corner marks, outline or a light fill"><Seg value={b.box || (b.kind === 'carousel' ? 'fill' : 'none')} opts={BOXES.map(([v, l]) => [v, l, BOX_ICON[v]] as [BoxStyle, string, LucideIcon])} set={(v) => set({ box: v })} label="Boxes" /></Row> : null}
+        {b.kind === 'spacer' ? <Row label="Height" hint="The empty space this spacer makes, in pixels"><Px value={b.size} placeholder={64} step={8} set={(n) => set({ size: n }, 'size')} label="Spacer height" icon={UnfoldVertical} /></Row> : null}
         {b.kind === 'media' ? <Row label="Per row"><Step value={b.cols || 2} min={1} max={4} set={(n) => set({ cols: n })} label="Images per row" /></Row> : null}
         {b.kind === 'split' ? <Row label="Image"><Seg value={b.side || 'right'} opts={[['left', 'Image left', PanelLeft], ['right', 'Image right', PanelRight]]} set={(v) => set({ side: v })} label="Image side" /></Row> : null}
         {b.kind === 'statement' ? <Row label="Panel"><div className="dp-chips">{palette.map((c) => <button type="button" key={c.hex} className={'dp-chip' + (b.bg === c.hex ? ' on' : '')} style={{ background: c.hex }} onClick={() => set({ bg: c.hex })} aria-label={`${c.name} ${c.hex}`} title={`${c.name} ${c.hex}`} />)}<button type="button" className="dp-link" onClick={() => set({ bg: undefined })}>None</button></div></Row> : null}
@@ -120,6 +123,8 @@ export function Inspector({ sel, setSel, ch, colours, editBlock, pickImage }: {
         {b.kind === 'columns' || b.kind === 'grid' ? <Row label="Width" hint="How many columns this box spans. Or drag its right edge."><Step value={span} min={1} max={b.kind === 'grid' ? gcols : cols} set={(n) => setItem({ w: n }, 'w')} label="Columns spanned" suffix={` / ${b.kind === 'grid' ? gcols : cols}`} /><button type="button" className={'dp-pill' + (span === (b.kind === 'grid' ? gcols : cols) ? ' on' : '')} onClick={() => setItem({ w: b.kind === 'grid' ? gcols : cols })}>Full</button></Row> : null}
         {b.kind === 'grid' ? <Row label="Height" hint="How many rows this box spans. Or drag its bottom edge."><Step value={it.h || 2} min={1} max={8} set={(n) => setItem({ h: n }, 'h')} label="Rows spanned" /></Row> : null}
         {b.variant !== 'images' ? <Row label="Content" hint="How this box's content sits, overriding the section. Double-click the grid to spread it out evenly."><div className="dp-alignrow"><AlignGrid value={it.align || b.boxAlign} set={(a) => setItem({ align: a })} label="Alignment in this box" /><div className="dp-alignside"><Px value={it.gap} placeholder={b.boxGap ?? 14} set={(n) => setItem({ gap: n }, 'gap')} label="Space between elements" icon={ArrowUpDown} />{it.align || it.gap !== undefined ? <button type="button" className="dp-link" onClick={() => setItem({ align: undefined, gap: undefined })}>Use the section’s</button> : null}</div></div></Row> : null}
+        {onAddToBox && b.variant !== 'images' ? <Row label="Add" hint="Add to this box. Or pick a tool in the bar below and point where it goes."><div className="dp-addrow">{([['label', 'Label', Tag], ['headline', 'Headline', Heading], ['text', 'Text', Type], ['spacer', 'Spacer', UnfoldVertical]] as const).map(([w, l, Ic]) => <button type="button" key={w} onClick={() => onAddToBox(b.id, i!, w)} aria-label={`Add ${l.toLowerCase()} to this box`} data-tip={l}><Ic {...I} /></button>)}</div></Row> : null}
+        {spacerEl ? <Row label="Spacer" hint="The empty space this spacer makes inside the box, in pixels"><Px value={spacerEl.size} placeholder={32} step={4} set={(n) => setItem({ els: (it.els || []).map((e) => (e.id === spacerEl.id ? { ...e, size: n } : e)) }, 'spacer')} label="Spacer height" icon={UnfoldVertical} /></Row> : null}
         <Row label="Order"><div className="dp-btns"><button type="button" onClick={() => moveItem(-1)} disabled={i === 0} aria-label="Move earlier" data-tip="Earlier"><ArrowLeft {...I} /></button><button type="button" onClick={() => moveItem(1)} disabled={i === items.length - 1} aria-label="Move later" data-tip="Later"><ArrowRight {...I} /></button></div></Row>
         <Row label="Image"><div className="dp-btns"><button type="button" onClick={() => pickImage(b.id, `item:${i}`)} aria-label={it.media ? 'Replace image' : 'Add an image'} data-tip={it.media ? 'Replace' : 'Add'}>{it.media ? <ImageUp {...I} /> : <ImagePlus {...I} />}</button>{it.media ? <button type="button" onClick={() => setItem({ media: undefined })} aria-label="Remove image" data-tip="Remove"><ImageOff {...I} /></button> : null}</div></Row>
         <div className="dp-foot">

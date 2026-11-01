@@ -111,7 +111,8 @@ export function Toolbar({ onFill, filling, sel, setSel, ch, colours, fonts, onAd
   const i = sel.item;
   const items = b.items || [];
   const it: BlockItem | undefined = i !== undefined ? items[i] : undefined;
-  const isText = !!sel.el && !sel.el.startsWith('img:') && !sel.el.startsWith('itemimg:');
+  const elKind = i !== undefined && sel.el?.includes('.') ? items[i]?.els?.find((e) => e.id === sel.el!.split('.')[1])?.kind : undefined;
+  const isText = !!sel.el && !sel.el.startsWith('img:') && !sel.el.startsWith('itemimg:') && elKind !== 'spacer' && elKind !== 'image';
   const field = isText ? (sel.el!.includes('.') ? sel.el!.split('.')[1] : sel.el!) : '';
   const imgIdx = sel.el?.startsWith('img:') ? Number(sel.el.slice(4)) : undefined;
   const media = imgIdx !== undefined ? (b.media || [])[imgIdx] : undefined;
@@ -130,7 +131,7 @@ export function Toolbar({ onFill, filling, sel, setSel, ch, colours, fonts, onAd
   const offFields = (['eyebrow', 'heading', 'body'] as const).filter((f) => !b[f] && !(b.kind === 'divider' && f !== 'heading') && !(b.kind === 'image' && f === 'eyebrow'));
   const kindLabel = KINDS.find(([k]) => k === b.kind)?.[1] || 'Section';
   const inner = isText || !!it || !!media || !!sel.el;
-  const ctx = isText ? `${FIELD[field] || 'Text'}${it ? ` · item ${i! + 1}` : ''}` : sel.el?.startsWith('itemimg:') ? `Image · item ${i! + 1}` : media ? 'Image' : it ? `Item ${i! + 1}` : kindLabel;
+  const ctx = elKind === 'spacer' ? `Spacer · item ${i! + 1}` : isText ? `${FIELD[field] || 'Text'}${it ? ` · item ${i! + 1}` : ''}` : sel.el?.startsWith('itemimg:') ? `Image · item ${i! + 1}` : media ? 'Image' : it ? `Item ${i! + 1}` : kindLabel;
   const seg = <T extends string | number>(cur: T | undefined, opts: [T, string, LucideIcon?][], set: (v: T) => void, label: string) => <div className="tb-seg" role="group" aria-label={label}>{opts.map(([v, l, Ic]) => <button type="button" key={String(v)} className={'tb-btn' + (cur === v ? ' on' : '') + (Ic ? '' : ' wide')} aria-pressed={cur === v} aria-label={`${label}: ${l}`} data-tip={`${label}: ${l}`} onClick={() => set(v)}>{Ic ? <Ic {...I} /> : l}</button>)}</div>;
   const addable: { label: string; run: () => void }[] = [
     ...offFields.map((f) => ({ label: FIELD[f], run: () => editBlock(b.id, { off: (b.off || []).filter((k) => k !== f), [f]: FIELD[f] } as Partial<Block>) })),

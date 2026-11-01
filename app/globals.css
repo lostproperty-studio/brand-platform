@@ -1519,3 +1519,23 @@ body.ve-moving, body.ve-moving * { cursor: grabbing !important; user-select: non
 .dp-bars.x-center { align-items: center; } .dp-bars.x-end { align-items: flex-end; }
 .dp-align button.between .dp-bars i:not(:first-child) { display: none; }
 .dp-align button.between .dp-bars i { width: 11px; }
+/* Spacers: empty space in the portal; a hatched area in the editor */
+.gb-spacer { width: 100%; }
+.gi-spacer { flex: none; width: 100%; }
+.ed-spacer { position: relative; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: repeating-linear-gradient(-45deg, rgba(13,153,255,.07) 0 6px, transparent 6px 12px); box-shadow: inset 0 0 0 1px rgba(13,153,255,.25); min-height: 12px; }
+.ed-spacer > span:not(.ve-grip-el) { font: 10px var(--font); color: var(--sel); background: #fff; padding: 1px 6px; border-radius: 4px; }
+.ve-block .gi-spacer.ed-spacer { cursor: pointer; }
+.gc-card > .gc-push { margin-top: auto; }
+.gc-card.ga > .gc-push { margin-top: 0; }
+.gc-card > .gc-el .gc-h { margin: 0; }
+.gc-card:not(.ga) > .gi-push { margin-top: auto; }
+.gc-card .gi-el .gc-h { margin: 0; }
+.dp-addrow { display: flex; gap: 4px; }
+.dp-addrow button { all: unset; cursor: pointer; position: relative; width: 34px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--fill); }
+.dp-addrow button:hover { background: var(--fill-2); }
+/* Section parts (headline, text, images, boxes) can be picked up and moved too */
+.ve-block .gb-part { position: relative; }
+.ve-block .gb-part > .ve-grip-part { top: 14px; transform: none; left: -24px; }
+.ve-block .gb-part:hover > .ve-grip-part { opacity: 1; }
+.ve-block .gb-part:has([data-el]:hover) > .ve-grip-part, .ve-block .gb-part:has([data-item]:hover) > .ve-grip-part { opacity: 0; }
+.gb-split .gb-txt { display: flex; flex-direction: column; gap: inherit; }

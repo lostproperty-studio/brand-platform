@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
 import { KINDS, KindIcon } from '@/components/GuideEditor';
 import type { Sel } from '@/components/GuideDock';
-import { ChevronUp, Heading, ImagePlus, Palette, Plus, SquarePlus, Tag, Type, type LucideIcon } from 'lucide-react';
+import { UnfoldVertical, ChevronUp, Heading, ImagePlus, Palette, Plus, SquarePlus, Tag, Type, type LucideIcon } from 'lucide-react';
 
-export type AddWhat = 'headline' | 'label' | 'text' | 'image' | 'box' | 'swatch';
+export type AddWhat = 'headline' | 'label' | 'text' | 'image' | 'box' | 'swatch' | 'spacer';
 const I = { size: 18, strokeWidth: 1.6, 'aria-hidden': true } as const;
 const ITEMISH = ['columns', 'grid', 'carousel'];
 
@@ -16,6 +16,7 @@ export function addTarget(what: AddWhat, ch: GuideChapter, sel: Sel | null): str
   if (!b) return 'a new section at the end';
   const it = sel?.item !== undefined && ITEMISH.includes(b.kind) ? b.items?.[sel.item] : undefined;
   const name = KINDS.find(([k]) => k === b.kind)?.[1].toLowerCase() || 'section';
+  if (what === 'spacer') return 'a new spacer below';
   if (what === 'swatch') return b.kind === 'swatches' ? 'this palette' : 'a new colour section below';
   if (what === 'box') return ITEMISH.includes(b.kind) && b.variant !== 'images' ? `this ${name}` : 'a new stack of boxes below';
   if (it) {
@@ -36,7 +37,7 @@ export function AddBar({ ch, sel, tool, onTool, onSection }: { ch: GuideChapter;
   useEffect(() => { if (!menu) return; const off = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.ab-menu-wrap')) setMenu(false); }; document.addEventListener('mousedown', off); return () => document.removeEventListener('mousedown', off); }, [menu]);
   const b: Block | undefined = sel ? ch.blocks.find((x) => x.id === sel.block) : undefined;
   void addTarget;
-  const tools: [AddWhat, string, LucideIcon][] = [['headline', 'Headline', Heading], ['text', 'Text', Type], ['label', 'Label', Tag], ['image', 'Image', ImagePlus], ['box', 'Box', SquarePlus], ...(b?.kind === 'swatches' ? [['swatch', 'Colour', Palette] as [AddWhat, string, LucideIcon]] : [])];
+  const tools: [AddWhat, string, LucideIcon][] = [['headline', 'Headline', Heading], ['text', 'Text', Type], ['label', 'Label', Tag], ['image', 'Image', ImagePlus], ['box', 'Box', SquarePlus], ['spacer', 'Spacer', UnfoldVertical], ...(b?.kind === 'swatches' ? [['swatch', 'Colour', Palette] as [AddWhat, string, LucideIcon]] : [])];
   return (
     <div className="ab" role="toolbar" aria-label="Add to the page" onMouseDown={(e) => e.preventDefault()}>
       <div className="ab-menu-wrap">
