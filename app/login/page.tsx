@@ -13,7 +13,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
           <input id="email" name="email" type="email" required className="in" autoComplete="email" />
           <input type="hidden" name="next" value={sp.next || '/'} /><input type="hidden" name="back" value="/login" />
           <button className="btn solid" type="submit">Email me a link</button>
-          {sp.error ? <p className="mute">That didn’t work. Check the address and try again.</p> : null}
+          {sp.error ? <p className="mute">{sp.error === 'wait' ? 'Too many sign-in emails in a short time. Wait a minute, then try again.' : 'That didn’t work. Check the address and try again.'}</p> : null}
         </>}
       </form>
     </main>

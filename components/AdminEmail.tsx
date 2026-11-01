@@ -6,7 +6,7 @@ const KINDS: [string, string][] = [['signin', 'Sign-in link'], ['invite', 'Invit
 
 // The platform's own emails: preview them in the studio's look or any client's, see what sends them, send a test
 export function AdminEmail({ projects }: { projects: { slug: string; client: string }[] }) {
-  const [info, setInfo] = useState<{ provider: 'resend' | 'smtp' | null; from: string } | null>(null);
+  const [info, setInfo] = useState<{ provider: 'resend' | 'smtp' | null; from: string; lastError?: { where: string; message: string; at: string } | null } | null>(null);
   const [kind, setKind] = useState('signin');
   const [slug, setSlug] = useState('');
   const [msg, setMsg] = useState('');
@@ -27,6 +27,7 @@ export function AdminEmail({ projects }: { projects: { slug: string; client: str
         {on ? <button className="btn ic" onClick={test}><Send size={15} strokeWidth={1.75} aria-hidden />Send me a test</button> : null}
       </div>
       {msg ? <p className="adm-msg" role="status">{msg}</p> : null}
+      {info?.lastError ? <p className="fd-err" role="alert">The last {info.lastError.where} email didn’t send ({new Date(info.lastError.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}): {info.lastError.message}. People still got Supabase’s plain email instead.</p> : null}
       <div className="em-ctl">
         <div className="dp-seg" role="radiogroup" aria-label="Email">{KINDS.map(([k, l]) => <button key={k} role="radio" aria-checked={kind === k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{l}</button>)}</div>
         <select className="in em-sel" value={slug} onChange={(e) => setSlug(e.target.value)} aria-label="Look"><option value="">Lost Property (studio emails)</option>{projects.map((p) => <option key={p.slug} value={p.slug}>{p.client} (client emails)</option>)}</select>

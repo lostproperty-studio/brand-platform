@@ -1,3 +1,4 @@
+import { clearEmailError, lastEmailError, noteEmailError } from '@/lib/email/status';
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin';
 import { emailFrom, emailProvider, sendEmail } from '@/lib/email/send';
@@ -20,14 +21,14 @@ export async function GET(req: Request) {
   const st = await requireAdmin(); if (st instanceof Response) return st;
   const u = new URL(req.url);
   if (u.searchParams.get('preview')) { const e = await build(u.searchParams.get('preview')!, u.searchParams.get('slug')); return new Response(e.html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }); }
-  return NextResponse.json({ provider: emailProvider(), from: emailFrom() });
+  return NextResponse.json({ provider: emailProvider(), from: emailFrom(), lastError: await lastEmailError() });
 }
 
 export async function POST(req: Request) {
   const st = await requireAdmin(); if (st instanceof Response) return st;
   const b = await req.json().catch(() => ({}));
   if (!emailProvider()) return NextResponse.json({ error: 'Set up Resend or SMTP first (see the steps).' }, { status: 400 });
-  try { const e = await build(String(b.kind || 'signin'), b.slug || null); await sendEmail({ to: st.user.email!, ...e, subject: `[Test] ${e.subject}` }); }
-  catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }); }
+  try { const e = await build(String(b.kind || 'signin'), b.slug || null); await sendEmail({ to: st.user.email!, ...e, subject: `[Test] ${e.subject}` }); await clearEmailError(); }
+  catch (e) { await noteEmailError('test', e); return NextResponse.json({ error: (e as Error).message }, { status: 500 }); }
   return NextResponse.json({ ok: true, to: st.user.email });
 }

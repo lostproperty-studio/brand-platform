@@ -1,3 +1,4 @@
+import { noteEmailError } from '@/lib/email/status';
 import { appOrigin } from '@/lib/origin';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
   if (emailProvider()) {
     // The platform's own welcome email, with a link that signs them straight in
     user = user || (await ensureUser(email));
-    try { const { url } = await signInUrl(email, '/studio'); const { data: me } = await sb.from('staff').select('name, email').eq('user_id', st.user.id).maybeSingle(); await sendEmail({ to: email, ...studioInviteEmail(studioBrand(), url, (me?.name as string) || (me?.email as string) || null) }); invited = true; } catch (e) { console.error('[studio invite]', e); }
+    try { const { url } = await signInUrl(email, '/studio'); const { data: me } = await sb.from('staff').select('name, email').eq('user_id', st.user.id).maybeSingle(); await sendEmail({ to: email, ...studioInviteEmail(studioBrand(), url, (me?.name as string) || (me?.email as string) || null) }); invited = true; } catch (e) { await noteEmailError('studio invite', e); }
   } else if (!user) {
     const { data, error } = await sb.auth.admin.inviteUserByEmail(email, { redirectTo: `${await appOrigin()}/auth/callback?next=/studio` });
     if (error || !data.user) {

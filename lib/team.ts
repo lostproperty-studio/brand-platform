@@ -1,3 +1,4 @@
+import { noteEmailError } from '@/lib/email/status';
 import { appOrigin } from '@/lib/origin';
 import { createHash, randomBytes } from 'node:crypto';
 import { adminClient, ROLE_OF, type ClientRole } from '@/lib/supabase/server';
@@ -48,7 +49,7 @@ export async function inviteMember(projectId: string, slug: string, email: strin
       const { data: st } = await sb.from('staff').select('name').eq('user_id', invitedBy).maybeSingle();
       await sendEmail({ to: clean, ...clientInviteEmail(await clientBrand(slug), url, ROLE_LABEL[role].toLowerCase() === 'admin' ? 'an admin' : `a ${ROLE_LABEL[role].toLowerCase()}`, (st?.name as string) || by.user?.email || null) });
       emailed = true;
-    } catch (e) { console.error('[invite email]', e); }
+    } catch (e) { await noteEmailError('invite', e); }
     return { userId: user.id, emailed };
   }
   const { data: inv, error } = await sb.auth.admin.inviteUserByEmail(clean, { redirectTo: `${await appOrigin()}/auth/confirm?next=${encodeURIComponent('/p/' + slug)}` });

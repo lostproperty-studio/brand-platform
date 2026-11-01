@@ -1,3 +1,4 @@
+import { noteEmailError } from '@/lib/email/status';
 import { appOrigin } from '@/lib/origin';
 import { teamGate } from '@/lib/studioTeam';
 import { NextResponse } from 'next/server';
@@ -28,7 +29,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       const { data: p } = await sb.from('projects').select('slug').eq('id', id).single();
       const status = STATUS_LABEL[patch.status || before.status] || 'updated';
       await sendEmail({ to: String(before.email), ...requestUpdateEmail(await clientBrand(p!.slug), `${await appOrigin()}/p/${p!.slug}/settings`, String(before.title), status, (patch.reply ?? before.reply) || undefined) });
-    } catch (e) { console.error('[request email]', e); }
+    } catch (e) { await noteEmailError('request update', e); }
   }
   return NextResponse.json({ ok: true });
 }

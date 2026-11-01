@@ -7,6 +7,7 @@ import { emailProvider, sendEmail } from '@/lib/email/send';
 import { clientBrand, studioBrand } from '@/lib/email/brand';
 import { signInEmail } from '@/lib/email/templates';
 import { signInUrl } from '@/lib/auth/links';
+import { clearEmailError, noteEmailError } from '@/lib/email/status';
 
 /** Emails a sign-in link, then shows "check your email" on the same page. With an email service set up the email
  *  is the platform's own, branded for the client whose portal it's for; otherwise Supabase sends its plain one. */
@@ -15,17 +16,21 @@ export async function sendSignInLink(form: FormData) {
   const next = String(form.get('next') || '/');
   const back = String(form.get('back') || '/login');
   const slug = String(form.get('brand') || '') || next.match(/^\/p\/([^/]+)/)?.[1] || '';
-  let failed = false;
+  let failed = false, reason = '';
+  let sent = false;
   if (emailProvider()) {
     try {
       const { url } = await signInUrl(email, next);
       const b = slug ? await clientBrand(slug) : studioBrand();
       await sendEmail({ to: email, ...signInEmail(b, url) });
-    } catch (e) { console.error('[sign-in email]', e); failed = true; }
-  } else {
+      sent = true; await clearEmailError();
+    } catch (e) { await noteEmailError('sign-in', e); }
+  }
+  // If the branded email couldn't go, Supabase's plain one still gets people in
+  if (!sent) {
     const sb = await userClient();
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${await appOrigin()}/auth/callback?next=${encodeURIComponent(next)}`, shouldCreateUser: true } });
-    failed = !!error;
+    if (error) { failed = true; reason = /rate|limit|seconds/i.test(error.message) ? 'wait' : ''; console.error('[sign-in] supabase:', error.message); }
   }
-  redirect(`${back}${back.includes('?') ? '&' : '?'}${failed ? 'error=1' : 'sent=1'}&next=${encodeURIComponent(next)}`);
+  redirect(`${back}${back.includes('?') ? '&' : '?'}${failed ? `error=${reason || '1'}` : 'sent=1'}&next=${encodeURIComponent(next)}`);
 }
