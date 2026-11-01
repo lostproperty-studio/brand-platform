@@ -18,8 +18,13 @@ export function roles(colours: { name: string; hex: string; role?: string }[]) {
   const paper = by(/background|paper|base|white|cream|light/i) || sorted[0] || { name: 'White', hex: '#FFFFFF' };
   const ink = by(/text|ink|black|dark|charcoal/i) || sorted[sorted.length - 1] || { name: 'Black', hex: '#000000' };
   const accent = by(/primary|accent|signature|lead|core/i) || [...colours].filter((c) => c !== paper && c !== ink).sort((a, b) => sat(b.hex) - sat(a.hex))[0] || ink;
-  const surface = sorted.find((c) => c !== paper && lum(c.hex) > 0.75) || paper;
-  return { paper, ink, accent, surface, onAccent: lum(accent.hex) > 0.6 ? ink : paper };
+  let [pp, ii, aa] = [paper, ink, accent];
+  // Keep it readable: when the palette can't give text and background enough contrast, fall back to white or black
+  if (Math.abs(lum(pp.hex) - lum(ii.hex)) < 0.45) { if (lum(ii.hex) < 0.5) pp = { name: 'White', hex: '#FFFFFF' }; else ii = { name: 'Black', hex: '#000000' }; }
+  if (Math.abs(lum(aa.hex) - lum(pp.hex)) < 0.15) aa = ii;
+  const light = lum(pp.hex) > 0.5;
+  const surface = sorted.find((c) => c.hex !== pp.hex && Math.abs(lum(c.hex) - lum(pp.hex)) < 0.12) || { name: light ? 'Light grey' : 'Dark grey', hex: light ? '#F2F2F2' : '#1F1F1F' };
+  return { paper: pp, ink: ii, accent: aa, surface, onAccent: lum(aa.hex) > 0.6 ? (lum(ii.hex) < 0.5 ? ii : { name: 'Black', hex: '#000000' }) : (lum(pp.hex) > 0.5 ? pp : { name: 'White', hex: '#FFFFFF' }) };
 }
 
 export function designSystemFiles(snap: Snapshot, fonts: ProjectFont[], files: string[], aiDonts?: string[]) {

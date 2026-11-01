@@ -16,23 +16,32 @@ function Scribble({ color, seed = 0 }: { color: string; seed?: number }) {
 }
 
 /** The coloured tile for an app in the tray, like a cover: brand colour, the app's icon, a little texture. */
-export function AppTile({ icon, colour, seed }: { icon: string; colour: string; seed: number }) {
+export function AppTile({ icon, colour, seed }: { icon: string; colour?: string; seed: number }) {
+  // No brand palette to draw from: a neutral tile
+  if (!colour) return <span className="rs-tile neutral"><Scribble color="#cfcfcf" seed={seed} /><Icon name={icon} size={56} /></span>;
   const dark = lum(colour) < 0.55;
   const ink = dark ? mix(colour, '#ffffff', 0.62) : mix(colour, '#000000', 0.6);
   return <span className="rs-tile" style={{ background: colour, color: ink }}><Scribble color={ink} seed={seed} /><Icon name={icon} size={56} /></span>;
 }
 
-/** Brand colours for app tiles: mid and deep tones first, so the icons read. */
+/** Brand colours for app tiles, only when the brand has colour to give (not just black, white and greys). */
 export function tileColours(colours: Colour[]) {
-  const usable = colours.filter((c) => /^#[0-9A-F]{6}$/i.test(c.hex) && lum(c.hex) > 0.08 && lum(c.hex) < 0.8);
-  return usable.length ? usable : ['#1E3F7A', '#5A2A14', '#3A2A80', '#6B2222', '#1E4A40'].map((hex) => ({ name: '', hex }));
+  const chroma = (hex: string) => { const n = parseInt(hex.slice(1), 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255]; return (Math.max(...c) - Math.min(...c)) / 255; };
+  return colours.filter((c) => /^#[0-9A-F]{6}$/i.test(c.hex) && lum(c.hex) > 0.08 && lum(c.hex) < 0.85 && chroma(c.hex) > 0.08);
 }
 
-export function DesignSystemTile({ roles }: { roles: { paper: Colour; ink: Colour; accent: Colour; onAccent: Colour } }) {
+/** An abstract view of the design system: type, palette, logo, a button, the type scale and the spacing steps,
+ *  all in the brand's own colours and fonts (neutrals where the brand has none). */
+export function SystemPreview({ colours, logoUrl, client, roles }: { colours: Colour[]; logoUrl: string | null; client: string; roles: { paper: Colour; ink: Colour; accent: Colour; onAccent: Colour; surface: Colour } }) {
+  const pal = colours.length ? colours.slice(0, 6) : [{ name: '', hex: '#000000' }, { name: '', hex: '#767676' }, { name: '', hex: '#EDEDED' }];
+  const cell = { background: roles.surface.hex, color: roles.ink.hex };
   return (
-    <span className="rs-tile rs-ds" style={{ background: roles.paper.hex, color: roles.ink.hex }}>
-      <span className="rs-ds-aa" style={{ fontFamily: 'var(--pt-display)' }}>Aa</span>
-      <span className="rs-ds-col"><span className="rs-ds-btn" style={{ background: roles.accent.hex, color: roles.onAccent.hex }}>Button</span><span className="rs-ds-dots">{[roles.accent, roles.ink, roles.paper].map((c, i) => <i key={i} style={{ background: c.hex }} />)}</span></span>
+    <span className="rs-sys" style={{ background: roles.paper.hex, color: roles.ink.hex }} aria-hidden>
+      <span className="rs-sys-aa" style={cell}><span style={{ fontFamily: 'var(--pt-display)' }}>Aa</span></span>
+      <span className="rs-sys-pal">{pal.map((c, i) => <i key={i} style={{ background: c.hex }} />)}</span>
+      <span className="rs-sys-logo" style={cell}>{logoUrl ? <img src={logoUrl} alt="" /> : <span style={{ fontFamily: 'var(--pt-display)' }}>{client}</span>}</span>
+      <span className="rs-sys-btn" style={cell}><b style={{ background: roles.accent.hex, color: roles.onAccent.hex }}>Button</b><b className="line" style={{ borderColor: roles.ink.hex }}>Button</b></span>
+      <span className="rs-sys-scale" style={cell}><span className="rs-bars"><i style={{ background: roles.ink.hex }} /><i style={{ background: roles.ink.hex }} /><i style={{ background: roles.ink.hex }} /></span><span className="rs-steps">{[5, 8, 12, 17].map((n) => <i key={n} style={{ width: n, height: n, background: roles.accent.hex }} />)}</span></span>
     </span>
   );
 }

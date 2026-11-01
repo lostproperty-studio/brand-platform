@@ -5,7 +5,7 @@ import { Icon } from '@/lib/icons';
 import { SKILLS } from '@/lib/skills';
 import { portalPackages, SECTIONS, visibleToClient, type Package } from '@/lib/portal/packages';
 import { roles } from '@/lib/designSystem';
-import { AppTile, DesignSystemTile, PackagePreview, tileColours } from '@/components/portal/ResourceVisuals';
+import { AppTile, PackagePreview, SystemPreview, tileColours } from '@/components/portal/ResourceVisuals';
 import { JumpNav } from '@/components/portal/JumpNav';
 import { TeamFileRemove, TeamFileUpload } from '@/components/portal/TeamFiles';
 
@@ -64,12 +64,12 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
         <div className="rs-sec-head"><h2 id="h-apps" className="pt-h2">Apps</h2><p className="mute">Built for the {ctx.project.client} brand, with the rules built in.</p></div>
         <div className="rs-tray">
           {tools.map((t, i) => <Link key={t.id} href={`${base}/tools/${t.id}`} className={'rs-app' + (t.visible ? '' : ' off')}>
-            <AppTile icon={t.icon} colour={tiles[i % tiles.length].hex} seed={i} />
+            <AppTile icon={t.icon} colour={tiles.length ? tiles[i % tiles.length].hex : undefined} seed={i} />
             <span className="rs-app-name">{t.name}{t.ai_enabled ? <span className="rs-pill">AI</span> : null}{t.visible ? null : <span className="rs-pill">Hidden</span>}</span>
             <span className="mute rs-app-desc">{t.description}</span>
           </Link>)}
           <Link href={`${base}/resources/design-system`} className="rs-app">
-            <DesignSystemTile roles={r} />
+            <span className="rs-tile rs-tile-sys"><SystemPreview colours={snap.colours} logoUrl={ctx.logoUrl} client={ctx.project.client} roles={r} /></span>
             <span className="rs-app-name">Design system<span className="rs-pill">For Claude</span></span>
             <span className="mute rs-app-desc">The brand as a system AI can build with.</span>
           </Link>
@@ -87,18 +87,22 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
         <div className="rs-sec-head"><h2 id="h-ai" className="pt-h2">For AI</h2><p className="mute">Take the brand into Claude, so what it makes follows the guidelines.</p></div>
         <div className="rs-grid">
           <article className="rs-card wide">
-            <div className="rs-pv rs-dspv"><DesignSystemTile roles={r} /></div>
+            <div className="rs-pv rs-dspv"><SystemPreview colours={snap.colours} logoUrl={ctx.logoUrl} client={ctx.project.client} roles={r} /></div>
             <div className="rs-card-txt">
               <h3>Design system</h3>
               <p className="mute">Colours, type, spacing, components and logo rules in one folder, written for AI. Claude uses it to build interfaces, documents and layouts in the brand.</p>
               <div className="rs-card-foot"><a className="btn solid" href={`/api/p/${slug}/design-system`} download>Download</a><Link className="btn" href={`${base}/resources/design-system`}>See it and how to add it</Link></div>
             </div>
           </article>
+        </div>
+        <div className="rs-skills">
+          <div className="rs-skills-head"><h3>Claude skills</h3><p className="mute">Smaller, focused instructions for Claude, one per kind of work.</p></div>
           {SKILLS.map((s) => (
-            <article key={s.id} className="rs-card rs-skill">
-              <div className="rs-pv rs-skillpv"><Icon name={s.icon} size={34} /><span className="rs-doc-tag">SKILL</span></div>
-              <div className="rs-card-txt"><h3>{s.title}</h3><p className="mute">{s.blurb}</p><div className="rs-card-foot"><a className="btn solid" href={`/api/p/${slug}/skills/${s.id}`} download>Download</a><span className="mute rs-meta">Claude skill · ZIP</span></div></div>
-            </article>
+            <div key={s.id} className="rs-skillrow">
+              <span className="rs-skillicon"><Icon name={s.icon} size={18} /></span>
+              <div className="rs-skilltxt"><p>{s.title}</p><p className="mute">{s.blurb}</p></div>
+              <a className="btn" href={`/api/p/${slug}/skills/${s.id}`} download>Download</a>
+            </div>
           ))}
         </div>
         <p className="mute rs-note">To add a skill or the design system: in Claude, open <strong>Settings → Capabilities → Skills</strong> and upload the .zip. Download again after a new version of the guidelines.</p>
