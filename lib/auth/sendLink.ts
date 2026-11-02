@@ -7,6 +7,7 @@ import { emailProvider, sendEmail } from '@/lib/email/send';
 import { clientBrand, studioBrand } from '@/lib/email/brand';
 import { signInEmail } from '@/lib/email/templates';
 import { signInUrl } from '@/lib/auth/links';
+import { mayGetLink } from '@/lib/auth/allowed';
 import { clearEmailError, noteEmailError } from '@/lib/email/status';
 
 /** Emails a sign-in link, then shows "check your email" on the same page. With an email service set up the email
@@ -16,6 +17,8 @@ export async function sendSignInLink(form: FormData) {
   const next = String(form.get('next') || '/');
   const back = String(form.get('back') || '/login');
   const slug = String(form.get('brand') || '') || next.match(/^\/p\/([^/]+)/)?.[1] || '';
+  // Only people with access get a link; everyone else sees the same message, so the page doesn't reveal who has an account
+  if (!(await mayGetLink(email, back))) redirect(`${back}${back.includes('?') ? '&' : '?'}sent=1&next=${encodeURIComponent(next)}`);
   let failed = false, reason = '';
   let sent = false;
   if (emailProvider()) {
