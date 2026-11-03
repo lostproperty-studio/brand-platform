@@ -119,39 +119,56 @@ export async function readTemplate(fileKey: string, pages: TemplatePages): Promi
     return { name: named(s, 'style name') || 'Style', family: st.fontFamily, size: st.fontSize, weight: st.fontWeight, lineHeight: st.lineHeightPercentFontSize ? Math.round(st.lineHeightPercentFontSize) : st.lineHeightPx && st.fontSize ? Math.round((st.lineHeightPx / st.fontSize) * 100) : undefined, tracking: st.letterSpacing && st.fontSize ? Math.round((st.letterSpacing / st.fontSize) * 1000) / 10 : undefined };
   });
 
-  // Assets: each item (a frame, component, instance or group) inside a package section is one file. Its "artwork"
-  // layer is what's exported; without one, the whole item is. Sections and groups inside the package section
-  // (Light, Dark…) are followed, and their names lead the file name, so "dark / wordmark" stays apart from "light / wordmark".
+  // Assets. Each package section (Logos, Avatars, Icons, Images, Graphic language, custom / …) holds slots: the
+  // template's frames ("wordmark / black"). Inside each slot is the artwork, either the template's "artwork" layer
+  // or a layer named as the file should be ("Tileyard_Wordmark_Dark"). The artwork layer is what's exported, so the
+  // slot's background never comes with it, and its name is the file name; a generic name ("Group 1") falls back to
+  // the slot's name. A slot with an image fill and nothing inside (photography) is exported whole. Sections inside a
+  // package section are followed, their name leading the file name.
   const assets: TemplateAsset[] = [];
   const assetSkips: TemplateRead['assetSkips'] = [];
   const ITEM = new Set(['FRAME', 'COMPONENT', 'INSTANCE', 'GROUP']);
+  const SHAPE = new Set(['VECTOR', 'BOOLEAN_OPERATION', 'RECTANGLE', 'ELLIPSE', 'POLYGON', 'STAR', 'LINE', 'REGULAR_POLYGON', 'TEXT']);
   const hidden = (c: N) => !visible(c) || c.name.trim().startsWith('_') || isNote(c);
-  // Real artwork: an image, a vector or shape, filled text, or a frame/group holding any of those (the template's notes don't count)
-  const hasArt = (n: N): boolean => hasImage(n) || (n.children || []).some((c) => !hidden(c) && (c.type === 'TEXT' ? !!c.characters?.trim() : ['FRAME', 'GROUP', 'SECTION'].includes(c.type) ? hasArt(c) || !!solid(c) : true));
+  const kidsOf = (n: N) => (n.children || []).filter((c) => !hidden(c) && (c.type !== 'TEXT' || !!c.characters?.trim()));
+  // Real artwork: an image, a shape, filled text, or a frame/group holding any of those (the template's notes don't count)
+  const hasArt = (n: N): boolean => hasImage(n) || (SHAPE.has(n.type) && (n.type !== 'TEXT' || !!n.characters?.trim())) || kidsOf(n).some((c) => hasArt(c) || (ITEM.has(c.type) && !!solid(c)));
+  const GENERIC = /^(artwork|group|frame|vector|rectangle|ellipse|image|union|subtract|intersect|exclude|component|instance|layer|shape|path|logo|mask)(\s*\d+)?$/i;
   const usedNames = new Set<string>();
   for (const sec of top(assetsPage).filter((c) => c.type === 'SECTION')) {
     const nm = sec.name.trim();
     const custom = nm.match(/^custom\s*\/\s*(.+)$/i);
     const pkg = custom ? 'custom-' + slug(custom[1]).slice(0, 12) : PKG.find(([re]) => re.test(nm))?.[1];
     if (!pkg) continue;
+    const take = (node: N, slotName: string) => {
+      const own = node.name.trim();
+      const base = !GENERIC.test(own) && own !== slotName ? own : slotName;
+      let name = base, i = 2; while (usedNames.has(pkg + '/' + slug(name))) name = `${base} ${i++}`;
+      if (name !== base) assetSkips.push({ pkg, name: base, reason: `two assets share this name; the second is saved as “${name}”` });
+      if (base === slotName && GENERIC.test(own) && node.id !== '') assetSkips.push({ pkg, name, reason: `the artwork layer has no name of its own (“${own}”), so the file is named after its slot` });
+      usedNames.add(pkg + '/' + slug(name));
+      const kids = kidsOf(node);
+      assets.push({ pkg, title: custom ? custom[1].trim() : undefined, name, nodeId: node.id, format: pkg === 'images' || hasImage(node) || kids.some((c) => hasImage(c)) || findAll(node, (x) => hasImage(x)).length ? 'png' : 'svg', ground: undefined });
+    };
     const visit = (parent: N, prefix: string[]) => {
       for (const f of (parent.children || []).filter((c) => !hidden(c)).sort(byPos)) {
         if (f.type === 'TEXT') continue;
-        const art = ITEM.has(f.type) || f.type === 'SECTION' ? find(f, 'artwork') : undefined;
-        // A container of items (a section, or a frame/group holding items with their own artwork layers)
-        const kids = (f.children || []).filter((c) => !hidden(c) && (ITEM.has(c.type) || c.type === 'SECTION'));
-        const holdsItems = f.type === 'SECTION' || (f.name.trim().toLowerCase() !== 'artwork' && kids.filter((k) => k.type === 'SECTION' || !!find(k, 'artwork')).length > 1);
-        if (holdsItems) { visit(f, [...prefix, f.name.trim()]); continue; }
-        if (!ITEM.has(f.type)) continue;
-        const base = [...prefix, f.name.trim()].join(' / ');
-        const node = art || f;
-        const real = (node.children || []).filter((c) => !hidden(c));
-        if (!hasArt(node)) { assetSkips.push({ pkg, name: base, reason: art ? 'the artwork layer is still the placeholder' : 'empty' }); continue; }
-        let name = base, i = 2; while (usedNames.has(pkg + '/' + slug(name))) name = `${base} ${i++}`;
-        if (name !== base) assetSkips.push({ pkg, name: base, reason: `two items share this name; the second is saved as “${name}”` });
-        usedNames.add(pkg + '/' + slug(name));
-        if (!art) assetSkips.push({ pkg, name, reason: 'no artwork layer, so the whole frame was exported (background included)' });
-        assets.push({ pkg, title: custom ? custom[1].trim() : undefined, name, nodeId: node.id, format: pkg === 'images' || hasImage(node) || real.some((c) => hasImage(c)) ? 'png' : 'svg', ground: solid(f) || undefined });
+        if (f.type === 'SECTION') { visit(f, [...prefix, f.name.trim()]); continue; }
+        if (!ITEM.has(f.type) && !SHAPE.has(f.type)) continue;
+        const slotName = [...prefix, f.name.trim()].join(' / ');
+        const kids = kidsOf(f);
+        const artworkLayer = kids.find((c) => c.name.trim().toLowerCase() === 'artwork');
+        // The artwork: the "artwork" layer, else the slot's one layer, else (several layers, or none) the slot itself
+        const art = artworkLayer || (kids.length === 1 && (ITEM.has(kids[0].type) || SHAPE.has(kids[0].type)) ? kids[0] : undefined);
+        if (art) {
+          if (!hasArt(art) && !solid(art)) { assetSkips.push({ pkg, name: slotName, reason: art === artworkLayer ? 'the artwork layer is still the placeholder' : 'the layer inside is empty' }); continue; }
+          take(art, slotName); continue;
+        }
+        if (!kids.length) { if (hasImage(f)) take(f, slotName); else assetSkips.push({ pkg, name: slotName, reason: 'empty slot' }); continue; }
+        // Several layers loose in the slot: export the slot as one file (its background included)
+        if (!hasArt(f)) { assetSkips.push({ pkg, name: slotName, reason: 'nothing to export' }); continue; }
+        assetSkips.push({ pkg, name: slotName, reason: 'several layers sit loose in the slot, so the whole slot was exported, background included; group them into one named layer to export just the artwork' });
+        take(f, slotName);
       }
     };
     visit(sec, []);

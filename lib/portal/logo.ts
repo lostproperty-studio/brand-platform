@@ -16,10 +16,15 @@ export function withFigmaLogos<T extends Row>(files: T[], content: unknown, extr
   return [...files.filter((f) => !f.path.startsWith('assets/logo/')), ...fig.map((f) => ({ ...extra, path: `assets/logo/${f.name}`, storage_path: f.path } as T))];
 }
 
-/** The logo to show on light grounds, and one for dark grounds if there is one; SVG first */
+/** The logo to show on light grounds, and one for dark grounds if there is one. SVG first, and the plain wordmark
+ *  before lockups and symbols ("Tileyard_Wordmark_Dark" over "Tileyard_Lockup_London_Dark"). "Dark" and "Black"
+ *  mean dark artwork for light grounds; "Light", "White", "Reverse" mean artwork for dark grounds. */
 export function pickLogo<T extends Row>(files: T[]) {
-  const logos = files.filter((f) => f.path.startsWith('assets/logo/') && f.storage_path).sort((a, b) => Number(b.path.endsWith('.svg')) - Number(a.path.endsWith('.svg')));
-  const isLight = (p: string) => /white|light|reverse|negative|inverse/i.test(p);
-  const main = logos.find((l) => /dark|black|primary|horizontal|main|positive/i.test(l.path) && !isLight(l.path)) || logos.find((l) => !isLight(l.path)) || logos[0];
+  const name = (p: string) => p.split('/').pop()!.toLowerCase();
+  const kind = (p: string) => { const n = name(p); return /wordmark/.test(n) && !/lockup/.test(n) ? 0 : /lockup|horizontal|primary|main/.test(n) ? 1 + (/london|north|south|east|west|stacked|sub/.test(n) ? 1 : 0) : /symbol|mark|icon|monogram/.test(n) ? 3 : 2; };
+  const logos = files.filter((f) => f.path.startsWith('assets/logo/') && f.storage_path)
+    .sort((a, b) => Number(b.path.endsWith('.svg')) - Number(a.path.endsWith('.svg')) || kind(a.path) - kind(b.path));
+  const isLight = (p: string) => /white|light|reverse|negative|inverse/.test(name(p));
+  const main = logos.find((l) => !isLight(l.path)) || logos[0];
   return { main, light: logos.find((l) => isLight(l.path)) };
 }

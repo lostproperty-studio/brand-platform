@@ -55,7 +55,7 @@ export function avatarSvgs(client: string, colours: Colour[], logos: { light?: s
 /** The logo SVGs to build avatars from: a symbol if there is one, in a light and a dark version. */
 export function pickAvatarLogos(paths: string[]) {
   const svgs = paths.filter((p) => /^assets\/logo\/.+\.svg$/i.test(p));
-  const symbols = svgs.filter((p) => /symbol|icon|mark|monogram|avatar|emblem/i.test(p));
+  const symbols = svgs.filter((p) => /symbol|icon|monogram|avatar|emblem|(^|[^d])mark/i.test(p.split('/').pop()!) && !/wordmark|lockup/i.test(p));
   const pool = symbols.length ? symbols : svgs;
   const light = pool.find((p) => /white|light|reverse|negative|inverse/i.test(p));
   const dark = pool.find((p) => /black|dark|positive/i.test(p));

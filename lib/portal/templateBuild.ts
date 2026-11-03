@@ -16,6 +16,8 @@ import { readShowcase, type ShowcaseRow } from '@/lib/showcase';
 
 const slug = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item';
 const safe = (id: string) => id.replace(/[:;]/g, '-');
+/** A file name from a layer name, keeping its case and underscores: "Tileyard_Wordmark_Dark", "wordmark / black" → "wordmark-black" */
+export const fileName = (s: string) => s.trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/\s*\/\s*/g, '-').replace(/\s+/g, '-').replace(/[^A-Za-z0-9_.-]/g, '').replace(/-{2,}/g, '-').replace(/^[-.]+|[-.]+$/g, '') || 'asset';
 
 /** What to bring in: the assets page, the guidelines page (all chapters, or only some), and the showcase */
 export type TemplateOpts = { chapters?: string[]; showcase?: boolean; /** Starting over on assets: also remove files uploaded to the asset packages in the platform */ wipe?: boolean };
@@ -61,7 +63,7 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const inChosen = new Set<string>(); const walkIds = (n: { id: string; children?: unknown[] }) => { inChosen.add(n.id); for (const c of (n.children || []) as { id: string; children?: unknown[] }[]) walkIds(c); };
   t.chapters.forEach((c) => c.frames.forEach((f) => walkIds(f as { id: string; children?: unknown[] })));
   t.imageNodes = t.imageNodes.filter((id) => inChosen.has(id));
-  const pngIds = [...new Set([...t.imageNodes, ...t.chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...t.showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...t.assets.filter((a) => a.format === 'png').map((a) => a.nodeId)])];
+  const pngIds = [...new Set([...t.imageNodes, ...t.chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...t.showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...t.assets.map((a) => a.nodeId)])];
   const svgIds = t.assets.filter((a) => a.format === 'svg').map((a) => a.nodeId);
   const [png, svg] = await Promise.all([pngIds.length ? exportNodes(key, pngIds, 'png', 2) : {}, svgIds.length ? exportNodes(key, svgIds, 'svg') : {}]);
   const stamp = Date.now().toString(36);
@@ -70,8 +72,8 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   // Asset files get their content hash in the path, so a changed logo is a new file and never a stale cached copy
   type Job = { id: string; url: string; bucket: 'previews' | 'kits'; path: string; type: string; ext?: string };
   const jobs: Job[] = [];
-  for (const [id, url] of Object.entries(png as Record<string, string | null>)) if (url) { const a = assetById.get(id); jobs.push(a ? { id, url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/png', ext: 'png' } : { id, url, bucket: 'previews', path: showIds.has(id) ? `${projectId}/showcase/figma-${safe(id)}.png` : `${projectId}/guide/${stamp}/${safe(id)}.png`, type: 'image/png' }); }
-  for (const [id, url] of Object.entries(svg as Record<string, string | null>)) if (url) { const a = assetById.get(id)!; jobs.push({ id, url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/svg+xml', ext: 'svg' }); }
+  for (const [id, url] of Object.entries(png as Record<string, string | null>)) if (url) { const a = assetById.get(id); jobs.push(a ? { id: id + '|png', url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/png', ext: 'png' } : { id, url, bucket: 'previews', path: showIds.has(id) ? `${projectId}/showcase/figma-${safe(id)}.png` : `${projectId}/guide/${stamp}/${safe(id)}.png`, type: 'image/png' }); }
+  for (const [id, url] of Object.entries(svg as Record<string, string | null>)) if (url) { const a = assetById.get(id)!; jobs.push({ id: id + '|svg', url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/svg+xml', ext: 'svg' }); }
   const stored: Record<string, { path: string; bytes: number; hash: string }> = {};
   const queue = [...jobs];
   await Promise.all(Array.from({ length: 8 }, async () => {
@@ -132,13 +134,15 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const oldFigma: string[] = [];
   for (const s of Object.values(pkgs)) for (const f of s.files || []) if (f.fromFigma) oldFigma.push(f.path);
   const fresh = new Map<string, PkgFile[]>();
+  // Vector artwork comes as SVG plus a 2× PNG; pictures as PNG. Files keep the layer's name as written (Tileyard_Wordmark_Dark.svg).
   for (const a of t.assets) {
-    const st = stored[a.nodeId]; if (!st) continue;
-    const ext = st.path.split('.').pop();
-    const list = fresh.get(a.pkg) || []; list.push({ name: `${slug(a.name)}.${ext}`, path: st.path, bytes: st.bytes, hash: st.hash, type: ext === 'svg' ? 'image/svg+xml' : 'image/png', fromFigma: true }); fresh.set(a.pkg, list);
+    for (const ext of a.format === 'svg' ? ['svg', 'png'] : ['png']) {
+      const st = stored[a.nodeId + '|' + ext]; if (!st) continue;
+      const list = fresh.get(a.pkg) || []; list.push({ name: `${fileName(a.name)}.${ext}`, path: st.path, bytes: st.bytes, hash: st.hash, type: ext === 'svg' ? 'image/svg+xml' : 'image/png', fromFigma: true }); fresh.set(a.pkg, list);
+    }
   }
   const wipe = doAssets && mode === 'fresh' && !!opts.wipe;
-  const report: AssetsReport = { at: now, mode, file: pages.file, wiped: wipe, notes: t.assetSkips, kit: null, packages: [], failed: doAssets ? t.assets.filter((a) => !stored[a.nodeId]).map((a) => a.name) : [], colours: { total: 0, added: [], removed: [] }, fonts: [], logo: null, form: 0 };
+  const report: AssetsReport = { at: now, mode, file: pages.file, wiped: wipe, notes: t.assetSkips, kit: null, packages: [], failed: doAssets ? t.assets.filter((a) => !stored[a.nodeId + '|svg'] && !stored[a.nodeId + '|png']).map((a) => a.name) : [], colours: { total: 0, added: [], removed: [] }, fonts: [], logo: null, form: 0 };
   const wipedUploads: string[] = [];
   for (const key of doAssets ? new Set([...Object.keys(pkgs), ...fresh.keys()]) : new Set<string>()) {
     const cur = pkgs[key] || {};
