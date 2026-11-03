@@ -11,14 +11,14 @@ const I = { size: 14, strokeWidth: 1.75, 'aria-hidden': true } as const;
 
 // The two Figma links: one for the brand assets (logos, fonts, colours, the brand form), one for the guidelines.
 // They can point at the same file; each is imported on its own.
-export function FigmaSources({ projectId, slug, assets, guidelines, thumb, report }: { projectId: string; slug?: string; assets: SourceRow; guidelines: SourceRow; thumb?: string; report?: AssetsReport | null }) {
+export function FigmaSources({ projectId, slug, repo, assets, guidelines, thumb, report }: { projectId: string; slug?: string; repo?: string | null; assets: SourceRow; guidelines: SourceRow; thumb?: string; report?: AssetsReport | null }) {
   return <>
-    <SourceLink projectId={projectId} slug={slug} part="assets" row={assets} fallback={guidelines} report={report} />
+    <SourceLink projectId={projectId} slug={slug} repo={repo} part="assets" row={assets} fallback={guidelines} report={report} />
     <SourceLink projectId={projectId} part="guidelines" row={guidelines} thumb={thumb} />
   </>;
 }
 
-function SourceLink({ projectId, slug, part, row, fallback, thumb, report }: { projectId: string; slug?: string; part: 'assets' | 'guidelines'; row: SourceRow; fallback?: SourceRow; thumb?: string; report?: AssetsReport | null }) {
+function SourceLink({ projectId, slug, repo, part, row, fallback, thumb, report }: { projectId: string; slug?: string; repo?: string | null; part: 'assets' | 'guidelines'; row: SourceRow; fallback?: SourceRow; thumb?: string; report?: AssetsReport | null }) {
   const [dialog, setDialog] = useState<null | { fresh?: { otherFile: boolean; file?: string; page?: string }; show?: AssetsReport }>(null);
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -60,7 +60,7 @@ function SourceLink({ projectId, slug, part, row, fallback, thumb, report }: { p
         ? <><button className="btn ic sm solid" onClick={() => setDialog({})}><Download {...I} />Import assets</button>{report ? <button className="btn sm" onClick={() => setDialog({ show: report })}>What changed</button> : null}</>
         : <a className="btn ic sm solid" href="?tab=guidelines&import=1"><Download {...I} />Choose chapters to import</a> : null}
     </span> : null}
-    {dialog ? <AssetsDialog projectId={projectId} slug={slug} fresh={dialog.fresh} show={dialog.show} hasUploads={!!report?.packages.some((p) => p.uploads)} onClose={() => { setDialog(null); router.refresh(); }} /> : null}
+    {dialog ? <AssetsDialog projectId={projectId} slug={slug} repo={repo} fresh={dialog.fresh} show={dialog.show} hasUploads={!!report?.packages.some((p) => p.uploads)} onClose={() => { setDialog(null); router.refresh(); }} /> : null}
   </div>;
 }
 
@@ -68,21 +68,30 @@ type Mode = 'update' | 'add' | 'fresh';
 const n = (x: number, w: string) => `${x} ${w}${x === 1 ? '' : 's'}`;
 
 /** Import the brand assets: how to treat what's there, then exactly what changed and where it shows up */
-function AssetsDialog({ projectId, slug, fresh, show, hasUploads, onClose }: { projectId: string; slug?: string; fresh?: { otherFile: boolean; file?: string; page?: string }; show?: AssetsReport; hasUploads: boolean; onClose: () => void }) {
+function AssetsDialog({ projectId, slug, repo, fresh, show, hasUploads, onClose }: { projectId: string; slug?: string; repo?: string | null; fresh?: { otherFile: boolean; file?: string; page?: string }; show?: AssetsReport; hasUploads: boolean; onClose: () => void }) {
   const [mode, setMode] = useState<Mode>(fresh?.otherFile ? 'fresh' : 'update');
   const [wipe, setWipe] = useState(false);
+  const [toKit, setToKit] = useState(!!repo);
+  const [stage, setStage] = useState('');
   const [sure, setSure] = useState(false);
   const [running, setRunning] = useState(false);
   const [err, setErr] = useState('');
   const [rep, setRep] = useState<AssetsReport | null>(show || null);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !running) { e.stopPropagation(); onClose(); } }; window.addEventListener('keydown', k, true); return () => window.removeEventListener('keydown', k, true); }, [onClose, running]);
   async function run() {
-    setSure(false); setRunning(true); setErr('');
+    setSure(false); setRunning(true); setErr(''); setStage('Exporting every asset from Figma and comparing it with what’s here…');
     const r = await fetch(`/api/projects/${projectId}/guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: 'assets', mode, wipe: mode === 'fresh' && wipe }) });
     const j = await r.json().catch(() => ({}));
-    setRunning(false);
-    if (!r.ok) { setErr(j.error || 'The import didn’t finish. Try again in a minute; Figma is sometimes busy.'); return; }
-    setRep(j.report);
+    if (!r.ok) { setRunning(false); setErr(j.error || 'The import didn’t finish. Try again in a minute; Figma is sometimes busy.'); return; }
+    const report = j.report as AssetsReport;
+    // Then the kit: the repository's assets folder is rebuilt from the same files
+    if (toKit) {
+      setStage('Updating the kit repository on GitHub…');
+      const k = await fetch(`/api/projects/${projectId}/kit?direct=1&reason=assets`, { method: 'POST' });
+      const kj = await k.json().catch(() => ({}));
+      report.kit = k.ok ? { repo: kj.repo, files: kj.assets, removed: kj.removed || 0, commit: kj.commit } : { repo: repo || '', files: 0, removed: 0, error: (kj.error || (await k.text().catch(() => '')) || `status ${k.status}`).slice(0, 200) };
+    }
+    setRunning(false); setRep(report);
   }
   const MODES: { id: Mode; icon: LucideIcon; title: string; body: string }[] = [
     { id: 'update', icon: RefreshCw, title: 'Sync with Figma', body: 'Adds new assets, replaces ones that changed and removes ones no longer in Figma. Files uploaded here stay.' },
@@ -102,7 +111,7 @@ function AssetsDialog({ projectId, slug, fresh, show, hasUploads, onClose }: { p
   if (sure) return <div className="cf-back" onMouseDown={back}><div className="cf" role="alertdialog" aria-modal="true" aria-labelledby="as-t2" aria-describedby="as-b2">
     <span className="cf-ic" aria-hidden><TriangleAlert size={18} strokeWidth={1.75} /></span>
     <h2 id="as-t2" className="cf-t">Start the assets from scratch?</h2>
-    <p id="as-b2" className="cf-b">Every logo, avatar, icon, image and graphic from the last import is deleted, and the colours, typeface names and brand form are replaced by this file’s.{wipe ? ' Files uploaded here to those downloads are deleted too.' : ' Files uploaded here stay.'} The guidelines aren’t touched. This can’t be undone.</p>
+    <p id="as-b2" className="cf-b">Every logo, avatar, icon, image and graphic from the last import is deleted, along with the older kit versions of them in the downloads, and the colours, typeface names and brand form are replaced by this file’s.{wipe ? ' Files uploaded here to those downloads are deleted too.' : ' Files uploaded here stay.'}{toKit ? ' The kit repository’s assets folder is rebuilt to match.' : ''} The guidelines aren’t touched. This can’t be undone.</p>
     <div className="cf-row"><button className="btn" autoFocus onClick={() => setSure(false)}>Go back</button><button className="btn solid cf-yes" onClick={run}>Yes, start from scratch</button></div>
   </div></div>;
 
@@ -110,12 +119,13 @@ function AssetsDialog({ projectId, slug, fresh, show, hasUploads, onClose }: { p
     <h2 id="as-t" className="cf-t">Import brand assets</h2>
     {fresh ? <p className="cf-b as-new"><Check {...I} /><span>New link saved{fresh.file ? <>: <b>{fresh.file}</b>{fresh.page ? ` · ${fresh.page}` : ''}</> : ''}. Nothing has changed yet.{fresh.otherFile ? ' It’s a different file from before, so starting from scratch is suggested.' : ''}</span></p> : null}
     <p className="cf-b">Builds the downloads on the Resources page (logos, avatars, icons, images, graphics) and brands the portal with this file’s logo, colours and typefaces.</p>
-    {running ? <div className="as-run" role="status"><Loader2 size={18} strokeWidth={1.75} className="spin" aria-hidden />Exporting every asset from Figma and comparing it with what’s here. This takes a minute or two.</div> : <>
+    {running ? <div className="as-run" role="status"><Loader2 size={18} strokeWidth={1.75} className="spin" aria-hidden />{stage} This takes a minute or two.</div> : <>
       <div className="rb-opts" role="radiogroup" aria-labelledby="as-t">
         {MODES.map(({ id, icon: Ic, title, body }) => <button key={id} role="radio" aria-checked={mode === id} className={'rb-opt' + (mode === id ? ' on' : '')} onClick={() => setMode(id)}>
           <span className="rb-ic" aria-hidden><Ic size={18} strokeWidth={1.75} /></span><span><b>{title}{id === 'fresh' && fresh?.otherFile ? <span className="as-rec">Suggested</span> : null}</b><span>{body}</span></span>
         </button>)}
       </div>
+      {repo ? <label className="as-wipe"><input type="checkbox" checked={toKit} onChange={(e) => setToKit(e.target.checked)} />Also update the kit repository ({repo.split('/').pop()}): its assets folder is rebuilt from these files</label> : <p className="as-wipe mute">There’s no kit repository yet; building the kit will use these files.</p>}
       {mode === 'fresh' ? <label className="as-wipe"><input type="checkbox" checked={wipe} onChange={(e) => setWipe(e.target.checked)} />Also delete files uploaded here to those downloads{hasUploads ? '' : ' (if any)'}</label> : null}
     </>}
     {err ? <p className="tm2-msg" role="alert">{err}</p> : null}
@@ -136,7 +146,13 @@ function Report({ r }: { r: AssetsReport }) {
         </button>
         {open === p.key ? <div className="ar-names">{p.added.length ? <p><b>New</b> {names(p.added)}</p> : null}{p.updated.length ? <p><b>Updated</b> {names(p.updated)}</p> : null}{p.removed.length ? <p><b>Removed</b> {names(p.removed)}</p> : null}{p.uploadsRemoved.length ? <p><b>Uploads deleted</b> {names(p.uploadsRemoved)}</p> : null}</div> : null}
       </li>; })}</ul> : <p className="mute">No assets found. Assets are frames inside the Logos, Avatars, Icons, Images and Graphic language sections of the Assets page.</p>}
+      {r.notes?.length ? <details className="ar-notes"><summary>{n(r.notes.length, 'note')} on how the Assets page was read</summary><ul>{r.notes.map((x, i) => <li key={i}><b>{x.name}</b> <span className="mute">({x.pkg})</span>: {x.reason}</li>)}</ul></details> : null}
       {r.failed.length ? <p className="ar-warn"><TriangleAlert size={13} strokeWidth={1.75} aria-hidden /> Figma didn’t export {names(r.failed)}. Import again to retry.</p> : null}
+    </section>
+    <section><h3>Kit repository</h3>
+      {r.kit ? r.kit.error ? <p className="ar-warn"><TriangleAlert size={13} strokeWidth={1.75} aria-hidden /> The repository didn’t update: {r.kit.error}</p>
+        : <p className="ar-p">{r.kit.repo}: {n(r.kit.files, 'asset file')} committed to the main branch{r.kit.removed ? `, ${n(r.kit.removed, 'old file')} removed` : ''}.{r.kit.commit ? <> <a href={`https://github.com/${r.kit.repo}/commit/${r.kit.commit}`} target="_blank" rel="noopener">See the commit</a></> : null}</p>
+        : <p className="mute ar-p">Not updated with this import. Rebuild the kit from the Overview’s actions to put these files in it.</p>}
     </section>
     <section><h3>Portal branding</h3>
       <dl className="ar-dl">

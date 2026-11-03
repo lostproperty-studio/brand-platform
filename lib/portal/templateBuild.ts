@@ -23,6 +23,10 @@ export type TemplateOpts = { chapters?: string[]; showcase?: boolean; /** Starti
 /** What an assets import changed, shown to the studio afterwards */
 export type AssetsReport = {
   at: string; mode: BuildMode; file: string; wiped: boolean;
+  /** Items on the Assets page that weren't taken, or were taken with a caveat */
+  notes?: { pkg: string; name: string; reason: string }[];
+  /** The kit repository update that followed, if any */
+  kit?: { repo: string; files: number; removed: number; commit?: string; error?: string } | null;
   packages: { key: string; title: string; added: string[]; updated: string[]; removed: string[]; unchanged: number; uploads: number; uploadsRemoved: string[] }[];
   failed: string[];
   colours: { total: number; added: string[]; removed: string[] };
@@ -38,6 +42,11 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const key = fileKey || p.figma_key!;
   const doAssets = !!pages.assets, doGuide = !!pages.guidelines;
   const t = await readTemplate(key, pages);
+  // Nothing recognised on the Assets page: stop before anything is removed, and say what was seen
+  if (doAssets && !t.assets.length) {
+    const seen = t.assetSkips.slice(0, 4).map((x) => `${x.name} (${x.reason})`).join('; ');
+    throw new Error(`No artwork found on the Assets page of “${pages.file}”, so nothing was changed. Assets go in sections named Logos, Avatars, Icons, Images or Graphic language, one frame per file with the artwork inside.${seen ? ' Seen: ' + seen + '.' : ''}`);
+  }
   const pick = (id: string) => !opts.chapters || opts.chapters.includes(id);
   // Only the chapters asked for are read and exported
   t.chapters = t.chapters.filter((c) => pick(templateChapterId(c.title)));
@@ -58,18 +67,22 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const stamp = Date.now().toString(36);
   const assetById = new Map(t.assets.map((a) => [a.nodeId, a]));
   const showIds = new Set(t.showcase.flatMap((r) => r.frames.map((f) => f.nodeId)));
-  type Job = { id: string; url: string; bucket: 'previews' | 'kits'; path: string; type: string };
+  // Asset files get their content hash in the path, so a changed logo is a new file and never a stale cached copy
+  type Job = { id: string; url: string; bucket: 'previews' | 'kits'; path: string; type: string; ext?: string };
   const jobs: Job[] = [];
-  for (const [id, url] of Object.entries(png as Record<string, string | null>)) if (url) { const a = assetById.get(id); jobs.push(a ? { id, url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}.png`, type: 'image/png' } : { id, url, bucket: 'previews', path: showIds.has(id) ? `${projectId}/showcase/figma-${safe(id)}.png` : `${projectId}/guide/${stamp}/${safe(id)}.png`, type: 'image/png' }); }
-  for (const [id, url] of Object.entries(svg as Record<string, string | null>)) if (url) { const a = assetById.get(id)!; jobs.push({ id, url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}.svg`, type: 'image/svg+xml' }); }
+  for (const [id, url] of Object.entries(png as Record<string, string | null>)) if (url) { const a = assetById.get(id); jobs.push(a ? { id, url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/png', ext: 'png' } : { id, url, bucket: 'previews', path: showIds.has(id) ? `${projectId}/showcase/figma-${safe(id)}.png` : `${projectId}/guide/${stamp}/${safe(id)}.png`, type: 'image/png' }); }
+  for (const [id, url] of Object.entries(svg as Record<string, string | null>)) if (url) { const a = assetById.get(id)!; jobs.push({ id, url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/svg+xml', ext: 'svg' }); }
   const stored: Record<string, { path: string; bytes: number; hash: string }> = {};
   const queue = [...jobs];
   await Promise.all(Array.from({ length: 8 }, async () => {
     for (let j = queue.shift(); j; j = queue.shift()) {
       try {
-        const bytes = new Uint8Array(await (await fetch(j.url)).arrayBuffer());
-        const { error } = await sb.storage.from(j.bucket).upload(j.path, bytes, { contentType: j.type, upsert: true });
-        if (!error) stored[j.id] = { path: j.path, bytes: bytes.byteLength, hash: createHash('sha1').update(bytes).digest('hex').slice(0, 16) };
+        const res = await fetch(j.url); if (!res.ok) continue;
+        const bytes = new Uint8Array(await res.arrayBuffer()); if (!bytes.byteLength) continue;
+        const hash = createHash('sha1').update(bytes).digest('hex').slice(0, 16);
+        const path = j.ext ? `${j.path}-${hash.slice(0, 8)}.${j.ext}` : j.path;
+        const { error } = await sb.storage.from(j.bucket).upload(path, bytes, { contentType: j.type, upsert: true, cacheControl: '60' });
+        if (!error) stored[j.id] = { path, bytes: bytes.byteLength, hash };
       } catch { /* a failed export leaves that picture out */ }
     }
   }));
@@ -125,24 +138,24 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
     const list = fresh.get(a.pkg) || []; list.push({ name: `${slug(a.name)}.${ext}`, path: st.path, bytes: st.bytes, hash: st.hash, type: ext === 'svg' ? 'image/svg+xml' : 'image/png', fromFigma: true }); fresh.set(a.pkg, list);
   }
   const wipe = doAssets && mode === 'fresh' && !!opts.wipe;
-  const report: AssetsReport = { at: now, mode, file: pages.file, wiped: wipe, packages: [], failed: doAssets ? t.assets.filter((a) => !stored[a.nodeId]).map((a) => a.name) : [], colours: { total: 0, added: [], removed: [] }, fonts: [], logo: null, form: 0 };
+  const report: AssetsReport = { at: now, mode, file: pages.file, wiped: wipe, notes: t.assetSkips, kit: null, packages: [], failed: doAssets ? t.assets.filter((a) => !stored[a.nodeId]).map((a) => a.name) : [], colours: { total: 0, added: [], removed: [] }, fonts: [], logo: null, form: 0 };
   const wipedUploads: string[] = [];
   for (const key of doAssets ? new Set([...Object.keys(pkgs), ...fresh.keys()]) : new Set<string>()) {
     const cur = pkgs[key] || {};
-    const prevFig = new Map((cur.files || []).filter((f) => f.fromFigma).map((f) => [f.path, f]));
+    const prevFig = new Map((cur.files || []).filter((f) => f.fromFigma).map((f) => [f.name, f]));
     const uploads = (cur.files || []).filter((f) => !f.fromFigma);
     const incoming = fresh.get(key) || [];
     const keepUploads = wipe ? [] : uploads;
     if (wipe) wipedUploads.push(...uploads.map((u) => u.path));
-    const files = mode === 'add' ? [...(cur.files || []), ...incoming.filter((f) => !prevFig.has(f.path))] : [...keepUploads, ...incoming];
+    const files = mode === 'add' ? [...(cur.files || []), ...incoming.filter((f) => !prevFig.has(f.name))] : [...keepUploads, ...incoming];
     const title = key.startsWith('custom-') ? cur.title || t.assets.find((a) => a.pkg === key)?.title : cur.title;
-    const changed = (f: PkgFile) => { const o = prevFig.get(f.path)!; return o.hash && f.hash ? o.hash !== f.hash : o.bytes !== f.bytes; };
+    const changed = (f: PkgFile) => { const o = prevFig.get(f.name)!; return o.hash && f.hash ? o.hash !== f.hash : o.bytes !== f.bytes || o.path !== f.path; };
     const entry = {
       key, title: title || PKG_TITLE[key] || key,
-      added: incoming.filter((f) => !prevFig.has(f.path)).map((f) => f.name),
-      updated: mode === 'add' ? [] : incoming.filter((f) => prevFig.has(f.path) && (mode === 'fresh' || changed(f))).map((f) => f.name),
-      removed: mode === 'add' ? [] : [...prevFig.values()].filter((f) => !incoming.some((x) => x.path === f.path)).map((f) => f.name),
-      unchanged: mode === 'fresh' ? 0 : incoming.filter((f) => prevFig.has(f.path) && (mode === 'add' || !changed(f))).length,
+      added: incoming.filter((f) => !prevFig.has(f.name)).map((f) => f.name),
+      updated: mode === 'add' ? [] : incoming.filter((f) => prevFig.has(f.name) && (mode === 'fresh' || changed(f))).map((f) => f.name),
+      removed: mode === 'add' ? [] : [...prevFig.values()].filter((f) => !incoming.some((x) => x.name === f.name)).map((f) => f.name),
+      unchanged: mode === 'fresh' ? 0 : incoming.filter((f) => prevFig.has(f.name) && (mode === 'add' || !changed(f))).length,
       uploads: keepUploads.length, uploadsRemoved: wipe ? uploads.map((u) => u.name) : []
     };
     if (entry.added.length + entry.updated.length + entry.removed.length + entry.unchanged + entry.uploadsRemoved.length) report.packages.push(entry);
@@ -152,6 +165,14 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   }
   const nowUsed = new Set([...fresh.values()].flat().map((f) => f.path));
   const stale = mode === 'add' || !doAssets ? [] : [...oldFigma.filter((x) => !nowUsed.has(x)), ...wipedUploads];
+  // Earlier imports stored files without the hash in the name; anything left in a package folder that nothing lists any more goes too
+  if (doAssets && mode !== 'add') {
+    const listed = new Set([...Object.values(pkgs).flatMap((x) => (x.files || []).map((f) => f.path)), ...Object.values(pkgs).map((x) => x.cover).filter(Boolean) as string[]]);
+    for (const key of new Set([...Object.keys(pkgs), ...fresh.keys()])) {
+      const { data: list } = await sb.storage.from('kits').list(`${projectId}/packages/${key}`, { limit: 1000 });
+      for (const o of list || []) { const path = `${projectId}/packages/${key}/${o.name}`; if (o.id && o.name.startsWith('figma-') && !listed.has(path) && !stale.includes(path)) stale.push(path); }
+    }
+  }
   for (let i = 0; i < stale.length; i += 100) await sb.storage.from('kits').remove(stale.slice(i, i + 100));
   if (doAssets) { const lg = pickLogo((pkgs.logos?.files || []).filter((f) => /\.(svg|png)$/i.test(f.name)).map((f) => ({ path: 'assets/logo/' + f.name, storage_path: f.path }))); report.logo = lg.main ? { name: lg.main.path.split('/').pop()!, light: lg.light?.path.split('/').pop() } : null; }
 

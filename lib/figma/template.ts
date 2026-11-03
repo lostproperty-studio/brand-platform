@@ -65,6 +65,8 @@ export type TemplateRead = {
   fonts: { role: string; family: string; use?: string }[];
   styles: { name: string; family?: string; size?: number; lineHeight?: number; tracking?: number; weight?: number }[];
   assets: TemplateAsset[];
+  /** Things on the Assets page that weren't taken as assets, and why */
+  assetSkips: { pkg: string; name: string; reason: string }[];
   chapters: { title: string; number?: string; intro?: string; thumbNode?: string; frames: N[] }[];
   showcase: { layout: 'full' | 'half'; frames: { nodeId: string; caption?: string }[] }[];
   imageNodes: string[];
@@ -72,7 +74,7 @@ export type TemplateRead = {
   sizes: Record<string, { w: number; h: number }>;
 };
 
-const PKG: [RegExp, string][] = [[/^logos?$/i, 'logos'], [/^avatars?$/i, 'avatars'], [/^icons?$/i, 'icons'], [/^images?$/i, 'images'], [/^graphic\s*language$/i, 'graphics']];
+const PKG: [RegExp, string][] = [[/^(logo|wordmark|lockup)/i, 'logos'], [/^(social\s*)?avatar/i, 'avatars'], [/^icon/i, 'icons'], [/^(image|photo)/i, 'images'], [/^(graphic|pattern|shape)/i, 'graphics']];
 
 export async function readTemplate(fileKey: string, pages: TemplatePages): Promise<TemplateRead> {
   // Either page can be left out ('') to read only the assets or only the guidelines
@@ -117,19 +119,42 @@ export async function readTemplate(fileKey: string, pages: TemplatePages): Promi
     return { name: named(s, 'style name') || 'Style', family: st.fontFamily, size: st.fontSize, weight: st.fontWeight, lineHeight: st.lineHeightPercentFontSize ? Math.round(st.lineHeightPercentFontSize) : st.lineHeightPx && st.fontSize ? Math.round((st.lineHeightPx / st.fontSize) * 100) : undefined, tracking: st.letterSpacing && st.fontSize ? Math.round((st.letterSpacing / st.fontSize) * 1000) / 10 : undefined };
   });
 
-  // Assets: one frame per file inside each package section; the artwork layer is what's exported
+  // Assets: each item (a frame, component, instance or group) inside a package section is one file. Its "artwork"
+  // layer is what's exported; without one, the whole item is. Sections and groups inside the package section
+  // (Light, Dark…) are followed, and their names lead the file name, so "dark / wordmark" stays apart from "light / wordmark".
   const assets: TemplateAsset[] = [];
+  const assetSkips: TemplateRead['assetSkips'] = [];
+  const ITEM = new Set(['FRAME', 'COMPONENT', 'INSTANCE', 'GROUP']);
+  const hidden = (c: N) => !visible(c) || c.name.trim().startsWith('_') || isNote(c);
+  // Real artwork: an image, a vector or shape, filled text, or a frame/group holding any of those (the template's notes don't count)
+  const hasArt = (n: N): boolean => hasImage(n) || (n.children || []).some((c) => !hidden(c) && (c.type === 'TEXT' ? !!c.characters?.trim() : ['FRAME', 'GROUP', 'SECTION'].includes(c.type) ? hasArt(c) || !!solid(c) : true));
+  const usedNames = new Set<string>();
   for (const sec of top(assetsPage).filter((c) => c.type === 'SECTION')) {
     const nm = sec.name.trim();
     const custom = nm.match(/^custom\s*\/\s*(.+)$/i);
     const pkg = custom ? 'custom-' + slug(custom[1]).slice(0, 12) : PKG.find(([re]) => re.test(nm))?.[1];
     if (!pkg) continue;
-    for (const f of (sec.children || []).filter((c) => visible(c) && c.type === 'FRAME' && !c.name.startsWith('_')).sort(byPos)) {
-      const art = find(f, 'artwork'); if (!art) continue;
-      const real = (art.children || []).filter((c) => visible(c) && !isNote(c));
-      if (!real.length && !hasImage(art)) continue; // still the placeholder
-      assets.push({ pkg, title: custom ? custom[1].trim() : undefined, name: f.name.trim(), nodeId: art.id, format: pkg === 'images' || hasImage(art) || real.some((c) => hasImage(c)) ? 'png' : 'svg', ground: solid(f) || undefined });
-    }
+    const visit = (parent: N, prefix: string[]) => {
+      for (const f of (parent.children || []).filter((c) => !hidden(c)).sort(byPos)) {
+        if (f.type === 'TEXT') continue;
+        const art = ITEM.has(f.type) || f.type === 'SECTION' ? find(f, 'artwork') : undefined;
+        // A container of items (a section, or a frame/group holding items with their own artwork layers)
+        const kids = (f.children || []).filter((c) => !hidden(c) && (ITEM.has(c.type) || c.type === 'SECTION'));
+        const holdsItems = f.type === 'SECTION' || (f.name.trim().toLowerCase() !== 'artwork' && kids.filter((k) => k.type === 'SECTION' || !!find(k, 'artwork')).length > 1);
+        if (holdsItems) { visit(f, [...prefix, f.name.trim()]); continue; }
+        if (!ITEM.has(f.type)) continue;
+        const base = [...prefix, f.name.trim()].join(' / ');
+        const node = art || f;
+        const real = (node.children || []).filter((c) => !hidden(c));
+        if (!hasArt(node)) { assetSkips.push({ pkg, name: base, reason: art ? 'the artwork layer is still the placeholder' : 'empty' }); continue; }
+        let name = base, i = 2; while (usedNames.has(pkg + '/' + slug(name))) name = `${base} ${i++}`;
+        if (name !== base) assetSkips.push({ pkg, name: base, reason: `two items share this name; the second is saved as “${name}”` });
+        usedNames.add(pkg + '/' + slug(name));
+        if (!art) assetSkips.push({ pkg, name, reason: 'no artwork layer, so the whole frame was exported (background included)' });
+        assets.push({ pkg, title: custom ? custom[1].trim() : undefined, name, nodeId: node.id, format: pkg === 'images' || hasImage(node) || real.some((c) => hasImage(c)) ? 'png' : 'svg', ground: solid(f) || undefined });
+      }
+    };
+    visit(sec, []);
   }
 
   // Chapters, in reading order, each matched to its section on the Guidelines page by title
@@ -164,7 +189,7 @@ export async function readTemplate(fileKey: string, pages: TemplatePages): Promi
   const want = new Set([...imageNodes, ...chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...assets.map((a) => a.nodeId)]);
   const sizes: TemplateRead['sizes'] = {};
   for (const p of [assetsPage, guidePage]) walk(p, (x) => { if (want.has(x.id)) { const bb = box(x); sizes[x.id] = { w: Math.round(bb.width), h: Math.round(bb.height) }; } });
-  return { brand, form, colours, fonts, styles, assets, chapters, showcase, imageNodes, sizes };
+  return { brand, form, colours, fonts, styles, assets, assetSkips, chapters, showcase, imageNodes, sizes };
 }
 
 // ── Guideline frames to blocks, by layout name

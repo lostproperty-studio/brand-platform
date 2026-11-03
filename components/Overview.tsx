@@ -123,7 +123,7 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
           <section className="ov-card" aria-labelledby="ov-links">
             <h2 id="ov-links" className="ov-h"><Link2 {...I} />Files and links</h2>
             <div className="ov-links">
-              <FigmaSources projectId={d.projectId} slug={d.slug} assets={d.sources.assets} guidelines={d.sources.guidelines} thumb={d.figma?.thumb} report={d.sources.report} />
+              <FigmaSources projectId={d.projectId} slug={d.slug} repo={d.repo?.name} assets={d.sources.assets} guidelines={d.sources.guidelines} thumb={d.figma?.thumb} report={d.sources.report} />
               {d.repo ? <a className="ov-link" href={`https://github.com/${d.repo.name}`} target="_blank" rel="noopener">
                 <span className="ov-thumb dark"><Github size={20} strokeWidth={1.5} aria-hidden /></span>
                 <span className="ov-link-t"><b><GitBranch size={13} strokeWidth={1.75} aria-hidden />{d.repo.name}</b><span className="mute">Brand kit · v{d.repo.version}</span></span><ArrowUpRight size={15} strokeWidth={1.75} aria-hidden />

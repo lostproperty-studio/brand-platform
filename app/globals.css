@@ -1609,3 +1609,10 @@ body.ve-moving, body.ve-moving * { cursor: grabbing !important; user-select: non
 .ar-foot { font-size: 12px; color: var(--mute); margin: 0 0 14px; }
 
 .fs-acts .btn { white-space: nowrap; }
+.ar-p { margin: 0; font-size: 14px; }
+.ar-p a { color: inherit; }
+.ar-notes { margin-top: 8px; font-size: 12px; }
+.ar-notes summary { cursor: pointer; color: #9A5B00; }
+.ar-notes ul { margin: 6px 0 0; padding-left: 18px; color: var(--mute); line-height: 1.5; }
+.ar-notes b { font-weight: 400; color: #000; }
+p.as-wipe { margin-top: -6px; }

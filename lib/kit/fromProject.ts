@@ -22,7 +22,7 @@ export function resolvedText(it: Item) {
 /** Collects everything the kit needs: brand basics from the project, rules and assets from the latest review. */
 export async function kitInputFor(projectId: string): Promise<{ input: KitInput; figmaKey: string | null }> {
   const sb = adminClient();
-  const { data: p, error } = await sb.from('projects').select('client, slug, line, kit_version, brand, figma_key').eq('id', projectId).single();
+  const { data: p, error } = await sb.from('projects').select('client, slug, line, kit_version, brand, figma_key, content').eq('id', projectId).single();
   if (error) throw error;
   const { data: scan } = await sb.from('scans').select('id').eq('project_id', projectId).eq('status', 'done').order('created_at', { ascending: false }).limit(1).maybeSingle();
   const { data: items } = scan ? await sb.from('review_items').select('chapter, kind, title, proposal, answer, recommend, status, input, node_id').eq('scan_id', scan.id).order('ord') : { data: [] as Item[] };
@@ -33,7 +33,9 @@ export async function kitInputFor(projectId: string): Promise<{ input: KitInput;
   const licensedFiles = (brand.fonts || []).filter((f) => f.name).flatMap((f) => (f.files || []).filter((x) => x.licence === 'licensed').map((x) => ({ family: f.name, name: x.name, path: x.path })));
   const list = (items || []) as Item[];
   const rules: Rule[] = list.filter((i) => i.kind !== 'asset' && i.kind !== 'issue' && CH[i.chapter]).map((i) => ({ chapter: CH[i.chapter], title: i.title, text: resolvedText(i) })).filter((r) => r.text);
-  const assets: AssetFile[] = list.filter((i) => i.kind === 'asset' && i.status !== 'skipped' && i.node_id).map((i) => {
+  // Assets imported from the Figma assets page are the kit's assets; the older scan's review items only when there are none
+  const figmaAssets = await figmaPackageAssets(projectId, p.content);
+  const assets: AssetFile[] = figmaAssets.length ? figmaAssets : list.filter((i) => i.kind === 'asset' && i.status !== 'skipped' && i.node_id).map((i) => {
     const name = (resolvedText(i).match(/[a-z0-9-]+\.svg/) || [p.slug + '-' + i.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.svg'])[0];
     return { path: `assets/logo/${name}`, nodeId: i.node_id!, format: 'svg' as const, description: i.title };
   });
@@ -45,9 +47,25 @@ export async function kitInputFor(projectId: string): Promise<{ input: KitInput;
   };
 }
 
+const KIT_FOLDER: Record<string, string> = { logos: 'logo', avatars: 'avatars', icons: 'icons', images: 'imagery', graphics: 'graphics' };
+/** The files in each download that came from the Figma assets page, with their bytes, at their place in the kit */
+async function figmaPackageAssets(projectId: string, content: unknown): Promise<AssetFile[]> {
+  const sb = adminClient();
+  const pkgs = ((content as { packages?: Record<string, { title?: string; files?: { name: string; path: string; fromFigma?: boolean }[] }> } | null)?.packages) || {};
+  const out: AssetFile[] = [];
+  for (const [key, s] of Object.entries(pkgs)) {
+    const folder = KIT_FOLDER[key] || (key.startsWith('custom-') ? key.slice(7) : null); if (!folder) continue;
+    for (const f of (s.files || []).filter((x) => x.fromFigma)) {
+      const { data } = await sb.storage.from('kits').download(f.path); if (!data) continue;
+      out.push({ path: `assets/${folder}/${f.name}`, nodeId: '', format: f.name.endsWith('.svg') ? 'svg' : 'png', description: `${s.title || key}: ${f.name.replace(/\.[a-z]+$/, '').replace(/-/g, ' ')}`, bytes: new Uint8Array(await data.arrayBuffer()) });
+    }
+  }
+  return out;
+}
+
 /** Downloads the SVG (and a 2× PNG) of every accepted asset layer. */
 export async function attachAssetBytes(input: KitInput, figmaKey: string) {
-  if (!input.assets.length) return;
+  if (!input.assets.length || input.assets.every((a) => a.bytes)) return;
   const ids = input.assets.map((a) => a.nodeId);
   const [svgs, pngs] = await Promise.all([exportNodes(figmaKey, ids, 'svg'), exportNodes(figmaKey, ids, 'png', 2)]);
   const extra: AssetFile[] = [];
