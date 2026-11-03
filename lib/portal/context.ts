@@ -4,6 +4,7 @@ import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/
 import { readFonts, signFontUrls } from '@/lib/projects/fonts';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
 import type { Snapshot } from '@/lib/ai/project';
+import { pickLogo, withFigmaLogos } from '@/lib/portal/logo';
 
 export type KitFileRow = { path: string; format: string; storage_path: string | null; part: string; partStatus: string };
 
@@ -20,8 +21,10 @@ export const portalContext = cache(async (slug: string) => {
   const fontCss = fontFaceCss(fonts, await signFontUrls(fonts, 6 * 3600));
   const sb = adminClient();
   const { data: parts } = await sb.from('deliverable_parts').select('key, status, visible, deliverable_files(path, format, storage_path)').eq('project_id', p.id).order('ord');
-  const files: KitFileRow[] = (parts || []).filter((d) => preview || d.visible).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string })));
-  const logoFile = files.find((f) => /^assets\/logo\/.+\.svg$/.test(f.path) && /dark|black|primary|horizontal|main/i.test(f.path)) || files.find((f) => /^assets\/logo\/.+\.svg$/.test(f.path));
+  const kit: KitFileRow[] = (parts || []).filter((d) => preview || d.visible).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string })));
+  // Logos imported from Figma replace the kit's
+  const files = withFigmaLogos(kit, p.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
+  const logoFile = pickLogo(files).main;
   const logoUrl = logoFile?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoFile.storage_path, 6 * 3600)).data?.signedUrl ?? null : null;
   return { project: p, access: acc, preview, snap, fonts: fonts as ProjectFont[], fontCss, files, logoUrl };
 });

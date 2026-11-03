@@ -32,11 +32,12 @@ export async function logoThumbs(projects: P[]): Promise<Record<string, LogoThum
     if (!f.storage_path) continue;
     const m = byProject.get(f.deliverable_parts.project_id) || new Map(); m.set(f.path, f.storage_path); byProject.set(f.deliverable_parts.project_id, m);
   }
-  // Logos added through the Figma template live in the Logos download
+  // Logos imported from the Figma assets page take over from the kit's; other uploads to the Logos download join them
   for (const p of projects) {
-    const files = ((p.content as { packages?: { logos?: { files?: { name: string; path: string }[] } } } | null)?.packages?.logos?.files) || [];
+    const files = ((p.content as { packages?: { logos?: { files?: { name: string; path: string; fromFigma?: boolean }[] } } } | null)?.packages?.logos?.files) || [];
     if (!files.length) continue;
-    const m = byProject.get(p.id) || new Map(); for (const f of files) if (!m.has('pkg/' + f.name)) m.set('pkg/' + f.name, f.path); byProject.set(p.id, m);
+    const m: Map<string, string> = files.some((f) => f.fromFigma) ? new Map() : byProject.get(p.id) || new Map();
+    for (const f of files) if (!m.has('pkg/' + f.name)) m.set('pkg/' + f.name, f.path); byProject.set(p.id, m);
   }
   const chosen: Record<string, { bg: string; storage: string | null }> = {};
   for (const p of projects) {

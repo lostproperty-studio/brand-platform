@@ -7,6 +7,7 @@ import { CopyLink } from '@/components/CopyLink';
 import { ProjectTeam } from '@/components/ProjectTeam';
 import { LogoThumb } from '@/components/LogoThumb';
 import { FigmaSources, type SourceRow } from '@/components/FigmaSources';
+import type { AssetsReport } from '@/lib/portal/templateBuild';
 import type { LogoThumb as Thumb } from '@/lib/projects/logoThumb';
 
 export type OverviewData = {
@@ -17,7 +18,7 @@ export type OverviewData = {
   views: { total: number; viewers: number; last: { who: string; at: string } | null; days: number[]; recent: { who: string; what: string; at: string; kind: string }[] };
   edit: { who: string; at: string } | null; edits: { who: string; area: string; at: string }[];
   figma: { key: string; name?: string; thumb?: string; modified?: string } | null;
-  sources: { assets: SourceRow; guidelines: SourceRow };
+  sources: { assets: SourceRow; guidelines: SourceRow; report: AssetsReport | null };
   repo: { name: string; version: string } | null; ai: string | null; chapters: number;
   checks: { ok: boolean; title: string; note?: string; href?: string; cta?: string }[];
 };
@@ -122,7 +123,7 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
           <section className="ov-card" aria-labelledby="ov-links">
             <h2 id="ov-links" className="ov-h"><Link2 {...I} />Files and links</h2>
             <div className="ov-links">
-              <FigmaSources projectId={d.projectId} assets={d.sources.assets} guidelines={d.sources.guidelines} thumb={d.figma?.thumb} />
+              <FigmaSources projectId={d.projectId} slug={d.slug} assets={d.sources.assets} guidelines={d.sources.guidelines} thumb={d.figma?.thumb} report={d.sources.report} />
               {d.repo ? <a className="ov-link" href={`https://github.com/${d.repo.name}`} target="_blank" rel="noopener">
                 <span className="ov-thumb dark"><Github size={20} strokeWidth={1.5} aria-hidden /></span>
                 <span className="ov-link-t"><b><GitBranch size={13} strokeWidth={1.75} aria-hidden />{d.repo.name}</b><span className="mute">Brand kit · v{d.repo.version}</span></span><ArrowUpRight size={15} strokeWidth={1.75} aria-hidden />

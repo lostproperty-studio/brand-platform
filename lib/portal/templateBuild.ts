@@ -1,4 +1,6 @@
+import { createHash } from 'crypto';
 import { adminClient } from '@/lib/supabase/server';
+import { pickLogo } from '@/lib/portal/logo';
 import { exportNodes } from '@/lib/figma/scan';
 import { frameToTemplateBlock, readTemplate, type TemplatePages } from '@/lib/figma/template';
 import { addNewOnly, CHAPTER_NAMES, GUIDE_VERSION, type BuildMode, guidePaths, keyFor, mergeBlocks, normaliseGuide, type Block, type BlockMedia, type Guide, type GuideChapter } from '@/lib/portal/guide';
@@ -16,7 +18,19 @@ const slug = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]
 const safe = (id: string) => id.replace(/[:;]/g, '-');
 
 /** What to bring in: the assets page, the guidelines page (all chapters, or only some), and the showcase */
-export type TemplateOpts = { chapters?: string[]; showcase?: boolean };
+export type TemplateOpts = { chapters?: string[]; showcase?: boolean; /** Starting over on assets: also remove files uploaded to the asset packages in the platform */ wipe?: boolean };
+
+/** What an assets import changed, shown to the studio afterwards */
+export type AssetsReport = {
+  at: string; mode: BuildMode; file: string; wiped: boolean;
+  packages: { key: string; title: string; added: string[]; updated: string[]; removed: string[]; unchanged: number; uploads: number; uploadsRemoved: string[] }[];
+  failed: string[];
+  colours: { total: number; added: string[]; removed: string[] };
+  fonts: { role: string; family: string; files: number; note?: string }[];
+  logo: { name: string; light?: string } | null;
+  form: number; line?: string;
+};
+const PKG_TITLE: Record<string, string> = { logos: 'Logos', avatars: 'Social avatars', icons: 'Icons', images: 'Images', graphics: 'Graphic language', fonts: 'Fonts' };
 export const templateChapterId = (title: string) => 't-' + slug(title);
 
 export async function buildGuideFromTemplate(projectId: string, p: { figma_key?: string | null; content: unknown; brand: unknown }, pages: TemplatePages & { file: string }, mode: BuildMode = 'update', opts: TemplateOpts = {}, fileKey?: string) {
@@ -48,14 +62,14 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const jobs: Job[] = [];
   for (const [id, url] of Object.entries(png as Record<string, string | null>)) if (url) { const a = assetById.get(id); jobs.push(a ? { id, url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}.png`, type: 'image/png' } : { id, url, bucket: 'previews', path: showIds.has(id) ? `${projectId}/showcase/figma-${safe(id)}.png` : `${projectId}/guide/${stamp}/${safe(id)}.png`, type: 'image/png' }); }
   for (const [id, url] of Object.entries(svg as Record<string, string | null>)) if (url) { const a = assetById.get(id)!; jobs.push({ id, url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}.svg`, type: 'image/svg+xml' }); }
-  const stored: Record<string, { path: string; bytes: number }> = {};
+  const stored: Record<string, { path: string; bytes: number; hash: string }> = {};
   const queue = [...jobs];
   await Promise.all(Array.from({ length: 8 }, async () => {
     for (let j = queue.shift(); j; j = queue.shift()) {
       try {
         const bytes = new Uint8Array(await (await fetch(j.url)).arrayBuffer());
         const { error } = await sb.storage.from(j.bucket).upload(j.path, bytes, { contentType: j.type, upsert: true });
-        if (!error) stored[j.id] = { path: j.path, bytes: bytes.byteLength };
+        if (!error) stored[j.id] = { path: j.path, bytes: bytes.byteLength, hash: createHash('sha1').update(bytes).digest('hex').slice(0, 16) };
       } catch { /* a failed export leaves that picture out */ }
     }
   }));
@@ -98,28 +112,48 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const built: Guide = { version: GUIDE_VERSION, generatedAt: now, file: doGuide ? pages.file : previous?.file || pages.file, page: doGuide ? 'Guidelines (template)' : previous?.page || 'Guidelines', chapters, colours };
   const guide = mode === 'add' && previous && doGuide ? addNewOnly(previous, built) : built;
 
-  // 3. Packages: files from the template replace the template's previous files; studio uploads stay
-  const pkgs: PackageMap = { ...packageSettings(content) };
+  // 3. Packages. Update: files from Figma are matched to the last import, so new ones are added, changed ones
+  // replaced and ones no longer in Figma removed; files uploaded in the platform stay. Add: only new files come in.
+  // Start over: every file from the last import goes (and, if asked, the uploads too) and the packages are rebuilt.
+  const pkgs: PackageMap = { ...packageSettings(raw) };
   const oldFigma: string[] = [];
   for (const s of Object.values(pkgs)) for (const f of s.files || []) if (f.fromFigma) oldFigma.push(f.path);
   const fresh = new Map<string, PkgFile[]>();
   for (const a of t.assets) {
     const st = stored[a.nodeId]; if (!st) continue;
     const ext = st.path.split('.').pop();
-    const list = fresh.get(a.pkg) || []; list.push({ name: `${slug(a.name)}.${ext}`, path: st.path, bytes: st.bytes, type: ext === 'svg' ? 'image/svg+xml' : 'image/png', fromFigma: true }); fresh.set(a.pkg, list);
+    const list = fresh.get(a.pkg) || []; list.push({ name: `${slug(a.name)}.${ext}`, path: st.path, bytes: st.bytes, hash: st.hash, type: ext === 'svg' ? 'image/svg+xml' : 'image/png', fromFigma: true }); fresh.set(a.pkg, list);
   }
+  const wipe = doAssets && mode === 'fresh' && !!opts.wipe;
+  const report: AssetsReport = { at: now, mode, file: pages.file, wiped: wipe, packages: [], failed: doAssets ? t.assets.filter((a) => !stored[a.nodeId]).map((a) => a.name) : [], colours: { total: 0, added: [], removed: [] }, fonts: [], logo: null, form: 0 };
+  const wipedUploads: string[] = [];
   for (const key of doAssets ? new Set([...Object.keys(pkgs), ...fresh.keys()]) : new Set<string>()) {
     const cur = pkgs[key] || {};
-    const have = new Set((cur.files || []).map((f) => f.path));
-    const keep = mode === 'add' ? cur.files || [] : (cur.files || []).filter((f) => !f.fromFigma);
-    const add = (fresh.get(key) || []).filter((f) => mode !== 'add' || !have.has(f.path));
-    if (!add.length && !(cur.files || []).some((f) => f.fromFigma)) continue;
+    const prevFig = new Map((cur.files || []).filter((f) => f.fromFigma).map((f) => [f.path, f]));
+    const uploads = (cur.files || []).filter((f) => !f.fromFigma);
+    const incoming = fresh.get(key) || [];
+    const keepUploads = wipe ? [] : uploads;
+    if (wipe) wipedUploads.push(...uploads.map((u) => u.path));
+    const files = mode === 'add' ? [...(cur.files || []), ...incoming.filter((f) => !prevFig.has(f.path))] : [...keepUploads, ...incoming];
     const title = key.startsWith('custom-') ? cur.title || t.assets.find((a) => a.pkg === key)?.title : cur.title;
-    pkgs[key] = { ...cur, ...(title ? { title } : {}), files: [...keep, ...add], ...(add.length ? { enabled: true } : {}) };
+    const changed = (f: PkgFile) => { const o = prevFig.get(f.path)!; return o.hash && f.hash ? o.hash !== f.hash : o.bytes !== f.bytes; };
+    const entry = {
+      key, title: title || PKG_TITLE[key] || key,
+      added: incoming.filter((f) => !prevFig.has(f.path)).map((f) => f.name),
+      updated: mode === 'add' ? [] : incoming.filter((f) => prevFig.has(f.path) && (mode === 'fresh' || changed(f))).map((f) => f.name),
+      removed: mode === 'add' ? [] : [...prevFig.values()].filter((f) => !incoming.some((x) => x.path === f.path)).map((f) => f.name),
+      unchanged: mode === 'fresh' ? 0 : incoming.filter((f) => prevFig.has(f.path) && (mode === 'add' || !changed(f))).length,
+      uploads: keepUploads.length, uploadsRemoved: wipe ? uploads.map((u) => u.name) : []
+    };
+    if (entry.added.length + entry.updated.length + entry.removed.length + entry.unchanged + entry.uploadsRemoved.length) report.packages.push(entry);
+    if (!files.length && key.startsWith('custom-') && !cur.purpose) { delete pkgs[key]; continue; }
+    if (!incoming.length && !prevFig.size && !wipe) continue;
+    pkgs[key] = { ...cur, ...(title ? { title } : {}), files, ...(incoming.length ? { enabled: true } : {}) };
   }
   const nowUsed = new Set([...fresh.values()].flat().map((f) => f.path));
-  const stale = mode === 'add' || !doAssets ? [] : oldFigma.filter((x) => !nowUsed.has(x));
-  if (stale.length) await sb.storage.from('kits').remove(stale);
+  const stale = mode === 'add' || !doAssets ? [] : [...oldFigma.filter((x) => !nowUsed.has(x)), ...wipedUploads];
+  for (let i = 0; i < stale.length; i += 100) await sb.storage.from('kits').remove(stale.slice(i, i + 100));
+  if (doAssets) { const lg = pickLogo((pkgs.logos?.files || []).filter((f) => /\.(svg|png)$/i.test(f.name)).map((f) => ({ path: 'assets/logo/' + f.name, storage_path: f.path }))); report.logo = lg.main ? { name: lg.main.path.split('/').pop()!, light: lg.light?.path.split('/').pop() } : null; }
 
   // 4. Showcase: from the template until the studio changes it in the platform
   const sc = readShowcase(content);
@@ -132,17 +166,29 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const update: Record<string, unknown> = {};
   const nextBrand: Record<string, unknown> = { ...brand };
   const core = (brand.core || []);
-  if (doAssets && t.colours.length) nextBrand.core = mode === 'add' && core.length ? [...core, ...t.colours.filter((c) => !core.some((x) => x.hex.toUpperCase() === c.hex.toUpperCase())).map((c) => ({ name: c.name, hex: c.hex, note: c.role }))] : t.colours.map((c) => ({ name: c.name, hex: c.hex, note: c.role }));
+  if (doAssets && t.colours.length) {
+    const next = mode === 'add' && core.length ? [...core, ...t.colours.filter((c) => !core.some((x) => x.hex.toUpperCase() === c.hex.toUpperCase())).map((c) => ({ name: c.name, hex: c.hex, note: c.role }))] : t.colours.map((c) => ({ name: c.name, hex: c.hex, note: c.role }));
+    const has = (l: { hex: string }[], h: string) => l.some((x) => x.hex.toUpperCase() === h.toUpperCase());
+    report.colours = { total: next.length, added: next.filter((c) => !has(core, c.hex)).map((c) => `${c.name} ${c.hex.toUpperCase()}`), removed: core.filter((c) => !has(next, c.hex)).map((c) => `${c.name} ${c.hex.toUpperCase()}`) };
+    nextBrand.core = next;
+  } else if (doAssets) report.colours = { total: core.length, added: [], removed: [] };
   if (doAssets && t.fonts.length) {
-    const fonts = [...(brand.fonts || [])];
-    for (const f of t.fonts) { const i = fonts.findIndex((x) => x.role === f.role); if (i < 0) fonts.push({ role: f.role, name: f.family, label: f.use || '', files: [] }); else if (!fonts[i].name) fonts[i] = { ...fonts[i], name: f.family }; }
+    // Figma names the families; the font files themselves are uploaded in the platform (Figma can't hand them over).
+    // Starting over keeps uploaded files only where the family is the same.
+    const same = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+    const before = [...(brand.fonts || [])];
+    const fonts = mode === 'fresh' ? t.fonts.map((f) => { const o = before.find((x) => x.role === f.role); return { ...(o || {}), role: f.role, name: f.family, label: f.use || o?.label || '', files: o && same(o.name, f.family) ? o.files || [] : [] }; }) : before;
+    if (mode !== 'fresh') for (const f of t.fonts) { const i = fonts.findIndex((x) => x.role === f.role); if (i < 0) fonts.push({ role: f.role, name: f.family, label: f.use || '', files: [] }); else if (mode === 'update' && !(fonts[i].files || []).length) fonts[i] = { ...fonts[i], name: f.family }; else if (!fonts[i].name) fonts[i] = { ...fonts[i], name: f.family }; }
     nextBrand.fonts = fonts;
+    report.fonts = fonts.map((f) => { const fig = t.fonts.find((x) => x.role === f.role); const n = (f.files || []).length; const dropped = mode === 'fresh' ? before.find((x) => x.role === f.role && (x.files || []).length && !same(x.name, fig?.family)) : undefined;
+      return { role: f.role, family: f.name || fig?.family || '', files: n, note: dropped ? `${dropped.name} files unlinked; upload ${fig?.family}` : fig && n && !same(f.name, fig.family) ? `Figma now uses ${fig.family}; the uploaded files are ${f.name}` : !n ? 'No font files uploaded yet' : undefined }; });
   }
   update.brand = nextBrand;
   // The form: kept whole, so the portal and every AI document read the same answers. Depth sets the tier once.
   const tier = TIERS.find((x) => t.form.depth && x.label.toLowerCase() === t.form.depth.trim().toLowerCase())?.id;
+  if (doAssets) { report.form = Object.values(t.form).filter(Boolean).length; report.line = t.brand.line; }
   update.content = doAssets
-    ? { ...content, form: mode === 'add' ? { ...t.form, ...((content as { form?: object }).form || {}) } : t.form, ...(tier && !(content as { tier?: string }).tier ? { tier } : {}), ...(doGuide ? { guide, showcase } : {}), packages: pkgs, ...(t.brand.intro && !content.homeIntro ? { homeIntro: t.brand.intro } : {}), typeScale: t.styles.length ? t.styles : (content as { typeScale?: unknown }).typeScale }
+    ? { ...content, assetsReport: report, form: mode === 'add' ? { ...t.form, ...((content as { form?: object }).form || {}) } : t.form, ...(tier && !(content as { tier?: string }).tier ? { tier } : {}), ...(doGuide ? { guide, showcase } : {}), packages: pkgs, ...(t.brand.intro && !content.homeIntro ? { homeIntro: t.brand.intro } : {}), typeScale: t.styles.length ? t.styles : (content as { typeScale?: unknown }).typeScale }
     : { ...content, guide, showcase };
   const { data: proj } = await sb.from('projects').select('line').eq('id', projectId).single();
   if (doAssets && t.brand.line && (mode === 'fresh' || !proj?.line)) update.line = t.brand.line;

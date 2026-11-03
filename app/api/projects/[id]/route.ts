@@ -33,6 +33,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     update.content = { ...((cur?.content as Record<string, unknown>) || {}), ...(content || {}), ...(tier ? { tier } : {}) };
   }
   // The two Figma links: brand assets, and guidelines. The guidelines link is also the project's main Figma file.
+  const changed: Record<string, { otherFile: boolean; file?: string; page?: string }> = {};
   if (sources) {
     const { data: cur } = await adminClient().from('projects').select('content, figma_key, figma_page_id').eq('id', id).maybeSingle();
     const base = (update.content as Record<string, unknown>) || (cur?.content as Record<string, unknown>) || {};
@@ -43,7 +44,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (v === undefined) continue;
       if (v === null || !v.trim()) { delete next[k]; continue; }
       if (now[k]?.url === v.trim()) continue;
-      try { next[k] = await sourceFromUrl(v.trim(), k); } catch (e) { return NextResponse.json({ error: (e as Error).message || 'Couldn’t open that Figma link.' }, { status: 400 }); }
+      try { next[k] = await sourceFromUrl(v.trim(), k); changed[k] = { otherFile: (now[k] || (k === 'assets' ? now.guidelines : undefined))?.key !== next[k]!.key, file: next[k]!.file, page: next[k]!.pageName }; } catch (e) { return NextResponse.json({ error: (e as Error).message || 'Couldn’t open that Figma link.' }, { status: 400 }); }
     }
     update.content = { ...base, sources: next };
     if (sources.guidelines !== undefined) { update.figma_key = next.guidelines?.key || null; update.figma_page_id = next.guidelines?.page || null; }
@@ -55,7 +56,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
   const { error } = await adminClient().from('projects').update(update).eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, ...(Object.keys(changed).length ? { changed } : {}) });
 }
 
 /** Lists every file under a storage folder (Supabase lists one level at a time). */

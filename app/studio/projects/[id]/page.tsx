@@ -14,6 +14,8 @@ import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
 import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
 import { readSources, type Source } from '@/lib/figma/sources';
+import { pickLogo, withFigmaLogos } from '@/lib/portal/logo';
+import type { AssetsReport } from '@/lib/portal/templateBuild';
 import { guidePaths, normaliseGuide, type Guide } from '@/lib/portal/guide';
 import { signFontUrls } from '@/lib/projects/fonts';
 import { fontFaceCss } from '@/lib/fonts';
@@ -118,7 +120,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       edit: lastEdit ? { who: staffName(lastEdit.last_edited_by) || 'a teammate', at: lastEdit.last_edited_at } : null,
       edits: a30.filter((x) => x.kind === 'edit').map((x) => ({ who: staffName(x.user_id) || 'Someone', area: x.detail || 'project', at: x.created_at })),
       figma: p.figma_key ? { key: p.figma_key, ...shot.figma } : null,
-      sources: (() => { const s = readSources(p.content, p as { figma_key?: string | null }); const row = (x?: Source) => (x ? { url: x.url, file: x.file || (x === s.guidelines ? shot.figma?.name : undefined), pageName: x.pageName, importedAt: x.importedAt } : null); return { assets: row(s.assets), guidelines: row(s.guidelines) }; })(),
+      sources: (() => { const s = readSources(p.content, p as { figma_key?: string | null }); const row = (x?: Source) => (x ? { url: x.url, file: x.file || (x === s.guidelines ? shot.figma?.name : undefined), pageName: x.pageName, importedAt: x.importedAt } : null); return { assets: row(s.assets), guidelines: row(s.guidelines), report: ((p.content as { assetsReport?: AssetsReport } | null)?.assetsReport) || null }; })(),
       repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null,
       chapters: guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length : 0,
       checks
@@ -143,7 +145,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.ve-canvas.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
     const snapG = await buildSnapshot(id).catch(() => null);
     const { data: homeVer } = await sb.from('project_versions').select('version').eq('project_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    const { data: logoRow } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%.svg').limit(1).maybeSingle();
+    const { data: logoRows } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%');
+    const logoRow = pickLogo(withFigmaLogos((logoRows || []).map((l) => ({ path: l.path, storage_path: l.storage_path })), p.content, {})).main;
     const logoUrl = logoRow?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoRow.storage_path, 3600)).data?.signedUrl ?? null : null;
     body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} fonts={fonts} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} home={{ client: p.client, line: p.line || '', title: (content as { homeTitle?: string }).homeTitle || undefined, styles: (content as { homeStyles?: Record<string, never> }).homeStyles || undefined, intro: (content as { homeIntro?: string }).homeIntro || '', fallback: defaultIntro(p.client), version: homeVer?.version }} />;
   }
@@ -155,11 +158,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   }
   if (tab === 'resources') {
     const { data: parts } = await sb.from('deliverable_parts').select('key, status, deliverable_files(path, format, storage_path)').eq('project_id', id).order('ord');
-    const files: KitFileRow[] = (parts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string })));
+    const files: KitFileRow[] = withFigmaLogos((parts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string }))), p.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
     const snap = await buildSnapshot(id).catch(() => null);
     const { fonts } = await readFonts(id);
     const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
-    const logo = files.find((f) => /^assets\/logo\/.+\.svg$/i.test(f.path) && f.storage_path);
+    const logo = pickLogo(files).main;
     const logoUrl = logo ? (await sb.storage.from('kits').createSignedUrl(logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
     const { data: dparts } = await sb.from('deliverable_parts').select('id, title, contains, format, status, deliverable_files(path)').eq('project_id', id).order('ord');
     body = <div className="rs-studio">

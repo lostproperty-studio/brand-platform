@@ -103,7 +103,7 @@ export function addNewOnly(prev: Guide, next: Guide): Guide {
 }
 
 /** What a build brings in: the guidelines (all chapters or chosen ones, and the showcase), or the brand assets */
-export type BuildOpts = { part?: 'guidelines' | 'assets'; chapters?: string[]; showcase?: boolean };
+export type BuildOpts = { part?: 'guidelines' | 'assets'; chapters?: string[]; showcase?: boolean; wipe?: boolean };
 
 export async function buildGuide(projectId: string, mode: BuildMode = 'update', opts: BuildOpts = {}) {
   const sb = adminClient();
@@ -117,7 +117,7 @@ export async function buildGuide(projectId: string, mode: BuildMode = 'update', 
   const markImported = async () => { const { data: cur } = await sb.from('projects').select('content').eq('id', projectId).single(); const ss = readSources(cur?.content, p); const k = part === 'assets' ? 'assets' : 'guidelines'; await sb.from('projects').update({ content: { ...((cur?.content as object) || {}), sources: { ...ss, [k]: { ...(ss[k] || src), file: where.file, pageName: where.pageName, importedAt: new Date().toISOString() } } } }).eq('id', projectId); };
   if (part === 'assets') {
     if (!where.page || !where.template) throw new Error('Couldn’t find an Assets page laid out like the studio template in that file. Link the template’s Assets page.');
-    const g = await buildGuideFromTemplate(projectId, p as { content: unknown; brand: unknown }, { assets: where.page, guidelines: '', file: where.file }, mode, {}, src.key);
+    const g = await buildGuideFromTemplate(projectId, p as { content: unknown; brand: unknown }, { assets: where.page, guidelines: '', file: where.file }, mode, { wipe: opts.wipe }, src.key);
     await markImported(); return g;
   }
   // A file made from the studio's guidelines template is read by its layer names, not interpreted

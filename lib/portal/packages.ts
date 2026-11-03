@@ -9,7 +9,7 @@ import type { ProjectFont } from '@/lib/fonts';
 // only sees packages with something in them, so a simple brand stays simple.
 
 export type PackageKind = 'logos' | 'colours' | 'fonts' | 'avatars' | 'icons' | 'images' | 'graphics' | 'custom' | 'tokens' | 'guidelines' | 'templates' | 'team';
-export type PkgFile = { name: string; path: string; bytes: number; type: string; /** Came from the Figma template; replaced on each rescan */ fromFigma?: boolean };
+export type PkgFile = { name: string; path: string; bytes: number; type: string; /** Came from the Figma template; replaced on each rescan */ fromFigma?: boolean; /** Short content hash, to tell changed files from unchanged ones */ hash?: string };
 export type PackageSettings = { title?: string; purpose?: string; hidden?: boolean; enabled?: boolean; files?: PkgFile[]; cover?: string };
 export type PackageMap = Record<string, PackageSettings>;
 export type Section = 'brand' | 'elements' | 'builders' | 'team';
@@ -68,8 +68,9 @@ export async function resolvePackages(opts: { files: KitFileRow[]; content: unkn
   const defs: (Def & { id: string })[] = [...DEFS.map((d) => ({ ...d, id: d.kind as string })), ...custom.map((id) => ({ kind: 'custom' as const, section: 'elements' as const, title: settings[id].title || 'New package', purpose: settings[id].purpose || '', id }))];
   const out: Package[] = defs.map((d) => {
     const s = settings[d.id] || {};
-    const kitFiles = d.kit ? opts.files.filter((f) => d.kit!.test(f.path) && !/manifest\.json$/.test(f.path)) : [];
     const uploads = s.files || [];
+    // Files imported from the Figma assets page take over from the kit's files in that package
+    const kitFiles = d.kit && !uploads.some((u) => u.fromFigma) ? opts.files.filter((f) => d.kit!.test(f.path) && !/manifest\.json$/.test(f.path)) : [];
     const generated = d.kind === 'colours' ? opts.colours.length > 0 : d.kind === 'avatars' ? opts.hasLogo && opts.colours.length > 0 && !uploads.length : false;
     const count = kitFiles.length + uploads.length + (d.kind === 'colours' && opts.colours.length ? 4 : 0) + (d.kind === 'avatars' && generated ? Math.min(3, opts.colours.length) : 0);
     const fontsNamed = d.kind === 'fonts' && opts.fonts.some((f) => f.name);
