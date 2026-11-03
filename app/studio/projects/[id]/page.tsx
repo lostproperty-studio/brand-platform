@@ -15,6 +15,8 @@ import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
 import { readSources, type Source } from '@/lib/figma/sources';
 import { pickLogo, withFigmaLogos } from '@/lib/portal/logo';
+import { DesignProfile } from '@/components/DesignProfile';
+import { readProfile } from '@/lib/designProfile';
 import type { AssetsReport } from '@/lib/portal/templateBuild';
 import { guidePaths, normaliseGuide, type Guide } from '@/lib/portal/guide';
 import { signFontUrls } from '@/lib/projects/fonts';
@@ -166,7 +168,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const logoUrl = logo ? (await sb.storage.from('kits').createSignedUrl(logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
     const { data: dparts } = await sb.from('deliverable_parts').select('id, title, contains, format, status, deliverable_files(path)').eq('project_id', id).order('ord');
     body = <div className="rs-studio">
-      <nav className="rs-studio-nav" aria-label="Resources"><a href="#apps">Apps and tools</a><a href="#downloads">Downloads</a><a href="#deliverables">Deliverables</a></nav>
+      <nav className="rs-studio-nav" aria-label="Resources"><a href="#design-system">Design system</a><a href="#apps">Apps and tools</a><a href="#downloads">Downloads</a><a href="#deliverables">Deliverables</a></nav>
+      <section id="design-system" className="rs-studio-sec"><h2 className="rs-studio-h">Design system</h2><DesignProfile projectId={id} slug={p.slug} initial={readProfile(p.content)} chapters={(normaliseGuide((p.content as { guide?: Guide } | null)?.guide)?.chapters || []).filter((c) => !c.removed).length} /></section>
       <section id="apps" className="rs-studio-sec"><h2 className="rs-studio-h">Apps and tools</h2><ToolManager projectId={id} slug={p.slug} /></section>
       <section id="downloads" className="rs-studio-sec"><h2 className="rs-studio-h">Downloads</h2><ResourceManager projectId={id} slug={p.slug} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} /></section>
       <section id="deliverables" className="rs-studio-sec"><h2 className="rs-studio-h">Deliverables</h2><p className="mute" style={{ marginTop: -4 }}>What the kit contains, and where each part is up to.</p>

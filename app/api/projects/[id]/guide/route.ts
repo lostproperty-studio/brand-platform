@@ -4,6 +4,7 @@ import { requireStaff } from '@/lib/supabase/server';
 import { buildGuide, normaliseGuide, type BuildMode, type Guide } from '@/lib/portal/guide';
 import { adminClient } from '@/lib/supabase/server';
 import { draftGaps } from '@/lib/portal/drafts';
+import { readDesignProfile } from '@/lib/designProfile';
 
 export const maxDuration = 300;
 
@@ -25,8 +26,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const guide = await buildGuide(id, mode, { part, chapters, showcase: typeof body?.showcase === 'boolean' ? body.showcase : undefined, wipe: body?.wipe === true });
     if (part === 'assets') { const { data: after } = await adminClient().from('projects').select('content').eq('id', id).single(); return NextResponse.json({ ok: true, part, mode, report: (after?.content as { assetsReport?: unknown } | null)?.assetsReport || null }); }
     const added = { chapters: guide.chapters.filter((c) => !had.has(c.id)).length, sections: guide.chapters.filter((c) => had.has(c.id)).flatMap((c) => c.blocks).filter((b) => !had.has(b.id)).length };
+    // The design system reads the guidelines too: its profile is refreshed after every guidelines import (locked settings stay)
+    const profile = await readDesignProfile(id).then(() => 'updated', (e) => String((e as Error).message || e).slice(0, 200));
     const gaps = await draftGaps(id).catch((e) => ({ tier: null, drafts: 0, missing: 0, error: String((e as Error).message || e).slice(0, 200) }));
-    return NextResponse.json({ ok: true, mode, added, chapters: guide.chapters.length, frames: guide.chapters.reduce((n, c) => n + c.blocks.filter((b) => b.source).length, 0), colours: guide.colours.length, gaps });
+    return NextResponse.json({ ok: true, mode, profile, added, chapters: guide.chapters.length, frames: guide.chapters.reduce((n, c) => n + c.blocks.filter((b) => b.source).length, 0), colours: guide.colours.length, gaps });
   } catch (e) {
     return NextResponse.json({ error: String((e as Error).message || e).slice(0, 300) }, { status: 500 });
   }

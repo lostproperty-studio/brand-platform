@@ -5,6 +5,7 @@ import { chapterText } from '@/lib/portal/guide';
 import { aiRulesMd, watchoutsFrom } from '@/lib/aiRules';
 import { lum } from '@/lib/portal/generated';
 import { previewHtml, componentPreviews } from '@/lib/designSystemPreview';
+import { SETTING_INFO, showSetting, type Profile, type SettingKey, type Source } from '@/lib/designProfileInfo';
 
 // A design system for AI, built from the brand's guidelines: one folder that tells Claude (or any AI tool) how to
 // build interfaces, documents and layouts in the brand, with the same shape as the studio's own system.
@@ -22,6 +23,8 @@ export type DSInput = {
   /** Paths inside the folder: assets/logo/…, assets/fonts/…, tokens/…, assets/imagery/…, assets/graphics/… */
   files: string[];
   aiDonts?: string[];
+  /** The brand's design qualities, read from the guidelines by AI and checked by the studio */
+  profile?: Profile | null;
 };
 
 const kebab = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'brand';
@@ -57,7 +60,7 @@ export function roles(colours: { name: string; hex: string; role?: string }[]) {
 
 // ── The spec: everything the files are written from
 type Tok = { name: string; value: string | Record<string, string>; usage: string };
-type Style = { name: string; role: string; family: 'display' | 'body' | 'caption'; size: number; lineHeight: number; tracking: number; weight: number; upper?: boolean; usage: string; sample: string };
+type Style = { name: string; role: string; family: 'display' | 'body' | 'caption'; size: number; lineHeight: number; tracking: number; weight: number; upper?: boolean; transform?: string; usage: string; sample: string };
 export type DSSpec = ReturnType<typeof buildSpec>;
 
 export function buildSpec(input: DSInput) {
@@ -66,7 +69,13 @@ export function buildSpec(input: DSInput) {
   const client = snap.client;
   const judgement: string[] = [];
   const palette = snap.colours.filter((c) => /^#[0-9A-F]{6}$/i.test(c.hex));
+  // A setting from the design profile, unless the studio switched it off
+  const prof = input.profile?.settings;
+  const use = <K extends SettingKey>(k: K) => (prof?.[k] && !prof[k].off ? prof[k] : undefined) as Profile['settings'][K] | undefined;
+  const fromGuide = (k: SettingKey) => use(k)?.source.from === 'guidelines' || use(k)?.source.from === 'studio';
   const r = roles(palette);
+  const pa = use('accent');
+  if (pa) { const c = palette.find((x) => x.hex.toUpperCase() === pa.value.hex.toUpperCase()); if (c && c.hex.toUpperCase() !== r.paper.hex.toUpperCase()) { r.accent = c; r.onAccent = { name: 'On accent', hex: bestOn(c.hex, [r.ink.hex, r.paper.hex, '#000000', '#FFFFFF']) }; } }
   if (!palette.length) judgement.push('No colours in the guidelines yet, so the system runs in black and white.');
 
   // Themes. Light: the brand's paper and ink. Dark: ink becomes the ground (or a near-black when ink isn't dark enough).
@@ -108,6 +117,7 @@ export function buildSpec(input: DSInput) {
   const display = fonts.find((f) => f.role === 'display' && f.name) || fonts.find((f) => f.name);
   const body = fonts.find((f) => f.role === 'body' && f.name) || display;
   const caption = fonts.find((f) => f.role === 'caption' && f.name) || body;
+  const hl = { case: use('headlineCase')?.value, weight: use('headlineWeight'), tracking: use('headlineTracking'), scale: use('displayScale')?.value, body: use('bodySize') };
   if (!display) judgement.push('No typefaces are named yet, so the system uses the system sans serif. Add them on the Typefaces tab.');
   const licensed = (f?: ProjectFont) => !!f?.files.some((x) => x.licence === 'licensed');
   if (display && !licensed(display)) judgement.push(`${display.name} isn't included as a licensed file, so the download names it and falls back to the system font until it's installed.`);
@@ -123,6 +133,13 @@ export function buildSpec(input: DSInput) {
     { name: 'label', role: 'label', family: 'body', size: 14, lineHeight: 1.3, tracking: 0, weight: 500, usage: 'Buttons, tabs, form labels.', sample: 'Download the kit' },
     { name: 'caption', role: 'caption', family: 'caption', size: 12, lineHeight: 1.35, tracking: 0.04, weight: 400, upper: true, usage: 'Eyebrows, tags, meta. Never for sentences.', sample: 'Caption · meta' }
   ];
+  // Without a type scale in the file, the profile sets how big display type gets, the body size and the headline habits
+  const big = hl.scale === 'huge' ? [112, 64, 32] : hl.scale === 'restrained' ? [56, 36, 24] : [72, 48, 28];
+  for (const f of FALLBACK) {
+    if (f.role === 'display') f.size = big[0]; if (f.role === 'headline') f.size = big[1]; if (f.role === 'title') f.size = big[2];
+    if (f.role === 'body' && hl.body) f.size = hl.body.value;
+    if (['display', 'headline', 'title'].includes(f.role)) { if (hl.weight) f.weight = hl.weight.value; if (hl.tracking) f.tracking = f.role === 'title' ? hl.tracking.value / 2 : hl.tracking.value; }
+  }
   let styles = FALLBACK;
   const ts = (input.typeScale || []).filter((s) => s.size && s.size > 0);
   if (ts.length >= 3) {
@@ -133,18 +150,24 @@ export function buildSpec(input: DSInput) {
     styles = sorted.map((s, i) => { const role = roleAt(i); const fb = FALLBACK.find((x) => x.role === role) || FALLBACK[4]; return { name: kebab(s.name), role, family: s.family ? byFam(s.family) : fb.family, size: Math.round(s.size!), lineHeight: s.lineHeight ? Math.round(s.lineHeight) / 100 : fb.lineHeight, tracking: s.tracking ? s.tracking / 100 : 0, weight: s.weight || 400, upper: false, usage: `${s.name} from the guidelines' type scale (${role}).`, sample: (sample as Record<string, string>)[role] || fb.sample }; });
     // The components need every role; any the scale doesn't have comes from the fallback
     for (const fb of FALLBACK) if (!styles.some((s) => s.role === fb.role)) styles.push({ ...fb, name: styles.some((s) => s.name === fb.name) ? fb.name + '-ui' : fb.name, usage: fb.usage + ' (Not in the guidelines\' scale; added for the interface.)' });
-  } else judgement.push('There\'s no type scale on the Assets page, so the system uses a standard scale (72 / 48 / 28 / 20 / 16 / 14 / 12). Add the type scale in Figma to replace it.');
+    // The profile's headline habits apply to the file's scale only when the guidelines say so
+    for (const x of styles) if (['display', 'headline', 'title'].includes(x.role)) { if (hl.weight && fromGuide('headlineWeight') && !ts.some((t) => t.weight)) x.weight = hl.weight.value; if (hl.tracking && fromGuide('headlineTracking') && !ts.some((t) => t.tracking)) x.tracking = hl.tracking.value; }
+  } else judgement.push(`There's no type scale on the Assets page, so the system uses a ${hl.scale || 'standard'} scale (${FALLBACK.map((f) => f.size).join(' / ')})${hl.scale ? ', sized from what the guidelines show' : ''}. Add the type scale in Figma to replace it.`);
+  // Headline case: upper, lower or title case on display, headline and title styles
+  if (hl.case && hl.case !== 'sentence') for (const x of styles) if (['display', 'headline', 'title'].includes(x.role)) x.transform = hl.case === 'upper' ? 'uppercase' : hl.case === 'lower' ? 'lowercase' : 'capitalize';
   const roleStyle = (role: string) => styles.find((s) => s.role === role)!;
 
   // Space, shape, size. Spacing follows the studio's system (with two steps added for page-scale layouts).
-  judgement.push('Spacing follows the Lost Property system (2 · 6 · 10 · 14 · 20 · 28 · 40 · 48) with 64 and 96 added for page sections. The guidelines don\'t set a spacing scale.');
-  const spacing: Tok[] = [['space-1', '2px', 'Hairline gaps: stacked tiles, icon nudges.'], ['space-2', '6px', 'Inside a button or tag group; icon-to-label gap.'], ['space-3', '10px', 'Between form fields; small card gaps.'], ['space-4', '14px', 'Card padding (compact); gap in a form column.'], ['space-5', '20px', 'Card padding; mobile page gutter is 16px.'], ['space-6', '28px', 'Between a heading and its content.'], ['space-7', '40px', 'Between grid cards; module padding on mobile.'], ['space-8', '48px', 'Desktop page side padding.'], ['space-9', '64px', 'Module padding on desktop.'], ['space-10', '96px', 'Between page sections; hero padding.']].map(([name, value, usage]) => ({ name, value, usage }));
+  const dens = use('density')?.value; const k = dens === 'airy' ? 1.25 : dens === 'dense' ? 0.8 : 1;
+  if (!fromGuide('density')) judgement.push(`Spacing follows the Lost Property system (2 · 6 · 10 · 14 · 20 · 28 · 40 · 48, with 64 and 96 for page sections)${k !== 1 ? `, opened up or tightened for a ${dens} feel` : ''}. The guidelines don't set a spacing scale.`);
+  const spacing: Tok[] = [['space-1', '2px', 'Hairline gaps: stacked tiles, icon nudges.'], ['space-2', '6px', 'Inside a button or tag group; icon-to-label gap.'], ['space-3', '10px', 'Between form fields; small card gaps.'], ['space-4', '14px', 'Card padding (compact); gap in a form column.'], ['space-5', '20px', 'Card padding; mobile page gutter is 16px.'], ['space-6', '28px', 'Between a heading and its content.'], ['space-7', '40px', 'Between grid cards; module padding on mobile.'], ['space-8', '48px', 'Desktop page side padding.'], ['space-9', '64px', 'Module padding on desktop.'], ['space-10', '96px', 'Between page sections; hero padding.']].map(([name, value, usage], i) => ({ name, value: i >= 5 && k !== 1 ? `${Math.round(parseInt(value) * k)}px` : value, usage }));
   const roundInGuide = (snap.guide?.chapters || []).some((c) => /rounded|pill|soft corners?/i.test(chapterText(c).join(' ')));
   const squareInGuide = (snap.guide?.chapters || []).some((c) => /square corners|sharp corners|no rounded/i.test(chapterText(c).join(' ')));
-  const control = squareInGuide ? '0px' : roundInGuide ? '999px' : '4px';
-  if (!roundInGuide && !squareInGuide) judgement.push('Corner radius isn\'t set in the guidelines: controls and cards use a restrained 4px. Change radius-control and radius-card in tokens.json if the brand is rounder or squarer.');
-  const radius: Tok[] = [{ name: 'radius-none', value: '0px', usage: 'Images, full-bleed bands, posters.' }, { name: 'radius-control', value: control, usage: 'Buttons, inputs, tabs.' }, { name: 'radius-card', value: squareInGuide ? '0px' : '4px', usage: 'Cards, panels, thumbnails.' }, { name: 'radius-tag', value: squareInGuide ? '0px' : '2px', usage: 'Tags and small swatches.' }, { name: 'radius-pill', value: '999px', usage: 'Chips and toggles only.' }];
-  const size: Tok[] = [{ name: 'control-sm', value: '32px', usage: 'Compact buttons, chips.' }, { name: 'control-md', value: '44px', usage: 'Buttons and inputs (the 44px touch target).' }, { name: 'control-lg', value: '52px', usage: 'Hero calls to action.' }, { name: 'content', value: '1200px', usage: 'Maximum content width.' }, { name: 'measure', value: '64ch', usage: 'Maximum line length for reading text.' }, { name: 'icon', value: '20px', usage: 'Default icon size; 16px in buttons, 24px in navigation.' }];
+  const pc = use('corners');
+  const control = pc ? `${pc.value.controls}px` : squareInGuide ? '0px' : roundInGuide ? '999px' : '4px';
+  if (!pc && !roundInGuide && !squareInGuide) judgement.push('Corner radius isn\'t set in the guidelines: controls and cards use a restrained 4px. Change radius-control and radius-card in tokens.json if the brand is rounder or squarer.');
+  const radius: Tok[] = [{ name: 'radius-none', value: '0px', usage: 'Images, full-bleed bands, posters.' }, { name: 'radius-control', value: control, usage: 'Buttons, inputs, tabs.' }, { name: 'radius-card', value: pc ? `${pc.value.cards}px` : squareInGuide ? '0px' : '4px', usage: 'Cards, panels, thumbnails.' }, { name: 'radius-image', value: use('imagery') ? (use('imagery')!.value.corners ? (pc ? `${pc.value.cards}px` : '4px') : '0px') : squareInGuide ? '0px' : '4px', usage: 'Photography frames.' }, { name: 'radius-tag', value: pc ? `${Math.min(pc.value.cards, 2)}px` : squareInGuide ? '0px' : '2px', usage: 'Tags and small swatches.' }, { name: 'radius-pill', value: '999px', usage: 'Chips and toggles only.' }];
+  const size: Tok[] = [{ name: 'control-sm', value: '32px', usage: 'Compact buttons, chips.' }, { name: 'control-md', value: '44px', usage: 'Buttons and inputs (the 44px touch target).' }, { name: 'control-lg', value: '52px', usage: 'Hero calls to action.' }, { name: 'content', value: '1200px', usage: 'Maximum content width.' }, { name: 'page-margin', value: use('grid') ? `${use('grid')!.value.marginPct}vw` : '48px', usage: 'Outer page margin on desktop (16px on mobile).' }, { name: 'gutter', value: `${use('grid')?.value.gutter ?? 20}px`, usage: 'Gap between grid columns.' }, { name: 'columns', value: String(use('grid')?.value.columns ?? 12), usage: 'Layout grid columns on desktop.' }, { name: 'measure', value: '64ch', usage: 'Maximum line length for reading text.' }, { name: 'icon', value: '20px', usage: 'Default icon size; 16px in buttons, 24px in navigation.' }];
 
   // Logos, imagery, graphics, voice
   const logos = input.files.filter((f) => /^assets\/logo\/.+\.(svg|png)$/i.test(f));
@@ -162,7 +185,15 @@ export function buildSpec(input: DSInput) {
   const values = lines(form.values || '').slice(0, 6);
   const chapters = (snap.guide?.chapters || []).filter((c) => !c.hidden).map((c) => c.title);
 
-  return { client, slug: kebab(client), line: snap.line || form.line || '', form, palette, brandCols, r, lt, dk, accent, onAccent, accentIsText, colour, families, display, body, caption, styles, roleStyle, spacing, radius, size, logo, images, graphics, voice, values, chapters, judgement, fontFiles: input.files.filter((f) => f.startsWith('assets/fonts/') && /\.(woff2?|otf|ttf)$/i.test(f)), tokensFiles: input.files.filter((f) => f.startsWith('tokens/')) };
+  // Where each design setting came from, for DESIGN.md and the studio
+  const provenance = prof ? (Object.keys(SETTING_INFO) as SettingKey[]).filter((k) => prof[k] && !prof[k].off).map((k) => ({ key: k, label: SETTING_INFO[k].label, value: showSetting(prof[k].value, k), source: prof[k].source as Source })) : [];
+  const ground: 'light' | 'dark' = use('ground')?.value || 'light';
+  const accentUse = use('accent')?.value.use || 'sparing';
+  const buttons = use('buttons')?.value || 'solid';
+  const imagery = use('imagery')?.value || { treatment: 'framed' as const, ratio: '4:5' as const, corners: true };
+  const devices = use('devices')?.value || [], dos = use('dos')?.value || [], donts = use('donts')?.value || [];
+  const rulesOn = use('rules')?.value ?? true;
+  return { provenance, ground, accentUse, buttons, imagery, devices, dos, donts, rulesOn, hasProfile: !!prof, client, slug: kebab(client), line: snap.line || form.line || '', form, palette, brandCols, r, lt, dk, accent, onAccent, accentIsText, colour, families, display, body, caption, styles, roleStyle, spacing, radius, size, logo, images, graphics, voice, values, chapters, judgement, fontFiles: input.files.filter((f) => f.startsWith('assets/fonts/') && /\.(woff2?|otf|ttf)$/i.test(f)), tokensFiles: input.files.filter((f) => f.startsWith('tokens/')) };
 }
 
 // ── tokens.json (the studio system's list shape) and tokens.css
@@ -203,7 +234,7 @@ ${[...s.spacing, ...s.radius, ...s.size].map((t) => `  --${t.name}: ${t.value};`
 
 // ── brand.css: the components, from tokens only
 export function componentsCss(s: DSSpec) {
-  const st = (role: string) => { const x = s.roleStyle(role); return `font: var(--type-${x.name}); letter-spacing: var(--tracking-${x.name});${x.upper ? ' text-transform: uppercase;' : ''}`; };
+  const st = (role: string) => { const x = s.roleStyle(role); return `font: var(--type-${x.name}); letter-spacing: var(--tracking-${x.name});${x.transform ? ` text-transform: ${x.transform};` : x.upper ? ' text-transform: uppercase;' : ''}`; };
   return `/* ${s.client} design system: brand.css. Components as ds- classes; every value comes from tokens.css. Light and dark via [data-theme]. */
 .ds, .ds * { box-sizing: border-box; }
 .ds { background: var(--surface); color: var(--ink); ${st('body')} -webkit-font-smoothing: antialiased; }
@@ -213,7 +244,7 @@ export function componentsCss(s: DSSpec) {
 .ds .mute { color: var(--mute); }
 
 /* Type */
-${s.styles.map((x) => `.ds .t-${x.name} { ${`font: var(--type-${x.name}); letter-spacing: var(--tracking-${x.name});${x.upper ? ' text-transform: uppercase;' : ''}`} margin: 0; }`).join('\n')}
+${s.styles.map((x) => `.ds .t-${x.name} { ${`font: var(--type-${x.name}); letter-spacing: var(--tracking-${x.name});${x.transform ? ` text-transform: ${x.transform};` : x.upper ? ' text-transform: uppercase;' : ''}`} margin: 0; }`).join('\n')}
 .ds .display { ${st('display')} margin: 0; }
 .ds .headline { ${st('headline')} margin: 0; }
 .ds .title { ${st('title')} margin: 0; }
@@ -225,7 +256,7 @@ ${s.styles.map((x) => `.ds .t-${x.name} { ${`font: var(--type-${x.name}); letter
 /* Button */
 .ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--control-md); padding: 0 var(--space-5); border: 1px solid transparent; border-radius: var(--radius-control); background: var(--fill-2); color: var(--ink); ${st('label')} text-decoration: none; cursor: pointer; white-space: nowrap; }
 .ds-btn:hover { background: var(--fill-2-hover); }
-.ds-btn.primary { background: var(--ink); color: var(--on-ink); }
+.ds-btn.primary { background: var(--ink); color: var(--on-ink); }${s.buttons === 'outline' ? '\n.ds-btn.primary { background: transparent; color: var(--ink); border-color: var(--ink); }\n.ds-btn.primary:hover { background: var(--ink); color: var(--on-ink); opacity: 1; }' : s.buttons === 'underline' ? '\n.ds-btn.primary { background: transparent; color: var(--ink); padding: 0; min-height: 0; border-radius: 0; border: 0; border-bottom: 2px solid currentColor; }\n.ds-btn.primary:hover { opacity: .7; }' : ''}
 .ds-btn.primary:hover { opacity: .88; }
 .ds-btn.accent { background: var(--accent); color: var(--on-accent); }
 .ds-btn.accent:hover { opacity: .88; }
@@ -262,9 +293,10 @@ ${s.styles.map((x) => `.ds .t-${x.name} { ${`font: var(--type-${x.name}); letter
 .ds-card.plain { background: transparent; border: 0; padding: 0; }
 .ds-card.plain .media { margin: 0 0 var(--space-2); border-radius: var(--radius-card); }
 .ds-card.accent { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.ds-card.accent .mute, .ds-card.accent .eyebrow { color: currentColor; opacity: .8; }
 
 /* Navigation */
-.ds-nav { display: flex; align-items: center; gap: var(--space-6); padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--line); background: var(--surface); }
+.ds-nav { display: flex; align-items: center; gap: var(--space-6); padding: var(--space-4) var(--page-margin); border-bottom: 1px solid var(--line); background: var(--surface); }
 .ds-nav .brand { display: flex; align-items: center; color: var(--ink); text-decoration: none; ${st('title')} }
 .ds-nav .brand img { height: 28px; width: auto; }
 .ds-nav .links { display: flex; gap: var(--space-5); margin-left: auto; }
@@ -278,8 +310,8 @@ ${s.styles.map((x) => `.ds .t-${x.name} { ${`font: var(--type-${x.name}); letter
 .ds-tab.on, .ds-tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
 
 /* Modules: hero, grid, statement, split, band, footer */
-.ds-section { padding: var(--space-10) var(--space-8); }
-.ds-section.tight { padding: var(--space-9) var(--space-8); }
+.ds-section { padding: var(--space-10) var(--page-margin); }${s.rulesOn ? '\n.ds-section + .ds-section:not(.ink):not(.accent):not(.fill) { border-top: 1px solid var(--line); }' : ''}
+.ds-section.tight { padding: var(--space-9) var(--page-margin); }
 .ds-section.ink { background: var(--ink); color: var(--on-ink); }
 .ds-section.ink .eyebrow, .ds-section.ink .mute { color: currentColor; opacity: .72; }
 .ds-section.accent { background: var(--accent); color: var(--on-accent); }
@@ -289,18 +321,18 @@ ${s.styles.map((x) => `.ds .t-${x.name} { ${`font: var(--type-${x.name}); letter
 .ds-hero { display: grid; gap: var(--space-6); }
 .ds-hero .actions { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-3); }
 .ds-hero.split { grid-template-columns: 1.1fr 1fr; align-items: end; gap: var(--space-8); }
-.ds-hero .art { aspect-ratio: 4 / 5; border-radius: var(--radius-card); overflow: hidden; }
+.ds-hero .art { aspect-ratio: ${s.imagery.ratio.replace(':', ' / ')}; border-radius: var(--radius-image); overflow: hidden; }
 .ds-hero .art img { width: 100%; height: 100%; object-fit: cover; }
-.ds-grid { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: var(--space-7); }
+.ds-grid { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: max(var(--gutter), var(--space-6)); }
 .ds-statement { ${st('headline')} margin: 0; max-width: 22ch; }
 .ds-split { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); align-items: center; }
-.ds-split .media { aspect-ratio: 1; border-radius: var(--radius-card); overflow: hidden; background: var(--fill-2); }
+.ds-split .media { aspect-ratio: 1; border-radius: var(--radius-image); overflow: hidden; background: var(--fill-2); }
 .ds-split .media img { width: 100%; height: 100%; object-fit: cover; }
 .ds-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
 .ds-list li { display: grid; grid-template-columns: 56px 1fr; gap: var(--space-4); padding: var(--space-5) 0; border-bottom: 1px solid var(--line); }
 .ds-list .n { ${st('caption')} color: var(--mute); padding-top: 4px; }
 .ds-band { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); flex-wrap: wrap; }
-.ds-footer { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: var(--space-7); padding: var(--space-9) var(--space-8) var(--space-7); border-top: 1px solid var(--line); }
+.ds-footer { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: var(--space-7); padding: var(--space-9) var(--page-margin) var(--space-7); border-top: 1px solid var(--line); }
 .ds-footer h4 { ${st('caption')} color: var(--mute); margin: 0 0 var(--space-3); font-weight: inherit; }
 .ds-footer a { display: block; color: var(--ink); text-decoration: none; padding: 3px 0; }
 .ds-footer .base { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: var(--space-4); padding-top: var(--space-5); border-top: 1px solid var(--line); color: var(--mute); ${st('caption')} text-transform: none; letter-spacing: 0; }
@@ -358,6 +390,16 @@ ${v.like.length ? `\nSounds like:\n${v.like.map((x) => `- ${x}`).join('\n')}` : 
 - Lead with the thing: "Book a studio", "Download the kit".
 - No exclamation marks, emoji or invented figures. Use the brand's own words where the guidelines give them, and placeholders in [brackets] where they don't.
 
+## Design qualities
+${s.hasProfile ? `Read from the ${s.client} guidelines and checked by Lost Property. Build to these; they're what makes work look like ${s.client} rather than a generic template.
+
+| Setting | Value | From |
+| --- | --- | --- |
+${s.provenance.map((x) => `| ${x.label} | ${x.value} | ${x.source.from === 'guidelines' ? `${x.source.chapter}: “${x.source.evidence}”` : x.source.from === 'studio' ? 'Set by Lost Property' : `Judgement: ${x.source.why}`} |`).join('\n')}
+${s.devices.length ? `\nGraphic devices to use:\n${s.devices.map((d) => `- ${d}`).join('\n')}` : ''}${s.dos.length ? `\n\nDo:\n${s.dos.map((d) => `- ${d}`).join('\n')}` : ''}${s.donts.length ? `\n\nDon't:\n${s.donts.map((d) => `- ${d}`).join('\n')}` : ''}` : 'Not read from the guidelines yet; the defaults below apply.'}
+- Pages start ${s.ground === 'dark' ? 'dark (`data-theme="dark"`)' : 'light'}. The accent is used ${s.accentUse === 'bold' ? 'boldly: whole bands and large fills are expected' : s.accentUse === 'moderate' ? 'regularly: a band or a block per page' : 'sparingly: one moment per screen or page'}.
+- Main actions are ${s.buttons === 'outline' ? 'outlined' : s.buttons === 'underline' ? 'underlined text links' : 'solid'}; photography is ${s.imagery.treatment}, cropped ${s.imagery.ratio}${s.imagery.corners ? ' with rounded corners' : ' with square corners'}.
+
 ## Colour
 Working roles (both themes in \`tokens.json\`):
 
@@ -372,7 +414,7 @@ The palette:
 ${s.brandCols.map((c) => `| \`--${c.token}\` | ${c.name} | ${c.hex.toUpperCase()} | ${c.role || ''} | ${c.on.toUpperCase()} (${contrast(c.on, c.hex).toFixed(1)}:1) |`).join('\n') || '| | | | | |'}
 
 - Most of a page is \`ink\` on \`surface\`; \`fill\` and \`line\` separate panels.
-- \`accent\` (${s.r.accent.name}) is the brand's moment: one per screen or page, as a fill${s.accentIsText ? ' or for links' : ''}. Text on it is \`on-accent\`.
+- \`accent\` (${s.r.accent.name}) is the brand's lead colour, used ${s.accentUse}ly, as a fill${s.accentIsText ? ' or for links' : ''}. Text on it is \`on-accent\`.
 - Other palette colours are for bands, illustrations and charts, always with the text colour given above.
 - Text is 4.5:1 or more against its ground in both themes; large type (24px+) and icons 3:1.
 
@@ -451,6 +493,6 @@ Read \`DESIGN.md\` first; it is the brand book and the spec. Build with \`tokens
     'preview.html': previewHtml(s, { css: tcss + ccss, url: (p) => p, standalone: true })
   };
   for (const c of COMPONENTS) files[`components/${c.name}/README.md`] = componentReadme(c);
-  for (const [n, html] of Object.entries(componentPreviews(s, (p) => p))) files[`components/${n}/preview.html`] = `<!doctype html><html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${n} · ${s.client}</title><link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../../brand.css"><style>body{margin:0;padding:32px}</style></head><body class="ds">${html.replace(/(src|href)="assets\//g, '$1="../../assets/')}</body></html>`;
+  for (const [n, html] of Object.entries(componentPreviews(s, (p) => p))) files[`components/${n}/preview.html`] = `<!doctype html><html lang="en" data-theme="${s.ground}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${n} · ${s.client}</title><link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../../brand.css"><style>body{margin:0;padding:32px}</style></head><body class="ds">${html.replace(/(src|href)="assets\//g, '$1="../../assets/')}</body></html>`;
   return { folder: name, files, include: [...s.logo.all, ...s.tokensFiles, ...s.fontFiles, ...s.images, ...s.graphics], roles: s.r, spec: s };
 }
