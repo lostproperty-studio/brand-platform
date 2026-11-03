@@ -3,7 +3,7 @@ import { adminClient } from '@/lib/supabase/server';
 import { exportNodes, fetchPage, scanFigmaPage, type ScanFrame } from '@/lib/figma/scan';
 import { blockText, frameToBlock, furnitureText, furnitureVisuals, type Block, type BlockMedia, type FNode, type Visual } from '@/lib/figma/blocks';
 import { resolvedText } from '@/lib/kit/fromProject';
-import { templatePages } from '@/lib/figma/template';
+import { readSources, resolvePage } from '@/lib/figma/sources';
 import { buildGuideFromTemplate } from '@/lib/portal/templateBuild';
 
 // The client-facing guidelines, rebuilt from the Figma page as responsive web content.
@@ -15,6 +15,7 @@ export type GuideRule = { title: string; text: string };
 export type GuideChapter = { id: string; key: string | null; title: string; kicker: string; lede: string; hidden?: boolean; edited?: boolean; blocks: Block[]; rules: GuideRule[]; /** Added to fill a gap for the tier */ slot?: string;
   /** Deleted by the studio: kept out of the guide, and stays deleted when rebuilt from Figma */ removed?: boolean;
   /** Home page cover: an uploaded thumbnail, the type sample, and the tone-of-voice words */ thumb?: string; thumbSample?: string; thumbWords?: string;
+  /** When the chapter was last brought in from Figma */ importedAt?: string;
   /** Styling for the chapter's label, title and introduction, set in the editor */ styles?: Record<string, TextStyle> };
 export type GuideColour = { name: string; hex: string; role: string };
 export type Guide = { version?: number; generatedAt: string; file: string; page: string; chapters: GuideChapter[]; colours: GuideColour[] };
@@ -101,20 +102,38 @@ export function addNewOnly(prev: Guide, next: Guide): Guide {
   return { ...prev, generatedAt: next.generatedAt, file: next.file, page: next.page, version: next.version, chapters, colours: [...prev.colours, ...next.colours.filter((c) => !hexes.has(c.hex.toUpperCase()))] };
 }
 
-export async function buildGuide(projectId: string, mode: BuildMode = 'update') {
+/** What a build brings in: the guidelines (all chapters or chosen ones, and the showcase), or the brand assets */
+export type BuildOpts = { part?: 'guidelines' | 'assets'; chapters?: string[]; showcase?: boolean };
+
+export async function buildGuide(projectId: string, mode: BuildMode = 'update', opts: BuildOpts = {}) {
   const sb = adminClient();
   const { data: p, error } = await sb.from('projects').select('figma_key, figma_page_id, content, brand').eq('id', projectId).single();
   if (error) throw error;
-  if (!p.figma_key) throw new Error('Link a Figma file first.');
+  const sources = readSources(p.content, p);
+  const part = opts.part || 'guidelines';
+  const src = part === 'assets' ? sources.assets || sources.guidelines : sources.guidelines;
+  if (!src) throw new Error(part === 'assets' ? 'Add the Figma link for the brand assets first.' : 'Add the Figma link for the guidelines first.');
+  const where = await resolvePage(src.key, src.page, part);
+  const markImported = async () => { const { data: cur } = await sb.from('projects').select('content').eq('id', projectId).single(); const ss = readSources(cur?.content, p); const k = part === 'assets' ? 'assets' : 'guidelines'; await sb.from('projects').update({ content: { ...((cur?.content as object) || {}), sources: { ...ss, [k]: { ...(ss[k] || src), file: where.file, pageName: where.pageName, importedAt: new Date().toISOString() } } } }).eq('id', projectId); };
+  if (part === 'assets') {
+    if (!where.page || !where.template) throw new Error('Couldn’t find an Assets page laid out like the studio template in that file. Link the template’s Assets page.');
+    const g = await buildGuideFromTemplate(projectId, p as { content: unknown; brand: unknown }, { assets: where.page, guidelines: '', file: where.file }, mode, {}, src.key);
+    await markImported(); return g;
+  }
   // A file made from the studio's guidelines template is read by its layer names, not interpreted
-  const tp = await templatePages(p.figma_key).catch(() => null);
-  if (tp) return buildGuideFromTemplate(projectId, p as { figma_key: string; content: unknown; brand: unknown }, tp, mode);
+  if (where.template && where.page) {
+    const g = await buildGuideFromTemplate(projectId, p as { content: unknown; brand: unknown }, { assets: '', guidelines: where.page, file: where.file }, mode, { chapters: opts.chapters, showcase: opts.showcase }, src.key);
+    await markImported(); return g;
+  }
+  p.figma_key = src.key; p.figma_page_id = src.page;
   const fetched = await fetchPage(p.figma_key, p.figma_page_id);
   const scan = await scanFigmaPage(p.figma_key, p.figma_page_id, fetched);
   const nodeById = new Map<string, FNode>(((fetched.root as unknown as FNode).children || []).map((n) => [n.id, n]));
   const slides = scan.chapters.flatMap((c) => c.frames.map((f) => nodeById.get(f.id)).filter(Boolean) as FNode[]);
   const furniture = furnitureText(slides);
   const furnitureVis = furnitureVisuals(slides);
+  // Only the chapters asked for are built; the others stay as they are
+  if (opts.chapters) scan.chapters = scan.chapters.filter((c) => opts.chapters!.includes(c.id));
 
   // 1. Blocks and the image layers they need
   const perChapter = scan.chapters.map((c) => c.frames.map((f, i) => { const n = nodeById.get(f.id); const r = n ? frameToBlock(n, { cover: i === 0, colour: keyFor(clean(c.title)) === 'colour', furniture, furnitureVis }) : null; return r ? { frame: f, ...r } : null; }).filter(Boolean) as { frame: ScanFrame; block: Omit<Block, 'original'>; visuals: Visual[] }[]);
@@ -188,9 +207,17 @@ export async function buildGuide(projectId: string, mode: BuildMode = 'update') 
   // Chapters the studio added by hand, and chapters drafted for the tier, survive a rebuild
   for (const c of mode === 'fresh' ? [] : previous?.chapters || []) if (c.id.startsWith('custom-') || c.id.startsWith('draft-')) chapters.push(c);
 
+  if (opts.chapters && previous) {
+    const now = new Date().toISOString();
+    const builtNow = chapters.filter((c) => opts.chapters!.includes(c.id)).map((c) => ({ ...c, importedAt: now }));
+    const merged = previous.chapters.map((c) => builtNow.find((b) => b.id === c.id) || c);
+    for (const b of builtNow) if (!merged.some((c) => c.id === b.id)) merged.push(b);
+    chapters.splice(0, chapters.length, ...merged);
+  }
   const colourCh = chapters.filter((c) => c.key === 'colour');
   const colourFrames = scan.chapters.filter((c) => keyFor(clean(c.title)) === 'colour').flatMap((c) => c.frames);
   const built: Guide = { version: GUIDE_VERSION, generatedAt: new Date().toISOString(), file: scan.fileName, page: scan.pageName, chapters, colours: readColours(colourCh.flatMap((c) => c.blocks), colourFrames.length ? colourFrames : scan.chapters.flatMap((c) => c.frames)) };
+  if (opts.chapters && previous && !built.colours.length) built.colours = previous.colours;
   const guide = mode === 'add' && previous ? addNewOnly(previous, built) : built;
 
   const brand = (p.brand || {}) as { core?: { name: string; hex: string; note?: string }[] };
@@ -198,6 +225,7 @@ export async function buildGuide(projectId: string, mode: BuildMode = 'update') 
   if ((mode === 'fresh' || !brand.core?.length) && guide.colours.length) update.brand = { ...brand, core: guide.colours.map((c) => ({ name: c.name, hex: c.hex, note: c.role })) };
   const { error: ue } = await sb.from('projects').update(update).eq('id', projectId);
   if (ue) throw ue;
+  await markImported();
 
   // Tidy images from earlier builds that nothing uses any more (uploads by the studio are kept)
   if (previous) {

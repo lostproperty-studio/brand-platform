@@ -101,13 +101,17 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [ask, setAsk] = useState<Ask | null>(null);
 
   const [rebuildOpen, setRebuildOpen] = useState(false);
-  async function rebuild(mode: RebuildMode = 'update') {
+  // Arriving from the Overview's "Choose chapters" opens the import straight away
+  useEffect(() => { const u = new URL(window.location.href); if (u.searchParams.get('import') === '1') { setRebuildOpen(true); u.searchParams.delete('import'); window.history.replaceState(null, '', u.toString()); } }, []);
+  async function rebuild(mode: RebuildMode = 'update', pick?: { chapters?: string[]; showcase?: boolean }) {
     setBusy(true); setMsg(''); setRebuildOpen(false); setSel(null);
-    const r = await fetch(`/api/projects/${projectId}/guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+    const r = await fetch(`/api/projects/${projectId}/guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, ...pick }) });
     const j = await r.json().catch(() => ({}));
     setBusy(false);
     const n = (x: number, w: string) => `${x} ${w}${x === 1 ? '' : 's'}`;
-    const done = mode === 'add' ? (j.added?.chapters || j.added?.sections ? `Added ${n(j.added.chapters, 'new chapter')} and ${n(j.added.sections, 'new section')} from Figma. Everything else is as you left it.` : 'Nothing new in Figma. Everything is as you left it.')
+    const some = pick?.chapters ? `${n(pick.chapters.length, 'chapter')}` : '';
+    const done = some ? (mode === 'fresh' ? `Replaced ${some} with what’s in Figma.` : mode === 'add' ? `Brought in ${some}; anything already here was left as it was.` : `Imported ${some} from Figma. Your edits were kept.`) + ' The other chapters weren’t touched.'
+      : mode === 'add' ? (j.added?.chapters || j.added?.sections ? `Added ${n(j.added.chapters, 'new chapter')} and ${n(j.added.sections, 'new section')} from Figma. Everything else is as you left it.` : 'Nothing new in Figma. Everything is as you left it.')
       : mode === 'fresh' ? `Started over: ${n(j.chapters, 'chapter')} built fresh from Figma.` : `Updated ${n(j.chapters, 'chapter')} from Figma. Your edits were kept.`;
     setMsg(r.ok ? done + gapText(j.gaps) : 'The rebuild didn’t finish: ' + (j.error || r.status) + (/token|can’t find/i.test(j.error || '') ? '' : ' Try again in a minute; Figma is sometimes busy.'));
     router.refresh();
@@ -549,7 +553,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       <style>{fontCss}</style>{liveFontCss ? <style>{liveFontCss}</style> : null}
       <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
       <div className="ve-top">
-        <button className="btn solid ic" disabled={busy} onClick={() => setRebuildOpen(true)} aria-haspopup="dialog"><RefreshCw size={15} strokeWidth={1.75} aria-hidden />Rebuild from Figma</button>
+        <button className="btn solid ic" disabled={busy} onClick={() => setRebuildOpen(true)} aria-haspopup="dialog"><RefreshCw size={15} strokeWidth={1.75} aria-hidden />Import from Figma</button>
         <a className="btn ic" href={`/p/${slug}/guidelines`} target="_blank" rel="noopener"><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a>
         <button className={'btn ic' + (showHidden ? ' solid' : '')} aria-pressed={showHidden} onClick={() => setShowHidden(!showHidden)}>{showHidden ? <Eye size={15} strokeWidth={1.75} aria-hidden /> : <EyeOff size={15} strokeWidth={1.75} aria-hidden />}{showHidden ? 'Showing hidden' : 'Show hidden'}{hiddenCount ? ` (${hiddenCount})` : ''}</button>
         <span className="ve-tier">{tier ? `${tierLabel(tier)} tier` : 'No tier set'}{nDraft || nMissing ? ` · ${[nDraft ? `${nDraft} draft${nDraft === 1 ? '' : 's'} to check` : '', nMissing ? `${nMissing} missing` : ''].filter(Boolean).join(' · ')}` : ''}</span>
@@ -641,7 +645,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}
       {fontAsk ? <FontDialog projectId={projectId} fonts={fonts} onClose={() => setFontAsk(null)} onDone={(next, urls, role) => { setFonts(next); setLiveFontCss(fontFaceCss(next, urls)); fontAsk(role); setFontAsk(null); }} /> : null}
-      {rebuildOpen ? <RebuildDialog onClose={() => setRebuildOpen(false)} onRun={rebuild} /> : null}
+      {rebuildOpen ? <ImportDialog projectId={projectId} onClose={() => setRebuildOpen(false)} onRun={rebuild} /> : null}
       <p className="mute">Built {new Date(g.generatedAt).toLocaleString('en-GB')} from “{g.page}” in {g.file}. Sections you edit or add are kept when you rebuild.</p>
     </div>
   );
@@ -734,34 +738,79 @@ function HomeEditor({ projectId, home, chapters, colours, fonts, onAddFont }: { 
 }
 
 type RebuildMode = 'update' | 'add' | 'fresh';
-const REBUILD: { mode: RebuildMode; icon: LucideIcon; title: string; body: string }[] = [
-  { mode: 'update', icon: RefreshCw, title: 'Update from Figma', body: 'Refreshes what changed in Figma and adds anything new. Your edits, added sections and uploads are kept.' },
-  { mode: 'add', icon: FilePlus2, title: 'Add new content only', body: 'Leaves everything exactly as it is and only brings in new chapters, sections, colours and assets from Figma.' },
-  { mode: 'fresh', icon: TriangleAlert, title: 'Start over', body: 'Rebuilds everything from the Figma file as if new. Your edits, added chapters, the showcase and the brand form answers are replaced.' }
-];
-/** Rebuild options. Starting over asks a second time, since it replaces the studio's work. */
-function RebuildDialog({ onClose, onRun }: { onClose: () => void; onRun: (m: RebuildMode) => void }) {
-  const [pick, setPick] = useState<RebuildMode>('update');
+type Found = { id: string; title: string; number?: string; frames: number; status: 'new' | 'imported'; importedAt?: string; edited?: boolean };
+type FoundAll = { file?: string; page?: string; chapters: Found[]; showcase: number; showcaseImported: boolean };
+const when = (d?: string) => { if (!d) return ''; const t = new Date(d); const days = Math.round((Date.now() - t.getTime()) / 864e5); return days < 1 ? 'today' : days === 1 ? 'yesterday' : days < 7 ? `${days} days ago` : t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+
+/** Import from Figma: first the chapters found in the guidelines file (pick the ones that are ready), then how to treat
+ *  what's already here. Replacing asks a second time, since it overwrites the studio's work. */
+function ImportDialog({ projectId, onClose, onRun }: { projectId: string; onClose: () => void; onRun: (m: RebuildMode, pick?: { chapters?: string[]; showcase?: boolean }) => void }) {
+  const [found, setFound] = useState<FoundAll | null>(null);
+  const [err, setErr] = useState('');
+  const [on, setOn] = useState<Set<string>>(new Set());
+  const [show, setShow] = useState(false);
+  const [mode, setMode] = useState<RebuildMode>('update');
   const [sure, setSure] = useState(false);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }; window.addEventListener('keydown', k, true); return () => window.removeEventListener('keydown', k, true); }, [onClose]);
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/guide/chapters`).then(async (r) => {
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.error || 'Couldn’t read the Figma file.'); return; }
+      setFound(j);
+      // New chapters are ticked to start with; ones already here are left for you to choose
+      const fresh = (j.chapters as Found[]).filter((c) => c.status === 'new');
+      setOn(new Set((fresh.length ? fresh : j.chapters as Found[]).map((c) => c.id)));
+      setShow(!!j.showcase && !j.showcaseImported);
+    });
+  }, [projectId]);
+  const list = found?.chapters || [];
+  const allOn = list.length > 0 && list.every((c) => on.has(c.id));
+  const toggle = (id: string) => { const n = new Set(on); if (n.has(id)) n.delete(id); else n.add(id); setOn(n); };
+  const chosen = list.filter((c) => on.has(c.id));
+  const whole = allOn && (show || !found?.showcase);
+  const run = () => onRun(mode, whole ? undefined : { chapters: chosen.map((c) => c.id), showcase: show });
+  const nothing = !chosen.length && !show;
+  const already = chosen.filter((c) => c.status === 'imported');
+  const n = (x: number, w: string) => `${x} ${w}${x === 1 ? '' : 's'}`;
+  const MODES: { mode: RebuildMode; icon: LucideIcon; title: string; body: string }[] = [
+    { mode: 'update', icon: RefreshCw, title: 'Update, keep my edits', body: 'Brings in what changed in Figma. Edits, added sections and uploads made here are kept.' },
+    { mode: 'add', icon: FilePlus2, title: 'Only add what’s new', body: 'Leaves chapters already here exactly as they are; only new chapters and sections come in.' },
+    { mode: 'fresh', icon: TriangleAlert, title: whole ? 'Start over' : 'Replace these chapters', body: whole ? 'Rebuilds everything from Figma as if new. Edits, added chapters and the showcase are replaced.' : 'The chosen chapters are rebuilt from Figma as if new; edits made to them here are replaced. Other chapters aren’t touched.' }
+  ];
+
   if (sure) return <div className="cf-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="cf" role="alertdialog" aria-modal="true" aria-labelledby="rb-t2" aria-describedby="rb-b2">
       <span className="cf-ic" aria-hidden><TriangleAlert size={18} strokeWidth={1.75} /></span>
-      <h2 id="rb-t2" className="cf-t">Start over from Figma?</h2>
-      <p id="rb-b2" className="cf-b">Every edit made in the platform to the guidelines, the showcase and the brand form will be replaced by what’s in the Figma file. Typefaces, client accounts and files you uploaded to Downloads stay. This can’t be undone.</p>
-      <div className="cf-row"><button className="btn" autoFocus onClick={() => setSure(false)}>Go back</button><button className="btn solid cf-yes" onClick={() => onRun('fresh')}>Yes, start over</button></div>
+      <h2 id="rb-t2" className="cf-t">{whole ? 'Start over from Figma?' : `Replace ${n(already.length, 'chapter')}?`}</h2>
+      <p id="rb-b2" className="cf-b">{whole ? 'Every edit made in the platform to the guidelines and the showcase will be replaced by what’s in the Figma file. Typefaces, client accounts and files you uploaded stay. This can’t be undone.' : `Edits made here to ${already.map((c) => c.title).join(', ')} will be replaced by what’s in Figma.${chosen.length > already.length ? ` The ${n(chosen.length - already.length, 'new chapter')} will be brought in as well.` : ''} This can’t be undone.`}</p>
+      <div className="cf-row"><button className="btn" autoFocus onClick={() => setSure(false)}>Go back</button><button className="btn solid cf-yes" onClick={run}>{whole ? 'Yes, start over' : 'Yes, replace them'}</button></div>
     </div>
   </div>;
   return <div className="cf-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-    <div className="cf cf-wide" role="dialog" aria-modal="true" aria-labelledby="rb-t">
-      <h2 id="rb-t" className="cf-t">Rebuild from Figma</h2>
-      <p className="cf-b">How should the platform treat the work already done here?</p>
-      <div className="rb-opts" role="radiogroup" aria-labelledby="rb-t">
-        {REBUILD.map(({ mode, icon: Ic, title, body }) => <button key={mode} role="radio" aria-checked={pick === mode} className={'rb-opt' + (pick === mode ? ' on' : '') + (mode === 'fresh' ? ' warn' : '')} onClick={() => setPick(mode)} autoFocus={mode === 'update'}>
-          <span className="rb-ic" aria-hidden><Ic size={18} strokeWidth={1.75} /></span><span><b>{title}</b><span>{body}</span></span>
-        </button>)}
-      </div>
-      <div className="cf-row"><button className="btn" onClick={onClose}>Cancel</button><button className="btn solid" onClick={() => (pick === 'fresh' ? setSure(true) : onRun(pick))}>{pick === 'fresh' ? 'Continue' : 'Rebuild'}</button></div>
+    <div className="cf cf-wide im" role="dialog" aria-modal="true" aria-labelledby="rb-t">
+      <h2 id="rb-t" className="cf-t">Import from Figma</h2>
+      {err ? <><p className="cf-b" role="alert">{err}</p>{/link/i.test(err) ? <p className="cf-b"><a href="?tab=overview">Add the guidelines link on the Overview</a></p> : null}<div className="cf-row"><button className="btn" onClick={onClose}>Close</button></div></> : !found ? <><p className="cf-b" role="status">Looking for chapters in the guidelines file…</p><div className="im-load" aria-hidden><span /><span /><span /></div></> : <>
+        <p className="cf-b">{found.file ? <>From <b>{found.file}</b>{found.page ? ` · ${found.page}` : ''}. </> : null}Choose the chapters that are ready; you can bring the rest in later.</p>
+        {list.length ? <div className="im-list" role="group" aria-label="Chapters found in Figma">
+          <label className="im-row im-all"><input type="checkbox" checked={allOn} onChange={() => setOn(allOn ? new Set() : new Set(list.map((c) => c.id)))} /><span className="im-t">All chapters</span><span className="im-meta">{n(list.length, 'chapter')} found</span></label>
+          {list.map((c) => <label key={c.id} className={'im-row' + (on.has(c.id) ? ' on' : '')}>
+            <input type="checkbox" checked={on.has(c.id)} onChange={() => toggle(c.id)} />
+            <span className="im-t">{c.number ? <span className="im-num">{c.number}</span> : null}{c.title}</span>
+            <span className="im-meta">{n(c.frames, 'frame')}</span>
+            <span className={'im-tag ' + c.status}>{c.status === 'new' ? 'New' : `Imported ${when(c.importedAt) || 'earlier'}`}{c.edited ? ' · edited here' : ''}</span>
+          </label>)}
+          {found.showcase ? <label className={'im-row' + (show ? ' on' : '')}><input type="checkbox" checked={show} onChange={() => setShow(!show)} /><span className="im-t">Showcase</span><span className="im-meta">{n(found.showcase, 'row')}</span><span className={'im-tag ' + (found.showcaseImported ? 'imported' : 'new')}>{found.showcaseImported ? 'Imported' : 'New'}</span></label> : null}
+        </div> : <p className="cf-b">No chapters found on that page. Chapters are the cards on the Guidelines page, or sections with frames in them (the layout library is skipped).</p>}
+        {list.length ? <>
+          <p className="im-h">Chapters already here</p>
+          <div className="rb-opts" role="radiogroup" aria-label="Chapters already here">
+            {MODES.map(({ mode: m, icon: Ic, title, body }) => <button key={m} role="radio" aria-checked={mode === m} className={'rb-opt' + (mode === m ? ' on' : '') + (m === 'fresh' ? ' warn' : '')} onClick={() => setMode(m)}>
+              <span className="rb-ic" aria-hidden><Ic size={18} strokeWidth={1.75} /></span><span><b>{title}</b><span>{body}</span></span>
+            </button>)}
+          </div>
+        </> : null}
+        <div className="cf-row"><button className="btn" onClick={onClose}>Cancel</button>{list.length ? <button className="btn solid" disabled={nothing} onClick={() => (mode === 'fresh' && (whole || already.length) ? setSure(true) : run())}>{nothing ? 'Choose a chapter' : mode === 'fresh' && (whole || already.length) ? 'Continue' : whole ? 'Import everything' : `Import ${chosen.length ? n(chosen.length, 'chapter') : 'the showcase'}`}</button> : null}</div>
+      </>}
     </div>
   </div>;
 }

@@ -5,8 +5,9 @@ import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { deleteKitRepo } from '@/lib/github/kitRepo';
 import { parseFigmaUrl } from '@/lib/figma/scan';
+import { readSources, sourceFromUrl, type Sources } from '@/lib/figma/sources';
 
-const Body = z.object({ client: z.string().max(120).optional(), name: z.string().max(120).optional(), line: z.string().max(300).optional(), status: z.enum(['draft', 'live', 'archived']).optional(), brand: z.record(z.unknown()).optional(), content: z.record(z.unknown()).optional(), kit_version: z.string().max(20).optional(), figmaUrl: z.string().max(500).optional(), tier: z.enum(['essentials', 'standard', 'comprehensive']).optional(), slug: z.string().max(48).optional() });
+const Body = z.object({ client: z.string().max(120).optional(), name: z.string().max(120).optional(), line: z.string().max(300).optional(), status: z.enum(['draft', 'live', 'archived']).optional(), brand: z.record(z.unknown()).optional(), content: z.record(z.unknown()).optional(), kit_version: z.string().max(20).optional(), figmaUrl: z.string().max(500).optional(), tier: z.enum(['essentials', 'standard', 'comprehensive']).optional(), slug: z.string().max(48).optional(), sources: z.object({ assets: z.string().max(500).nullable().optional(), guidelines: z.string().max(500).nullable().optional() }).optional() });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff();
@@ -15,7 +16,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   { const gate = await teamGate(id, st, 'editor', 'project'); if (gate) return gate; }
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
-  const { figmaUrl, tier, content, ...rest } = b.data;
+  const { figmaUrl, tier, content, sources, ...rest } = b.data;
   const { slug, ...fields } = rest;
   const update: Record<string, unknown> = { ...fields };
   // The portal address: platform.lostproperty.studio/<slug>
@@ -30,6 +31,22 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (content || tier) {
     const { data: cur } = await adminClient().from('projects').select('content').eq('id', id).maybeSingle();
     update.content = { ...((cur?.content as Record<string, unknown>) || {}), ...(content || {}), ...(tier ? { tier } : {}) };
+  }
+  // The two Figma links: brand assets, and guidelines. The guidelines link is also the project's main Figma file.
+  if (sources) {
+    const { data: cur } = await adminClient().from('projects').select('content, figma_key, figma_page_id').eq('id', id).maybeSingle();
+    const base = (update.content as Record<string, unknown>) || (cur?.content as Record<string, unknown>) || {};
+    const now = readSources(base, cur || undefined);
+    const next: Sources = { ...now };
+    for (const k of ['assets', 'guidelines'] as const) {
+      const v = sources[k];
+      if (v === undefined) continue;
+      if (v === null || !v.trim()) { delete next[k]; continue; }
+      if (now[k]?.url === v.trim()) continue;
+      try { next[k] = await sourceFromUrl(v.trim(), k); } catch (e) { return NextResponse.json({ error: (e as Error).message || 'Couldn’t open that Figma link.' }, { status: 400 }); }
+    }
+    update.content = { ...base, sources: next };
+    if (sources.guidelines !== undefined) { update.figma_key = next.guidelines?.key || null; update.figma_page_id = next.guidelines?.page || null; }
   }
   if (figmaUrl) {
     const fig = parseFigmaUrl(figmaUrl);

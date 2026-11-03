@@ -52,7 +52,7 @@ const text = (n?: N) => (n && n.type === 'TEXT' ? (n.characters || '').replace(L
 const named = (n: N, name: string, stopAtItems = false) => text(find(n, name, stopAtItems));
 
 // Template placeholder text: left as is, it means "not filled in"
-const PLACEHOLDER = new Set(['brand name', 'one line about the brand.', 'colour name', 'family name', 'where it’s used', 'chapter title']);
+const PLACEHOLDER = new Set(['brand name', 'one line about the brand.', 'colour name', 'family name', 'where it’s used', 'chapter title', 'title']);
 const filled = (s?: string) => (s && !PLACEHOLDER.has(s.toLowerCase()) && !/^a short welcome for the portal’s home page/i.test(s) ? s : undefined);
 
 // ── What a template file holds
@@ -75,7 +75,9 @@ export type TemplateRead = {
 const PKG: [RegExp, string][] = [[/^logos?$/i, 'logos'], [/^avatars?$/i, 'avatars'], [/^icons?$/i, 'icons'], [/^images?$/i, 'images'], [/^graphic\s*language$/i, 'graphics']];
 
 export async function readTemplate(fileKey: string, pages: TemplatePages): Promise<TemplateRead> {
-  const [assetsPage, guidePage] = await Promise.all([pageTree(fileKey, pages.assets), pageTree(fileKey, pages.guidelines)]);
+  // Either page can be left out ('') to read only the assets or only the guidelines
+  const empty: N = { id: '', name: '', type: 'CANVAS', children: [] } as unknown as N;
+  const [assetsPage, guidePage] = await Promise.all([pages.assets ? pageTree(fileKey, pages.assets) : empty, pages.guidelines ? pageTree(fileKey, pages.guidelines) : empty]);
   const top = (p: N) => (p.children || []).filter((c) => visible(c) && !c.name.trim().startsWith('_') && !isNote(c));
 
   // Brand
@@ -134,12 +136,19 @@ export async function readTemplate(fileKey: string, pages: TemplatePages): Promi
   const cards = findAll(guidePage, (x) => x.name.trim().toLowerCase() === 'chapter' && (x.type === 'INSTANCE' || x.type === 'FRAME' || x.type === 'COMPONENT')).sort(byPos);
   const sections = top(guidePage).filter((c) => c.type === 'SECTION');
   const norm = (s: string) => slug(s.replace(/^\d+\s*/, ''));
+  const framesOf = (sec?: N) => (sec ? (sec.children || []).filter((f) => visible(f) && f.type === 'FRAME' && !f.name.startsWith('_') && !isNote(f)).sort(byPos) : []);
   const chapters: TemplateRead['chapters'] = cards.map((c) => {
-    const title = named(c, 'title') || 'Chapter';
+    const title = filled(named(c, 'title')) || 'Chapter';
     const sec = sections.find((s) => norm(s.name) === norm(title));
     const thumb = find(c, 'thumbnail');
-    return { title, number: named(c, 'number'), intro: filled(named(c, 'intro')), thumbNode: thumb && hasImage(thumb) ? thumb.id : undefined, frames: sec ? (sec.children || []).filter((f) => visible(f) && f.type === 'FRAME' && !f.name.startsWith('_') && !isNote(f)).sort(byPos) : [] };
-  });
+    return { title, number: named(c, 'number'), intro: filled(named(c, 'intro')), thumbNode: thumb && hasImage(thumb) ? thumb.id : undefined, frames: framesOf(sec) };
+  }).filter((c) => c.title !== 'Chapter' || c.frames.length);
+  // Chapter sections without a card are chapters too, in their place left to right (the layout library and the showcase aren't)
+  for (const sec of [...sections].sort((a, b) => box(a).x - box(b).x)) {
+    if (/^showcase$/i.test(sec.name.trim()) || chapters.some((c) => norm(c.title) === norm(sec.name))) continue;
+    const frames = framesOf(sec); if (!frames.length) continue;
+    chapters.push({ title: sec.name.trim().replace(/^\d+\s*/, ''), number: sec.name.trim().match(/^(\d+)/)?.[1], frames });
+  }
 
   // Showcase: the section named showcase; full frames and pairs (left, right) with an image fill
   const showSec = sections.find((s) => s.name.trim().toLowerCase() === 'showcase');

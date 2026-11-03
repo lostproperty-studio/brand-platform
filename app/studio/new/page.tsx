@@ -11,7 +11,7 @@ type Step = { title: string; desc: string; state: 'waiting' | 'running' | 'done'
 const STEPS = ['Client', 'Figma file', 'Scan', 'Review', 'Typefaces', 'Create'];
 // Typical durations (seconds) of the scan steps, and of building the project at the end
 const SCAN_PHASES: Phase[] = [{ label: 'Opening the Figma file', expected: 6 }, { label: 'Reading the text', expected: 2 }, { label: 'Reading colours and type', expected: 2 }, { label: 'Exporting asset previews', expected: 20 }, { label: 'Claude is drafting rules and questions', expected: 140 }];
-const CREATE_PHASES: Phase[] = [{ label: 'Building the kit and the repository', expected: 45 }, { label: 'Building the online guidelines from Figma', expected: 75 }];
+const CREATE_PHASES: Phase[] = [{ label: 'Building the kit and the repository', expected: 45 }, { label: 'Bringing in logos, fonts and colours', expected: 45 }];
 
 // New project: client → Figma link → live scan → review (can be skipped) → typefaces → build the kit.
 // Publishing to the client is a separate step on the project page, after the fonts are licensed.
@@ -21,6 +21,7 @@ export default function NewProject() {
   const [client, setClient] = useState('');
   const [line, setLine] = useState('');
   const [figma, setFigma] = useState('');
+  const [assetsUrl, setAssetsUrl] = useState('');
   const [tier, setTier] = useState<Tier | undefined>();
   const [project, setProject] = useState<{ id: string; slug: string; figma: string } | null>(null);
   const [scanId, setScanId] = useState<string | null>(null);
@@ -37,7 +38,8 @@ export default function NewProject() {
   const scanCurrent = scan ? Math.max(scanSteps.findIndex((x) => x.state === 'running'), scanSteps.some((x) => x.state === 'done') ? scanSteps.filter((x) => x.state === 'done').length : 0) : -1;
   const scanProgress = useProgress(SCAN_PHASES, scanId ? Math.min(scanCurrent, SCAN_PHASES.length - 1) : -1, scan?.status === 'done');
   const createProgress = useProgress(CREATE_PHASES, Math.min(createPhase, 1), createPhase >= 2);
-  const figmaOk = /figma\.com\/(file|design|proto)\/[A-Za-z0-9]{10,}/.test(figma);
+  const isFigma = (u: string) => /figma\.com\/(file|design|proto)\/[A-Za-z0-9]{10,}/.test(u);
+  const figmaOk = isFigma(figma) && (!assetsUrl.trim() || isFigma(assetsUrl));
 
   async function startScan() {
     setError(''); setScan(null); setScanId(null);
@@ -53,6 +55,9 @@ export default function NewProject() {
       }
       setProject({ ...p, figma });
     }
+    // The two links: guidelines, and the brand assets (the same file's Assets page when left empty)
+    const sr = await fetch(`/api/projects/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sources: { guidelines: figma, assets: assetsUrl.trim() || null } }) });
+    if (!sr.ok) { setError((await sr.json().catch(() => ({}))).error || 'Couldn’t open one of the Figma links.'); setBusy(''); return; }
     setStep(2); setBusy('');
     const s = await fetch(`/api/projects/${p.id}/scan`, { method: 'POST' }); const sj = await s.json();
     if (!s.ok) { setError(sj.error || 'The scan couldn’t start.'); return; }
@@ -82,11 +87,12 @@ export default function NewProject() {
     setBusy('Building the kit and the repository…'); setCreatePhase(0);
     const k = await fetch(`/api/projects/${project.id}/kit?direct=1`, { method: 'POST' });
     if (!k.ok) { setError('The kit build failed: ' + (await k.text()).slice(0, 200)); setBusy(''); setCreatePhase(-1); return; }
-    setBusy('Building the online guidelines from Figma…'); setCreatePhase(1);
-    const g = await fetch(`/api/projects/${project.id}/guide`, { method: 'POST' });
-    if (!g.ok) { setError('The kit is built, but the guidelines didn’t build: ' + ((await g.json().catch(() => ({}))).error || g.status) + '. You can retry from the project’s Guidelines tab.'); setBusy(''); setCreatePhase(-1); return; }
+    setBusy('Bringing in the brand assets: logos, fonts and colours…'); setCreatePhase(1);
+    const g = await fetch(`/api/projects/${project.id}/guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part: 'assets' }) });
+    if (!g.ok) { setError('The kit is built, but the brand assets didn’t come in: ' + ((await g.json().catch(() => ({}))).error || g.status) + '. You can retry from the project’s Overview.'); setBusy(''); setCreatePhase(-1); return; }
     setCreatePhase(2);
-    router.push(`/studio/projects/${project.id}?created=1${skippedReview ? '&skipped=1' : ''}`);
+    // Then straight to the guidelines, to choose which chapters are ready to bring in
+    router.push(`/studio/projects/${project.id}?tab=guidelines&import=1${skippedReview ? '&skipped=1' : ''}`);
   }
 
   return (
@@ -106,10 +112,12 @@ export default function NewProject() {
           <TierCards value={tier} onChange={setTier} />
         </> : null}
         {step === 1 ? <>
-          <h1>Link the Figma file</h1>
-          <p className="mute">Paste the link to the guidelines page. I’ll read its text, colours, type and asset layers, then show you everything I find.</p>
-          <label className="mute" htmlFor="f">Figma link (include the page’s node-id)</label><input id="f" className="in" value={figma} onChange={(e) => setFigma(e.target.value)} placeholder="https://www.figma.com/design/…?node-id=…" />
-          {figma && !figmaOk ? <p className="mute">That doesn’t look like a Figma file link yet.</p> : null}
+          <h1>Link the Figma files</h1>
+          <p className="mute">Two links: the guidelines, and the brand assets that build the asset packages and brand the platform with the right logos, fonts and colours. If both are in the same file (as in the studio template), the assets link can stay empty.</p>
+          <label className="mute" htmlFor="f">Guidelines page</label><input id="f" className="in" value={figma} onChange={(e) => setFigma(e.target.value)} placeholder="https://www.figma.com/design/…?node-id=…" />
+          {figma && !isFigma(figma) ? <p className="mute">That doesn’t look like a Figma file link yet.</p> : null}
+          <label className="mute" htmlFor="fa" style={{ marginTop: 12, display: 'block' }}>Assets page <span className="mute">(optional)</span></label><input id="fa" className="in" value={assetsUrl} onChange={(e) => setAssetsUrl(e.target.value)} placeholder="Same file’s Assets page if empty" />
+          {assetsUrl.trim() && !isFigma(assetsUrl) ? <p className="mute">That doesn’t look like a Figma file link yet.</p> : null}
         </> : null}
         {step === 2 ? <>
           <h1>Reading the Figma file</h1>

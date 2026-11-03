@@ -13,6 +13,7 @@ import { ToolManager } from '@/components/ToolManager';
 import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
 import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
+import { readSources, type Source } from '@/lib/figma/sources';
 import { guidePaths, normaliseGuide, type Guide } from '@/lib/portal/guide';
 import { signFontUrls } from '@/lib/projects/fonts';
 import { fontFaceCss } from '@/lib/fonts';
@@ -48,7 +49,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const asked = sp.tab === 'tools' || sp.tab === 'deliverables' ? 'resources' : sp.tab;
   const tab = TABS.some(([k]) => k === asked) ? asked! : 'overview';
   const sb = adminClient();
-  const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
+  const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, figma_page_id, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
   // The studio team: people not on a project's team can't open it; viewers see it read-only
   const me = await requireStaff();
@@ -117,6 +118,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       edit: lastEdit ? { who: staffName(lastEdit.last_edited_by) || 'a teammate', at: lastEdit.last_edited_at } : null,
       edits: a30.filter((x) => x.kind === 'edit').map((x) => ({ who: staffName(x.user_id) || 'Someone', area: x.detail || 'project', at: x.created_at })),
       figma: p.figma_key ? { key: p.figma_key, ...shot.figma } : null,
+      sources: (() => { const s = readSources(p.content, p as { figma_key?: string | null }); const row = (x?: Source) => (x ? { url: x.url, file: x.file || (x === s.guidelines ? shot.figma?.name : undefined), pageName: x.pageName, importedAt: x.importedAt } : null); return { assets: row(s.assets), guidelines: row(s.guidelines) }; })(),
       repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null,
       chapters: guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length : 0,
       checks
