@@ -24,7 +24,9 @@ export function markFrame(mode: MarkState, t: number): [number, number, number][
   if (mode === 'scan') return [0, 1, 2, 3].map((i): [number, number, number] => { const c = (((t - i * 0.14) / 1.5) % 2 + 2) % 2; const a = ease(c < 1 ? c : 2 - c); return [pt(a, i / 3)[0], (i * (H - D)) / 3, 0.3 + 0.7 * Math.pow(Math.sin(Math.PI * a), 0.7)]; });
   if (mode === 'contour') { const step = 0.62; const k = Math.floor(t / step), f = Math.min(1, (t % step) / step / 0.55); return [0, 1, 2, 3].map((i) => [...pt(...around(i + k + ease(f))), 1]); }
   if (mode === 'pulse') return C.map(([a, b], i) => [...pt(a, b), 0.2 + 0.8 * Math.pow((Math.sin((t * Math.PI * 2) / 1.4 - (i * Math.PI) / 2) + 1) / 2, 1.6)]);
-  if (mode === 'orbit') return [0, 1, 2, 3].map((i) => [...pt(...around(i + t / 1.1)), 1]);
+  // Orbiting: a smooth glide that eases into each corner and out again, never stopping (speed dips to a third at
+  // the corners and swells along the edges, with no jolt)
+  if (mode === 'orbit') { const u = t / 1.1, f = u - Math.floor(u); const p = Math.floor(u) + f - (0.67 * Math.sin(2 * Math.PI * f)) / (2 * Math.PI); return [0, 1, 2, 3].map((i) => [...pt(...around(i + p)), 1]); }
   if (mode === 'swap') {
     const seg = 0.9, k = Math.floor(t / seg), f = ease(Math.min(1, (t % seg) / seg / 0.6));
     const pos = [0, 1, 2, 3];
@@ -35,14 +37,38 @@ export function markFrame(mode: MarkState, t: number): [number, number, number][
   return C.map(([a, b]) => [...pt(a, b), 1]);
 }
 
+// Moving between states: the dots get into formation quickly (each to its nearest place in the new motion, so
+// none cross), then the new motion starts from exactly there.
+const FORM = 0.24; // seconds to get into formation
+const PERMS: number[][] = (() => { const out: number[][] = []; const go = (a: number[], rest: number[]) => { if (!rest.length) out.push(a); else rest.forEach((x, i) => go([...a, x], rest.filter((_, j) => j !== i))); }; go([], [0, 1, 2, 3]); return out; })();
+const settle = (x: number) => 1 - Math.pow(1 - x, 3);
+type Dot = [number, number, number];
+
 export function LpMark({ state = 'rest', colour = LP_PINK, scale = 1, title }: { state?: MarkState; colour?: string; scale?: number; title?: string }) {
   const dots = useRef<(SVGCircleElement | null)[]>([]);
+  const now = useRef<Dot[]>(markFrame('rest', 0));
   useEffect(() => {
     const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const set = (t: number) => markFrame(state, t).forEach(([x, y, o], i) => { const r = dots.current[i]; if (r) { r.setAttribute('cx', String(x + D / 2)); r.setAttribute('cy', String(y + D / 2)); r.setAttribute('opacity', o.toFixed(3)); } });
-    if (state === 'rest' || reduce) { set(state === 'pulse' ? 0.35 : 0); return; }
+    const draw = (f: Dot[]) => { now.current = f; f.forEach(([x, y, o], i) => { const r = dots.current[i]; if (r) { r.setAttribute('cx', String(x + D / 2)); r.setAttribute('cy', String(y + D / 2)); r.setAttribute('opacity', o.toFixed(3)); } }); };
+    const still = state === 'rest' || reduce;
+    const first = markFrame(state, 0);
+    // Which dot takes which place: the arrangement with the least travel
+    const from = now.current;
+    const perm = PERMS.reduce((best, p) => { const cost = (q: number[]) => q.reduce((n, k, i) => n + (from[i][0] - first[k][0]) ** 2 + (from[i][1] - first[k][1]) ** 2, 0); return cost(p) < cost(best) ? p : best; }, PERMS[0]);
+    const at = (t: number) => { const f = markFrame(state, t); return perm.map((k) => f[k]); };
+    if (reduce) { draw(at(state === 'pulse' ? 0.35 : 0)); return; }
     let raf = 0; const t0 = performance.now();
-    const tick = (now: number) => { set((now - t0) / 1000); raf = requestAnimationFrame(tick); };
+    const tick = (ms: number) => {
+      const t = (ms - t0) / 1000;
+      if (t < FORM) {
+        const k = settle(t / FORM), to = at(0);
+        draw(from.map(([x, y, o], i) => [x + (to[i][0] - x) * k, y + (to[i][1] - y) * k, o + (to[i][2] - o) * k]));
+      } else {
+        draw(at(t - FORM));
+        if (still) return; // resting: in place, nothing more to do
+      }
+      raf = requestAnimationFrame(tick);
+    };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [state]);

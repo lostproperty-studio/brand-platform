@@ -75,7 +75,7 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
     <div className={'dock ak' + (open ? ' open' : '')}>
       {open ? <div className="ak-panel" role="dialog" aria-label={`Ask about ${client}`}>
         <div className="ak-top">
-          <AskMark state={busy ? 'scan' : 'rest'} />
+          <AskMark state={busy && !msgs[msgs.length - 1]?.content ? 'scan' : 'rest'} />
           <strong>{view === 'history' ? 'Your conversations' : 'Ask'}</strong>
           {view === 'chat' ? <span className="mute ak-here">About {here}</span> : null}
           {studioAi ? <span className="dock-studio" title="You’re previewing as the studio, so Ask runs on Lost Property’s AI. Clients use their own key.">Studio preview · Lost Property AI</span> : null}
