@@ -4,6 +4,8 @@ import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/
 import { brandSystemPrompt, portalAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
 import { pageContext } from '@/lib/portal/pageContext';
 import { logActivity } from '@/lib/activity';
+import { portalContext } from '@/lib/portal/context';
+import { askCatalog, catalogPrompt } from '@/lib/portal/askCatalog';
 import { aiFailure, markKeyRejected } from '@/lib/ai/errors';
 
 export const maxDuration = 60;
@@ -37,7 +39,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   await sb.from('messages').insert({ conversation_id: convId, role: 'user', content: question, context: here?.label ?? null });
   if (!acc.staff) await logActivity(p.id, acc.user.id, 'ask', here?.label);
 
-  const system = brandSystemPrompt(snap) + (here ? `\n\nWHAT THEY'RE LOOKING AT\n${here.text}\nIf they say "this", "here" or "on this page", they mean this. Keep answers short and practical.` : '');
+  // The cards Ask can show (colours, logos, downloads, pages, typefaces), from the same portal the person sees
+  const pc = await portalContext(slug);
+  const catalog = pc?.snap ? await askCatalog(pc, slug).catch(() => null) : null;
+  const system = brandSystemPrompt(snap) + (catalog ? `\n\n${catalogPrompt(catalog)}` : '') + (here ? `\n\nWHAT THEY'RE LOOKING AT\n${here.text}\nIf they say "this", "here" or "on this page", they mean this. Keep answers short and practical.` : '');
   const stream = ai.messages.stream({ model: 'claude-sonnet-5-5', max_tokens: 1200, system, messages: body.data.messages });
   const enc = new TextEncoder();
   return new Response(new ReadableStream({
