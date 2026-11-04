@@ -2,8 +2,8 @@
 import { useEffect, useRef } from 'react';
 
 // Lost Property's AI mark: four small round pixels working inside a parallelogram drawn from the LP monogram's
-// slant, its sides as long as it is tall. The letters are never drawn. Resting: one pixel on each corner. Scanning: a 2×2 block
-// sweeps along the slant (thinking). Contouring: the four step corner to corner around the shape (writing).
+// slant, its sides as long as it is tall. The letters are never drawn. Resting: one pixel on each corner. Scanning: the four stack
+// down the slant and sweep left and right, each a beat behind the last, dimming at the turns (thinking). Contouring: the four step corner to corner around the shape (writing).
 // Pulsing: the corners breathe in turn (done). Orbiting and swapping are there for longer tasks and searches.
 
 export type MarkState = 'rest' | 'scan' | 'contour' | 'pulse' | 'orbit' | 'swap';
@@ -16,7 +16,7 @@ const C: [number, number][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
 const around = (p: number): [number, number] => { p = ((p % 4) + 4) % 4; const i = Math.floor(p), f = p - i; const [a1, b1] = C[i], [a2, b2] = C[(i + 1) % 4]; return [a1 + (a2 - a1) * f, b1 + (b2 - b1) * f]; };
 
 export function markFrame(mode: MarkState, t: number): [number, number, number][] {
-  if (mode === 'scan') { const d = 5 / (W - D - S); const c = (t / 1.6) % 2; const a = ease(c < 1 ? c : 2 - c) * (1 - d); return ([[a, 0], [a + d, 0], [a, 1], [a + d, 1]] as [number, number][]).map(([x, y]) => [...pt(x, y), 1]); }
+  if (mode === 'scan') return [0, 1, 2, 3].map((i): [number, number, number] => { const c = (((t - i * 0.14) / 1.5) % 2 + 2) % 2; const a = ease(c < 1 ? c : 2 - c); return [pt(a, i / 3)[0], (i * (H - D)) / 3, 0.3 + 0.7 * Math.pow(Math.sin(Math.PI * a), 0.7)]; });
   if (mode === 'contour') { const step = 0.62; const k = Math.floor(t / step), f = Math.min(1, (t % step) / step / 0.55); return [0, 1, 2, 3].map((i) => [...pt(...around(i + k + ease(f))), 1]); }
   if (mode === 'pulse') return C.map(([a, b], i) => [...pt(a, b), 0.2 + 0.8 * Math.pow((Math.sin((t * Math.PI * 2) / 1.4 - (i * Math.PI) / 2) + 1) / 2, 1.6)]);
   if (mode === 'orbit') return [0, 1, 2, 3].map((i) => [...pt(...around(i + t / 1.1)), 1]);
