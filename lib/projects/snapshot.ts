@@ -1,3 +1,5 @@
+import { readProfile } from '@/lib/designProfile';
+import { SETTING_INFO, showSetting, type SettingKey } from '@/lib/designProfileInfo';
 import { readShowcase } from '@/lib/showcase';
 import { readForm } from '@/lib/brandForm';
 import { adminClient } from '@/lib/supabase/server';
@@ -17,6 +19,18 @@ export async function projectBySlug(slug: string) {
 
 /** Builds the snapshot from the working copy (guidelines from Figma + review, brand basics, deliverables). Called on Publish,
  *  and used directly for studio previews so the studio sees changes before they're published. */
+/** The design profile as short lines for the brand AI: settings that are on, and the do's and don'ts */
+function designLines(content: unknown) {
+  const p = readProfile(content); if (!p) return undefined;
+  const out: string[] = [];
+  for (const k of Object.keys(SETTING_INFO) as SettingKey[]) {
+    const st = p.settings[k]; if (!st || st.off) continue;
+    if (k === 'dos' || k === 'donts' || k === 'devices') { for (const x of st.value as string[]) out.push(`${k === 'dos' ? 'Do' : k === 'donts' ? "Don't" : 'Graphic device'}: ${x}`); continue; }
+    out.push(`${SETTING_INFO[k].label}: ${showSetting(st.value, k)}`);
+  }
+  return out;
+}
+
 export async function buildSnapshot(projectId: string): Promise<Snapshot> {
   const sb = adminClient();
   const { data: p, error } = await sb.from('projects').select('client, line, brand, content').eq('id', projectId).single();
@@ -44,6 +58,7 @@ export async function buildSnapshot(projectId: string): Promise<Snapshot> {
     deliverables: (parts || []).filter((d) => d.visible).map((d) => ({ title: d.title, status: d.status })),
     guide: guide ? { ...guide, colours } : undefined,
     showcase: readShowcase(p.content),
-    form: readForm(p.content)
+    form: readForm(p.content),
+    design: designLines(p.content)
   };
 }

@@ -27,7 +27,7 @@ export async function verifyAnthropicKey(apiKey: string) {
   }
 }
 
-export type Snapshot = { client: string; line: string; chapters: { id: string; title: string; rules: { title: string; text: string }[] }[]; colours: { name: string; hex: string; role: string }[]; fonts: { role: string; name: string; usage: string }[]; deliverables: { title: string; status: string }[]; guide?: Guide; showcase?: Showcase; form?: BrandForm };
+export type Snapshot = { client: string; line: string; chapters: { id: string; title: string; rules: { title: string; text: string }[] }[]; colours: { name: string; hex: string; role: string }[]; fonts: { role: string; name: string; usage: string }[]; deliverables: { title: string; status: string }[]; guide?: Guide; showcase?: Showcase; form?: BrandForm; /** The design qualities read from the guidelines, one line each */ design?: string[] };
 
 export function brandSystemPrompt(s: Snapshot) {
   return `You are the brand assistant for ${s.client}, inside their brand portal. ${s.line}
@@ -35,7 +35,7 @@ Answer only from the guidelines below. Quote exact values (hex, sizes, ratios). 
 
 COLOURS: ${s.colours.map((c) => `${c.name} ${c.hex} (${c.role})`).join('; ')}
 TYPE: ${s.fonts.map((f) => `${f.role}: ${f.name}, ${f.usage}`).join('; ')}
-${s.form ? '\n' + aboutMd(s.form) : ''}${s.chapters.map((c) => `\n## ${c.title}\n${c.rules.map((r) => `- ${r.title}: ${r.text}`).join('\n')}`).join('\n')}
+${s.form ? '\n' + aboutMd(s.form) : ''}${s.design?.length ? `\nDESIGN QUALITIES (from the guidelines; follow them in anything visual):\n${s.design.map((d) => `- ${d}`).join('\n')}\n` : ''}${s.chapters.map((c) => `\n## ${c.title}\n${c.rules.map((r) => `- ${r.title}: ${r.text}`).join('\n')}`).join('\n')}
 \nDELIVERABLES: ${s.deliverables.map((d) => `${d.title} (${d.status})`).join('; ')}
 
 WHEN YOU MAKE OR ADVISE ON ANYTHING VISUAL

@@ -3,6 +3,9 @@ import type { Snapshot } from '@/lib/ai/project';
 import type { ProjectFont } from '@/lib/fonts';
 import { chapterText } from '@/lib/portal/guide';
 import { aiRulesMd, watchoutsFrom } from '@/lib/aiRules';
+import type { designSystemFiles } from '@/lib/designSystem';
+
+type DS = ReturnType<typeof designSystemFiles>;
 
 // Claude skills generated from a brand: each is a folder with SKILL.md, the brand reference, and the brand files,
 // zipped so a client can upload it in Claude (Settings → Capabilities → Skills).
@@ -61,7 +64,46 @@ Hard rules:
 - If a request would break a rule, follow the rule and say briefly which rule you followed.
 - When you finish, list the rules you applied in one or two lines so the user can check.`;
 
-export function skillFiles(id: SkillId, snap: Snapshot, fonts: ProjectFont[], files: string[], aiDonts?: string[]) {
+/** How this brand looks, from the design profile and the design system, written for one kind of skill */
+function designNotes(ds: DS, id: SkillId) {
+  const s = ds.spec;
+  const st = (role: string) => { const x = s.roleStyle(role); return `${x.size}px / ${x.lineHeight}, weight ${x.weight}${x.tracking ? `, tracking ${x.tracking}em` : ''}${x.transform ? `, ${x.transform}` : x.upper ? ', uppercase' : ''} (\`--font-${x.family}\`)`; };
+  const tok = (n: string) => s.colour.find((c) => c.name === n)!;
+  const hex = (n: string) => { const v = tok(n).value; return typeof v === 'string' ? v : v.light; };
+  const src = (x: (typeof s.provenance)[number]) => x.source.from === 'guidelines' ? `from "${x.source.chapter}"` : x.source.from === 'studio' ? 'set by Lost Property' : 'judgement';
+  const qualities = s.provenance.filter((x) => !['dos', 'donts', 'devices'].includes(x.key)).map((x) => `- **${x.label}:** ${x.value} (${src(x)})`).join('\n');
+  const scale = (k: number) => Math.round(s.roleStyle('display').size * k);
+  const specific: Record<SkillId, string> = {
+    brand: `Building a web page, app screen or anything in code? Link \`design/tokens.css\` and \`design/brand.css\`, use the \`ds-\` classes, and start from the nearest layout in \`design/layouts.html\`. \`design/DESIGN.md\` is the full design spec.`,
+    presentations: `## Slide layouts (from the design system)
+Open \`design/layouts.html\` and match its two slides.
+- **Title slide (1920 × 1080):** ${s.images.length ? 'a photo from `assets/imagery/` on the right 45%, ' : 'a palette colour field on the right 45%, '}the logo top-left, a short eyebrow in the caption style, the title in the display face at about ${scale(1.7)}px.
+- **Content slide:** headline top-left at about ${Math.round(s.roleStyle('headline').size * 1.4)}px, up to three columns with a ${s.rulesOn ? '2px ink rule above each' : 'clear gap between them'}, the logo small bottom-left.
+- Margins around 120px at 1920 wide; ${s.accentUse === 'bold' ? 'whole accent-coloured section slides are on brand' : s.accentUse === 'moderate' ? 'one accent-coloured slide or block per section' : 'the accent at most once per slide'}.
+- In PowerPoint: set the master's background to ${hex('surface')}, text to ${hex('ink')}, accent ${s.accent}; headlines ${st('headline')}.`,
+    documents: `## Document styles (from the design system)
+- Title ${st('display').replace(/\d+px/, `${Math.min(56, s.roleStyle('display').size)}px`)}; headings ${st('title')}; body ${st('body')}; captions ${st('caption')}.
+- Page margins about ${String(s.size.find((x) => x.name === 'page-margin')?.value || '').endsWith('vw') ? `${parseFloat(String(s.size.find((x) => x.name === 'page-margin')!.value)) * 2}% of the page width` : '20mm'}; keep body lines to about 65 characters.
+- Text ${hex('ink')} on ${hex('surface')}; secondary text ${hex('mute')}; the accent ${s.accent} only for ${s.accentIsText ? 'headings, rules and highlights' : 'fills and rules (it is too light for text)'}.
+- ${s.rulesOn ? 'Thin rules in the line colour divide sections.' : 'No hairline rules; separate sections with space.'}`,
+    social: `## Post layouts (from the design system)
+Open \`design/layouts.html\` and match its three posts (1080 × 1350):
+- **Image and logo:** ${s.images.length ? 'a photo from `assets/imagery/` full-bleed' : 'a palette colour field'}, the logo for dark grounds bottom-left with 80px margins.
+- **Type on accent:** accent ${s.accent} ground, text ${s.onAccent}, a short line in the display face at about ${scale(1.6)}px, the symbol bottom-left.
+- **Statement on ink:** ink ${hex('ink')} ground, a sentence in the headline face, the logo bottom-left.
+- Margins 80–96px. Photos are ${s.imagery.treatment}, cropped ${s.imagery.ratio}${s.imagery.corners ? '' : ', square corners'}.`
+  };
+  return `## How ${s.client} looks
+These come from the ${s.client} design system${s.hasProfile ? ', read from the guidelines and checked by Lost Property' : ''}. Values are in \`design/tokens.json\`.
+${qualities || '- Not read from the guidelines yet: use the tokens and the reference.'}
+- Colours: background ${hex('surface')}, text ${hex('ink')}, secondary text ${hex('mute')}, accent ${s.accent} with ${s.onAccent} on it.
+- Type: display ${st('display')}; headline ${st('headline')}; body ${st('body')}.
+- Corners: controls ${s.radius.find((x) => x.name === 'radius-control')!.value}, cards ${s.radius.find((x) => x.name === 'radius-card')!.value}. No shadows or gradients unless the guidelines show them.
+${s.devices.length ? `\nGraphic devices:\n${s.devices.map((d) => `- ${d}`).join('\n')}\n` : ''}${s.dos.length ? `\nDo:\n${s.dos.map((d) => `- ${d}`).join('\n')}\n` : ''}${s.donts.length ? `\nDon't:\n${s.donts.map((d) => `- ${d}`).join('\n')}\n` : ''}
+${specific[id]}`;
+}
+
+export function skillFiles(id: SkillId, snap: Snapshot, fonts: ProjectFont[], files: string[], aiDonts?: string[], ds?: DS) {
   const client = snap.client, base = kebab(client);
   const name = id === 'brand' ? `${base}-brand` : `${base}-${id}`;
   const desc: Record<SkillId, string> = {
@@ -76,7 +118,9 @@ export function skillFiles(id: SkillId, snap: Snapshot, fonts: ProjectFont[], fi
     documents: `# ${client} documents\n\n${COMMON(client)}\n\n## How to build a document\n1. Use the brand body typeface for text and the display typeface for headings, at sizes from \`tokens/\` where given.\n2. Put the logo on the first page only, per the logo rules, unless the guidelines say otherwise.\n3. Keep line length comfortable (about 60 to 75 characters), and use the brand colours only for headings, rules and highlights that pass contrast.\n4. Make Word files with python-docx or PDFs with a layout library; embed fonts where the licence allows.\n5. Check the finished document against the rules.`,
     social: `# ${client} social posts\n\n${COMMON(client)}\n\n## Sizes\n- Instagram post 4:5: 1080 × 1350 px\n- Instagram/TikTok story 9:16: 1080 × 1920 px\n- LinkedIn/X post: 1200 × 628 px\n\n## How to make a post\n1. Start from a template in \`templates/\` when one fits. Only change elements marked \`data-slot\`; never move or resize the logo.\n2. Keep headlines short and in the brand voice. Offer two or three copy options when the brief is open.\n3. Render to PNG at the exact size (for example with a headless browser), and write the caption separately.\n4. Check the result against the rules.`
   };
-  const md = `---\nname: ${name}\ndescription: ${desc[id]}\n---\n\n${body[id]}\n`;
-  const needs = (f: string) => f.startsWith('assets/logo/') || f.startsWith('tokens/') || f.startsWith('assets/fonts/') || (id === 'social' && f.startsWith('templates/')) || (id === 'presentations' && /^templates\/slide/.test(f));
-  return { folder: name, md, reference: brandReference(snap, fonts, files, aiDonts), include: files.filter(needs) };
+  const md = `---\nname: ${name}\ndescription: ${desc[id]}\n---\n\n${body[id]}\n${ds ? `\n${designNotes(ds, id)}\n` : ''}`;
+  const needs = (f: string) => f.startsWith('assets/logo/') || f.startsWith('tokens/') || f.startsWith('assets/fonts/') || (id === 'social' && f.startsWith('templates/')) || (id === 'presentations' && /^templates\/slide/.test(f)) || ((id === 'social' || id === 'presentations') && /^assets\/(imagery|graphics)\//.test(f));
+  // The design system travels with every skill: tokens, components, the spec, and the layouts to match
+  const design: Record<string, string> = ds ? { 'design/DESIGN.md': ds.files['DESIGN.md'], 'design/tokens.json': ds.files['tokens.json'], 'design/tokens.css': ds.files['tokens.css'], 'design/brand.css': ds.files['brand.css'], 'design/layouts.html': ds.files['preview.html'].replace(/(src|href)="assets\//g, '$1="../assets/') } : {};
+  return { folder: name, md, reference: brandReference(snap, fonts, files, aiDonts), include: files.filter(needs), design };
 }
