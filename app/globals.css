@@ -1691,12 +1691,12 @@ p.as-wipe { margin-top: -6px; }
 .ak-answer li::marker { color: var(--mute); }
 .ak-answer strong { font-weight: 600; }
 .ak-answer code { font: 13px/1.4 ui-monospace, Menlo, monospace; background: var(--fill); padding: 1px 5px; border-radius: 5px; }
-.ak-step { margin: 0; color: var(--mute); font-size: 14px; display: inline-flex; align-items: center; gap: 6px; animation: ak-fade .3s ease-out; }
+.ak-step { margin: 0; color: var(--mute); font-size: 14px; display: inline-block; animation: ak-fade .3s ease-out; }
 @keyframes ak-fade { from { opacity: 0; } to { opacity: 1; } }
-.ak-dots { display: inline-flex; gap: 3px; }
-.ak-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: ak-dot 1.2s infinite ease-in-out; }
-.ak-dots i:nth-child(2) { animation-delay: .15s; } .ak-dots i:nth-child(3) { animation-delay: .3s; }
-@keyframes ak-dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+.ak-dots { display: inline; margin-left: 1px; }
+.ak-dots span { animation: ak-dot 1.2s infinite ease-in-out; }
+.ak-dots span:nth-child(2) { animation-delay: .15s; } .ak-dots span:nth-child(3) { animation-delay: .3s; }
+@keyframes ak-dot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
 .ak-acts { display: flex; gap: 4px; margin-top: 10px; opacity: .0; transition: opacity .15s; }
 .ak-a:hover .ak-acts, .ak-a:focus-within .ak-acts, .ak-a.failed .ak-acts, .ak-a:last-child .ak-acts { opacity: 1; }
 .ak-act { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 8px; font-size: 12px; color: var(--mute); }

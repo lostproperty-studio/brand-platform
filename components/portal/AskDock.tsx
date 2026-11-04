@@ -94,7 +94,7 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
               : <div key={i} className={'ak-a' + (m.failed ? ' failed' : '')}>
                   <AskMark state={i !== msgs.length - 1 ? 'rest' : busy ? (m.content ? 'contour' : 'scan') : landed ? 'pulse' : 'rest'} />
                   <div className="ak-a-body">
-                    {!m.content && busy && i === msgs.length - 1 ? <p className="ak-step" key={step}>{STEPS[step]}<span className="ak-dots"><i /><i /><i /></span></p>
+                    {!m.content && busy && i === msgs.length - 1 ? <p className="ak-step" key={step}>{STEPS[step]}<span className="ak-dots" aria-hidden><span>.</span><span>.</span><span>.</span></span></p>
                       : <AskAnswer text={m.content} cat={cat} streaming={busy && i === msgs.length - 1} />}
                     {m.content && !(busy && i === msgs.length - 1) && !m.failed ? <div className="ak-acts"><CopyAnswer text={m.content} /></div> : null}
                     {m.failed ? <div className="ak-acts"><button className="ak-act" onClick={() => { const q = [...msgs].reverse().find((x) => x.role === 'user'); if (q) { setMsgs(msgs.slice(0, -2)); send(q.content); } }}>Try again</button></div> : null}
