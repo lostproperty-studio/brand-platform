@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
-import { brandSystemPrompt, clientAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
+import { brandSystemPrompt, portalAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
 import { pageContext } from '@/lib/portal/pageContext';
 import { logActivity } from '@/lib/activity';
 import { aiFailure, markKeyRejected } from '@/lib/ai/errors';
@@ -25,8 +25,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (!body.success) return new Response('Bad request', { status: 400 });
   const snap = acc.staff ? await buildSnapshot(p.id) : await publishedSnapshot(p.id);
   if (!snap) return new Response('This portal hasn’t been published yet.', { status: 409 });
-  let ai;
-  try { ai = await clientAnthropic(p.id); } catch (e) { if (e instanceof NoClientKey) return new Response(e.message, { status: 402 }); throw e; }
+  let ai, studio = false;
+  try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff)); } catch (e) { if (e instanceof NoClientKey) return new Response(e.message, { status: 402 }); throw e; }
 
   const here = body.data.path ? await pageContext(p.id, slug, snap, body.data.path) : null;
   const sb = adminClient();
@@ -46,12 +46,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
       try {
         for await (const ev of stream) if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') { text += ev.delta.text; controller.enqueue(enc.encode(ev.delta.text)); }
         const final = await stream.finalMessage();
-        await logUsage(p.id, acc.user.id, 'chat', final.usage);
-        if ((p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt) await markKeyRejected(p.id, false);
-      } catch (e) { const m = (text ? '\n\n' : '') + await aiFailure(p.id, e); text += m; controller.enqueue(enc.encode(m)); }
+        if (!studio) await logUsage(p.id, acc.user.id, 'chat', final.usage);
+        if (!studio && (p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt) await markKeyRejected(p.id, false);
+      } catch (e) { const m = (text ? '\n\n' : '') + await aiFailure(p.id, e, studio); text += m; controller.enqueue(enc.encode(m)); }
       await sb.from('messages').insert({ conversation_id: convId, role: 'assistant', content: text || '…' });
       await sb.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId!);
       controller.close();
     }
-  }), { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Conversation-Id': convId!, 'X-Context': encodeURIComponent(here?.label || '') } });
+  }), { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Conversation-Id': convId!, 'X-Context': encodeURIComponent(here?.label || ''), 'X-AI': studio ? 'studio' : 'client' } });
 }

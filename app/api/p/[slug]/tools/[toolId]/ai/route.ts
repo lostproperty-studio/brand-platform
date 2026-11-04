@@ -3,7 +3,7 @@ import { aiFailure, markKeyRejected } from '@/lib/ai/errors';
 import { z } from 'zod';
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
-import { brandSystemPrompt, clientAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
+import { brandSystemPrompt, portalAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
 
 export const maxDuration = 60;
 const Control = z.object({ id: z.string().max(20), type: z.string().max(20), label: z.string().max(120), value: z.union([z.string().max(4000), z.boolean()]).optional(), options: z.array(z.string().max(120)).max(40).optional(), min: z.string().optional(), max: z.string().optional() });
@@ -30,8 +30,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string; 
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const snap = acc.staff ? await buildSnapshot(p.id) : await publishedSnapshot(p.id);
   if (!snap) return NextResponse.json({ error: 'This portal hasn’t been published yet.' }, { status: 409 });
-  let ai;
-  try { ai = await clientAnthropic(p.id); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
+  let ai, studio = false;
+  try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
 
   const system = brandSystemPrompt(snap) + `
 
@@ -46,9 +46,9 @@ Then say in one or two short sentences what you did and anything the person shou
     model: 'claude-sonnet-5-5', max_tokens: 2000, system, messages,
     tools: [{ name: 'operate_tool', description: 'Change the tool’s controls, in order.', input_schema: { type: 'object', properties: { actions: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: ['set', 'click'] }, id: { type: 'string' }, value: { type: ['string', 'boolean', 'number'] } }, required: ['type', 'id'] } } }, required: ['actions'] } }],
     tool_choice: { type: 'auto' }
-  }); } catch (e) { return NextResponse.json({ error: await aiFailure(p.id, e) }, { status: 502 }); }
-  await logUsage(p.id, acc.user.id, 'canvas', res.usage);
-  if ((p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt) await markKeyRejected(p.id, false);
+  }); } catch (e) { return NextResponse.json({ error: await aiFailure(p.id, e, studio) }, { status: 502 }); }
+  if (!studio) await logUsage(p.id, acc.user.id, 'canvas', res.usage);
+  if (!studio && (p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt) await markKeyRejected(p.id, false);
   const call = res.content.find((x) => x.type === 'tool_use');
   const actions = call && call.type === 'tool_use' ? ((call.input as { actions?: unknown[] }).actions || []) : [];
   const message = res.content.filter((x) => x.type === 'text').map((x) => (x as { text: string }).text).join('\n').trim() || (actions.length ? 'Done.' : 'I couldn’t find controls in this tool to make that change.');

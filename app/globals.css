@@ -1654,3 +1654,5 @@ p.as-wipe { margin-top: -6px; }
 .dpf-edit { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
 .dpf-edit .in { flex: 1; min-width: 200px; font-size: 13px; }
 @media (max-width: 760px) { .dpf-list li { grid-template-columns: 1fr; gap: 6px; } }
+.dock-studio { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: #F2F2F2; color: #555; white-space: nowrap; }
+@media (max-width: 560px) { .dock-studio { display: none; } }

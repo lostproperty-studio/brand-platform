@@ -3,7 +3,7 @@ import { aiFailure, markKeyRejected } from '@/lib/ai/errors';
 import { z } from 'zod';
 import { requireProjectAccess } from '@/lib/supabase/server';
 import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
-import { brandSystemPrompt, clientAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
+import { brandSystemPrompt, portalAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
 
 export const maxDuration = 60;
 const Body = z.object({ prompt: z.string().min(1).max(2000), current: z.record(z.unknown()).optional(), templates: z.array(z.string()).max(20) });
@@ -19,8 +19,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (!body.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const snap = acc.staff ? await buildSnapshot(p.id) : await publishedSnapshot(p.id); // studio previews the working copy
   if (!snap) return NextResponse.json({ error: 'This portal hasn’t been published yet.' }, { status: 409 });
-  let ai;
-  try { ai = await clientAnthropic(p.id); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
+  let ai, studio = false;
+  try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
 
   let res;
   try { res = await ai.messages.create({
@@ -29,9 +29,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
     tools: [{ name: 'fill_template', description: 'Choose a template and fill its slots.', input_schema: { type: 'object', properties: { template: { type: 'string', enum: body.data.templates }, eyebrow: { type: 'string' }, headline: { type: 'string' }, body: { type: 'string' }, image_hint: { type: 'string', description: 'Which kind of image to use, per the imagery rules' }, note: { type: 'string', description: 'One sentence on what was done and which rule applied' } }, required: ['template', 'headline', 'note'] } }],
     tool_choice: { type: 'auto' },
     messages: [{ role: 'user', content: `Current layout: ${JSON.stringify(body.data.current || {})}\nRequest: ${body.data.prompt}` }]
-  }); } catch (e) { return NextResponse.json({ error: await aiFailure(p.id, e) }, { status: 502 }); }
-  await logUsage(p.id, acc.user.id, 'canvas', res.usage);
-  if ((p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt) await markKeyRejected(p.id, false);
+  }); } catch (e) { return NextResponse.json({ error: await aiFailure(p.id, e, studio) }, { status: 502 }); }
+  if (!studio) await logUsage(p.id, acc.user.id, 'canvas', res.usage);
+  if (!studio && (p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt) await markKeyRejected(p.id, false);
   const call = res.content.find((b) => b.type === 'tool_use');
   return NextResponse.json(call && call.type === 'tool_use' ? call.input : { error: 'No layout returned' });
 }

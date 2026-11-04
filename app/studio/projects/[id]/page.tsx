@@ -217,7 +217,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       </section>
       <section className="cl-sec">
         <h2>AI</h2>
-        <div className="tm-row"><div style={{ flex: 1 }}><p style={{ margin: 0 }}>{p.ai_key_hint ? `Anthropic connected (key ending ${p.ai_key_hint})` : 'Not connected'}{p.mcp_token_hash ? ' · Claude connector created' : ''}</p><p className="mute" style={{ margin: 0 }}>{p.ai_key_hint ? `${(usage || []).length} AI requests and ${tokens.toLocaleString('en-GB')} tokens in the last 30 days, billed to the client’s Anthropic account. ${convs || 0} conversations in total.` : 'A client admin connects their Anthropic account in Settings. Until then, Ask and AI in tools are off.'}</p></div></div>
+        <div className="tm-row"><div style={{ flex: 1 }}><p style={{ margin: 0 }}>{p.ai_key_hint ? `Anthropic connected (key ending ${p.ai_key_hint})` : 'Not connected'}{p.mcp_token_hash ? ' · Claude connector created' : ''}</p><p className="mute" style={{ margin: 0 }}>{p.ai_key_hint ? `${(usage || []).length} AI requests and ${tokens.toLocaleString('en-GB')} tokens in the last 30 days, billed to the client’s Anthropic account (studio previews run on Lost Property’s AI and aren’t counted). ${convs || 0} conversations in total.` : 'A client admin connects their Anthropic account in Settings. Until then, clients can’t use Ask or AI in tools; the studio can, when previewing, on Lost Property’s AI.'}</p></div></div>
       </section>
       <section className="cl-sec">
         <h2>Requests</h2>

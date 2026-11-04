@@ -28,5 +28,5 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   const settings = ((pr?.content as { toolSettings?: Record<string, { artwork?: string }> } | null)?.toolSettings || {})[tool.id] || {};
   const html = await prepareToolHtml(tool, ctx, await signFontUrls(ctx.fonts, 6 * 3600), assets, settings);
   if (!html) return <div className="tl-full"><header className="tl-bar">{head}</header><div className="tl-body"><p className="mute">This tool’s file couldn’t be loaded.</p></div></div>;
-  return <ToolRunner slug={slug} toolId={tool.id} name={tool.name} html={html} aiEnabled={tool.ai_enabled} aiConnected={!!ctx.project.ai_key_hint} canConnect={ctx.access.clientAdmin} head={head} />;
+  return <ToolRunner slug={slug} toolId={tool.id} name={tool.name} html={html} aiEnabled={tool.ai_enabled} aiConnected={!!ctx.project.ai_key_hint || ctx.preview} canConnect={ctx.access.clientAdmin} head={head} />;
 }

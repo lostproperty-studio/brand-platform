@@ -7,7 +7,7 @@ type Msg = { role: 'user' | 'assistant'; content: string; context?: string | nul
 type Conv = { id: string; title: string; context: string | null; updated_at: string };
 
 // Ask, always at the bottom of the screen. It knows which page you're on, and saves each conversation to you.
-export function AskDock({ slug, client, aiConnected, canConnect }: { slug: string; client: string; aiConnected: boolean; canConnect: boolean }) {
+export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { slug: string; client: string; aiConnected: boolean; canConnect: boolean; studioAi?: boolean }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'chat' | 'history'>('chat');
@@ -50,6 +50,7 @@ export function AskDock({ slug, client, aiConnected, canConnect }: { slug: strin
         <div className="dock-top">
           <strong>Ask</strong>
           <span className="mute">{view === 'history' ? 'Your conversations' : `About ${here}`}</span>
+          {studioAi ? <span className="dock-studio" title="You’re previewing as the studio, so Ask runs on Lost Property’s AI. Clients use their own key.">Studio preview · Lost Property AI</span> : null}
           <span style={{ flex: 1 }} />
           <button className="btn" onClick={newChat}>New</button>
           <button className="btn" onClick={() => (view === 'history' ? setView('chat') : showHistory())}>{view === 'history' ? 'Back' : 'History'}</button>

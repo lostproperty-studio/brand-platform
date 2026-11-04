@@ -18,6 +18,7 @@ export async function LayoutMaker({ slug, toolId }: { slug: string; toolId: stri
   const images = used.filter((f) => /^assets\/(imagery|patterns?)\/.+\.(png|jpe?g|webp)$/i.test(f.path)).map((f) => ({ path: f.path, url: resources[f.path] }));
   const fontUrls = await signFontUrls(ctx.fonts, 6 * 3600);
   const fontFiles = ctx.fonts.flatMap((f) => f.files.filter((x) => fontUrls[x.path]).map((x) => ({ role: f.role, name: f.name, weight: x.weight, style: x.style, format: x.format, url: fontUrls[x.path] })));
-  const aiConnected = !!ctx.project.ai_key_hint;
+  // The studio previewing the portal runs on Lost Property's AI, so it can test before the client connects theirs
+  const aiConnected = !!ctx.project.ai_key_hint || ctx.preview;
   return templates.length ? <Canvas slug={slug} toolId={toolId} templates={templates} resources={resources} images={images} fontFiles={fontFiles} aiConnected={aiConnected} canConnect={ctx.access.clientAdmin} /> : <p className="mute">Templates appear here once the kit is built.</p>;
 }
