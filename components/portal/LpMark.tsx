@@ -8,6 +8,8 @@ import { useEffect, useRef } from 'react';
 
 export type MarkState = 'rest' | 'scan' | 'contour' | 'pulse' | 'orbit' | 'swap';
 export const LP_PINK = '#F28EE8';
+/** A deeper pink for light grounds, so 3px dots read on white (3.7:1); the light pink stays for dark grounds */
+export const LP_PINK_DEEP = '#D64BC9';
 const W = 23, H = 16, D = 3, S = 5;
 const half = (n: number) => Math.round(n * 2) / 2;
 const pt = (a: number, b: number): [number, number] => [half(a * (W - D - S) + (1 - b) * S), half(b * (H - D))];
@@ -44,7 +46,8 @@ const PERMS: number[][] = (() => { const out: number[][] = []; const go = (a: nu
 const settle = (x: number) => 1 - Math.pow(1 - x, 3);
 type Dot = [number, number, number];
 
-export function LpMark({ state = 'rest', colour = LP_PINK, scale = 1, title }: { state?: MarkState; colour?: string; scale?: number; title?: string }) {
+export function LpMark({ state = 'rest', ground = 'light', colour, scale = 1, title }: { state?: MarkState; ground?: 'light' | 'dark'; colour?: string; scale?: number; title?: string }) {
+  const fill = colour || (ground === 'dark' ? LP_PINK : LP_PINK_DEEP);
   const dots = useRef<(SVGCircleElement | null)[]>([]);
   const now = useRef<Dot[]>(markFrame('rest', 0));
   useEffect(() => {
@@ -74,6 +77,6 @@ export function LpMark({ state = 'rest', colour = LP_PINK, scale = 1, title }: {
   }, [state]);
   const start = markFrame('rest', 0);
   return <svg className="lp-mark" viewBox={`0 0 ${W} ${H}`} width={W * scale} height={H * scale} role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
-    {start.map(([x, y], i) => <circle key={i} ref={(el) => { dots.current[i] = el; }} cx={x + D / 2} cy={y + D / 2} r={D / 2} fill={colour} />)}
+    {start.map(([x, y], i) => <circle key={i} ref={(el) => { dots.current[i] = el; }} cx={x + D / 2} cy={y + D / 2} r={D / 2} fill={fill} />)}
   </svg>;
 }
