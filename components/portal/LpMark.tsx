@@ -8,14 +8,19 @@ import { useEffect, useRef } from 'react';
 
 export type MarkState = 'rest' | 'scan' | 'contour' | 'pulse' | 'orbit' | 'swap';
 export const LP_PINK = '#F28EE8';
-const W = 21, H = 16, D = 3, S = 5;
+const W = 23, H = 16, D = 3, S = 5;
 const half = (n: number) => Math.round(n * 2) / 2;
 const pt = (a: number, b: number): [number, number] => [half(a * (W - D - S) + (1 - b) * S), half(b * (H - D))];
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const C: [number, number][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
 const around = (p: number): [number, number] => { p = ((p % 4) + 4) % 4; const i = Math.floor(p), f = p - i; const [a1, b1] = C[i], [a2, b2] = C[(i + 1) % 4]; return [a1 + (a2 - a1) * f, b1 + (b2 - b1) * f]; };
 
+// Each motion runs at its own pace so they all feel equally quick: contouring a touch slower (it travels a
+// corner at a time), orbiting a touch faster (it never pauses)
+export const MARK_PACE: Record<MarkState, number> = { rest: 1, scan: 1.5, contour: 1.2, pulse: 1.5, orbit: 1.9, swap: 1.5 };
+
 export function markFrame(mode: MarkState, t: number): [number, number, number][] {
+  t *= MARK_PACE[mode];
   if (mode === 'scan') return [0, 1, 2, 3].map((i): [number, number, number] => { const c = (((t - i * 0.14) / 1.5) % 2 + 2) % 2; const a = ease(c < 1 ? c : 2 - c); return [pt(a, i / 3)[0], (i * (H - D)) / 3, 0.3 + 0.7 * Math.pow(Math.sin(Math.PI * a), 0.7)]; });
   if (mode === 'contour') { const step = 0.62; const k = Math.floor(t / step), f = Math.min(1, (t % step) / step / 0.55); return [0, 1, 2, 3].map((i) => [...pt(...around(i + k + ease(f))), 1]); }
   if (mode === 'pulse') return C.map(([a, b], i) => [...pt(a, b), 0.2 + 0.8 * Math.pow((Math.sin((t * Math.PI * 2) / 1.4 - (i * Math.PI) / 2) + 1) / 2, 1.6)]);
