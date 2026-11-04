@@ -19,7 +19,7 @@ export type OverviewData = {
   edit: { who: string; at: string } | null; edits: { who: string; area: string; at: string }[];
   figma: { key: string; name?: string; thumb?: string; modified?: string } | null;
   sources: { assets: SourceRow; guidelines: SourceRow; report: AssetsReport | null };
-  repo: { name: string; version: string } | null; ai: string | null; chapters: number;
+  repo: { name: string; version: string } | null; ai: string | null; aiRejected?: boolean; chapters: number;
   checks: { ok: boolean; title: string; note?: string; href?: string; cta?: string }[];
 };
 
@@ -134,7 +134,7 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
               </a>
               <div className="ov-link off">
                 <span className="ov-thumb"><Sparkles size={20} strokeWidth={1.5} aria-hidden /></span>
-                <span className="ov-link-t"><b>Client AI</b><span className="mute">{d.ai ? `Connected · key ending ${d.ai}` : 'Not connected; the client adds their key in the portal’s settings'}</span></span>
+                <span className="ov-link-t"><b>Client AI</b><span className="mute">{d.ai ? (d.aiRejected ? `Key ending ${d.ai} was rejected by Anthropic; a client admin needs to paste a new one in the portal’s settings` : `Connected · key ending ${d.ai}`) : 'Not connected; the client adds their key in the portal’s settings'}</span></span>
               </div>
             </div>
           </section>

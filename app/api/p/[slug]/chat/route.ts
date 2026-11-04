@@ -4,6 +4,7 @@ import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/
 import { brandSystemPrompt, clientAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
 import { pageContext } from '@/lib/portal/pageContext';
 import { logActivity } from '@/lib/activity';
+import { aiFailure, markKeyRejected } from '@/lib/ai/errors';
 
 export const maxDuration = 60;
 const Body = z.object({
@@ -46,7 +47,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
         for await (const ev of stream) if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') { text += ev.delta.text; controller.enqueue(enc.encode(ev.delta.text)); }
         const final = await stream.finalMessage();
         await logUsage(p.id, acc.user.id, 'chat', final.usage);
-      } catch (e) { const m = '\n\n[The AI request failed: ' + (e as Error).message + ']'; text += m; controller.enqueue(enc.encode(m)); }
+        if ((p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt) await markKeyRejected(p.id, false);
+      } catch (e) { const m = (text ? '\n\n' : '') + await aiFailure(p.id, e); text += m; controller.enqueue(enc.encode(m)); }
       await sb.from('messages').insert({ conversation_id: convId, role: 'assistant', content: text || '…' });
       await sb.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId!);
       controller.close();

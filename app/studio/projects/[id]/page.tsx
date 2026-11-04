@@ -123,7 +123,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       edits: a30.filter((x) => x.kind === 'edit').map((x) => ({ who: staffName(x.user_id) || 'Someone', area: x.detail || 'project', at: x.created_at })),
       figma: p.figma_key ? { key: p.figma_key, ...shot.figma } : null,
       sources: (() => { const s = readSources(p.content, p as { figma_key?: string | null }); const row = (x?: Source) => (x ? { url: x.url, file: x.file || (x === s.guidelines ? shot.figma?.name : undefined), pageName: x.pageName, importedAt: x.importedAt } : null); return { assets: row(s.assets), guidelines: row(s.guidelines), report: ((p.content as { assetsReport?: AssetsReport } | null)?.assetsReport) || null }; })(),
-      repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null,
+      repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null, aiRejected: !!(p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt,
       chapters: guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length : 0,
       checks
     };

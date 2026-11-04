@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { aiFailure, markKeyRejected } from '@/lib/ai/errors';
 import { z } from 'zod';
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
@@ -40,12 +41,14 @@ You can't see the tool, only its controls (listed as JSON with id, type, label, 
 To act, call operate_tool once with every change in order: "set" a control's value (for selects use an option's exact text; for checkboxes true/false), or "click" a button. Choose formats, sizes and options that match the request, write any copy in the brand's tone of voice and within its rules, and never invent controls.
 Then say in one or two short sentences what you did and anything the person should do next (for example upload a photo, since you can't).`;
   const messages = [...(b.data.history || []), { role: 'user' as const, content: `${b.data.prompt}\n\nCONTROLS\n${JSON.stringify(b.data.controls)}` }];
-  const res = await ai.messages.create({
+  let res;
+  try { res = await ai.messages.create({
     model: 'claude-sonnet-5-5', max_tokens: 2000, system, messages,
     tools: [{ name: 'operate_tool', description: 'Change the tool’s controls, in order.', input_schema: { type: 'object', properties: { actions: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: ['set', 'click'] }, id: { type: 'string' }, value: { type: ['string', 'boolean', 'number'] } }, required: ['type', 'id'] } } }, required: ['actions'] } }],
     tool_choice: { type: 'auto' }
-  });
+  }); } catch (e) { return NextResponse.json({ error: await aiFailure(p.id, e) }, { status: 502 }); }
   await logUsage(p.id, acc.user.id, 'canvas', res.usage);
+  if ((p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt) await markKeyRejected(p.id, false);
   const call = res.content.find((x) => x.type === 'tool_use');
   const actions = call && call.type === 'tool_use' ? ((call.input as { actions?: unknown[] }).actions || []) : [];
   const message = res.content.filter((x) => x.type === 'text').map((x) => (x as { text: string }).text).join('\n').trim() || (actions.length ? 'Done.' : 'I couldn’t find controls in this tool to make that change.');

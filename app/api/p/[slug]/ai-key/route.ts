@@ -4,6 +4,7 @@ import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { projectBySlug } from '@/lib/projects/snapshot';
 import { encryptSecret } from '@/lib/crypto';
 import { verifyAnthropicKey } from '@/lib/ai/project';
+import { markKeyRejected } from '@/lib/ai/errors';
 
 // Route 1: a client admin connects their own Anthropic key. It is checked, encrypted and never sent back.
 export async function POST(req: Request, ctx: { params: Promise<{ slug: string }> }) {
@@ -17,6 +18,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (!body.success) return NextResponse.json({ error: 'Paste a valid Anthropic API key.' }, { status: 400 });
   try { await verifyAnthropicKey(body.data.apiKey); } catch { return NextResponse.json({ error: 'Anthropic didn’t accept that key. Check it in the Anthropic Console and try again.' }, { status: 400 }); }
   await adminClient().from('projects').update({ ai_provider: 'anthropic', ai_key_cipher: encryptSecret(body.data.apiKey), ai_key_hint: body.data.apiKey.slice(-4) }).eq('id', p.id);
+  await markKeyRejected(p.id, false);
   return NextResponse.json({ connected: true, hint: body.data.apiKey.slice(-4) });
 }
 

@@ -17,7 +17,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ slug:
   return (
     <div className="pt-page">
       <header className="pt-chhead"><p className="mute">{ctx.access.clientAdmin ? 'For admins' : 'For managers'}</p><h1 className="pt-display">Settings</h1></header>
-      <PortalSettings slug={slug} hint={ctx.project.ai_key_hint} isAdmin={ctx.access.clientAdmin} usage={usage} />
+      <PortalSettings slug={slug} hint={ctx.project.ai_key_hint} rejected={!!(ctx.project.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt} isAdmin={ctx.access.clientAdmin} usage={usage} />
     </div>
   );
 }

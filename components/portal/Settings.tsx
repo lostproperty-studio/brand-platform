@@ -5,7 +5,7 @@ import { TeamManager } from '@/components/TeamManager';
 import { Requests } from '@/components/portal/Requests';
 
 // Client admin settings: connect their own Anthropic key (route 1) and get a connector for their own Claude (route 3).
-export function PortalSettings({ slug, hint, isAdmin, usage }: { slug: string; hint: string | null; isAdmin: boolean; usage: { requests: number; input: number; output: number } | null }) {
+export function PortalSettings({ slug, hint, rejected, isAdmin, usage }: { slug: string; hint: string | null; rejected?: boolean; isAdmin: boolean; usage: { requests: number; input: number; output: number } | null }) {
   const router = useRouter();
   const [key, setKey] = useState('');
   const [msg, setMsg] = useState('');
@@ -35,7 +35,8 @@ export function PortalSettings({ slug, hint, isAdmin, usage }: { slug: string; h
           <li>Create an API key and choose one workspace for it.</li>
           <li>Paste it below. It’s checked, stored encrypted and never shown again.</li>
         </ol>
-        {hint ? <p style={{ margin: 0 }}>Connected · key ending {hint} <button className="btn" onClick={disconnect}>Disconnect</button></p> : null}
+        {hint && rejected ? <p role="alert" style={{ margin: 0, color: '#B3261E' }}>Anthropic rejected the key ending {hint}: it may have been revoked or deleted, so Ask and the AI tools aren’t working. Paste a new key below.</p> : null}
+        {hint ? <p style={{ margin: 0 }}>{rejected ? 'Saved' : 'Connected'} · key ending {hint} <button className="btn" onClick={disconnect}>Disconnect</button></p> : null}
         <div className="row"><label className="sr" htmlFor="k">Anthropic API key</label><input id="k" className="in" type="password" autoComplete="off" placeholder={hint ? 'Paste a new key to replace it' : 'sk-ant-…'} value={key} onChange={(e) => setKey(e.target.value)} style={{ flex: 1, minWidth: 200 }} /><button className="btn solid" disabled={key.trim().length < 20} onClick={save}>{hint ? 'Replace key' : 'Connect'}</button></div>
         {msg ? <p className="mute" role="status" style={{ margin: 0 }}>{msg}</p> : null}
         {usage ? <div className="tm-row" style={{ marginTop: 4 }}><div style={{ flex: 1 }}><p style={{ margin: 0 }}>Last 30 days: {usage.requests} AI request{usage.requests === 1 ? '' : 's'}</p><p className="mute" style={{ margin: 0 }}>{(usage.input + usage.output).toLocaleString('en-GB')} tokens. Billing and spend limits are in your Anthropic account.</p></div><a className="btn" href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener">Billing ↗</a></div> : null}

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { aiFailure, markKeyRejected } from '@/lib/ai/errors';
 import { z } from 'zod';
 import { requireProjectAccess } from '@/lib/supabase/server';
 import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
@@ -21,14 +22,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   let ai;
   try { ai = await clientAnthropic(p.id); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
 
-  const res = await ai.messages.create({
+  let res;
+  try { res = await ai.messages.create({
     model: 'claude-sonnet-5-5', max_tokens: 800,
     system: brandSystemPrompt(snap) + '\n\nYou fill template slots for on-brand layouts. Follow every rule above exactly; keep headlines within the type rules. Explain any rule you applied in one sentence. Always answer by calling fill_template.',
     tools: [{ name: 'fill_template', description: 'Choose a template and fill its slots.', input_schema: { type: 'object', properties: { template: { type: 'string', enum: body.data.templates }, eyebrow: { type: 'string' }, headline: { type: 'string' }, body: { type: 'string' }, image_hint: { type: 'string', description: 'Which kind of image to use, per the imagery rules' }, note: { type: 'string', description: 'One sentence on what was done and which rule applied' } }, required: ['template', 'headline', 'note'] } }],
     tool_choice: { type: 'auto' },
     messages: [{ role: 'user', content: `Current layout: ${JSON.stringify(body.data.current || {})}\nRequest: ${body.data.prompt}` }]
-  });
+  }); } catch (e) { return NextResponse.json({ error: await aiFailure(p.id, e) }, { status: 502 }); }
   await logUsage(p.id, acc.user.id, 'canvas', res.usage);
+  if ((p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt) await markKeyRejected(p.id, false);
   const call = res.content.find((b) => b.type === 'tool_use');
   return NextResponse.json(call && call.type === 'tool_use' ? call.input : { error: 'No layout returned' });
 }
