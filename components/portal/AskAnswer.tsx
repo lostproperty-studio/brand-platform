@@ -2,6 +2,7 @@
 import { Fragment, useState, type ReactNode } from 'react';
 import { ArrowUpRight, BookOpen, Check, Copy, Download, Package } from 'lucide-react';
 import type { AskCatalog } from '@/lib/portal/askCatalog';
+import { LpMark, type MarkState } from '@/components/portal/LpMark';
 
 // An answer from Ask, rendered: short paragraphs and lists, with the brand's real things shown as cards where
 // the answer names them: [[colour:…]] swatches, [[logo:…]] files, [[download:…]] packages, [[page:…]] chapters
@@ -101,12 +102,9 @@ export function AskAnswer({ text, cat, streaming }: { text: string; cat: AskCata
   return <div className="ak-answer">{blocks}</div>;
 }
 
-/** The thinking mark: still when idle, turning and breathing while Ask works */
-export function AskMark({ active, size = 22 }: { active?: boolean; size?: number }) {
-  const rays = Array.from({ length: 8 }, (_, i) => i * 45);
-  return <span className={'ak-mark' + (active ? ' on' : '')} style={{ width: size, height: size }} aria-hidden>
-    <svg viewBox="0 0 24 24" width={size} height={size}>{rays.map((a, i) => <rect key={a} x="11" y="1.5" width="2" height="8.5" rx="1" transform={`rotate(${a} 12 12)`} style={{ animationDelay: `${i * 0.12}s` }} />)}</svg>
-  </span>;
+/** The AI mark: Lost Property's four pixels in the monogram's footprint */
+export function AskMark({ state = 'rest' }: { state?: MarkState }) {
+  return <span className="ak-mark"><LpMark state={state} /></span>;
 }
 
 export function CopyAnswer({ text }: { text: string }) {

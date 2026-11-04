@@ -25,6 +25,7 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
   const [cat, setCat] = useState<AskCatalog | null>(null);
+  const [landed, setLanded] = useState(false);
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const abort = useRef<AbortController | null>(null);
@@ -56,7 +57,7 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
       for (;;) { const { done, value } = await reader.read(); if (done) break; acc += dec.decode(value, { stream: true }); setMsgs([...next, { role: 'assistant', content: acc }]); }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') setMsgs((m) => { const c = [...m]; c[c.length - 1] = { role: 'assistant', content: 'The connection dropped. Try again.', failed: true }; return c; });
-    } finally { setBusy(false); abort.current = null; }
+    } finally { setBusy(false); abort.current = null; setLanded(true); setTimeout(() => setLanded(false), 1400); }
   }
   const stop = () => abort.current?.abort();
   async function showHistory() { setView('history'); setHistory(null); const r = await fetch(`/api/p/${slug}/conversations`); setHistory(r.ok ? (await r.json()).conversations : []); }
@@ -74,7 +75,7 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
     <div className={'dock ak' + (open ? ' open' : '')}>
       {open ? <div className="ak-panel" role="dialog" aria-label={`Ask about ${client}`}>
         <div className="ak-top">
-          <AskMark active={busy} size={18} />
+          <AskMark state={busy ? 'scan' : 'rest'} />
           <strong>{view === 'history' ? 'Your conversations' : 'Ask'}</strong>
           {view === 'chat' ? <span className="mute ak-here">About {here}</span> : null}
           {studioAi ? <span className="dock-studio" title="You’re previewing as the studio, so Ask runs on Lost Property’s AI. Clients use their own key.">Studio preview · Lost Property AI</span> : null}
@@ -86,12 +87,12 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
         {view === 'history' ? <div className="ak-log">
           {history === null ? <p className="mute">Loading…</p> : !history.length ? <p className="mute">Nothing yet. Your questions are saved here, just for you.</p> : history.map((c) => <div key={c.id} className="dock-h"><button onClick={() => openConv(c.id)}><span>{c.title || 'Untitled'}</span><span className="mute">{c.context ? `${c.context} · ` : ''}{new Date(c.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></button><button className="ak-tb" aria-label="Delete conversation" onClick={() => delConv(c.id)}><Trash2 {...I} /></button></div>)}
         </div> : <div className="ak-log" ref={log} aria-live="polite" onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
-          {!aiConnected ? <div className="ak-empty"><AskMark size={28} /><p>AI isn’t connected yet.</p><p className="mute">{canConnect ? <Link href={`/p/${slug}/settings`}>Connect your Anthropic account in Settings</Link> : 'Your admin can connect it in Settings.'}</p></div>
-            : !msgs.length ? <div className="ak-empty"><AskMark size={28} /><p className="ak-hello">What do you need for {client}?</p><p className="mute">Ask about the guidelines, or for the right colours, logos and files. Answers show the real thing.</p><div className="ak-starters">{starters.map(([Ic, s]) => <button key={s} className="ak-chip" onClick={() => send(s)}><Ic {...I} />{s}</button>)}</div></div>
+          {!aiConnected ? <div className="ak-empty"><AskMark /><p>AI isn’t connected yet.</p><p className="mute">{canConnect ? <Link href={`/p/${slug}/settings`}>Connect your Anthropic account in Settings</Link> : 'Your admin can connect it in Settings.'}</p></div>
+            : !msgs.length ? <div className="ak-empty"><AskMark /><p className="ak-hello">What do you need for {client}?</p><p className="mute">Ask about the guidelines, or for the right colours, logos and files. Answers show the real thing.</p><div className="ak-starters">{starters.map(([Ic, s]) => <button key={s} className="ak-chip" onClick={() => send(s)}><Ic {...I} />{s}</button>)}</div></div>
             : msgs.map((m, i) => m.role === 'user'
               ? <div key={i} className="ak-u"><div className="ak-ub">{m.content}</div>{m.context ? <span className="mute ak-ctx">on {m.context}</span> : null}</div>
               : <div key={i} className={'ak-a' + (m.failed ? ' failed' : '')}>
-                  <AskMark active={busy && i === msgs.length - 1} size={20} />
+                  <AskMark state={i !== msgs.length - 1 ? 'rest' : busy ? (m.content ? 'contour' : 'scan') : landed ? 'pulse' : 'rest'} />
                   <div className="ak-a-body">
                     {!m.content && busy && i === msgs.length - 1 ? <p className="ak-step" key={step}>{STEPS[step]}<span className="ak-dots"><i /><i /><i /></span></p>
                       : <AskAnswer text={m.content} cat={cat} streaming={busy && i === msgs.length - 1} />}
@@ -102,7 +103,7 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
         </div>}
       </div> : null}
       <form className="ak-bar" onSubmit={(e) => { e.preventDefault(); send(text); }} onClick={() => { if (!open && msgs.length) setOpen(true); }}>
-        {!open ? <AskMark size={18} /> : null}
+        {!open ? <AskMark state={busy ? 'scan' : 'rest'} /> : null}
         <label className="sr" htmlFor="dock-q">Ask about {here}</label>
         <textarea id="dock-q" ref={input} rows={1} className="ak-in" placeholder={aiConnected ? `Ask about ${here}…` : 'Ask isn’t connected yet'} value={text} onChange={(e) => setText(e.target.value)} onFocus={() => { if (msgs.length) setOpen(true); }} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }} disabled={!aiConnected} />
         {busy ? <button type="button" className="ak-send stop" onClick={stop} aria-label="Stop"><Square size={12} strokeWidth={0} fill="currentColor" aria-hidden /></button>
