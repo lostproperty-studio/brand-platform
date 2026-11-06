@@ -1766,3 +1766,10 @@ p.as-wipe { margin-top: -6px; }
   .ak-here { display: none; }
   .ak-dl { flex-wrap: wrap; }
 }
+
+/* App tiles: pale grey, a staggered field of small square dots, the icon on a white rounded tile */
+.rs-apptile { background-color: #E6E6E6; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 80'%3E%3Cg fill='%23000'%3E%3Crect x='78' y='-2' width='4' height='4'/%3E%3Crect x='78' y='78' width='4' height='4'/%3E%3Crect x='-2' y='38' width='4' height='4'/%3E%3Crect x='158' y='38' width='4' height='4'/%3E%3C/g%3E%3C/svg%3E"); background-size: 40% 25%; background-position: 0 0; color: #000; }
+.rs-apptile-icon { position: relative; width: 32.5%; aspect-ratio: 1; border-radius: 23%; background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,.16); display: flex; align-items: center; justify-content: center; transition: transform .2s ease; }
+.rs-apptile-icon svg { width: 38%; height: 38%; stroke-width: 1.5; }
+.rs-app:hover .rs-apptile-icon { transform: scale(1.04); }
+.rs-tray .rs-tile { aspect-ratio: 5 / 4; }

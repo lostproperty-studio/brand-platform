@@ -5,7 +5,7 @@ import { Icon } from '@/lib/icons';
 import { SKILLS } from '@/lib/skills';
 import { portalPackages, SECTIONS, visibleToClient, type Package } from '@/lib/portal/packages';
 import { roles } from '@/lib/designSystem';
-import { AppTile, PackagePreview, SystemPreview, tileColours } from '@/components/portal/ResourceVisuals';
+import { AppTile, PackagePreview, SystemPreview } from '@/components/portal/ResourceVisuals';
 import { JumpNav } from '@/components/portal/JumpNav';
 import { TeamFileRemove, TeamFileUpload } from '@/components/portal/TeamFiles';
 
@@ -23,7 +23,6 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
   // The studio previewing sees the empty core spaces too, so it knows what's still to add
   const shown = all.filter((p) => visibleToClient(p) || (ctx.preview && !p.hidden && p.enabled && p.core));
   const r = roles(snap.colours);
-  const tiles = tileColours(snap.colours);
   const base = `/p/${slug}`;
   const sections = SECTIONS.map((s) => ({ ...s, items: shown.filter((p) => p.section === s.id) })).filter((s) => s.items.length || (s.id === 'team' && ctx.access.canManage));
   const jump = [{ id: 'apps', label: 'Apps' }, ...sections.filter((s) => s.id === 'brand' || s.id === 'elements').map((s) => ({ id: s.id, label: s.title })), { id: 'ai', label: 'For AI' }, ...sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => ({ id: s.id, label: s.id === 'builders' ? 'For developers' : 'Team files' }))];
@@ -64,7 +63,7 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
         <div className="rs-sec-head"><h2 id="h-apps" className="pt-h2">Apps</h2><p className="mute">Built for the {ctx.project.client} brand, with the rules built in.</p></div>
         <div className="rs-tray">
           {tools.map((t, i) => <Link key={t.id} href={`${base}/tools/${t.id}`} className={'rs-app' + (t.visible ? '' : ' off')}>
-            <AppTile icon={t.icon} colour={tiles.length ? tiles[i % tiles.length].hex : undefined} seed={i} />
+            <AppTile icon={t.icon} />
             <span className="rs-app-name">{t.name}{t.ai_enabled ? <span className="rs-pill">AI</span> : null}{t.visible ? null : <span className="rs-pill">Hidden</span>}</span>
             <span className="mute rs-app-desc">{t.description}</span>
           </Link>)}

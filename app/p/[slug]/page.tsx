@@ -8,7 +8,7 @@ import { coverPaths } from '@/lib/portal/covers';
 import { HeroReel } from '@/components/portal/HeroReel';
 import { showcasePaths } from '@/lib/showcase';
 import { listTools } from '@/lib/tools';
-import { AppTile, tileColours } from '@/components/portal/ResourceVisuals';
+import { AppTile } from '@/components/portal/ResourceVisuals';
 import { defaultIntro } from '@/lib/portal/home';
 
 
@@ -38,7 +38,6 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
   const order = [...new Set((used || []).map((u) => u.detail))];
   const recent = order.map((n) => tools.find((t) => t.name === n || t.id === n)).filter(Boolean) as typeof tools;
   const apps = (recent.length ? recent : tools).slice(0, 4);
-  const tiles = tileColours(ctx.snap?.colours || []);
 
   return (
     <div className="hm">
@@ -65,7 +64,7 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
           <div className="hm-row"><h2 id="h-apps" className="pt-h2">{recent.length ? 'Recently used apps' : 'Apps'}</h2><Link href={`${base}/resources#apps`} className="mute">All resources →</Link></div>
           <div className="rs-tray">
             {apps.map((t, i) => <Link key={t.id} href={`${base}/tools/${t.id}`} className="rs-app">
-              <AppTile icon={t.icon} colour={tiles.length ? tiles[tools.indexOf(t) % tiles.length].hex : undefined} seed={tools.indexOf(t)} />
+              <AppTile icon={t.icon} />
               <span className="rs-app-name">{t.name}</span>
               <span className="mute rs-app-desc">{t.description}</span>
             </Link>)}

@@ -9,19 +9,16 @@ const lum = (hex: string) => { const n = parseInt(hex.slice(1), 16); return (0.2
 const mix = (hex: string, to: string, t: number) => { const a = parseInt(hex.slice(1), 16), b = parseInt(to.slice(1), 16); const c = [16, 8, 0].map((s) => Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t)); return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join(''); };
 const kebab = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-/** A loose hand-drawn line, used as texture on app tiles. */
-function Scribble({ color, seed = 0 }: { color: string; seed?: number }) {
+/** A loose hand-drawn line, used as texture. */
+export function Scribble({ color, seed = 0 }: { color: string; seed?: number }) {
   const d = [`M-10 ${70 + seed * 7} C 40 ${20 + seed * 5}, 90 ${130 - seed * 6}, 150 ${60 + seed * 3} S 260 ${10 + seed * 9}, 320 ${90 - seed * 4}`, `M-20 ${140 - seed * 4} C 60 ${110 + seed * 6}, 120 ${170 - seed * 3}, 200 ${120 + seed * 5} S 300 ${150 - seed * 2}, 340 ${110 + seed * 6}`];
   return <svg className="rs-scribble" viewBox="0 0 300 180" preserveAspectRatio="none" aria-hidden>{d.map((p, i) => <path key={i} d={p} fill="none" stroke={color} strokeWidth="14" strokeLinecap="round" strokeDasharray="1 3" opacity=".35" />)}</svg>;
 }
 
-/** The coloured tile for an app in the tray, like a cover: brand colour, the app's icon, a little texture. */
-export function AppTile({ icon, colour, seed }: { icon: string; colour?: string; seed: number }) {
-  // No brand palette to draw from: a neutral tile
-  if (!colour) return <span className="rs-tile neutral"><Scribble color="#cfcfcf" seed={seed} /><Icon name={icon} size={56} /></span>;
-  const dark = lum(colour) < 0.55;
-  const ink = dark ? mix(colour, '#ffffff', 0.62) : mix(colour, '#000000', 0.6);
-  return <span className="rs-tile" style={{ background: colour, color: ink }}><Scribble color={ink} seed={seed} /><Icon name={icon} size={56} /></span>;
+/** The tile for an app in the tray: a pale grey ground with a staggered field of small square dots, and the app's
+ *  icon on a white rounded tile in the middle. Neutral on purpose: no colour that isn't the brand's own. */
+export function AppTile({ icon }: { icon: string; colour?: string; seed?: number }) {
+  return <span className="rs-tile rs-apptile"><span className="rs-apptile-icon"><Icon name={icon} size={30} /></span></span>;
 }
 
 /** Brand colours for app tiles, only when the brand has colour to give (not just black, white and greys). */
