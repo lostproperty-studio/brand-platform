@@ -1,3 +1,4 @@
+import { systemTypeScale, type GuideSystem } from '@/lib/guideSystem';
 import type { PortalCtx } from '@/lib/portal/context';
 import type { DSInput, TypeStyle } from '@/lib/designSystem';
 import { getPlaybook } from '@/lib/playbookStore';
@@ -9,12 +10,12 @@ import { readProfile } from '@/lib/designProfile';
 export async function dsSource(pc: PortalCtx) {
   const storage = new Map<string, string>();
   for (const f of pc.files) if (f.storage_path && (pc.preview || f.partStatus === 'ready')) storage.set(f.path, f.storage_path);
-  const content = (pc.project.content || {}) as { typeScale?: TypeStyle[]; packages?: Record<string, { files?: { name: string; path: string; type: string }[]; hidden?: boolean }> };
+  const content = (pc.project.content || {}) as { guide?: { system?: GuideSystem }; typeScale?: TypeStyle[]; packages?: Record<string, { files?: { name: string; path: string; type: string }[]; hidden?: boolean }> };
   const pk = content.packages || {};
   for (const [key, folder] of [['images', 'imagery'], ['graphics', 'graphics']] as const) {
     if (pk[key]?.hidden && !pc.preview) continue;
     for (const f of (pk[key]?.files || []).filter((x) => /^image\/(png|jpeg|webp|svg\+xml)$/.test(x.type)).slice(0, 12)) storage.set(`assets/${folder}/${f.name}`, f.path);
   }
-  const input: DSInput = { snap: pc.snap!, fonts: pc.fonts, typeScale: content.typeScale, files: [...storage.keys()], aiDonts: (await getPlaybook()).aiDonts, profile: readProfile(pc.project.content) };
+  const input: DSInput = { snap: pc.snap!, fonts: pc.fonts, typeScale: content.guide?.system?.edited ? systemTypeScale(content.guide.system, pc.fonts.filter((f) => f.files.length)) : content.typeScale, files: [...storage.keys()], aiDonts: (await getPlaybook()).aiDonts, profile: readProfile(pc.project.content) };
   return { input, storage };
 }

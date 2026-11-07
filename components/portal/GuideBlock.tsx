@@ -1,6 +1,7 @@
 import type { Block, BlockItem, BlockMedia, BlockSwatch, ItemEl, SectionText } from '@/lib/figma/blocks';
 import { Swatch } from '@/components/portal/Swatch';
 import { textProps } from '@/lib/textStyle';
+import { spaceRule } from '@/lib/guideSystem';
 import { Carousel } from '@/components/portal/Carousel';
 
 // Renders one guideline section as responsive web content. Used by the client portal, and by the studio's visual
@@ -37,7 +38,7 @@ export type EditKit = {
   /** Text placed freely in the section */
   extraText?: (x: SectionText, el: El) => React.ReactNode;
   /** The space before a part, to select and adjust */
-  gap?: (part: string, value: number | undefined) => React.ReactNode;
+  gap?: (part: string, value: number | undefined, rule?: import('@/lib/guideSystem').SpaceRule) => React.ReactNode;
   /** A handle to pick an element up and move it */
   grip?: (i: number, elId: string) => React.ReactNode;
 };
@@ -57,6 +58,8 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const darkBack = !!back && (!b.ink || lum(b.ink) > 0.6);
   const ink = panel ? (b.ink && (!bg || Math.abs(lum(b.ink) - lum(bg)) > 0.3 || back) ? b.ink : bg ? textOn(bg) : undefined) : (b.ink && lum(b.ink) < 0.5 ? b.ink : undefined);
   const style = { ...(bg && !back ? { background: bg } : {}), ...(ink ? { color: ink } : {}) } as React.CSSProperties;
+  // A brand colour for filled boxes, with text that reads on it
+  const boxVars = b.boxBg && /^#[0-9A-F]{6}$/i.test(b.boxBg) ? { ['--box-bg' as string]: b.boxBg, ['--box-ink' as string]: lum(b.boxBg) > 0.6 ? '#000' : '#fff' } as React.CSSProperties : undefined;
   const tone = [b.headSize ? `hs-${b.headSize}` : '', b.bodySize ? `bs-${b.bodySize}` : '', b.bodyCols && b.bodyCols > 1 ? `bc-${b.bodyCols}` : '', b.align === 'center' ? 'al-c' : ''].filter(Boolean).join(' ');
 
     // A box with its own list of elements, in the order they were placed
@@ -78,11 +81,19 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     const all = [...def, ...xs];
     const saved = (b.order || []).filter((p) => all.includes(p));
     const nodes = [...saved, ...all.filter((p) => !saved.includes(p))].map((p) => [p, p.startsWith('x-') ? extraEl(b.extras!.find((x) => 'x-' + x.id === p)!) : map[p]] as const).filter(([, n]) => n);
-    return nodes.map(([p, n], k) => { const g = k > 0 ? b.gapBefore?.[p] : undefined; return <div key={p} data-part={p} className={'gb-part gb-part-' + (p.startsWith('x-') ? 'x' : p)} style={g !== undefined ? { marginTop: `calc(${g}px - var(--part-gap, 20px))` } : undefined}>{k > 0 && edit?.gap ? edit.gap(p, g) : null}{edit?.partGrip ? edit.partGrip(p) : null}{n}</div>; });
+    const kinds = Object.fromEntries((b.extras || []).map((x) => ['x-' + x.id, x.kind]));
+      const scaled = b.kind === 'statement' && !!b.ratio; // a statement locked to a shape scales its own spacing
+      return nodes.map(([p, n], k) => {
+        const g = k > 0 ? b.gapBefore?.[p] : undefined;
+        // The space before a part follows the guide's spacing rules, unless this section sets its own
+        const rule = k > 0 ? spaceRule(nodes[k - 1][0], p, kinds) : undefined;
+        const mt = g !== undefined ? `calc(${g}px - var(--part-gap, 20px))` : rule && !scaled ? `calc(var(--sp-${rule}, var(--part-gap, 20px)) - var(--part-gap, 20px))` : undefined;
+        return <div key={p} data-part={p} data-rule={rule} className={'gb-part gb-part-' + (p.startsWith('x-') ? 'x' : p)} style={mt ? { marginTop: mt } : undefined}>{k > 0 && edit?.gap ? edit.gap(p, g, scaled ? undefined : rule) : null}{edit?.partGrip ? edit.partGrip(p) : null}{n}</div>;
+      });
   };
   // How content sits inside each box: the box's own setting, else the section's
   const alignCls = (it: BlockItem) => { const a = it.align || b.boxAlign; return a && (a.x || a.y) ? ` ga ga-x-${a.x || 'start'} ga-y-${a.y || 'start'}` : ''; };
-  const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return g !== undefined ? { ['--egap' as string]: `${g}px` } : {}; };
+  const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return { ...(g !== undefined ? { ['--egap' as string]: `${g}px` } : {}), ...(it.pad !== undefined ? { padding: it.pad } : {}) }; };
   // Per-text styling from the editor: size, weight, colour
   const st = (key: string) => textProps(b.styles?.[key]);
   const txt = (field: TextField, value: string | undefined, tag: El['tag'], className0: string, placeholder: string, multiline = false) => {
@@ -138,9 +149,9 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     const flowCls = f.dir === 'col' ? 'col' : f.dir === 'row' || f.wrap === false || items.length <= cols ? 'row' : 'wrap';
     const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const tp = st(key); const el = { ...el0, style: tp.style, className: tp.className ? `${el0.className} ${tp.className}` : el0.className, key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
     return (
-      <section className={'gb gb-items ' + tone}>
+      <section className={'gb gb-items ' + tone} style={boxVars}>
         {parts(['head', 'body', 'items', 'media'], { head: edit || b.heading || b.eyebrow ? head : null, body: edit || b.body ? body('gb-body gb-intro') : null, media: media.length ? mediaEl : null, items: <>
-        <div className={'gb-' + b.kind + ' bx-' + (b.box || 'none') + (b.kind === 'columns' ? ` fl-${flowCls} fw-${f.width || 'equal'} fh-${f.height || 'fill'} ia-${f.align || 'start'}` : '')} style={{ ...(b.kind === 'columns' ? { ['--cols' as string]: String(cols), ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_COL[f.gap || 'm'] } : { ['--gcols' as string]: String(gcols), ['--row' as string]: ROW_H[b.rowH || 'm'], ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_GRID[b.gap || 'm'] }), ...(b.gapY !== undefined ? { ['--rgap' as string]: `${b.gapY}px` } : {}), ...(b.pad !== undefined ? { ['--pad' as string]: `${b.pad}px` } : {}) }}>
+        <div className={'gb-' + b.kind + ' bx-' + (b.box || 'none') + (b.kind === 'columns' ? ` fl-${flowCls} fw-${f.width || 'equal'} fh-${f.height || 'fill'} ia-${f.align || 'start'}` : '')} style={{ ...(b.kind === 'columns' ? { ['--cols' as string]: String(cols), ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : f.gap ? GAP_COL[f.gap] : `var(--sp-box-gap, ${GAP_COL.m})` } : { ['--gcols' as string]: String(gcols), ['--row' as string]: ROW_H[b.rowH || 'm'], ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : b.gap ? GAP_GRID[b.gap] : `var(--sp-box-gap, ${GAP_GRID.m})` }), ...(b.gapY !== undefined ? { ['--rgap' as string]: `${b.gapY}px` } : {}), ...(b.pad !== undefined ? { ['--pad' as string]: `${b.pad}px` } : {}) }}>
           {items.map((it, i) => {
             const m = it.media && urls[it.media.path] ? it.media : undefined;
             const pic = m ? <img src={urls[m.path]} alt="" loading="lazy" /> : null;
@@ -186,7 +197,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
           </div>;
         }), ...(addCard ? [addCard] : [])];
     return (
-      <section className={'gb gb-items ' + tone}>
+      <section className={'gb gb-items ' + tone} style={boxVars}>
         {parts(['head', 'body', 'items'], { head: edit || b.heading || b.eyebrow ? head : null, body: edit || b.body ? body('gb-body gb-intro') : null, items: <Carousel slides={slides} variant={images ? 'images' : 'cards'} label={b.heading || (images ? 'Images' : 'Cards')} editing={!!edit} extra={edit ? (images ? 1 : edit.addItem && sel0 ? 1 : 0) : 0} /> })}
       </section>
     );

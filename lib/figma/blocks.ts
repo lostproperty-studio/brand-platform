@@ -21,14 +21,14 @@ export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';
 /** One item in a columns or grid section: a small label, a headline, body text and/or an image. Grid items span columns and rows. */
 export type TextCase = 'upper' | 'lower' | 'sentence' | 'title';
 /** Text styling set in the editor. font is a typeface role on the project; tracking is in em (-0.02 = -2%); leading is a line-height multiple. */
-export type TextStyle = { size?: number; weight?: number; color?: string; font?: string; tracking?: number; leading?: number; case?: TextCase };
+export type TextStyle = { /** One of the guide's text styles (h1–h6, body, caption) instead of the default for this text */ ts?: import('@/lib/guideSystem').TypeId; size?: number; weight?: number; color?: string; font?: string; tracking?: number; leading?: number; case?: TextCase };
 /** One element inside a box, in order: a small label, a headline, text or an image */
 export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer'; text?: string; media?: BlockMedia; /** spacer height in pixels */ size?: number };
 export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number;
   /** When set, the box's content as a free list of elements (added with the adding bar), instead of the fixed fields */
   els?: ItemEl[];
   /** How the content sits in the box (overrides the section's setting), and the space between its elements in pixels */
-  align?: BoxAlign; gap?: number };
+  align?: BoxAlign; gap?: number; /** Padding inside this frame, in pixels (overrides the guide's rule) */ pad?: number };
 /** Content alignment inside a box, like Figma's auto layout: x across, y down; 'between' spreads elements evenly */
 export type BoxAlign = { x?: 'start' | 'center' | 'end'; y?: 'start' | 'center' | 'end' | 'between' };
 /** A box's elements in order, from its free list or from the fixed fields (image, label, headline, text) */
@@ -62,6 +62,8 @@ export type Block = {
   gapX?: number; gapY?: number; pad?: number;
   /** Alignment and element spacing for every box in the section (a box can override it) */
   boxAlign?: BoxAlign; boxGap?: number;
+  /** A brand colour for filled boxes */
+  boxBg?: string;
   /** Spacer sections: the height of the space, in pixels */
   size?: number;
   /** The order of the section's parts (headline, text, images, boxes), when moved in the editor */

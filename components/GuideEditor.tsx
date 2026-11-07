@@ -8,7 +8,9 @@ import { Inspector } from '@/components/GuideInspector';
 import { AddBar, addTarget, type AddWhat } from '@/components/GuideAddBar';
 import { LayoutPicker, convertSection, layoutLabel, layoutOf, newSection } from '@/components/SectionLayouts';
 import type { SectionLayout } from '@/lib/figma/blocks';
-import { CHAPTER, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
+import { CHAPTER, Shortcuts, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
+import { SpaceCtl, StylesWindow } from '@/components/GuideStyles';
+import { defaultSystem, spaceName, systemCss, systemFor, type GuideSystem, type TypeId } from '@/lib/guideSystem';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
 import { ChevronDown, House, AlignLeft, Columns3, ExternalLink, Eye, EyeOff, GripVertical, Heading, GalleryHorizontal, UnfoldVertical, Image as ImageIcon, Images, LayoutGrid, PanelLeft, PanelTop, Palette, Plus, Quote, RefreshCw, FilePlus2, TriangleAlert, ScanSearch, Trash2, Upload, type LucideIcon } from 'lucide-react';
@@ -17,7 +19,7 @@ import { tierLabel, type Tier } from '@/lib/playbook';
 import { ChapterCover } from '@/components/portal/ChapterCover';
 import { coverKind } from '@/lib/portal/covers';
 
-export const KINDS: [BlockKind, string][] = [['divider', 'Subsection headline'], ['text', 'Text'], ['columns', 'Columns'], ['grid', 'Grid'], ['statement', 'Statement'], ['split', 'Text + image'], ['image', 'Full-width image'], ['media', 'Images'], ['carousel', 'Carousel'], ['swatches', 'Colour swatches'], ['spacer', 'Spacer']];
+export const KINDS: [BlockKind, string][] = [['divider', 'Subsection headline'], ['text', 'Text'], ['columns', 'Auto layout'], ['grid', 'Grid'], ['statement', 'Statement'], ['split', 'Text + image'], ['image', 'Full-width image'], ['media', 'Images'], ['carousel', 'Carousel'], ['swatches', 'Colour swatches'], ['spacer', 'Spacer']];
 export const BOXES: [BoxStyle, string][] = [['none', 'None'], ['corners', 'Corner marks'], ['outline', 'Outline'], ['fill', 'Fill']];
 const iid = () => 'i-' + Math.random().toString(36).slice(2, 9);
 
@@ -167,16 +169,45 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       const t = e.target as HTMLElement;
       const typing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
       if (e.key === 'Escape' && tool) { setTool(null); return; }
-      if (e.key === 'Escape' && !typing && !ask) setSel(null);
-      if ((e.key === 'Backspace' || e.key === 'Delete') && !typing && !ask && sel) { e.preventDefault(); deleteSelection(); return; }
-      if (!(e.metaKey || e.ctrlKey) || typing) return;
-      const k = e.key.toLowerCase();
+      if (ask || picker || keysOpen) return;
+      // Esc while typing stops editing and keeps the text selected, as in Figma; Esc again selects its parent
+      if (e.key === 'Escape' && t.isContentEditable) { e.preventDefault(); t.blur(); return; }
+      const cmd = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
+      const b = sel && ch ? ch.blocks.find((x) => x.id === sel.block) : undefined;
+      // Figma's: Esc and ⇧Enter select the parent (text → frame → section), Enter selects inside
+      if (!typing && (e.key === 'Escape' || (e.key === 'Enter' && e.shiftKey))) { if (!sel) return; e.preventDefault(); if (sel.el && sel.item !== undefined && sel.block !== CHAPTER) setSel({ block: sel.block, item: sel.item }); else if (sel.el || sel.item !== undefined || sel.gap) setSel(sel.block === CHAPTER ? null : { block: sel.block }); else if (e.key === 'Escape') setSel(null); return; }
+      if (!typing && e.key === 'Enter' && !cmd && b && sel && sel.item === undefined && !sel.el && (b.items || []).length) { e.preventDefault(); setSel({ block: b.id, item: 0 }); return; }
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !typing && sel) { e.preventDefault(); deleteSelection(); return; }
+      if (typing) return;
+      if (!cmd && !e.altKey) {
+        if (k === 'v' && !e.shiftKey) { setTool(null); return; }
+        if (k === 't' && !e.shiftKey) { setTool('text'); setSpot(null); return; }
+        if ((k === 'f' || k === 'a') && !e.shiftKey) { setTool('box'); setSpot(null); return; }
+        if (e.key === '?') { setKeysOpen(true); return; }
+      }
+      if (!cmd) return;
       if (k === 'z' && !e.shiftKey) { e.preventDefault(); step('undo'); }
       else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); step('redo'); }
+      else if (k === 'k' && e.shiftKey) { e.preventDefault(); setTool('image'); }
+      else if (k === 't' && e.altKey) { e.preventDefault(); setStylesOpen({}); }
+      else if (!b || !ch) return;
+      else if (k === 'd') { e.preventDefault(); const items = b.items || [];
+        if (sel!.item !== undefined && !sel!.el && items[sel!.item]) { const n = sel!.item; editBlock(b.id, { items: [...items.slice(0, n + 1), { ...items[n], id: iid() }, ...items.slice(n + 1)] }); setSel({ block: b.id, item: n + 1 }); }
+        else { const idx = ch.blocks.indexOf(b); const copy = { ...b, id: 'b-' + Math.random().toString(36).slice(2, 10), source: undefined, edited: true }; const l = [...ch.blocks]; l.splice(idx + 1, 0, copy); setBlocks(l); setSel({ block: copy.id }); } }
+      else if (k === 'h' && e.shiftKey) { e.preventDefault(); editBlock(b.id, { hidden: !b.hidden }); }
+      else if ((e.key === '[' || e.key === ']') && sel!.item !== undefined) { e.preventDefault(); const items = [...(b.items || [])]; const n = sel!.item; const to = Math.max(0, Math.min(items.length - 1, n + (e.key === ']' ? 1 : -1))); if (to === n) return; const [x] = items.splice(n, 1); items.splice(to, 0, x); editBlock(b.id, { items }); setSel({ ...sel!, item: to }); }
+      else if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); const l = [...ch.blocks]; const idx = l.indexOf(b); const to = Math.max(0, Math.min(l.length - 1, idx + (e.key === 'ArrowDown' ? 1 : -1))); if (to === idx) return; l.splice(idx, 1); l.splice(to, 0, b); setBlocks(l); }
     };
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   });
   const g = guide;
+  // The guide's text styles and spacing: generated from the guidelines and typefaces, tuned in the Styles window
+  const sysFrom = { typeScale: content.typeScale as never, profile: content.dsProfile as never, fonts: toolbarFonts(fonts) };
+  const autoSys = defaultSystem(sysFrom);
+  const sys = systemFor(g?.system, sysFrom);
+  const setSysKey = (next: GuideSystem, key?: string) => { if (g) commit({ ...g, system: next.edited === false ? undefined : next }, key); };
+  const [stylesOpen, setStylesOpen] = useState<{ focus?: TypeId } | null>(null);
+  const [keysOpen, setKeysOpen] = useState(false);
   const ch = g?.chapters.find((c) => c.id === chId);
   const setChapters = (chapters: GuideChapter[], key?: string) => g && commit({ ...g, chapters }, key);
   const setCh = (patch: Partial<GuideChapter>, key?: string) => g && setChapters(g.chapters.map((c) => (c.id === chId ? { ...c, ...patch } : c)), key);
@@ -205,7 +236,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [tool, setTool] = useState<AddWhat | null>(null);
   const [spot, setSpot] = useState<Spot | null>(null);
   useEffect(() => { document.body.classList.toggle('ve-tool', !!tool); return () => document.body.classList.remove('ve-tool'); }, [tool]);
-  const WHAT: Record<AddWhat, string> = { headline: 'Headline', text: 'Text', label: 'Label', image: 'Image', box: 'Box', swatch: 'Colour', spacer: 'Spacer' };
+  const WHAT: Record<AddWhat, string> = { headline: 'Headline', text: 'Text', label: 'Label', image: 'Image', box: 'Frame', swatch: 'Colour', spacer: 'Spacer' };
   function findSpot(e: React.MouseEvent): Spot | null {
     if (!tool || !ch) return null;
     const t = e.target as HTMLElement;
@@ -226,11 +257,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         const r0 = parts[0].parentElement!.getBoundingClientRect();
         const y = index === 0 ? parts[0].getBoundingClientRect().top - 8 : index >= parts.length ? parts[parts.length - 1].getBoundingClientRect().bottom + 8 : (parts[index - 1].getBoundingClientRect().bottom + parts[index].getBoundingClientRect().top) / 2;
         const after = index > 0 ? parts[index - 1].dataset.part : undefined;
-        const name = (p?: string) => (p === 'head' ? 'the headline' : p === 'body' ? 'the introduction' : p === 'items' ? 'the boxes' : p === 'media' ? 'the images' : 'this text');
+        const name = (p?: string) => (p === 'head' ? 'the headline' : p === 'body' ? 'the introduction' : p === 'items' ? 'the frames' : p === 'media' ? 'the images' : 'this text');
         return { mode: 'line', block: blockEl.dataset.block, part: index, parts: parts.map((x) => x.dataset.part!), label: `${WHAT[tool]} ${index === 0 ? 'at the top' : `under ${name(after)}`}`, line: { top: y - 1, left: r0.left, width: r0.width, height: 2 } };
       }
     }
-    if (box && blockEl && tool === 'box') { const r = box.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, item: Number(box.dataset.item), label: 'New box after this one', line: { top: r.top, left: r.right + 4, width: 3, height: r.height } }; }
+    if (box && blockEl && tool === 'box') { const r = box.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, item: Number(box.dataset.item), label: 'New frame after this one', line: { top: r.top, left: r.right + 4, width: 3, height: r.height } }; }
     if (blockEl) { const r = blockEl.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, label: `${WHAT[tool]} → ${addTarget(tool, ch, { block: blockEl.dataset.block! })}`, line: { top: r.top - 6, left: r.left - 6, width: r.width + 12, height: r.height + 12 } }; }
     return null;
   }
@@ -250,8 +281,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const src = (e.currentTarget as HTMLElement).closest(kind === 'el' ? '[data-el]' : kind === 'part' ? '[data-part]' : '[data-item]') as HTMLElement | null;
     // Parts move among their siblings: headline, text, images and boxes within the section
     const siblings = kind === 'part' && src?.parentElement ? ([...src.parentElement.children] as HTMLElement[]).filter((x) => x.dataset.part) : [];
-    const PART: Record<string, string> = { head: 'Headline', body: 'Text', media: 'Images', items: 'Boxes' };
-    const label = kind === 'part' ? PART[el || ''] || 'Part' : kind === 'box' ? 'Box' : (src?.innerText || 'Image').trim().slice(0, 40) || 'Image';
+    const PART: Record<string, string> = { head: 'Headline', body: 'Text', media: 'Images', items: 'Frames' };
+    const label = kind === 'part' ? PART[el || ''] || 'Part' : kind === 'box' ? 'Frame' : (src?.innerText || 'Image').trim().slice(0, 40) || 'Image';
     let d: Drag = { kind, block: blockId, item, el, label, x: e.clientX, y: e.clientY, order: siblings.map((x) => x.dataset.part!) };
     setMoving(d); document.body.classList.add('ve-moving'); src?.classList.add('ve-drag-src');
     const move = (ev: PointerEvent) => {
@@ -520,26 +551,24 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     itemElText: (i, e, el) => <Editable key={e.id} value={e.text} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === el.key} onFocus={() => setSel({ block: b.id, el: el.key, item: i })} onSave={(v) => editBlock(b.id, { items: (b.items || []).map((x, n) => (n === i ? { ...x, els: (x.els || []).map((y) => (y.id === e.id ? { ...y, text: v || undefined } : y)) } : x)) })} />,
     itemElImage: (i, e, img) => { const key = `${(b.items || [])[i]?.id}.${e.id}`; return img ? <span className={'ve-img' + (sel?.block === b.id && sel.el === key ? ' on' : '')} onMouseDown={(ev) => { ev.stopPropagation(); setSel({ block: b.id, el: key, item: i }); }}>{img}</span> : <button className={'ve-add ve-elimg' + (sel?.block === b.id && sel.el === key ? ' on' : '')} onMouseDown={(ev) => { ev.stopPropagation(); setSel({ block: b.id, el: key, item: i }); }} onClick={() => pickImage(b.id, `itemel:${i}:${e.id}`)}><ImageIcon size={16} strokeWidth={1.75} aria-hidden />Choose an image</button>; },
     itemImage: (i, m, pic) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `itemimg:${i}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `itemimg:${i}`, item: i }); }}>{pic}</span>,
-    insertItem: (at, edge) => <button key={'ins-' + edge} type="button" className={'ve-ins ' + edge} aria-label={edge === 'after' ? 'Add a box at the end' : `Add a box before box ${at + 1}`} data-tip="Add a box" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const items = [...(b.items || [])]; const nb = items[at] || items[at - 1]; items.splice(at, 0, { id: iid(), label: nb?.label !== undefined ? 'Label' : undefined, heading: nb?.heading ? 'A headline' : undefined, body: nb?.body || !nb ? 'Text' : undefined, w: 1 }); editBlock(b.id, { items, ...(b.flow?.dir !== 'col' ? { cols: Math.min(6, items.length) } : {}) }); setSel({ block: b.id, item: at }); }}><span><Plus size={12} strokeWidth={2} aria-hidden /></span></button>,
-    addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => { editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: b.kind === 'carousel' ? String((b.items || []).length + 1).padStart(2, '0') : 'Label', ...(b.kind === 'carousel' ? { heading: 'A headline for this card' } : { body: 'Text' }), w: b.kind === 'grid' ? 2 : 1, h: 2 }] }); setSel({ block: b.id, item: (b.items || []).length }); }}><Plus size={15} strokeWidth={1.75} aria-hidden />{b.kind === 'carousel' ? 'Card' : 'Box'}</button> : null,
+    insertItem: (at, edge) => <button key={'ins-' + edge} type="button" className={'ve-ins ' + edge} aria-label={edge === 'after' ? 'Add a frame at the end' : `Add a frame before frame ${at + 1}`} data-tip="Add frame" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const items = [...(b.items || [])]; const nb = items[at] || items[at - 1]; items.splice(at, 0, { id: iid(), label: nb?.label !== undefined ? 'Label' : undefined, heading: nb?.heading ? 'A headline' : undefined, body: nb?.body || !nb ? 'Text' : undefined, w: 1 }); editBlock(b.id, { items, ...(b.flow?.dir !== 'col' ? { cols: Math.min(6, items.length) } : {}) }); setSel({ block: b.id, item: at }); }}><span><Plus size={12} strokeWidth={2} aria-hidden /></span></button>,
+    addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => { editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: b.kind === 'carousel' ? String((b.items || []).length + 1).padStart(2, '0') : 'Label', ...(b.kind === 'carousel' ? { heading: 'A headline for this card' } : { body: 'Text' }), w: b.kind === 'grid' ? 2 : 1, h: 2 }] }); setSel({ block: b.id, item: (b.items || []).length }); }}><Plus size={15} strokeWidth={1.75} aria-hidden />{b.kind === 'carousel' ? 'Card' : 'Frame'}</button> : null,
     // The selected box: an outline and handles to drag its width (and height, in a grid) across the columns
     extraText: (x, el) => <Editable key={el.key} value={x.text} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === `x-${x.id}`} onFocus={() => setSel({ block: b.id, el: `x-${x.id}` })} onSave={(v) => editBlock(b.id, v ? { extras: (b.extras || []).map((y) => (y.id === x.id ? { ...y, text: v } : y)) } : { extras: (b.extras || []).filter((y) => y.id !== x.id), order: (b.order || []).filter((p) => p !== `x-${x.id}`) })} />,
-    gap: (part, value) => { const on = sel?.block === b.id && sel.gap === part; const v = value ?? 20; const setV = (n: number) => editBlock(b.id, { gapBefore: { ...(b.gapBefore || {}), [part]: Math.max(0, Math.min(240, Math.round(n))) } }, 'gap-' + part);
-      return <div key={'gap-' + part} className={'ve-pgap' + (on ? ' on' : '')} style={{ ['--g' as string]: `${value ?? 'var(--part-gap, 20px)'}${value !== undefined ? 'px' : ''}` }} onMouseDown={(e) => { e.stopPropagation(); if (!on) setSel({ block: b.id, gap: part }); }} title="Space between these: click to adjust">
-        <span className="ve-pgap-v">{value ?? 'Auto'}</span>
-        {on ? <span className="ve-pgap-pop" onMouseDown={(e) => e.stopPropagation()} role="group" aria-label="Space between">
-          <button type="button" onClick={() => setV(v - 4)} aria-label="Less space">−</button>
-          <input type="range" min={0} max={160} step={2} value={v} onChange={(e) => setV(Number(e.target.value))} aria-label="Space in pixels" />
-          <input className="ve-pgap-n" type="number" min={0} max={240} value={v} onChange={(e) => setV(Number(e.target.value) || 0)} aria-label="Space in pixels" />
-          <button type="button" onClick={() => setV(v + 4)} aria-label="More space">+</button>
-          {value !== undefined ? <button type="button" className="ve-pgap-r" onClick={() => { const { [part]: _x, ...rest } = b.gapBefore || {}; void _x; editBlock(b.id, { gapBefore: rest }); }}>Reset</button> : null}
+    gap: (part, value, rule) => { const on = sel?.block === b.id && sel.gap === part;
+      const setOwn = (px: number | undefined) => { const g0 = { ...(b.gapBefore || {}) }; if (px === undefined) delete g0[part]; else g0[part] = px; editBlock(b.id, { gapBefore: g0 }, 'gap-' + part); };
+      const shown = value ?? (rule ? sys.space[rule] : undefined);
+      return <div key={'gap-' + part} className={'ve-pgap' + (on ? ' on' : '')} style={{ ['--g' as string]: value !== undefined ? `${value}px` : rule ? `var(--sp-${rule}, var(--part-gap, 20px))` : 'var(--part-gap, 20px)' }} onMouseDown={(e) => { e.stopPropagation(); if (!on) setSel({ block: b.id, gap: part }); }} title="Space between these: click to adjust">
+        <span className="ve-pgap-v">{shown !== undefined ? `${spaceName(shown)} · ${shown}` : 'Auto'}{value !== undefined ? ' · only here' : ''}</span>
+        {on && rule ? <span className="ve-pgap-pop" onMouseDown={(e) => e.stopPropagation()} role="group" aria-label="Space between">
+          <SpaceCtl sys={sys} rule={rule} own={value} setRule={(px) => setSysKey({ ...sys, edited: true, space: { ...sys.space, [rule]: px } }, 'sp:' + rule)} setOwn={setOwn} label="Space" />
         </span> : null}
       </div>; },
     partGrip: (part) => <span className="ve-grip-el ve-grip-part" onPointerDown={(e) => startMove(e, 'part', b.id, -1, part)} title="Drag to move" aria-hidden><GripVertical size={14} strokeWidth={2} /></span>,
     grip: (i, elId) => ['columns', 'grid', 'carousel'].includes(b.kind) ? <span className="ve-grip-el" onPointerDown={(e) => startMove(e, 'el', b.id, i, elId)} title="Drag to move" aria-hidden><GripVertical size={14} strokeWidth={2} /></span> : null,
     itemBar: (i) => sel?.block === b.id && sel.item === i ? <>
       <span className="ve-itemsel" aria-hidden />
-      <span className="ve-grip-box" onPointerDown={(e) => startMove(e, 'box', b.id, i)} title="Drag to move this box" aria-hidden><GripVertical size={12} strokeWidth={2} />Box</span>
+      <span className="ve-grip-box" onPointerDown={(e) => startMove(e, 'box', b.id, i)} title="Drag to move this box" aria-hidden><GripVertical size={12} strokeWidth={2} />Frame</span>
       {b.kind === 'columns' || b.kind === 'grid' ? <span className="ve-hd ve-hd-r" onPointerDown={(e) => startResize(e, b, i, 'x')} role="slider" aria-label="Drag to change width" aria-valuenow={b.items?.[i]?.w || 1} title="Drag to change width" /> : null}
       {b.kind === 'grid' ? <><span className="ve-hd ve-hd-b" onPointerDown={(e) => startResize(e, b, i, 'y')} title="Drag to change height" aria-hidden /><span className="ve-hd ve-hd-c" onPointerDown={(e) => startResize(e, b, i, 'xy')} title="Drag to resize" aria-hidden /></> : null}
     </> : null
@@ -629,10 +658,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           <button className="btn ic" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); setSel(null); }}><Plus size={15} strokeWidth={1.75} aria-hidden />Chapter</button>
         </nav>
 
-        {chId === HOME && home ? <><HomeEditor projectId={projectId} home={home} colours={colours} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} chapters={g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => c.title)} />
-          <aside className="dp" aria-label="About the home page"><div className="dp-sec"><p className="dp-h"><House size={15} strokeWidth={1.75} aria-hidden />Home page</p><p className="dp-tip" style={{ padding: 0 }}>The first page clients see. Click the title or the welcome to edit them, with the same text tools as the guidelines. Leave the welcome empty to use the standard one. Changes here show straight away, without publishing.</p><p className="dp-tip" style={{ padding: 0 }}>The showcase reel runs above it, and the chapters and recently used apps follow below.</p></div></aside></> : null}
+        {chId === HOME && home ? <HomeEditor projectId={projectId} home={home} colours={colours} sys={sys} openStyles={(focus) => setStylesOpen({ focus })} chapters={g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => c.title)} />
+          : null}
+        {chId === HOME && home && stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
         {ch ? <div className="ve-main">
-          <Toolbar onFill={fillWithAi} filling={filling} sel={sel} setSel={setSel} ch={ch} colours={colours} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} setChStyle={setChStyle} setBlocks={setBlocks} editBlock={editBlock} pickImage={pickImage} undo={() => step('undo')} redo={() => step('redo')} canUndo={past.current.length > 0} canRedo={future.current.length > 0}
+          <Toolbar sel={sel} setSel={setSel} ch={ch} setBlocks={setBlocks} editBlock={editBlock} undo={() => step('undo')} redo={() => step('redo')} canUndo={past.current.length > 0} canRedo={future.current.length > 0} onStyles={() => setStylesOpen({})} onKeys={() => setKeysOpen(true)} onLayout={(b) => setPicker({ convert: b.id })}
             onDelete={(b) => { if (b.source) editBlock(b.id, { hidden: true }); else setBlocks(ch.blocks.filter((x) => x.id !== b.id)); setSel(null); }}
             onReset={(b) => setAsk({ title: 'Reset this section?', body: 'Your edits to it are discarded and it refreshes from Figma on the next rebuild. You can undo this.', yes: 'Reset section', run: () => setBlocks(ch.blocks.map((x) => (x.id === b.id ? { ...x, edited: false } : x))) })} />
           <section className="ve-chset" aria-label="Chapter settings">
@@ -648,7 +678,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
               </div>
           </section>
           <div className={'ve-canvas pt' + (tool ? ' ve-adding' : '')} onMouseMoveCapture={(e) => { if (tool) setSpot(findSpot(e)); }} onMouseLeave={() => setSpot(null)} onMouseDownCapture={(e) => { if (!tool) return; e.preventDefault(); e.stopPropagation(); place(findSpot(e)); }} onClickCapture={(e) => { if (tool) { e.preventDefault(); e.stopPropagation(); } }}>
-          <article className="pt-page ve-page">
+          <article className="pt-page ve-page gsys">
             <header className="pt-chhead ve-chhead">
               <p className="mute"><span className="pt-n">{String(g.chapters.indexOf(ch) + 1).padStart(2, '0')}</span><Editable value={ch.kicker} tag="span" {...chText('kicker', '')} placeholder="Label" onSave={(v) => setCh({ kicker: v, edited: true })} /></p>
               <Editable value={ch.title} tag="h1" {...chText('title', 'pt-display')} placeholder="Chapter title" onSave={(v) => setCh({ title: v || 'Untitled', edited: true })} />
@@ -699,7 +729,10 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={() => { const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length; setPicker({ at: at > 0 ? at : ch.blocks.length }); }} /> : null}
         {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
-        {ch ? <Inspector onAddToBox={addToBox} sel={sel?.block === CHAPTER ? null : sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} /> : null}
+        {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} /> : null}
+        {stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
+        {keysOpen ? <Shortcuts onClose={() => setKeysOpen(false)} /> : null}
+        <style dangerouslySetInnerHTML={{ __html: systemCss(sys) }} />
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}
       {fontAsk ? <FontDialog projectId={projectId} fonts={fonts} onClose={() => setFontAsk(null)} onDone={(next, urls, role) => { setFonts(next); setLiveFontCss(fontFaceCss(next, urls)); fontAsk(role); setFontAsk(null); }} /> : null}
@@ -768,7 +801,7 @@ function FontDialog({ projectId, fonts, onClose, onDone }: { projectId: string; 
 const HOME = '__home';
 /** The portal's home page as the first item in the guidelines: the brand's line and the welcome, edited in place */
 type HomeData = { client: string; line: string; intro: string; fallback: string; version?: string; title?: string; styles?: Record<string, TextStyle> };
-function HomeEditor({ projectId, home, chapters, colours, fonts, onAddFont }: { projectId: string; home: HomeData; chapters: string[]; colours: { name: string; hex: string }[]; fonts: ToolbarFont[]; onAddFont: (then: (role: string) => void) => void }) {
+function HomeEditor({ projectId, home, chapters, colours, sys, openStyles }: { projectId: string; home: HomeData; chapters: string[]; colours: { name: string; hex: string }[]; sys: GuideSystem; openStyles: (focus?: TypeId) => void }) {
   const [msg, setMsg] = useState('');
   const [sel, setSel] = useState<Sel | null>(null);
   const [styles, setStyles] = useState<Record<string, TextStyle>>(home.styles || {});
@@ -782,10 +815,9 @@ function HomeEditor({ projectId, home, chapters, colours, fonts, onAddFont }: { 
   const setStyle = (field: string, st: TextStyle) => { const next = { ...styles, [field]: st }; setStyles(next); if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => save({ content: { homeStyles: next } }), 500); };
   const fake: GuideChapter = { id: HOME, key: null, title: 'Home page', kicker: '', lede: '', rules: [], blocks: [], styles };
   const t = (k: string, cls: string) => { const p = textProps(styles[k]); return { className: [cls, p.className].filter(Boolean).join(' '), style: p.style, on: sel?.el === k, onFocus: () => setSel({ block: CHAPTER, el: k }) }; };
-  return <div className="ve-main">
-    {sel ? <Toolbar sel={sel} setSel={setSel} ch={fake} colours={colours} fonts={fonts} onAddFont={onAddFont} setChStyle={setStyle} setBlocks={() => {}} editBlock={() => {}} pickImage={() => {}} undo={() => {}} redo={() => {}} canUndo={false} canRedo={false} onDelete={() => {}} onReset={() => {}} />
-      : <div className="tb" role="status"><span className="tb-ctx tb-empty" style={{ borderLeft: 0 }}><House size={15} strokeWidth={1.75} aria-hidden />Home page · {msg || 'Click the title or the welcome to edit it'}</span></div>}
-    <div className="ve-canvas pt"><article className="pt-page ve-page hm-body">
+  return <><div className="ve-main">
+    <div className="tb" role="status"><span className="tb-ctx tb-empty" style={{ borderLeft: 0 }}><House size={15} strokeWidth={1.75} aria-hidden />Home page · {msg || 'Click the title or the welcome to edit it'}</span><div className="tb-grp tb-end"><button type="button" className="tb-btn wide" onClick={() => openStyles()}><Palette size={16} strokeWidth={1.75} aria-hidden />Styles</button></div></div>
+    <div className="ve-canvas pt"><style dangerouslySetInnerHTML={{ __html: systemCss(sys) }} /><article className="pt-page ve-page hm-body gsys">
       <header className="hm-head">
         <Editable value={home.title || home.client} tag="h1" {...t('title', 'pt-display')} placeholder={home.client} onSave={(v) => save({ content: { homeTitle: v.trim() && v.trim() !== home.client ? v.trim() : null } })} />
         <p className="mute hm-ver">Brand hub{home.version ? ` · v${home.version}` : ''}</p>
@@ -797,7 +829,10 @@ function HomeEditor({ projectId, home, chapters, colours, fonts, onAddFont }: { 
         <p className="pt-h2">Recently used apps</p>
       </div>
     </article></div>
-  </div>;
+  </div>
+  {sel ? <Inspector sel={sel} setSel={setSel} ch={fake} colours={colours} editBlock={() => {}} pickImage={() => {}} sys={sys} setSys={() => {}} openStyles={openStyles} setChStyle={(f, st) => setStyle(f, st)} onDelete={() => {}} />
+    : <aside className="dp" aria-label="About the home page"><div className="dp-sec"><p className="dp-h"><House size={15} strokeWidth={1.75} aria-hidden />Home page</p><p className="dp-tip" style={{ padding: 0 }}>The first page clients see. Click the title or the welcome to edit them. Leave the welcome empty to use the standard one. Changes here show straight away, without publishing.</p><p className="dp-tip" style={{ padding: 0 }}>The showcase reel runs above it, and the chapters and recently used apps follow below.</p></div></aside>}
+  </>;
 }
 
 type RebuildMode = 'update' | 'add' | 'fresh';

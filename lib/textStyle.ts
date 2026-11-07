@@ -10,5 +10,5 @@ export function textProps(s?: TextStyle): { style?: React.CSSProperties; classNa
     ...(s.leading ? { lineHeight: s.leading } : {}),
     ...(s.case === 'upper' ? { textTransform: 'uppercase' } : s.case === 'lower' || s.case === 'sentence' ? { textTransform: 'lowercase' } : s.case === 'title' ? { textTransform: 'capitalize' } : {})
   };
-  return { style: Object.keys(style).length ? style : undefined, className: s.case === 'sentence' ? 'tc-sentence' : '' };
+  return { style: Object.keys(style).length ? style : undefined, className: [s.case === 'sentence' ? 'tc-sentence' : '', s.ts ? `ts-${s.ts}` : ''].filter(Boolean).join(' ') };
 }

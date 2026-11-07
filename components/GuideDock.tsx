@@ -1,13 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
-import type { BlockItem, BoxStyle, TextCase, TextStyle } from '@/lib/figma/blocks';
-import { BOXES, KINDS, KindIcon, convert } from '@/components/GuideEditor';
-import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Baseline, Captions, ChevronDown, ChevronRight, Columns2, Columns3, Columns4, Copy, Images, RectangleHorizontal, Eye, EyeOff,
-  ImageOff, ImagePlus, ImageUp, Maximize2, Minimize2, Minus, MoreHorizontal, MoveHorizontal, MoveVertical, PaintBucket, PanelLeft, PanelRight,
-  Plus, Redo2, RotateCcw, Sparkles, Loader2, CaseSensitive, Type, Upload, ArrowLeftRight, ArrowUpDown, Scan, Square, SquareDashed, Trash2, Undo2, X, type LucideIcon
-} from 'lucide-react';
+import { KINDS, KindIcon, convert } from '@/components/GuideEditor';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy, Eye, EyeOff, Keyboard, Palette, Redo2, RotateCcw, Trash2, Undo2, X, type LucideIcon } from 'lucide-react';
 
 /** What's selected in the editor: a section, and optionally a piece of text, an item or an image inside it. */
 export type Sel = { block: string; el?: string; item?: number; /** The space before a part of the section */ gap?: string };
@@ -15,15 +10,11 @@ export type Sel = { block: string; el?: string; item?: number; /** The space bef
 export const CHAPTER = '__chapter';
 /** Typefaces with files uploaded to the project, and the weights uploaded for each */
 export type ToolbarFont = { role: string; label: string; name: string; weights: number[] };
-const CASES: [TextCase, string][] = [['upper', 'UPPERCASE'], ['lower', 'lowercase'], ['sentence', 'Sentence case'], ['title', 'Title Case']];
 const CH_FIELD: Record<string, string> = { kicker: 'Label', title: 'Title', lede: 'Introduction' }; // on the home page, lede is the welcome
 
-const WEIGHT_NAME: Record<number, string> = { 100: 'Thin', 200: 'Extra Light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra Bold', 900: 'Black' };
-const pct = (n?: number) => (n === undefined ? '' : String(Math.round(n * 1000) / 10));
 const FIELD: Record<string, string> = { eyebrow: 'Label', heading: 'Headline', body: 'Text', label: 'Label' };
-const FilledSquare = ((p: React.ComponentProps<typeof Square>) => <Square {...p} fill="currentColor" fillOpacity={0.3} />) as unknown as LucideIcon;
-const BOX_ICON: Record<BoxStyle, LucideIcon> = { none: SquareDashed, corners: Scan, outline: Square, fill: FilledSquare };
-const iid = () => 'i-' + Math.random().toString(36).slice(2, 9);
+/** Figma's names for what's selected */
+const NAME = (k: string) => (k === 'columns' ? 'Auto layout' : KINDS.find(([x]) => x === k)?.[1] || 'Section');
 const I = { size: 16, strokeWidth: 1.75, 'aria-hidden': true } as const;
 
 /** An icon button with a tooltip, as in Docs, Notion or Figma. */
@@ -39,143 +30,79 @@ function Pop({ id, pop, setPop, label, icon, children, tip }: { id: string; pop:
   </div>;
 }
 
-// The editing toolbar: fixed above the page, like Google Docs. Undo and redo are always there; the rest follows the
-// selection: the text you clicked (size, weight, colour), the item or image, and the section (layout and order).
-export function Toolbar({ onFill, filling, sel, setSel, ch, colours, fonts, onAddFont, setChStyle, setBlocks, editBlock, pickImage, onReset, onDelete, undo, redo, canUndo, canRedo }: {
-  sel: Sel | null; setSel: (s: Sel | null) => void; ch: GuideChapter; colours: { name: string; hex: string }[];
-  onFill?: () => void; filling?: boolean;
-  fonts: ToolbarFont[]; onAddFont: (then: (role: string) => void) => void; setChStyle: (field: string, s: TextStyle, key?: string) => void;
-  setBlocks: (b: Block[]) => void; editBlock: (id: string, p: Partial<Block>, key?: string) => void; pickImage: (block: string, target: number | 'new' | string) => void;
+// The top bar: history, where you are, and what you can do to the section as a whole (its type, order, copy, visibility,
+// deletion). Everything visual (type, colour, spacing, frames) is in the panel on the right, as in Figma.
+export function Toolbar({ sel, setSel, ch, setBlocks, editBlock, onReset, onDelete, undo, redo, canUndo, canRedo, onStyles, onKeys, onLayout }: {
+  sel: Sel | null; setSel: (s: Sel | null) => void; ch: GuideChapter;
+  setBlocks: (b: Block[]) => void; editBlock: (id: string, p: Partial<Block>, key?: string) => void;
   onReset: (b: Block) => void; onDelete: (b: Block) => void; undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean;
+  onStyles: () => void; onKeys: () => void; onLayout?: (b: Block) => void;
 }) {
   const [pop, setPop] = useState<string | null>(null);
   useEffect(() => { if (!pop) return; const off = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.tb-pop-wrap')) setPop(null); }; const esc = (e: KeyboardEvent) => e.key === 'Escape' && setPop(null); document.addEventListener('mousedown', off); document.addEventListener('keydown', esc); return () => { document.removeEventListener('mousedown', off); document.removeEventListener('keydown', esc); }; }, [pop]);
   useEffect(() => setPop(null), [sel?.block, sel?.el]);
   const b = sel ? ch.blocks.find((x) => x.id === sel.block) : undefined;
-  const history = <div className="tb-grp"><Btn icon={Undo2} tip="Undo (⌘Z)" onClick={undo} disabled={!canUndo} /><Btn icon={Redo2} tip="Redo (⇧⌘Z)" onClick={redo} disabled={!canRedo} /></div>;
+  const history = <div className="tb-grp"><Btn icon={Undo2} tip="Undo ⌘Z" onClick={undo} disabled={!canUndo} /><Btn icon={Redo2} tip="Redo ⇧⌘Z" onClick={redo} disabled={!canRedo} /></div>;
   const keep = (e: React.MouseEvent) => { if (!(e.target as HTMLElement).closest('input')) e.preventDefault(); };
+  const tools = <div className="tb-grp"><Btn icon={Palette} tip="Text styles and spacing" onClick={onStyles}>Styles</Btn><Btn icon={Keyboard} tip="Keyboard shortcuts ⇧?" onClick={onKeys} /></div>;
 
-  const palette = [...new Map([...colours, { name: 'Black', hex: '#000000' }, { name: 'White', hex: '#FFFFFF' }].map((c) => [c.hex.toUpperCase(), c])).values()].slice(0, 16);
-  const chips = (cur: string | undefined, set: (hex?: string) => void, none: string) => <div className="tb-chips">{palette.map((c) => <button type="button" key={c.hex} className={'tb-chip' + (cur === c.hex ? ' on' : '')} style={{ background: c.hex }} onClick={() => { set(c.hex); setPop(null); }} aria-label={`${c.name} ${c.hex}`} title={`${c.name} ${c.hex}`} />)}<button type="button" className="tb-menu-item" onClick={() => { set(undefined); setPop(null); }}>{none}</button></div>;
+  if (sel?.block === CHAPTER && sel.el) return <div className="tb" role="toolbar" aria-label="Editing tools" onMouseDown={keep}>{history}
+    <span className="tb-ctx"><span className="tb-crumb">{ch.id === '__home' ? 'Home page' : 'Chapter heading'}</span><ChevronRight size={14} strokeWidth={1.75} aria-hidden /><span className="tb-crumb on">{CH_FIELD[sel.el] || 'Text'}</span></span>
+    <div className="tb-grp tb-end">{tools}<span className="tb-sep" /><Btn icon={X} tip="Deselect Esc" onClick={() => setSel(null)} /></div>
+  </div>;
 
-  // Text: typeface (only those uploaded to the project), size, weight (only weights uploaded), spacing, case, colour
-  const textTools = (style: TextStyle, setStyle: (p: Partial<TextStyle>, key?: string) => void, del?: () => void) => {
-    const font = fonts.find((f) => f.role === style.font);
-    const weights = [...new Set((font ? font.weights : fonts.flatMap((f) => f.weights)))].sort((a, z) => a - z);
-    const weightList = weights.length ? weights : [300, 400, 500, 700];
-    return <div className="tb-grp" aria-label="Text">
-      {onFill ? <button type="button" className={'tb-btn wide tb-ai' + (filling ? ' busy' : '')} onClick={onFill} disabled={filling} aria-label="Fill with AI: a first draft from what's around it" data-tip="Fill with AI: a first draft from what’s around it">{filling ? <Loader2 {...I} className="spin" /> : <Sparkles {...I} />}{filling ? 'Writing…' : 'AI'}</button> : null}
-      <Pop pop={pop} setPop={setPop} id="font" tip="Typeface" icon={<Type {...I} />} label={<span className="tb-fontname">{font ? font.name || font.label : 'Default'}</span>}>
-        <p className="tb-menu-h">Typefaces on this project</p>
-        <button type="button" role="menuitemradio" aria-checked={!style.font} className={'tb-menu-item' + (!style.font ? ' on' : '')} onClick={() => { setStyle({ font: undefined }); setPop(null); }}>Default for this text</button>
-        {fonts.map((f) => <button type="button" key={f.role} role="menuitemradio" aria-checked={style.font === f.role} className={'tb-menu-item' + (style.font === f.role ? ' on' : '')} style={{ fontFamily: `var(--font-${f.role})` }} onClick={() => { setStyle({ font: f.role, ...(style.weight && !f.weights.includes(style.weight) ? { weight: undefined } : {}) }); setPop(null); }}>{f.name || f.label}<span className="tb-menu-note">{f.label}</span></button>)}
-        {!fonts.length ? <p className="tb-menu-empty">No typefaces uploaded yet.</p> : null}
-        <span className="tb-menu-sep" />
-        <button type="button" className="tb-menu-item" onClick={() => { setPop(null); onAddFont((role) => setStyle({ font: role })); }}><Upload {...I} />Upload a typeface…</button>
-      </Pop>
-      <Btn icon={Minus} tip="Smaller" onClick={() => setStyle({ size: Math.max(8, (style.size || 16) - 2) }, 'size')} />
-      <input className="tb-num" type="number" min={8} max={240} value={style.size || ''} placeholder="Auto" aria-label="Text size in pixels" title="Text size (px)" onChange={(e) => setStyle({ size: e.target.value ? Number(e.target.value) : undefined }, 'size')} />
-      <Btn icon={Plus} tip="Larger" onClick={() => setStyle({ size: Math.min(240, (style.size || 16) + 2) }, 'size')} />
-      <Pop pop={pop} setPop={setPop} id="weight" tip="Weight" label={style.weight ? WEIGHT_NAME[style.weight] || style.weight : 'Weight'}>
-        {weightList.map((w) => <button type="button" key={w} role="menuitemradio" aria-checked={style.weight === w} className={'tb-menu-item' + (style.weight === w ? ' on' : '')} style={{ fontWeight: w, fontFamily: font ? `var(--font-${font.role})` : undefined }} onClick={() => { setStyle({ weight: w }); setPop(null); }}>{WEIGHT_NAME[w] || w}</button>)}
-        <button type="button" className="tb-menu-item" onClick={() => { setStyle({ weight: undefined }); setPop(null); }}>Default</button>
-      </Pop>
-      <Pop pop={pop} setPop={setPop} id="spacing" tip="Tracking and line height" icon={<ArrowLeftRight {...I} />}>
-        <label className="tb-field"><ArrowLeftRight {...I} /><span>Tracking</span><input className="tb-num" type="number" step={0.5} min={-20} max={50} value={pct(style.tracking)} placeholder="0" onChange={(e) => setStyle({ tracking: e.target.value === '' ? undefined : Number(e.target.value) / 100 }, 'tracking')} /><i>%</i></label>
-        <label className="tb-field"><ArrowUpDown {...I} /><span>Line height</span><input className="tb-num" type="number" step={5} min={60} max={300} value={style.leading ? Math.round(style.leading * 100) : ''} placeholder="Auto" onChange={(e) => setStyle({ leading: e.target.value ? Number(e.target.value) / 100 : undefined }, 'leading')} /><i>%</i></label>
-        <button type="button" className="tb-menu-item" onClick={() => { setStyle({ tracking: undefined, leading: undefined }); setPop(null); }}>Reset spacing</button>
-      </Pop>
-      <Pop pop={pop} setPop={setPop} id="case" tip="Case" icon={<CaseSensitive {...I} />}>
-        <button type="button" role="menuitemradio" aria-checked={!style.case} className={'tb-menu-item' + (!style.case ? ' on' : '')} onClick={() => { setStyle({ case: undefined }); setPop(null); }}>As written</button>
-        {CASES.map(([c, l]) => <button type="button" key={c} role="menuitemradio" aria-checked={style.case === c} className={'tb-menu-item' + (style.case === c ? ' on' : '')} onClick={() => { setStyle({ case: c }); setPop(null); }}>{l}</button>)}
-      </Pop>
-      <Pop pop={pop} setPop={setPop} id="color" tip="Text colour" icon={<span className="tb-colour"><Baseline {...I} /><i style={{ background: style.color || 'currentColor' }} /></span>}>{chips(style.color, (hex) => setStyle({ color: hex }), 'Default colour')}</Pop>
-      {del ? <Btn icon={Trash2} tip="Delete this text" danger onClick={del} /> : null}
-    </div>;
-  };
-  const clean = (o: TextStyle) => { (Object.keys(o) as (keyof TextStyle)[]).forEach((k) => o[k] === undefined && delete o[k]); return o; };
-
-  // The chapter's label, title and introduction: text tools only
-  if (sel?.block === CHAPTER && sel.el) {
-    const field = sel.el;
-    const style = ch.styles?.[field] || {};
-    return <div className="tb" role="toolbar" aria-label="Editing tools" onMouseDown={keep}>{history}
-      <span className="tb-ctx"><span className="tb-crumb">{ch.id === '__home' ? 'Home page' : 'Chapter heading'}</span><ChevronRight size={14} strokeWidth={1.75} aria-hidden /><span className="tb-crumb on">{CH_FIELD[field] || 'Text'}</span></span>
-      {textTools(style, (p, key) => setChStyle(field, clean({ ...style, ...p }), key))}
-      <div className="tb-grp tb-end"><Btn icon={X} tip="Deselect (Esc)" onClick={() => setSel(null)} /></div>
-    </div>;
-  }
-
-  if (!b || !sel) return <div className="tb" role="toolbar" aria-label="Editing tools" onMouseDown={keep}>{history}<span className="tb-ctx tb-empty">Select a section, text or image to edit it</span></div>;
+  if (!b || !sel) return <div className="tb" role="toolbar" aria-label="Editing tools" onMouseDown={keep}>{history}<span className="tb-ctx tb-empty">Select a section, frame, text or image</span><div className="tb-grp tb-end">{tools}</div></div>;
 
   const i = sel.item;
   const items = b.items || [];
-  const it: BlockItem | undefined = i !== undefined ? items[i] : undefined;
   const elKind = i !== undefined && sel.el?.includes('.') ? items[i]?.els?.find((e) => e.id === sel.el!.split('.')[1])?.kind : undefined;
-  const isText = !!sel.el && !sel.el.startsWith('img:') && !sel.el.startsWith('itemimg:') && elKind !== 'spacer' && elKind !== 'image';
-  const field = isText ? (sel.el!.includes('.') ? sel.el!.split('.')[1] : sel.el!) : '';
-  const imgIdx = sel.el?.startsWith('img:') ? Number(sel.el.slice(4)) : undefined;
-  const media = imgIdx !== undefined ? (b.media || [])[imgIdx] : undefined;
-  const style: TextStyle = (isText && b.styles?.[sel.el!]) || {};
-  const setStyle = (patch: Partial<TextStyle>, key?: string) => editBlock(b.id, { styles: { ...(b.styles || {}), [sel.el!]: clean({ ...style, ...patch }) } }, key && `${sel.el}:${key}`);
-  const setItems = (l: BlockItem[]) => editBlock(b.id, { items: l });
+  const isImg = !!sel.el && (sel.el.startsWith('img:') || sel.el.startsWith('itemimg:') || elKind === 'image');
+  const field = sel.el && !isImg ? (sel.el.includes('.') ? sel.el.split('.')[1] : sel.el) : '';
   const idx = ch.blocks.indexOf(b);
   const move = (d: number) => { const l = [...ch.blocks]; const [x] = l.splice(idx, 1); l.splice(Math.max(0, Math.min(l.length, idx + d)), 0, x); setBlocks(l); };
-  const deleteText = () => {
-    if (!isText) return;
-    const off = [...new Set([...(b.off || []), sel.el!])];
-    if (it) editBlock(b.id, { items: items.map((x, n) => (n === i ? { ...x, [field]: undefined } : x)), off });
-    else editBlock(b.id, { [field]: undefined, off } as Partial<Block>);
-    setSel({ block: b.id });
-  };
-  const offFields = (['eyebrow', 'heading', 'body'] as const).filter((f) => !b[f] && !(b.kind === 'divider' && f !== 'heading') && !(b.kind === 'image' && f === 'eyebrow'));
-  const kindLabel = KINDS.find(([k]) => k === b.kind)?.[1] || 'Section';
-  const inner = isText || !!it || !!media || !!sel.el;
-  const ctx = elKind === 'spacer' ? `Spacer · item ${i! + 1}` : isText ? `${FIELD[field] || 'Text'}${it ? ` · item ${i! + 1}` : ''}` : sel.el?.startsWith('itemimg:') ? `Image · item ${i! + 1}` : media ? 'Image' : it ? `Item ${i! + 1}` : kindLabel;
-  const seg = <T extends string | number>(cur: T | undefined, opts: [T, string, LucideIcon?][], set: (v: T) => void, label: string) => <div className="tb-seg" role="group" aria-label={label}>{opts.map(([v, l, Ic]) => <button type="button" key={String(v)} className={'tb-btn' + (cur === v ? ' on' : '') + (Ic ? '' : ' wide')} aria-pressed={cur === v} aria-label={`${label}: ${l}`} data-tip={`${label}: ${l}`} onClick={() => set(v)}>{Ic ? <Ic {...I} /> : l}</button>)}</div>;
-  const addable: { label: string; run: () => void }[] = [
-    ...offFields.map((f) => ({ label: FIELD[f], run: () => editBlock(b.id, { off: (b.off || []).filter((k) => k !== f), [f]: FIELD[f] } as Partial<Block>) })),
-    ...(['split', 'media', 'image'].includes(b.kind) || (b.kind === 'carousel' && b.variant === 'images') ? [{ label: b.kind === 'carousel' ? 'Slide' : 'Image', run: () => pickImage(b.id, 'new') }] : []),
-    ...(b.kind === 'columns' || b.kind === 'grid' ? [{ label: 'Item', run: () => editBlock(b.id, { items: [...items, { id: iid(), label: 'Label', body: 'Text', w: 2, h: 2 }] }) }] : []),
-    ...(b.kind === 'carousel' && b.variant !== 'images' ? [{ label: 'Card', run: () => editBlock(b.id, { items: [...items, { id: iid(), label: String(items.length + 1).padStart(2, '0'), heading: 'A headline for this card' }] }) }] : [])
-  ];
-  const itemAdd = it ? (['label', 'heading', 'body'] as const).filter((f) => !it[f]) : [];
+  const dup = () => { const l = [...ch.blocks]; const copy = { ...b, id: 'b-' + Math.random().toString(36).slice(2, 10), source: undefined, edited: true }; l.splice(idx + 1, 0, copy); setBlocks(l); setSel({ block: copy.id }); };
+  const kindLabel = NAME(b.kind);
+  const inner = !!sel.el || i !== undefined || !!sel.gap;
+  const ctx = sel.gap ? 'Spacing' : elKind === 'spacer' ? 'Spacer' : isImg ? 'Image' : sel.el ? (FIELD[field] || (sel.el.startsWith('x-') ? 'Text' : 'Text')) : `Frame ${i! + 1}`;
 
   return (
     <div className="tb" role="toolbar" aria-label="Editing tools" onMouseDown={keep}>
       {history}
-      {/* Where you are, as a breadcrumb: click the section to get its layout tools */}
-      <span className="tb-ctx">{inner ? <button type="button" className="tb-crumb" onClick={() => setSel({ block: b.id })} data-tip={`Select the whole ${kindLabel.toLowerCase()} section`} aria-label={`Select the whole ${kindLabel.toLowerCase()} section`}><KindIcon k={b.kind} /></button> : <span className="tb-crumb on">Section</span>}{inner ? <><ChevronRight size={14} strokeWidth={1.75} aria-hidden /><span className="tb-crumb on">{ctx}</span></> : null}</span>
-
-      {isText ? textTools(style, setStyle, deleteText) : null}
-
-      {media ? <div className="tb-grp" aria-label="Image">
-        <Btn icon={ImageUp} tip="Replace image" onClick={() => pickImage(b.id, imgIdx!)} />
-        <Btn icon={media.kind === 'photo' ? Minimize2 : Maximize2} tip={media.kind === 'photo' ? 'Fit the whole image' : 'Fill the frame'} onClick={() => editBlock(b.id, { media: (b.media || []).map((x, n) => (n === imgIdx ? { ...x, kind: x.kind === 'photo' ? 'graphic' : 'photo' } : x)) })} />
-        <Btn icon={Captions} tip={media.caption === undefined ? 'Add a caption' : 'Caption added'} disabled={media.caption !== undefined} onClick={() => editBlock(b.id, { media: (b.media || []).map((x, n) => (n === imgIdx ? { ...x, caption: '' } : x)) })} />
-        <Btn icon={Trash2} tip="Delete image" danger onClick={() => { editBlock(b.id, { media: (b.media || []).filter((_, n) => n !== imgIdx) }); setSel({ block: b.id }); }} />
-      </div> : null}
-
-      {!inner ? <div className="tb-grp" aria-label="Section">
-        <Pop pop={pop} setPop={setPop} id="layout" tip="Change layout" icon={<KindIcon k={b.kind} />} label={kindLabel}>
-          {KINDS.map(([k, l]) => <button type="button" key={k} role="menuitemradio" aria-checked={b.kind === k} className={'tb-menu-item' + (b.kind === k ? ' on' : '')} onClick={() => { editBlock(b.id, convert(b, k as BlockKind)); setPop(null); }}><KindIcon k={k} />{l}</button>)}
+      <span className="tb-ctx">
+        <Pop pop={pop} setPop={setPop} id="layout" tip="Section type" icon={<KindIcon k={b.kind} />} label={kindLabel}>
+          {onLayout ? <button type="button" className="tb-menu-item" onClick={() => { setPop(null); onLayout(b); }}>Choose a layout…</button> : null}
+          {KINDS.map(([k, l]) => <button type="button" key={k} role="menuitemradio" aria-checked={b.kind === k} className={'tb-menu-item' + (b.kind === k ? ' on' : '')} onClick={() => { editBlock(b.id, convert(b, k as BlockKind)); setPop(null); }}><KindIcon k={k} />{k === 'columns' ? 'Auto layout' : l}</button>)}
         </Pop>
-        {addable.length ? <Pop pop={pop} setPop={setPop} id="add" tip="Add to this section" icon={<Plus {...I} />} label="Add">{addable.map((a) => <button type="button" key={a.label} className="tb-menu-item" onClick={() => { a.run(); setPop(null); }}>{a.label}</button>)}</Pop> : null}
-      </div> : null}
-
-      <div className="tb-grp tb-end" aria-label="Arrange">
-        <Btn icon={b.hidden ? EyeOff : Eye} tip={b.hidden ? 'Hidden from the client. Show it' : 'Hide from the client'} on={b.hidden} onClick={() => editBlock(b.id, { hidden: !b.hidden })} />
-        <Pop pop={pop} setPop={setPop} id="more" tip="More section actions" icon={<MoreHorizontal {...I} />}>
-          <button type="button" className="tb-menu-item" disabled={idx === 0} onClick={() => { move(-1); setPop(null); }}><ArrowUp {...I} />Move up</button>
-          <button type="button" className="tb-menu-item" disabled={idx === ch.blocks.length - 1} onClick={() => { move(1); setPop(null); }}><ArrowDown {...I} />Move down</button>
-          <button type="button" className="tb-menu-item" onClick={() => { const l = [...ch.blocks]; const copy = { ...b, id: 'b-' + Math.random().toString(36).slice(2, 10), source: undefined, edited: true }; l.splice(idx + 1, 0, copy); setBlocks(l); setSel({ block: copy.id }); setPop(null); }}><Copy {...I} />Duplicate section</button>
-          {b.source && b.edited ? <button type="button" className="tb-menu-item" onClick={() => { onReset(b); setPop(null); }}><RotateCcw {...I} />Reset to the Figma version</button> : null}
-          <span className="tb-menu-sep" />
-          <button type="button" className="tb-menu-item danger" onClick={() => { onDelete(b); setPop(null); }}><Trash2 {...I} />Delete section</button>
-        </Pop>
+        {inner ? <><ChevronRight size={14} strokeWidth={1.75} aria-hidden />{sel.el && i !== undefined ? <><button type="button" className="tb-crumb" onClick={() => setSel({ block: b.id, item: i })} data-tip="Select the frame ⇧Enter">Frame {i + 1}</button><ChevronRight size={14} strokeWidth={1.75} aria-hidden /></> : null}<span className="tb-crumb on">{ctx}</span></> : null}
+      </span>
+      <div className="tb-grp tb-end" aria-label="Section">
+        {tools}
         <span className="tb-sep" />
-        <Btn icon={X} tip="Deselect (Esc)" onClick={() => setSel(null)} />
+        <Btn icon={ArrowUp} tip="Move section up ⌥⌘↑" disabled={idx === 0} onClick={() => move(-1)} />
+        <Btn icon={ArrowDown} tip="Move section down ⌥⌘↓" disabled={idx === ch.blocks.length - 1} onClick={() => move(1)} />
+        <Btn icon={Copy} tip="Duplicate section ⌘D" onClick={dup} />
+        {b.source && b.edited ? <Btn icon={RotateCcw} tip="Reset to the Figma version" onClick={() => onReset(b)} /> : null}
+        <Btn icon={b.hidden ? EyeOff : Eye} tip={b.hidden ? 'Hidden from the client. Show ⇧⌘H' : 'Hide from the client ⇧⌘H'} on={b.hidden} onClick={() => editBlock(b.id, { hidden: !b.hidden })} />
+        <Btn icon={Trash2} tip="Delete section" danger onClick={() => onDelete(b)} />
+        <span className="tb-sep" />
+        <Btn icon={X} tip="Deselect Esc" onClick={() => setSel(null)} />
       </div>
     </div>
   );
+}
+
+/** Figma's shortcuts, as they work here */
+export const SHORTCUTS: [string, string][] = [
+  ['V', 'Select (put a tool down)'], ['T', 'Text tool'], ['F', 'Frame tool'], ['⇧⌘K', 'Place image'],
+  ['⌘D', 'Duplicate'], ['⌫', 'Delete'], ['⇧⌘H', 'Show or hide the section'], ['⌘[  ⌘]', 'Move earlier or later'], ['⌥⌘↑  ⌥⌘↓', 'Move the section up or down'],
+  ['Enter', 'Select inside'], ['⇧Enter', 'Select the parent'], ['Esc', 'Select the parent, then deselect'],
+  ['⌥⌘T', 'Text styles and spacing'], ['⌘Z  ⇧⌘Z', 'Undo, redo'], ['⇧?', 'These shortcuts']
+];
+export function Shortcuts({ onClose }: { onClose: () => void }) {
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  return <div className="cf-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><div className="cf ks" role="dialog" aria-label="Keyboard shortcuts">
+    <h2 className="cf-t">Keyboard shortcuts</h2><p className="cf-b">The same as Figma.</p>
+    <dl className="ks-l">{SHORTCUTS.map(([k, l]) => <div key={l}><dt>{l}</dt><dd>{k.split('  ').map((x) => <kbd key={x}>{x}</kbd>)}</dd></div>)}</dl>
+    <div className="cf-row"><button className="btn" onClick={onClose}>Close</button></div>
+  </div></div>;
 }

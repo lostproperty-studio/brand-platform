@@ -10,6 +10,7 @@ import { showcasePaths } from '@/lib/showcase';
 import { listTools } from '@/lib/tools';
 import { AppTile } from '@/components/portal/ResourceVisuals';
 import { defaultIntro } from '@/lib/portal/home';
+import { systemCss, systemFor } from '@/lib/guideSystem';
 
 
 // Portal home: the showcase hero, the brand and its version, a welcome, the chapters and the apps you've used.
@@ -42,7 +43,8 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
   return (
     <div className="hm">
       {rows.length ? <HeroReel rows={rows} urls={urls} href={`${base}/showcase`} label={`${ctx.project.client} showcase`} /> : null}
-      <div className="pt-page hm-body">
+      <div className="pt-page hm-body gsys">
+        <style dangerouslySetInnerHTML={{ __html: systemCss(systemFor(ctx.snap?.guide?.system, { typeScale: (ctx.project.content as { typeScale?: never })?.typeScale, profile: (ctx.project.content as { dsProfile?: never })?.dsProfile, fonts: ctx.fonts.filter((f) => f.files.length) })) }} />
         <header className="hm-head">
           <h1 {...hs('title', 'pt-display')}>{content.homeTitle || ctx.project.client}</h1>
           <p className="mute hm-ver">Brand hub{version ? ` · v${version}` : ''}{ctx.preview ? ' · working copy' : ''}</p>

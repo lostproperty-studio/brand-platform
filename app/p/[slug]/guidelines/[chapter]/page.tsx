@@ -7,6 +7,7 @@ import { fontState } from '@/lib/fonts';
 import { GuideBlock } from '@/components/portal/GuideBlock';
 import { SubNav } from '@/components/portal/SubNav';
 import { Swatch } from '@/components/portal/Swatch';
+import { systemCss, systemFor } from '@/lib/guideSystem';
 
 const textOn = (hex: string) => { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#000' : '#fff'; };
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB ${n >> 16} ${(n >> 8) & 255} ${n & 255}`; };
@@ -27,12 +28,16 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   const dl = c.key && DOWNLOADS[c.key] ? ctx.files.filter((f) => DOWNLOADS[c.key!][0].test(f.path) && !/LICENCE|manifest/.test(f.path)) : [];
   const dlLinks = await Promise.all(dl.slice(0, 24).map(async (f) => ({ ...f, href: await downloadUrl(f, ctx.preview, slug) })));
   const prev = chapters[idx - 1], next = chapters[idx + 1];
+  // The guide's text styles and spacing
+  const pc = (ctx.project.content || {}) as { typeScale?: never; dsProfile?: never };
+  const sysCss = systemCss(systemFor(ctx.snap?.guide?.system, { typeScale: pc.typeScale, profile: pc.dsProfile, fonts: ctx.fonts.filter((f) => f.files.length) }));
   const base = `/p/${slug}/guidelines`;
   // Styling set in the editor for the label, title and introduction
   const cls = (k: string, base0 = '') => { const t = textProps(c.styles?.[k]); return { style: t.style, className: [base0, t.className].filter(Boolean).join(' ') }; };
 
   return (
-    <article className="pt-page">
+    <article className="pt-page gsys">
+      <style dangerouslySetInnerHTML={{ __html: sysCss }} />
       <header className="pt-chhead">
         <p className="mute"><span className="pt-n">{chapterNum(idx)}</span><span {...cls('kicker')}>{c.kicker || 'Chapter'}</span></p>
         <h1 className={hasCover ? 'sr' : 'pt-display ' + cls('title').className} style={hasCover ? undefined : cls('title').style}>{c.title}</h1>
