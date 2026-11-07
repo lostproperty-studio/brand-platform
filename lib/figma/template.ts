@@ -39,7 +39,26 @@ const visible = (n: N) => n.visible !== false;
 const isNote = (n: N) => n.name.trim().toLowerCase() === 'note';
 const hexOf = (c: { r: number; g: number; b: number }) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 const solid = (n: N) => { const f = (n.fills || []).find((x) => x.type === 'SOLID' && x.visible !== false && x.color); return f ? hexOf(f.color!) : null; };
-const hasImage = (n: N) => (n.fills || []).some((f) => f.type === 'IMAGE' && f.visible !== false);
+/** A photo or video fill (a video comes through as its first frame) */
+const hasImage = (n: N) => (n.fills || []).some((f) => (f.type === 'IMAGE' || f.type === 'VIDEO') && f.visible !== false);
+const DRAWN = new Set(['VECTOR', 'BOOLEAN_OPERATION', 'ELLIPSE', 'POLYGON', 'STAR', 'LINE', 'REGULAR_POLYGON', 'INSTANCE']);
+const solidFill = (n: N) => (n.fills || []).some((f) => f.type !== 'IMAGE' && f.type !== 'VIDEO' && f.visible !== false && (f.opacity ?? 1) > 0);
+/** Something to see: a photo, drawn artwork, a filled shape, or a frame or group holding any of these. Notes don't count. */
+function hasVisual(n: N): boolean {
+  if (!visible(n) || isNote(n) || n.type === 'TEXT') return false;
+  if (hasImage(n) || DRAWN.has(n.type) || (n.type === 'RECTANGLE' && solidFill(n))) return true;
+  if ((n.type === 'FRAME' || n.type === 'COMPONENT') && solidFill(n) && !(n.children || []).length) return true;
+  return (n.children || []).some(hasVisual);
+}
+/** A picture slot: a layer named "image" with a photo fill, or with artwork inside it (a logo, a group, a placed photo).
+ *  A slot that only wraps another slot (with its caption) gives way to the inner one; an empty template slot is skipped. */
+const isImageName = (x: N) => x.name.trim().toLowerCase() === 'image';
+function isPicSlot(x: N): boolean {
+  if (!isImageName(x) || !visible(x)) return false;
+  const inner: N[] = []; const look = (n: N) => { for (const c of n.children || []) { if (isImageName(c)) inner.push(c); else look(c); } }; look(x);
+  if (inner.some((c) => hasImage(c) || (c.children || []).some(hasVisual))) return false;
+  return hasImage(x) || (x.children || []).some(hasVisual);
+}
 const box = (n: N) => n.absoluteBoundingBox || { x: 0, y: 0, width: 0, height: 0 };
 const byPos = (a: N, b: N) => box(a).y - box(b).y || box(a).x - box(b).x;
 const slug = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -202,7 +221,7 @@ export async function readTemplate(fileKey: string, pages: TemplatePages): Promi
   }
 
   // Pictures inside guideline frames that need exporting
-  const imageNodes = chapters.flatMap((c) => c.frames.flatMap((f) => findAll(f, (x) => x.name.trim().toLowerCase() === 'image' && hasImage(x)).map((x) => x.id)));
+  const imageNodes = chapters.flatMap((c) => c.frames.flatMap((f) => [...findAll(f, isPicSlot), ...findAll(f, (x) => x.name.trim().toLowerCase() === 'item' && hasImage(x))].map((x) => x.id)));
   const want = new Set([...imageNodes, ...chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...assets.map((a) => a.nodeId)]);
   const sizes: TemplateRead['sizes'] = {};
   for (const p of [assetsPage, guidePage]) walk(p, (x) => { if (want.has(x.id)) { const bb = box(x); sizes[x.id] = { w: Math.round(bb.width), h: Math.round(bb.height) }; } });
@@ -217,7 +236,9 @@ export function frameToTemplateBlock(f: N, media: (nodeId: string) => BlockMedia
   const kind = LAYOUT.find(([re]) => re.test(layoutName))?.[1];
   if (!kind) return null;
   const boxStyle: BoxStyle = /corners?/.test(style || '') ? 'corners' : /outline/.test(style || '') ? 'outline' : /fill/.test(style || '') ? 'fill' : 'none';
-  const pics = (root: N, stop: boolean) => findAll(root, (x) => x.name.trim().toLowerCase() === 'image' && hasImage(x), stop).sort(byPos);
+  const pics = (root: N, stop: boolean) => findAll(root, isPicSlot, stop).sort(byPos);
+  // A card or box whose own fill is the photo is its own picture
+  const picOf = (it: N) => pics(it, false)[0] || (hasImage(it) ? it : undefined);
   const caption = (img: N) => { const parent = findAll(f, (x) => (x.children || []).some((c) => c.id === img.id))[0] || f; return text(find(parent, 'caption')); };
   const toMedia = (img: N) => { const m = media(img.id); return m ? { ...m, caption: caption(img) || m.caption } : undefined; };
   const b: Block = { id: f.id, source: f.id, kind, eyebrow: named(f, 'label', true), heading: named(f, 'headline', true), body: named(f, 'body', true), media: [] };
@@ -227,7 +248,7 @@ export function frameToTemplateBlock(f: N, media: (nodeId: string) => BlockMedia
     const items = findAll(f, (x) => x.name.trim().toLowerCase() === 'item', true).sort(byPos);
     const imgs = /images?/.test(style || '') || !items.length;
     if (imgs) { const ms = pics(f, true).map(toMedia).filter(Boolean) as BlockMedia[]; return ms.length ? { ...b, variant: 'images', media: ms } : null; }
-    const cards: BlockItem[] = items.map((it) => { const pic = pics(it, false)[0]; return { id: it.id, label: named(it, 'label'), heading: named(it, 'headline'), body: named(it, 'body'), media: pic ? toMedia(pic) : undefined }; }).filter((i) => i.label || i.heading || i.body || i.media);
+    const cards: BlockItem[] = items.map((it) => { const pic = picOf(it); return { id: it.id, label: named(it, 'label'), heading: named(it, 'headline'), body: named(it, 'body'), media: pic ? toMedia(pic) : undefined }; }).filter((i) => i.label || i.heading || i.body || i.media);
     return cards.length ? { ...b, variant: 'cards', items: cards, box: /corners?|outline|none/.test(style || '') ? boxStyle : 'fill' } : null;
   }
   if (kind === 'columns' || kind === 'grid') {
@@ -235,7 +256,7 @@ export function frameToTemplateBlock(f: N, media: (nodeId: string) => BlockMedia
     const all = items.reduce((u, it) => { const bb = box(it); return { x: Math.min(u.x, bb.x), r: Math.max(u.r, bb.x + bb.width) }; }, { x: Infinity, r: -Infinity });
     const unit = (box(f).width || 1440) / 16;
     const out: BlockItem[] = items.map((it) => {
-      const pic = pics(it, false)[0]; const bb = box(it);
+      const pic = picOf(it); const bb = box(it);
       return { id: it.id, label: named(it, 'label'), heading: named(it, 'headline'), body: named(it, 'body'), media: pic ? toMedia(pic) : undefined,
         ...(kind === 'grid' ? { w: Math.max(1, Math.min(6, Math.round((bb.width / Math.max(1, all.r - all.x)) * 6))), h: Math.max(1, Math.min(8, Math.round(bb.height / unit))) } : {}) };
     }).filter((i) => i.label || i.heading || i.body || i.media);
