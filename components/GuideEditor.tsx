@@ -6,10 +6,12 @@ import { blockText, itemEls, itemWords, type BlockItem, type BoxStyle, type Item
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
 import { Inspector } from '@/components/GuideInspector';
 import { AddBar, addTarget, type AddWhat } from '@/components/GuideAddBar';
+import { LayoutPicker, convertSection, layoutLabel, layoutOf, newSection } from '@/components/SectionLayouts';
+import type { SectionLayout } from '@/lib/figma/blocks';
 import { CHAPTER, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
-import { House, AlignLeft, Columns3, ExternalLink, Eye, EyeOff, GripVertical, Heading, GalleryHorizontal, UnfoldVertical, Image as ImageIcon, Images, LayoutGrid, PanelLeft, PanelTop, Palette, Plus, Quote, RefreshCw, FilePlus2, TriangleAlert, ScanSearch, Trash2, Upload, type LucideIcon } from 'lucide-react';
+import { ChevronDown, House, AlignLeft, Columns3, ExternalLink, Eye, EyeOff, GripVertical, Heading, GalleryHorizontal, UnfoldVertical, Image as ImageIcon, Images, LayoutGrid, PanelLeft, PanelTop, Palette, Plus, Quote, RefreshCw, FilePlus2, TriangleAlert, ScanSearch, Trash2, Upload, type LucideIcon } from 'lucide-react';
 import { TimedProgress } from '@/components/Progress';
 import { tierLabel, type Tier } from '@/lib/playbook';
 import { ChapterCover } from '@/components/portal/ChapterCover';
@@ -180,8 +182,18 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const setCh = (patch: Partial<GuideChapter>, key?: string) => g && setChapters(g.chapters.map((c) => (c.id === chId ? { ...c, ...patch } : c)), key);
   const setBlocks = (blocks: Block[], key?: string) => setCh({ blocks }, key);
   const editBlock = (id: string, patch: Partial<Block>, key?: string) => ch && setBlocks(ch.blocks.map((b) => (b.id === id ? { ...b, ...patch, edited: true } : b)), key && `${id}:${key}`);
+  // A section in a layout (like a slide layout): headline, introduction, then the layout's content
+  const insertLayout = (i: number, layout: SectionLayout) => {
+    if (!ch) return;
+    const b = { id: 'b-' + uid(), media: [], edited: true, ...newSection(layout) } as Block;
+    const l = [...ch.blocks]; l.splice(i, 0, b); setBlocks(l); setPicker(null); setSel({ block: b.id });
+    setTimeout(() => document.querySelector(`[data-block="${b.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+    return b;
+  };
+  const changeLayout = (id: string, layout: SectionLayout) => { const b = ch?.blocks.find((x) => x.id === id); if (b) editBlock(id, { ...convertSection(b, layout), edited: true }); setPicker(null); };
   const insertAt = (i: number, kind: BlockKind) => {
     if (!ch) return;
+    setPicker(null);
     const items = kind === 'carousel' ? [1, 2, 3].map((n) => ({ id: iid(), label: String(n).padStart(2, '0'), heading: 'A headline for this card', body: 'A sentence or two to go with it.' })) : kind === 'columns' ? [1, 2, 3].map(() => ({ id: iid(), label: 'Label', body: 'Text' })) : kind === 'grid' ? [[4, 4], [2, 2], [2, 2], [3, 2], [3, 2]].map(([w, h]) => ({ id: iid(), label: 'Label', body: 'Text', w, h })) : undefined;
     const b: Block = { id: 'b-' + uid(), kind, heading: kind === 'swatches' ? 'Colours' : kind === 'divider' ? 'New subsection' : kind === 'statement' ? 'A statement in the brand’s voice' : kind === 'image' || kind === 'columns' || kind === 'grid' ? undefined : 'New section', body: kind === 'text' || kind === 'split' ? 'Write something…' : '', media: [], swatches: kind === 'swatches' ? [{ name: 'Colour', hex: '#000000' }] : undefined, cols: kind === 'media' ? 2 : kind === 'columns' ? 3 : undefined, side: kind === 'split' ? 'right' : undefined, items, box: kind === 'carousel' ? 'fill' : items ? 'none' : undefined, variant: kind === 'carousel' ? 'cards' : undefined, ...(kind === 'spacer' ? { heading: undefined, body: '', size: 64 } : {}), edited: true };
     const l = [...ch.blocks]; l.splice(i, 0, b); setBlocks(l); setMenu(null); setSel({ block: b.id });
@@ -189,6 +201,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   };
   // ---------- placing with the adding bar: pick a tool, the cursor becomes a cross, click where it goes
   type Spot = { mode: 'line' | 'box'; block?: string; item?: number; index?: number; label: string; line: { top: number; left: number; width: number; height: number } };
+  const [picker, setPicker] = useState<{ at: number } | { convert: string } | null>(null);
   const [tool, setTool] = useState<AddWhat | null>(null);
   const [spot, setSpot] = useState<Spot | null>(null);
   useEffect(() => { document.body.classList.toggle('ve-tool', !!tool); return () => document.body.classList.remove('ve-tool'); }, [tool]);
@@ -573,7 +586,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
             <button onClick={() => { setChId(c.id); setSel(null); }}><span className="pt-n">{String(i + 1).padStart(2, '0')}</span>{c.title}{chDrafts(c) ? <span className="ve-dcount" title="Drafts and missing items to check">{chDrafts(c)}</span> : null}</button>
             <button className={'ve-eye' + (c.hidden ? ' on' : '')} onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, hidden: !x.hidden } : x)))} aria-label={c.hidden ? `Show ${c.title} to the client` : `Hide ${c.title} from the client`} data-tip={c.hidden ? 'Hidden. Show it' : 'Hide from the client'}>{c.hidden ? <EyeOff size={14} strokeWidth={1.75} aria-hidden /> : <Eye size={14} strokeWidth={1.75} aria-hidden />}</button>
             <button className="ve-eye ve-del" onClick={() => deleteChapter(c)} aria-label={`Delete ${c.title}`} data-tip="Delete chapter"><Trash2 size={14} strokeWidth={1.75} aria-hidden /></button>
-          </div>)}
+          </div>).flatMap((row, i) => { const c = g.chapters.filter((x) => !x.removed)[i];
+            // The open chapter's sections, like a slide sorter: click to go to one, drag to reorder
+            return c.id !== chId ? [row] : [row, <ol key={c.id + '-s'} className="ve-secs" aria-label={`Sections in ${c.title}`}>{c.blocks.map((b, k) => (b.hidden && !showHidden ? null : <li key={b.id} draggable onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }} className={(sel?.block === b.id ? 'on' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '') + (b.hidden ? ' off' : '')}>
+              <button onClick={() => { setSel({ block: b.id }); document.querySelector(`[data-block="${b.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}><span className="n">{String(k + 1).padStart(2, '0')}</span><span className="t">{(b.heading || b.eyebrow || layoutLabel(b)).replace(/\s+/g, ' ').slice(0, 48)}</span></button>
+            </li>))}<li className="ve-secs-add"><button onClick={() => setPicker({ at: c.blocks.length })}><Plus size={12} strokeWidth={2} aria-hidden />Section</button></li></ol>]; })}
           {g.chapters.some((c) => c.removed) ? <div className="ve-removed"><button className="ve-linkbtn" onClick={() => setShowRemoved(!showRemoved)} aria-expanded={showRemoved}>Deleted chapters ({g.chapters.filter((c) => c.removed).length})</button>
             {showRemoved ? g.chapters.filter((c) => c.removed).map((c) => <div key={c.id} className="ve-removed-row"><span>{c.title}</span><button className="ve-linkbtn" onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, removed: false } : x)))}>Restore</button></div>) : null}</div> : null}
           <button className="btn ic" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); setSel(null); }}><Plus size={15} strokeWidth={1.75} aria-hidden />Chapter</button>
@@ -607,7 +624,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
             </header>
 
             <div className="pt-blocks ve-blocks">
-              <Inserter open={menu === 'i0'} onOpen={() => setMenu(menu === 'i0' ? null : 'i0')} onPick={(k) => insertAt(0, k)} />
+              <SlideGap onAdd={() => setPicker({ at: 0 })} />
               {ch.blocks.map((b, i) => (b.hidden && !showHidden ? null : (
                 <div key={b.id}>
                   {b.draft ? <div className={'ve-draft ' + b.draft} role="note">
@@ -617,6 +634,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                       : <><button className="btn solid" onClick={() => editBlock(b.id, { draft: undefined, draftNote: undefined, body: '' })}>Write it now</button><button className="btn" onClick={() => { removeBlock(b); dismissSlot(b.slot); }} title="Not needed for this client; it won’t be flagged again">Not needed</button></>}
                     <span className="mute">Hidden from the client until accepted.</span>
                   </div> : null}
+                  <div className="ve-slide-label">
+                    <span className="n">{String(i + 1).padStart(2, '0')}</span>
+                    {layoutOf(b) ? <button className="ve-slide-lay" onClick={() => { setSel({ block: b.id }); setPicker({ convert: b.id }); }} aria-label={`Layout: ${layoutLabel(b)}. Change layout`}>{layoutLabel(b)}<ChevronDown size={12} strokeWidth={2} aria-hidden /></button> : <span>{layoutLabel(b)}</span>}
+                    {b.hidden ? <span className="ve-slide-hid">Hidden</span> : null}
+                  </div>
                   <div onMouseDown={(e) => {
                     // A click on a box (not its text or image) selects the box; anywhere else selects the section
                     const t = e.target as HTMLElement; const box = t.closest('[data-item]') as HTMLElement | null;
@@ -624,21 +646,24 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                     if (spacer && box && !t.closest('.ve-grip-el')) { const it0 = (b.items || [])[Number(box.dataset.item)]; if (it0) { setSel({ block: b.id, item: Number(box.dataset.item), el: `${it0.id}.${spacer.dataset.el}` }); return; } }
                     if (box && !t.closest('.ed, .ve-img, .ve-hd') && box.closest('.ve-block') === e.currentTarget) setSel({ block: b.id, item: Number(box.dataset.item) });
                     else if (sel?.block !== b.id) setSel({ block: b.id });
-                  }} data-block={b.id} className={'ve-block' + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
+                  }} data-block={b.id} className={'ve-block ve-slide' + (b.kind === 'divider' ? ' ve-slide-div' : '') + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
                     onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }}>
                     {sel?.block === b.id ? <span className="ve-handle-tab" draggable onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragEnd={() => { setDrag(null); setOver(null); }} title="Drag to move" aria-label="Drag to move"><GripVertical size={12} strokeWidth={2} aria-hidden />{KINDS.find(([k]) => k === b.kind)?.[1]}</span> : <span className="ve-hint">Click to edit</span>}
                     {b.hidden ? <p className="ve-hidden">Hidden from the client · <button onClick={() => editBlock(b.id, { hidden: false })}>Show</button></p> : null}
                     <GuideBlock b={{ ...b, hidden: false }} urls={urls} headingLevel={3} number={b.kind === 'divider' ? subsIdx(b.id) : undefined} chapter={ch.title} edit={kitFor(b)} />
                   </div>
-                  <Inserter open={menu === 'i' + (i + 1)} onOpen={() => setMenu(menu === 'i' + (i + 1) ? null : 'i' + (i + 1))} onPick={(k) => insertAt(i + 1, k)} />
+                  <SlideGap onAdd={() => setPicker({ at: i + 1 })} />
                 </div>)))}
-              {!ch.blocks.length ? <p className="mute">This chapter is empty. Use + to add a section.</p> : null}
+              <button className="ve-slide-add" onClick={() => setPicker({ at: ch.blocks.length })}><Plus size={18} strokeWidth={1.75} aria-hidden />Add a section<span>Choose a layout: columns, carousel, bento grid, a large image, or text and image</span></button>
             </div>
 
             {ch.rules.length ? <section className="pt-blk"><h2 className="pt-h2">The rules</h2><p className="mute" style={{ marginTop: -6 }}>From the review. Change them in the Review tab.</p><div className="pt-rules">{ch.rules.map((r, k) => <div key={k} className="pt-rule"><p className="pt-rule-h">{r.title}</p><p>{r.text}</p></div>)}</div></section> : null}
           </article>
         </div></div> : null}
-        {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={(k) => addSection(k)} /> : null}
+        {picker && ch ? ('convert' in picker
+          ? <LayoutPicker title="Change the layout" current={layoutOf(ch.blocks.find((x) => x.id === picker.convert)!)} onPick={(l) => changeLayout(picker.convert, l)} onClose={() => setPicker(null)} />
+          : <LayoutPicker onPick={(l) => insertLayout(picker.at, l)} onPickKind={(k) => insertAt(picker.at, k)} onClose={() => setPicker(null)} />) : null}
+        {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={() => { const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length; setPicker({ at: at > 0 ? at : ch.blocks.length }); }} /> : null}
         {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
         {ch ? <Inspector onAddToBox={addToBox} sel={sel?.block === CHAPTER ? null : sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} /> : null}
@@ -649,6 +674,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       <p className="mute">Built {new Date(g.generatedAt).toLocaleString('en-GB')} from “{g.page}” in {g.file}. Sections you edit or add are kept when you rebuild.</p>
     </div>
   );
+}
+
+/** Between two slides: a line with an add button, to put a new section exactly there */
+function SlideGap({ onAdd }: { onAdd: () => void }) {
+  return <div className="ve-gap"><button className="ve-gap-btn" onClick={onAdd} aria-label="Add a section here" data-tip="Add a section here"><Plus size={14} strokeWidth={2} aria-hidden /></button></div>;
 }
 
 function Inserter({ open, onOpen, onPick }: { open: boolean; onOpen: () => void; onPick: (k: BlockKind) => void }) {

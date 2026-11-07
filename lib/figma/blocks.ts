@@ -10,6 +10,9 @@ export type FNode = {
   style?: { fontSize?: number; fontWeight?: number; textCase?: string; fontFamily?: string };
 };
 
+/** The layout a section was made with, chosen like a slide layout (the editor's name for it; the kind and its
+ *  settings are what render) */
+export type SectionLayout = 'cols2' | 'cols3' | 'cols4' | 'carousel' | 'bento' | 'image' | 'split';
 export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swatches' | 'columns' | 'grid' | 'statement' | 'image' | 'carousel' | 'spacer';
 /** How a group of text or content is held: free-standing, or in a container (corner marks as in the brand's own layouts, a fine outline, or a light fill). */
 export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';
@@ -63,6 +66,7 @@ export type Block = {
   order?: string[];
   /** Carousel: cards of hero text (from items) or images to click through (from media) */
   variant?: 'cards' | 'images';
+  layout?: SectionLayout;
   /** Per-text styling set in the editor, keyed by field ('heading', 'body', 'eyebrow') or '<itemId>.<field>' */
   styles?: Record<string, TextStyle>;
   /** Text the studio deleted, so it doesn't come back as an empty placeholder */

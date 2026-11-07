@@ -32,7 +32,7 @@ export function addTarget(what: AddWhat, ch: GuideChapter, sel: Sel | null): str
 
 // The adding bar at the bottom of the screen, like Figma's: top and side are for changing what's there; this is for
 // adding. Each tool adds to whatever you've selected (a box, then a section), or below it when there's no room.
-export function AddBar({ ch, sel, tool, onTool, onSection }: { ch: GuideChapter; sel: Sel | null; tool: AddWhat | null; onTool: (w: AddWhat | null) => void; onSection: (kind: BlockKind) => void }) {
+export function AddBar({ ch, sel, tool, onTool, onSection }: { ch: GuideChapter; sel: Sel | null; tool: AddWhat | null; onTool: (w: AddWhat | null) => void; onSection: () => void }) {
   const [menu, setMenu] = useState(false);
   useEffect(() => { if (!menu) return; const off = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.ab-menu-wrap')) setMenu(false); }; document.addEventListener('mousedown', off); return () => document.removeEventListener('mousedown', off); }, [menu]);
   const b: Block | undefined = sel ? ch.blocks.find((x) => x.id === sel.block) : undefined;
@@ -41,8 +41,7 @@ export function AddBar({ ch, sel, tool, onTool, onSection }: { ch: GuideChapter;
   return (
     <div className="ab" role="toolbar" aria-label="Add to the page" onMouseDown={(e) => e.preventDefault()}>
       <div className="ab-menu-wrap">
-        <button type="button" className={'ab-btn ab-sec' + (menu ? ' on' : '')} onClick={() => setMenu(!menu)} aria-haspopup="menu" aria-expanded={menu} aria-label="Add a section" data-tip={menu ? undefined : b ? 'Add a section below this one' : 'Add a section'}><Plus {...I} /><ChevronUp size={12} strokeWidth={2} aria-hidden className="ab-chev" /></button>
-        {menu ? <div className="ab-menu" role="menu"><p className="ab-menu-h">{b ? 'New section below' : 'New section'}</p>{KINDS.map(([k, l]) => <button type="button" key={k} role="menuitem" onClick={() => { setMenu(false); onSection(k); }}><KindIcon k={k} />{l}</button>)}</div> : null}
+        <button type="button" className="ab-btn ab-sec ab-sec-w" onClick={onSection} aria-haspopup="dialog" aria-label="Add a section" data-tip={b ? 'Add a section below this one' : 'Add a section'}><Plus {...I} /><span>Section</span></button>
       </div>
       <span className="ab-sep" />
       {tools.map(([w, l, Ic]) => (

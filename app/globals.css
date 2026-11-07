@@ -1773,3 +1773,63 @@ p.as-wipe { margin-top: -6px; }
 .rs-apptile-icon svg { width: 38%; height: 38%; stroke-width: 1.5; }
 .rs-app:hover .rs-apptile-icon { transform: scale(1.04); }
 .rs-tray .rs-tile { aspect-ratio: 5 / 4; }
+
+/* Guidelines editor as slides: each section is a slide with clear edges, on a grey desk. The client never sees
+   this: their chapter is one continuous page. */
+.ve-canvas { background: #F0F0F0; box-shadow: none; }
+.ve-page { padding: 28px clamp(14px, 3vw, 40px) 140px; }
+.ve-page .ve-chhead { background: #fff; border-radius: 14px; padding: clamp(28px, 4vw, 56px); box-shadow: 0 0 0 1px var(--line); margin-bottom: 0; }
+.ve-slide { background: #fff; border-radius: 14px; padding: clamp(24px, 4vw, 56px); box-shadow: 0 0 0 1px var(--line), 0 1px 3px rgba(0,0,0,.04); outline: none !important; transition: box-shadow .15s; }
+.ve-slide:hover { box-shadow: 0 0 0 1px #d9d9d9, 0 1px 3px rgba(0,0,0,.05); }
+.ve-block.sel.ve-slide { box-shadow: 0 0 0 2px var(--sel), 0 6px 24px rgba(0,0,0,.06); }
+.ve-block.over.ve-slide { box-shadow: 0 0 0 2px #000; }
+.ve-block.is-draft.ve-slide { box-shadow: 0 0 0 1px var(--pink); }
+.ve-slide.ve-slide-div { padding-block: clamp(20px, 3vw, 36px); }
+.ve-slide > .gb { margin: 0 !important; }
+.ve-slide-label { display: flex; align-items: center; gap: 8px; margin: 0 0 8px 4px; font-size: 12px; color: var(--mute); }
+.ve-slide-label .n { font-variant-numeric: tabular-nums; color: #000; }
+.ve-slide-lay { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); color: #333; }
+.ve-slide-lay:hover { box-shadow: inset 0 0 0 1px #bbb; }
+.ve-slide-lay:focus-visible { outline: 2px solid var(--sel); }
+.ve-slide-hid { padding: 1px 7px; border-radius: 99px; background: #e4e4e4; }
+.ve-gap { position: relative; height: 34px; display: flex; align-items: center; justify-content: center; }
+.ve-gap::before { content: ''; position: absolute; left: 14px; right: 14px; top: 50%; border-top: 1px dashed transparent; transition: border-color .15s; }
+.ve-gap:hover::before { border-top-color: #c4c4c4; }
+.ve-gap-btn { all: unset; cursor: pointer; position: relative; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px var(--line); display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
+.ve-gap:hover .ve-gap-btn, .ve-gap-btn:focus-visible { opacity: 1; }
+.ve-gap-btn:focus-visible { outline: 2px solid var(--sel); }
+.ve-slide-add { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 36px 20px; border-radius: 14px; border: 1.5px dashed #c9c9c9; color: #222; font-size: 15px; text-align: center; margin-top: 4px; }
+.ve-slide-add span { font-size: 13px; color: var(--mute); }
+.ve-slide-add:hover { background: rgba(255,255,255,.6); border-color: #999; }
+.ve-slide-add:focus-visible { outline: 2px solid var(--sel); }
+.ve-slide .ve-hint { display: none; }
+
+/* The section sorter under the open chapter */
+.ve-secs { list-style: none; margin: 2px 0 8px 22px; padding: 0 0 0 10px; border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
+.ve-secs li button { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: flex; gap: 8px; align-items: baseline; padding: 4px 8px; border-radius: 6px; font-size: 12.5px; color: #333; }
+.ve-secs li button:hover { background: var(--fill); }
+.ve-secs li.on button { background: #EAF2FF; color: #000; }
+.ve-secs li.off button { opacity: .5; }
+.ve-secs li.over { box-shadow: 0 -2px 0 #000; }
+.ve-secs .n { color: var(--mute); font-variant-numeric: tabular-nums; font-size: 11px; }
+.ve-secs .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ve-secs-add button { color: var(--mute) !important; display: inline-flex !important; align-items: center !important; gap: 5px !important; }
+.ve-secs li[draggable] { cursor: grab; }
+
+/* Layout picker */
+.lp-pick { width: min(880px, calc(100vw - 32px)); max-width: none; }
+.lp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin: 6px 0 18px; }
+.lp-opt { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 10px 10px 12px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .12s, background .12s; }
+.lp-opt:hover { background: #FAFAFA; box-shadow: inset 0 0 0 1px #bbb; }
+.lp-opt:focus-visible, .lp-opt.on { box-shadow: inset 0 0 0 2px var(--sel); }
+.lp-opt svg { width: 100%; height: auto; border-radius: 8px; background: #F4F4F4; margin-bottom: 6px; }
+.lp-opt b { font-weight: 500; font-size: 14px; }
+.lp-opt span { font-size: 12px; color: var(--mute); line-height: 1.35; }
+.lw-ink { fill: #1a1a1a; } .lw-mute { fill: #c2c2c2; } .lw-box { fill: #fff; stroke: #d4d4d4; stroke-width: .8; } .lw-img { fill: #dedede; } .lw-fade { opacity: .5; }
+.lp-h { margin: 0 0 8px; font-size: 13px; color: var(--mute); }
+.lp-other { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.lp-kind { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 99px; box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; }
+.lp-kind:hover { background: var(--fill); }
+.lp-kind:focus-visible { outline: 2px solid var(--sel); }
+.ab-sec-w { width: auto !important; padding: 0 12px 0 10px !important; gap: 5px; font-size: 13px; }
+.ve-slide .ve-handle-tab { top: 12px; left: auto; right: 12px; border-radius: 99px; padding: 3px 9px; }
