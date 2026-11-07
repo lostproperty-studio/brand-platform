@@ -10,6 +10,8 @@ import { LayoutPicker, convertSection, layoutLabel, layoutOf, newSection } from 
 import type { SectionLayout } from '@/lib/figma/blocks';
 import { CHAPTER, Shortcuts, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { SpaceCtl, StylesWindow } from '@/components/GuideStyles';
+import { CreativeDirector } from '@/components/CreativeDirector';
+import type { Ref as ReviewRef, ReviewSession } from '@/lib/review/director';
 import { defaultSystem, spaceName, systemCss, systemFor, type GuideSystem, type TypeId } from '@/lib/guideSystem';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
@@ -208,6 +210,34 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const setSysKey = (next: GuideSystem, key?: string) => { if (g) commit({ ...g, system: next.edited === false ? undefined : next }, key); };
   const [stylesOpen, setStylesOpen] = useState<{ focus?: TypeId } | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
+  // The creative director's notes point at text by id: jump to it, or apply a fix to it
+  const reviewGoTo = (r: ReviewRef) => {
+    setChId(r.chapter);
+    if (!r.block) setSel({ block: CHAPTER, el: r.field });
+    else { const c0 = latest.current?.chapters.find((c) => c.id === r.chapter); const b0 = c0?.blocks.find((x) => x.id === r.block); const ii = r.item ? (b0?.items || []).findIndex((x) => x.id === r.item) : -1;
+      setSel(ii >= 0 ? { block: r.block, item: ii, el: `${r.item}.${r.field}` } : r.field.startsWith('cap:') ? { block: r.block, el: 'img:' + r.field.slice(4) } : { block: r.block, el: r.field }); }
+    setTimeout(() => { const el = r.block ? document.querySelector(`[data-block="${r.block}"]`) : document.querySelector('.ve-chhead'); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
+  };
+  const reviewApply = (r: ReviewRef, quote: string, sug: string): boolean => {
+    const g0 = latest.current; if (!g0) return false;
+    const c0 = g0.chapters.find((c) => c.id === r.chapter); if (!c0) return false;
+    const rep = (t?: string) => (t && t.includes(quote) ? t.replace(quote, sug) : null);
+    let next: GuideChapter | null = null;
+    if (!r.block) { const v = rep((c0 as unknown as Record<string, string>)[r.field]); if (v === null) return false; next = { ...c0, [r.field]: v, edited: true }; }
+    else {
+      const b0 = c0.blocks.find((x) => x.id === r.block); if (!b0) return false;
+      let patch: Partial<Block> | null = null;
+      if (r.item) { const it = (b0.items || []).find((x) => x.id === r.item); if (!it) return false;
+        if (it.els) { const e = it.els.find((x) => x.id === r.field); const v = rep(e?.text); if (v === null) return false; patch = { items: (b0.items || []).map((x) => (x.id === it.id ? { ...x, els: (x.els || []).map((y) => (y.id === r.field ? { ...y, text: v } : y)) } : x)) }; }
+        else { const v = rep((it as unknown as Record<string, string>)[r.field]); if (v === null) return false; patch = { items: (b0.items || []).map((x) => (x.id === it.id ? { ...x, [r.field]: v } : x)) }; } }
+      else if (r.field.startsWith('x-')) { const x0 = (b0.extras || []).find((x) => 'x-' + x.id === r.field); const v = rep(x0?.text); if (v === null) return false; patch = { extras: (b0.extras || []).map((x) => ('x-' + x.id === r.field ? { ...x, text: v } : x)) }; }
+      else if (r.field.startsWith('cap:')) { const k = Number(r.field.slice(4)); const v = rep((b0.media || [])[k]?.caption); if (v === null) return false; patch = { media: (b0.media || []).map((m, n) => (n === k ? { ...m, caption: v } : m)) }; }
+      else { const v = rep((b0 as unknown as Record<string, string>)[r.field]); if (v === null) return false; patch = { [r.field]: v } as Partial<Block>; }
+      next = { ...c0, blocks: c0.blocks.map((x) => (x.id === b0.id ? { ...x, ...patch, edited: true } : x)) };
+    }
+    commit({ ...g0, chapters: g0.chapters.map((c) => (c.id === c0.id ? next! : c)) });
+    return true;
+  };
   const ch = g?.chapters.find((c) => c.id === chId);
   const setChapters = (chapters: GuideChapter[], key?: string) => g && commit({ ...g, chapters }, key);
   const setCh = (patch: Partial<GuideChapter>, key?: string) => g && setChapters(g.chapters.map((c) => (c.id === chId ? { ...c, ...patch } : c)), key);
@@ -732,6 +762,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
         {stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
         {keysOpen ? <Shortcuts onClose={() => setKeysOpen(false)} /> : null}
+        {g ? <CreativeDirector projectId={projectId} guide={g} chapterId={chId} initial={(content.reviewSession as ReviewSession | undefined) || null} goTo={reviewGoTo} apply={reviewApply} /> : null}
         <style dangerouslySetInnerHTML={{ __html: systemCss(sys) }} />
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}

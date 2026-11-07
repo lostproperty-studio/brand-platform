@@ -3,7 +3,6 @@ import { ArrowLeft, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
-import { Review, type Item } from '@/components/Review';
 import { ProjectActions } from '@/components/ProjectActions';
 import { FontManager } from '@/components/FontManager';
 import { DeleteProjectButton } from '@/components/DeleteProject';
@@ -41,7 +40,7 @@ import { PortalAddress } from '@/components/PortalAddress';
 import { env } from '@/lib/env';
 import { teamGate, teamRole } from '@/lib/studioTeam';
 
-const TABS = [['overview', 'Overview'], ['review', 'Review'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['resources', 'Resources'], ['client', 'Client']] as const;
+const TABS = [['overview', 'Overview'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['resources', 'Resources'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -51,7 +50,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   // Tools and Deliverables now live inside Resources
   const asked = sp.tab === 'tools' || sp.tab === 'deliverables' ? 'resources' : sp.tab;
-  const tab = TABS.some(([k]) => k === asked) ? asked! : 'overview';
+  // The old Review tab is now the creative director, inside the guidelines editor
+  const tab = asked === 'review' ? 'guidelines' : TABS.some(([k]) => k === asked) ? asked! : 'overview';
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, figma_page_id, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
@@ -77,12 +77,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (tab === 'overview') {
     const { fonts } = await readFonts(id);
     const pendingFonts = fontsNeedingLicence(fonts);
-    const { data: scan } = await sb.from('scans').select('id').eq('project_id', id).eq('status', 'done').order('created_at', { ascending: false }).limit(1).maybeSingle();
-    const { data: rv } = scan ? await sb.from('review_items').select('status').eq('scan_id', scan.id) : { data: [] as { status: string }[] };
-    const open = (rv || []).filter((r) => r.status === 'open').length;
-    const total = (rv || []).length;
     const checks = [
-      { ok: !!scan && open === 0, title: !scan ? 'Figma file not scanned yet' : open ? `Review: ${open} of ${total} items still open` : `Review complete (${total} items)`, note: open ? 'Open items use the suggested option. You can come back to them any time.' : '', href: `?tab=review`, cta: open ? 'Continue review' : 'Open review' },
+      (() => { const rs = (p.content as { reviewSession?: { at: string; result: { big: { id: string }[]; detail: { id: string }[] }; closed?: Record<string, string> } } | null)?.reviewSession; const left = rs ? [...rs.result.big, ...rs.result.detail].filter((n) => !rs.closed?.[n.id]).length : 0;
+        return { ok: !!rs && left === 0, title: !rs ? 'No creative director review yet' : left ? `Creative director: ${left} note${left === 1 ? '' : 's'} still open` : 'Creative director: all notes dealt with', note: rs ? `Last session ${new Date(rs.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.` : 'Start a review session in the guidelines editor, from the Creative director button.', href: '?tab=guidelines', cta: rs ? 'Open the editor' : 'Start a review' }; })(),
       { ok: fonts.length > 0 && pendingFonts.length === 0, title: !fonts.length ? 'No typefaces added' : pendingFonts.length ? `Typefaces: ${pendingFonts.length} still need licensed files` : 'Typefaces: all licensed', note: pendingFonts.map((f) => `${f.name || f.label}: ${fontState(f) === 'none' ? 'no files' : fontState(f) === 'mixed' ? 'some trial files' : 'trial files'}`).join(' · '), href: `?tab=typefaces`, cta: pendingFonts.length ? 'Add licensed files' : 'Open typefaces' },
       { ok: !!guide, title: guide ? `Guidelines: ${guide.chapters.filter((c) => !c.hidden && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length} chapters` : 'Guidelines not built yet', note: guide ? '' : 'Builds the client’s online guidelines from the Figma page.', href: `?tab=guidelines`, cta: guide ? 'Edit guidelines' : 'Build guidelines' },
       ...(guide && (drafts || missing) ? [{ ok: false, title: `${tierLabel(tier)} tier: ${[drafts ? `${drafts} draft section${drafts === 1 ? '' : 's'} to check` : '', missing ? `${missing} missing` : ''].filter(Boolean).join(', ')}`, note: 'Drafts and missing items stay hidden from the client until you accept them.', href: `?tab=guidelines`, cta: 'Check drafts' }] : []),
@@ -247,12 +244,6 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <p className="mute" style={{ margin: 0 }}>Upload trial files to design with. When the client buys the licences, use <strong style={{ color: '#000' }}>Replace with licensed files</strong>: each licensed weight replaces its trial file. Only licensed files go into the kit.</p>
       <FontManager projectId={id} />
     </div>;
-  }
-  if (tab === 'review') {
-    const { data: scan } = await sb.from('scans').select('id, figma_key').eq('project_id', id).eq('status', 'done').order('created_at', { ascending: false }).limit(1).maybeSingle();
-    const { data: items } = scan ? await sb.from('review_items').select('*').eq('scan_id', scan.id).order('ord') : { data: [] };
-    const withPrev = await Promise.all((items || []).map(async (it) => ({ ...it, preview: it.preview_path ? (await sb.storage.from('previews').createSignedUrl(it.preview_path, 3600)).data?.signedUrl ?? null : null })));
-    body = scan ? <Review initial={withPrev as Item[]} figmaKey={scan.figma_key} scanId={scan.id} /> : <p className="mute">No scan yet.</p>;
   }
   return (
     <div>
