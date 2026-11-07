@@ -33,6 +33,8 @@ export type EditKit = {
   insertItem?: (at: number, edge: 'before' | 'after') => React.ReactNode;
   /** Select an element in a frame (a nested frame), and whether it's selected */
   selectEl?: (item: number, key: string) => void; isSel?: (key: string) => boolean;
+  /** Drag a side handle of a frame inside a frame to size it */
+  sizeEl?: (item: number, elId: string, side: 'n' | 's' | 'e' | 'w', e: React.PointerEvent) => void;
   /** Elements added freely inside a box */
   itemElText?: (i: number, e: ItemEl, el: El) => React.ReactNode;
   itemElImage?: (i: number, e: ItemEl, img: React.ReactNode) => React.ReactNode;
@@ -71,7 +73,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const elsOf = (i: number, it: BlockItem, card = false) => { const els = it.els || []; const push = els.findIndex((e) => e.kind === 'heading' || e.kind === 'text'); const pushOk = push > 0 && els.slice(0, push).every((e) => e.kind === 'label' || e.kind === 'image') && !els.some((e) => e.kind === 'spacer'); return els.map((e, k) => {
     const cls = (k === push && pushOk ? 'gi-push ' : '') + 'gi-el';
     if (e.kind === 'spacer') return <div key={e.id} data-el={e.id} data-spacer="" className={'gi-el gi-spacer' + (edit ? ' ed-spacer' : '')} style={{ height: e.size ?? 32 }}>{edit?.grip ? edit.grip(i, e.id) : null}{edit ? <span>Spacer · {e.size ?? 32}px</span> : null}</div>;
-    if (e.kind === 'frame' || (e.kind === 'image' && e.look)) { const key = `${it.id}.${e.id}`; return <div key={e.id} data-el={e.id} className={cls + ' gi-frame-el' + (e.look?.sh === 'fill' ? ' grow' : '') + (e.look?.sw === 'hug' || typeof e.look?.sw === 'number' ? ' hug' : '')}>{edit?.grip ? edit.grip(i, e.id) : null}<Frame look={e.look} media={e.kind === 'image' ? e.media : undefined} urls={urls} on={edit?.isSel?.(key)} onPick={edit?.selectEl ? () => edit.selectEl!(i, key) : undefined} empty={!!edit} /></div>; }
+    if (e.kind === 'frame' || (e.kind === 'image' && e.look)) { const key = `${it.id}.${e.id}`; return <div key={e.id} data-el={e.id} className={cls + ' gi-frame-el' + (e.look?.sh === 'fill' ? ' grow' : '') + (e.look?.sw === 'hug' || typeof e.look?.sw === 'number' ? ' hug' : '')}>{edit?.grip ? edit.grip(i, e.id) : null}<Frame look={e.look} media={e.kind === 'image' ? e.media : undefined} urls={urls} on={edit?.isSel?.(key)} onPick={edit?.selectEl ? () => edit.selectEl!(i, key) : undefined} empty={!!edit} onSize={edit?.sizeEl ? (side, ev) => edit.sizeEl!(i, e.id, side, ev) : undefined} /></div>; }
     if (e.kind === 'image') { const mm = e.media && urls[e.media.path] ? e.media : undefined; const img = mm ? <img src={urls[mm.path]} alt="" loading="lazy" /> : null; return <div key={e.id} data-el={e.id} className={cls + ' gi-media'}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElImage ? edit.itemElImage(i, e, img) : img}</div>; }
     const key = `${it.id}.${e.id}`; const tp = st(key); const el: El = { tag: e.kind === 'text' ? 'div' : 'p', className: (card ? CARD_CLS[e.kind] : CLS[e.kind]) + (tp.className ? ' ' + tp.className : ''), placeholder: e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text', multiline: e.kind === 'text', style: tp.style, key };
     return <div key={e.id} data-el={e.id} className={cls}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;
@@ -267,7 +269,7 @@ export function FrameMedia({ look, media: m0, urls, className = 'fr-m' }: { look
 }
 
 /** A frame inside a frame: filled with a colour, an image or a video, with its own stroke, radius, padding and shape */
-function Frame({ look, media, urls, on, onPick, empty }: { look?: FrameLook; media?: BlockMedia; urls: Record<string, string>; on?: boolean; onPick?: () => void; empty?: boolean }) {
+function Frame({ look, media, urls, on, onPick, empty, onSize }: { look?: FrameLook; media?: BlockMedia; urls: Record<string, string>; on?: boolean; onPick?: () => void; empty?: boolean; onSize?: (side: 'n' | 's' | 'e' | 'w', e: React.PointerEvent) => void }) {
   const m = look?.fill && look.fill.type !== 'colour' ? look.fill.media : media;
   const ratio = look?.ratio && look.ratio !== 'auto' ? look.ratio.replace(':', ' / ') : m && (look?.fit || 'fill') !== 'fit' ? undefined : undefined;
   const sw = look?.sw, sh = look?.sh;
@@ -277,5 +279,6 @@ function Frame({ look, media, urls, on, onPick, empty }: { look?: FrameLook; med
   const has = !!look?.fill || !!m;
   return <div className={'fr' + (fixed ? ' fixed' : '') + (on ? ' on' : '') + (!has && empty ? ' fr-empty' : '')} style={style} onMouseDown={onPick ? (e) => { e.stopPropagation(); onPick(); } : undefined}>
     <div className="fr-in">{m ? <FrameMedia look={look} media={media} urls={urls} /> : !has && empty ? <span className="fr-ph">Frame · choose a fill</span> : null}</div>
+    {on && onSize ? (['n', 's', 'e', 'w'] as const).map((sd) => <span key={sd} className={'ve-fh ve-fh-' + sd} onPointerDown={(ev) => { ev.stopPropagation(); onSize(sd, ev); }} aria-hidden />) : null}
   </div>;
 }

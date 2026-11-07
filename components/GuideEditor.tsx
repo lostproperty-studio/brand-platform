@@ -307,36 +307,69 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   /** Pick up a frame, or anything in one, and move it, as in Figma: press and drag a few pixels. A click without
    *  moving still selects (and a click on text still edits it). Text being edited selects text instead. */
   function armMove(e: React.PointerEvent, b: Block) {
-    if (e.button !== 0 || tool || !['columns', 'grid', 'carousel'].includes(b.kind)) return;
+    if (e.button !== 0 || tool) return;
     const t = e.target as HTMLElement;
-    if (t.closest('button, input, select, textarea, label, a, .ve-hd, .ve-ins, .ve-pgap, .ve-grip-el, .ve-grip-box, .ve-grip-part, .ve-handle-tab, .ve-pgap-pop')) return;
+    if (t.closest('button, input, select, textarea, label, a, .ve-hd, .ve-ins, .ve-pgap, .ve-grip-el, .ve-grip-box, .ve-grip-part, .ve-handle-tab, .ve-pgap-pop, .ve-slide-label, .ve-draft')) return;
     const ed = t.closest('[contenteditable="true"]') as HTMLElement | null;
     if (ed && document.activeElement === ed) return;
+    const blockEl = e.currentTarget as HTMLElement;
     const box = t.closest('[data-item]') as HTMLElement | null;
-    if (!box || (box.closest('[data-block]') as HTMLElement | null)?.dataset.block !== b.id) return;
-    const node = t.closest('[data-el]') as HTMLElement | null;
-    const inBox = !!node && node.closest('[data-item]') === box && !!node.dataset.el && !node.dataset.el.startsWith('img');
-    const x0 = e.clientX, y0 = e.clientY, item = Number(box.dataset.item);
-    const mv = (ev: PointerEvent) => {
-      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
-      off();
-      if (inBox) startMove(ev, 'el', b.id, item, node!.dataset.el, node!); else startMove(ev, 'box', b.id, item, undefined, box);
-    };
+    const inThis = (x: HTMLElement | null) => !!x && x.closest('.ve-block') === blockEl;
+    let go: (ev: PointerEvent) => void;
+    if (box && inThis(box) && ['columns', 'grid', 'carousel'].includes(b.kind)) {
+      // A frame, or something inside one
+      const node = t.closest('[data-el]') as HTMLElement | null;
+      const inBox = !!node && node.closest('[data-item]') === box && !!node.dataset.el && !node.dataset.el.startsWith('img');
+      const item = Number(box.dataset.item);
+      go = (ev) => (inBox ? startMove(ev, 'el', b.id, item, node!.dataset.el, node!) : startMove(ev, 'box', b.id, item, undefined, box));
+    } else {
+      // A part of the section (headline, text, images, added text), or else the whole section
+      const part = t.closest('[data-part]') as HTMLElement | null;
+      const sibs = part?.parentElement ? [...part.parentElement.children].filter((x) => (x as HTMLElement).dataset.part) : [];
+      if (part && inThis(part) && sibs.length > 1) go = (ev) => startMove(ev, 'part', b.id, -1, part.dataset.part, part);
+      else go = (ev) => startMove(ev, 'section', b.id, -1, undefined, blockEl);
+    }
+    const x0 = e.clientX, y0 = e.clientY;
+    const mv = (ev: PointerEvent) => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return; off(); go(ev); };
     const off = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', off); };
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', off);
   }
+  /** Drag a side of a frame to size it, as in Figma: the width or height becomes fixed; pushed to the edge of the
+   *  frame it's in, it becomes Fill. Works for frames inside frames and for frames in an auto layout. */
+  function sizeFrame(e: React.PointerEvent, side: 'n' | 's' | 'e' | 'w', node: HTMLElement, parent: HTMLElement, apply: (p: { sw?: 'fill' | number; sh?: 'fill' | number }) => void) {
+    e.preventDefault(); e.stopPropagation();
+    const r0 = node.getBoundingClientRect(); const x0 = e.clientX, y0 = e.clientY; let last: { sw?: 'fill' | number; sh?: 'fill' | number } = {};
+    const pr = () => { const r = parent.getBoundingClientRect(); const cs = getComputedStyle(parent); return { l: r.left + parseFloat(cs.paddingLeft), r: r.right - parseFloat(cs.paddingRight), t: r.top + parseFloat(cs.paddingTop), b: r.bottom - parseFloat(cs.paddingBottom) }; };
+    document.body.classList.add('ve-sizing');
+    const move = (ev: PointerEvent) => {
+      const p = pr(); const dx = ev.clientX - x0, dy = ev.clientY - y0;
+      if (side === 'e' || side === 'w') {
+        const w = Math.max(24, Math.round(r0.width + (side === 'e' ? dx : -dx)));
+        const edge = Math.abs(side === 'e' ? r0.left + w - p.r : r0.right - w - p.l) <= 10 || (side === 'e' ? r0.left + w > p.r : r0.right - w < p.l);
+        last = { sw: edge ? 'fill' : w }; node.style.width = last.sw === 'fill' ? '100%' : `${w}px`; node.style.flex = last.sw === 'fill' ? '' : '0 0 auto';
+      } else {
+        const h = Math.max(24, Math.round(r0.height + (side === 's' ? dy : -dy)));
+        // Height snaps to Fill only at the edge; dragged further, the frame grows and its parent with it
+        const edge = Math.abs(side === 's' ? r0.top + h - p.b : r0.bottom - h - p.t) <= 10;
+        last = { sh: edge ? 'fill' : h }; node.style.height = `${h}px`; node.style.aspectRatio = 'auto';
+      }
+      node.dataset.size = last.sw !== undefined ? (last.sw === 'fill' ? 'Fill' : `W ${last.sw}`) : last.sh === 'fill' ? 'Fill' : `H ${last.sh}`;
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.classList.remove('ve-sizing'); node.style.width = ''; node.style.height = ''; node.style.flex = ''; node.style.aspectRatio = ''; delete node.dataset.size; if (last.sw !== undefined || last.sh !== undefined) apply(last); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
   // ---------- drag to move: an element within or between boxes, or a box among its neighbours. Snaps into place.
-  type Drag = { kind: 'el' | 'box' | 'part'; block: string; item: number; el?: string; order?: string[]; label: string; x: number; y: number; target?: { block: string; item: number; index: number }; line?: { top: number; left: number; width: number; height: number } };
+  type Drag = { kind: 'el' | 'box' | 'part' | 'section'; block: string; item: number; el?: string; order?: string[]; label: string; x: number; y: number; target?: { block: string; item: number; index: number }; line?: { top: number; left: number; width: number; height: number } };
   const [moving, setMoving] = useState<Drag | null>(null);
-  function startMove(e: React.PointerEvent | PointerEvent, kind: 'el' | 'box' | 'part', blockId: string, item: number, el?: string, from?: HTMLElement) {
+  function startMove(e: React.PointerEvent | PointerEvent, kind: 'el' | 'box' | 'part' | 'section', blockId: string, item: number, el?: string, from?: HTMLElement) {
     e.preventDefault(); e.stopPropagation();
     const a0 = document.activeElement as HTMLElement | null; if (a0?.isContentEditable) a0.blur();
     window.getSelection()?.removeAllRanges();
-    const src = from || (e.currentTarget as HTMLElement).closest(kind === 'el' ? '[data-el]' : kind === 'part' ? '[data-part]' : '[data-item]') as HTMLElement | null;
+    const src = from || (e.currentTarget as HTMLElement).closest(kind === 'el' ? '[data-el]' : kind === 'part' ? '[data-part]' : kind === 'section' ? '[data-block]' : '[data-item]') as HTMLElement | null;
     // Parts move among their siblings: headline, text, images and boxes within the section
     const siblings = kind === 'part' && src?.parentElement ? ([...src.parentElement.children] as HTMLElement[]).filter((x) => x.dataset.part) : [];
     const PART: Record<string, string> = { head: 'Headline', body: 'Text', media: 'Images', items: 'Frames' };
-    const label = kind === 'part' ? PART[el || ''] || 'Part' : kind === 'box' ? 'Frame' : (src?.innerText || 'Image').trim().slice(0, 40) || 'Image';
+    const label = kind === 'section' ? 'Section' : kind === 'part' ? PART[el || ''] || (src?.innerText || 'Text').trim().slice(0, 40) : kind === 'box' ? 'Frame' : (src?.innerText || 'Image').trim().slice(0, 40) || 'Image';
     let d: Drag = { kind, block: blockId, item, el, label, x: e.clientX, y: e.clientY, order: siblings.map((x) => x.dataset.part!) };
     setMoving(d); document.body.classList.add('ve-moving'); src?.classList.add('ve-drag-src');
     const move = (ev: PointerEvent) => {
@@ -350,6 +383,16 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           const index = others.filter((x) => { const q = x.getBoundingClientRect(); return q.top + q.height / 2 < ev.clientY; }).length;
           const y = index === 0 ? others[0].getBoundingClientRect().top - 8 : others[index - 1].getBoundingClientRect().bottom + 8;
           target = { block: blockId, item: -1, index }; line = { top: y - 1, left: pr.left, width: pr.width, height: 2 };
+        }
+      } else if (kind === 'section') {
+        // Sections: between slides, by height
+        const slides = ([...document.querySelectorAll('.ve-blocks [data-block]')] as HTMLElement[]);
+        const others = slides.filter((x) => x.dataset.block !== blockId);
+        if (others.length) {
+          const index = others.filter((x) => { const q = x.getBoundingClientRect(); return q.top + q.height / 2 < ev.clientY; }).length;
+          const r0 = others[0].getBoundingClientRect();
+          const y = index === 0 ? r0.top - 14 : others[index - 1].getBoundingClientRect().bottom + 14;
+          target = { block: blockId, item: -1, index }; line = { top: y - 1, left: r0.left, width: r0.width, height: 3 };
         }
       } else if (kind === 'el') {
         const box = under?.closest('[data-item]') as HTMLElement | null;
@@ -377,6 +420,18 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   }
   function drop(d: Drag) {
     const cur = latest.current; const c = cur?.chapters.find((x) => x.id === chId); if (!cur || !c || !d.target) return;
+    if (d.kind === 'section') {
+      // Index among the other visible sections, mapped back to the chapter's list
+      const shown = c.blocks.filter((x) => x.id !== d.block && (!x.hidden || showHidden));
+      const moved = c.blocks.find((x) => x.id === d.block); if (!moved) return;
+      const before = shown[d.target.index];
+      const rest = c.blocks.filter((x) => x.id !== d.block);
+      const at = before ? rest.indexOf(before) : rest.length;
+      const next = [...rest.slice(0, at), moved, ...rest.slice(at)];
+      if (next.map((x) => x.id).join() === c.blocks.map((x) => x.id).join()) return;
+      commit({ ...cur, chapters: cur.chapters.map((x) => (x.id !== chId ? x : { ...x, blocks: next })) });
+      return;
+    }
     if (d.kind === 'part') {
       const order = (d.order || []).filter((p) => p !== d.el); order.splice(Math.min(d.target.index, order.length), 0, d.el!);
       if (order.join() === (d.order || []).join()) return;
@@ -626,6 +681,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     itemImage: (i, m, pic) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `itemimg:${i}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `itemimg:${i}`, item: i }); }}>{pic}</span>,
     insertItem: (at, edge) => <button key={'ins-' + edge} type="button" className={'ve-ins ' + edge} aria-label={edge === 'after' ? 'Add a frame at the end' : `Add a frame before frame ${at + 1}`} data-tip="Add frame" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const items = [...(b.items || [])]; const nb = items[at] || items[at - 1]; items.splice(at, 0, { id: iid(), label: nb?.label !== undefined ? 'Label' : undefined, heading: nb?.heading ? 'A headline' : undefined, body: nb?.body || !nb ? 'Text' : undefined, w: b.kind === 'grid' ? (nb?.w || 2) : 1, h: nb?.h || 2 }); editBlock(b.id, { items, ...(b.kind === 'columns' && b.flow?.dir !== 'col' ? { cols: Math.min(6, items.length) } : {}) }); setSel({ block: b.id, item: at }); }}><span><Plus size={12} strokeWidth={2} aria-hidden /></span></button>,
     selectEl: (i, key) => setSel({ block: b.id, item: i, el: key }), isSel: (key) => sel?.block === b.id && sel.el === key,
+    sizeEl: (i, elId, side, ev) => { const node = (ev.currentTarget as HTMLElement).closest('.fr') as HTMLElement; const parent = node.closest('[data-item]') as HTMLElement; if (!node || !parent) return;
+      sizeFrame(ev, side, node, parent, (p) => { const cur = latest.current?.chapters.find((c) => c.id === chId)?.blocks.find((x) => x.id === b.id); const it = cur?.items?.[i]; if (!cur || !it) return;
+        editBlock(b.id, { items: (cur.items || []).map((x, n) => (n !== i ? x : { ...x, els: (x.els || []).map((y) => (y.id === elId ? { ...y, look: { ...(y.look || {}), ...p, ...(p.sh !== undefined ? { ratio: undefined } : {}) } } : y)) })) }); }); },
     addItem: () => null, // frames are added with the + between frames, the panel or F; never a tile
     // The selected box: an outline and handles to drag its width (and height, in a grid) across the columns
     extraText: (x, el) => <Editable key={el.key} value={x.text} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === `x-${x.id}`} onFocus={() => setSel({ block: b.id, el: `x-${x.id}` })} onSave={(v) => editBlock(b.id, v ? { extras: (b.extras || []).map((y) => (y.id === x.id ? { ...y, text: v } : y)) } : { extras: (b.extras || []).filter((y) => y.id !== x.id), order: (b.order || []).filter((p) => p !== `x-${x.id}`) })} />,
@@ -643,7 +701,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     itemBar: (i) => sel?.block === b.id && sel.item === i ? <>
       <span className="ve-itemsel" aria-hidden />
       <span className="ve-grip-box" onPointerDown={(e) => startMove(e, 'box', b.id, i)} title="Drag to move this box" aria-hidden><GripVertical size={12} strokeWidth={2} />Frame</span>
-      {b.kind === 'columns' || b.kind === 'grid' ? <span className="ve-hd ve-hd-r" onPointerDown={(e) => startResize(e, b, i, 'x')} role="slider" aria-label="Drag to change width" aria-valuenow={b.items?.[i]?.w || 1} title="Drag to change width" /> : null}
+      {b.kind === 'columns' ? (['n', 's', 'e', 'w'] as const).map((sd) => <span key={sd} className={'ve-fh ve-fh-' + sd} onPointerDown={(e) => { const node = (e.currentTarget as HTMLElement).closest('[data-item]') as HTMLElement; const parent = node?.parentElement as HTMLElement; if (!node || !parent) return;
+        sizeFrame(e, sd, node, parent, (p) => { const cur = latest.current?.chapters.find((c) => c.id === chId)?.blocks.find((x) => x.id === b.id); if (!cur) return; editBlock(b.id, { items: (cur.items || []).map((x, n) => (n !== i ? x : { ...x, look: { ...(x.look || {}), ...p } })) }); }); }} aria-hidden />) : null}
+      {b.kind === 'grid' ? <span className="ve-hd ve-hd-r" onPointerDown={(e) => startResize(e, b, i, 'x')} role="slider" aria-label="Drag to change width" aria-valuenow={b.items?.[i]?.w || 1} title="Drag to change width" /> : null}
       {b.kind === 'grid' ? <><span className="ve-hd ve-hd-b" onPointerDown={(e) => startResize(e, b, i, 'y')} title="Drag to change height" aria-hidden /><span className="ve-hd ve-hd-c" onPointerDown={(e) => startResize(e, b, i, 'xy')} title="Drag to resize" aria-hidden /></> : null}
     </> : null
   });
