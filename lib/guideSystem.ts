@@ -27,11 +27,11 @@ export const spaceName = (px: number) => `${px}px`;
 export const SPACE_RULES: { id: SpaceRule; label: string; help: string }[] = [
   { id: 'head-body', label: 'Headline to text', help: 'Between a headline and the text under it' },
   { id: 'intro-content', label: 'Text to content', help: 'Between a section’s introduction and its auto layout, grid or images' },
-  { id: 'part', label: 'Between other parts', help: 'Any other two parts of a section' },
+  { id: 'part', label: 'Between parts', help: 'Any other two parts of a section' },
   { id: 'section', label: 'Between sections', help: 'From one section to the next' },
-  { id: 'box-gap', label: 'Gap between frames', help: 'The auto layout gap: between frames, grid tiles and cards' },
+  { id: 'box-gap', label: 'Frame gap', help: 'The auto layout gap: between frames, grid tiles and cards' },
   { id: 'box-pad', label: 'Frame padding', help: 'Inside frames with a stroke, fill or corner marks' },
-  { id: 'el-gap', label: 'Gap inside frames', help: 'Between a label, headline and text in a frame' }
+  { id: 'el-gap', label: 'Inner gap', help: 'Between a label, headline and text in a frame' }
 ];
 
 const FALLBACK: Record<TypeId, TypeDef> = {

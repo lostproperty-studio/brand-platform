@@ -100,7 +100,7 @@ export function StylesWindow({ sys, setSys, fonts, colours, auto, focus, onAddFo
     </div> : null}
 
     <div className="sw-main">
-      <div className="sw-top"><strong>Styles</strong><span className="sw-sub">Across the whole guide</span><span style={{ flex: 1 }} /><button type="button" className="sw-ic" onClick={onClose} aria-label="Close"><X {...I} /></button></div>
+      <div className="sw-top"><strong>Styles</strong><span style={{ flex: 1 }} /><button type="button" className="sw-ic" onClick={onClose} aria-label="Close"><X {...I} /></button></div>
       <div className="sw-tabs" role="tablist"><button role="tab" aria-selected={tab === 'type'} className={tab === 'type' ? 'on' : ''} onClick={() => setTab('type')}>Text</button><button role="tab" aria-selected={tab === 'space'} className={tab === 'space' ? 'on' : ''} onClick={() => setTab('space')}>Spacing</button></div>
       {tab === 'type' ? <div className="sw-list">
         {TYPE_IDS.map((id) => { const x = sys.type[id]; return <button type="button" key={id} className={'sw-row' + (edit === id ? ' on' : '')} onClick={() => setEdit(id)} title={TYPE_USE[id]}>
@@ -108,11 +108,10 @@ export function StylesWindow({ sys, setSys, fonts, colours, auto, focus, onAddFo
         </button>; })}
         {!fonts.length ? <button type="button" className="sw-add" onClick={() => onAddFont(() => {})}><Upload {...I} />Upload the brand’s typefaces</button> : null}
       </div> : <div className="sw-list">
-        {SPACE_RULES.map((r) => <div key={r.id} className="sw-sp"><span className="sw-sp-t"><b>{r.label}</b><span>{r.help}</span></span><SpaceSelect value={sys.space[r.id]} set={(px) => setSys({ ...sys, edited: true, space: { ...sys.space, [r.id]: px } }, 'sp:' + r.id)} label={r.label} /></div>)}
-        <p className="sw-note">Every space comes from one scale: {SPACE_STEPS.filter((s) => s.px).map((s) => s.px).join(' · ')}. A section can still set its own.</p>
+        {SPACE_RULES.map((r) => <div key={r.id} className="sw-sp" title={r.help}><span className="sw-sp-t"><b>{r.label}</b></span><SpaceSelect value={sys.space[r.id]} set={(px) => setSys({ ...sys, edited: true, space: { ...sys.space, [r.id]: px } }, 'sp:' + r.id)} label={r.label} /></div>)}
       </div>}
-      {colours.length ? <><p className="sw-h">Colours</p><div className="sw-cols">{colours.slice(0, 16).map((c) => <span key={c.hex} className="sw-col" style={{ background: c.hex }} title={`${c.name} ${c.hex}`} />)}</div><p className="sw-note">From the brand’s colour chapter.</p></> : null}
-      <div className="sw-foot">{changed ? <button type="button" className="sw-reset" onClick={() => setSys({ ...auto, edited: false })}><RotateCcw {...I} />Reset all to the guidelines</button> : <span className="sw-note">Generated from the guidelines and the typefaces uploaded.</span>}</div>
+      {colours.length ? <><p className="sw-h">Colours</p><div className="sw-cols">{colours.slice(0, 16).map((c) => <span key={c.hex} className="sw-col" style={{ background: c.hex }} title={`${c.name} ${c.hex}`} />)}</div></> : null}
+      <div className="sw-foot">{changed ? <button type="button" className="sw-reset" onClick={() => setSys({ ...auto, edited: false })}><RotateCcw {...I} />Reset all to the guidelines</button> : <span className="sw-note">From the guidelines</span>}</div>
     </div>
   </div>;
 }

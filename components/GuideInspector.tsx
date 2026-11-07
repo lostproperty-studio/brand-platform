@@ -87,12 +87,13 @@ export type InspectorProps = {
   setChStyle?: (field: string, s: TextStyle, key?: string) => void; onFill?: () => void; filling?: boolean; onDelete: () => void;
   fonts?: ToolbarFont[]; onAddFont?: (then: (role: string) => void) => void;
   /** Choose an icon for a frame, or a new one for an icon already there */ onIcon?: (block: string, item: number, replace?: string) => void;
+  /** Make an image or video with Krea for a frame's fill */ onMake?: (block: string, target: string, aspect?: string) => void;
 };
 
 // The design panel on the right, like Figma's: it shows what you can change about what's selected, and only that.
 // Text: its style, colour and the space above it. A frame: its size, padding, gap and alignment. An auto layout:
 // direction, gap, padding, frame style and fill. Everything visual is here; the top bar is for history and order.
-export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pickImage, sys, setSys, openStyles, setChStyle, onFill, filling, onDelete, fonts, onAddFont, onIcon }: InspectorProps) {
+export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pickImage, sys, setSys, openStyles, setChStyle, onFill, filling, onDelete, fonts, onAddFont, onIcon, onMake }: InspectorProps) {
   const palette = [...new Map([...colours, { name: 'Black', hex: '#000000' }, { name: 'White', hex: '#FFFFFF' }].map((c) => [c.hex.toUpperCase(), c])).values()].slice(0, 16);
   // Colours already used in this chapter, for the fill picker
   const pageColours = [...new Set((JSON.stringify(ch.blocks).match(/#[0-9a-f]{6}\b/gi) || []).map((h) => h.toUpperCase()))].slice(0, 24);
@@ -133,7 +134,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   const itemElKind = itemElId ? it?.els?.find((e) => e.id === itemElId)?.kind ?? (itemElId === 'media' ? 'image' : itemElId) : undefined;
   const isImg = !!el && (el.startsWith('img:') || el.startsWith('itemimg:') || itemElKind === 'image');
   const spacerEl = itemElKind === 'spacer' && it ? it.els?.find((e) => e.id === itemElId) : undefined;
-  const isText = !!el && !isImg && !spacerEl && itemElKind !== 'frame' && itemElKind !== 'icon';
+  const isText = !!el && el !== 'items' && !isImg && !spacerEl && itemElKind !== 'frame' && itemElKind !== 'icon';
   const span = b.kind === 'grid' ? Math.min(gcols, it?.w || 2) : Math.min(cols, it?.w || 1);
   const kindLabel = b.kind === 'columns' ? 'Auto layout' : KINDS.find(([k]) => k === b.kind)?.[1] || 'Section';
 
@@ -162,7 +163,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
         <button type="button" className="dp-act danger" onClick={onDelete}><Trash2 {...I} />Delete <kbd>⌫</kbd></button>
       </div>
     </Sec>
-    {b.variant !== 'images' ? <FramePanel pageColours={pageColours} look={it.look} set={(l, key) => setItem({ look: l }, key && 'look-' + key)} palette={palette} upload={() => pickImage(b.id, `ilook:${i}`)} sizing={b.kind === 'columns'} hasContent
+    {b.variant !== 'images' ? <FramePanel pageColours={pageColours} look={it.look} set={(l, key) => setItem({ look: l }, key && 'look-' + key)} palette={palette} upload={() => pickImage(b.id, `ilook:${i}`)} onMake={onMake ? () => onMake(b.id, `ilook:${i}`, it.look?.ratio) : undefined} sizing={b.kind === 'columns'} hasContent
       layout={{ align: it.align || b.boxAlign, setAlign: (a) => setItem({ align: a }), gap: it.gap ?? b.boxGap, gapRule: sys.space['el-gap'], setGap: (n) => setItem({ gap: n }, 'gap'), padRule: framed ? sys.space['box-pad'] : 0,
         alignGrid: <AlignGrid value={it.align || b.boxAlign} set={(a) => setItem({ align: a })} label="Alignment in this frame" /> }} /> : null}
   </>;
@@ -211,7 +212,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
       <Sec title={m ? (m.video ? 'Video frame' : 'Image frame') : 'Frame'} icon={<Square {...I} />}>
         <div className="dp-foot"><button type="button" className="dp-act danger" onClick={onDelete}><Trash2 {...I} />Delete <kbd>⌫</kbd></button></div>
       </Sec>
-      <FramePanel pageColours={pageColours} look={frameEl.look} set={setLook} palette={palette} upload={() => pickImage(b.id, `look:${i}:${frameEl.id}`)} />
+      <FramePanel pageColours={pageColours} look={frameEl.look} set={setLook} palette={palette} upload={() => pickImage(b.id, `look:${i}:${frameEl.id}`)} onMake={onMake ? () => onMake(b.id, `look:${i}:${frameEl.id}`, frameEl.look?.ratio) : undefined} />
     </aside>;
   }
   if (isImg && el) {

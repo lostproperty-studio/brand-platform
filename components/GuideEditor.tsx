@@ -12,6 +12,7 @@ import { CHAPTER, Shortcuts, Toolbar, type Sel, type ToolbarFont } from '@/compo
 import { SpaceCtl, StylesWindow } from '@/components/GuideStyles';
 import { CreativeDirector } from '@/components/CreativeDirector';
 import { IconPicker } from '@/components/IconPicker';
+import { MakeDialog } from '@/components/MakeDialog';
 import { guideMap, type Ref as ReviewRef, type ReviewSession } from '@/lib/review/director';
 import { defaultSystem, spaceName, systemCss, systemFor, type GuideSystem, type TypeId } from '@/lib/guideSystem';
 import { textProps } from '@/lib/textStyle';
@@ -178,8 +179,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       const cmd = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
       const b = sel && ch ? ch.blocks.find((x) => x.id === sel.block) : undefined;
       // Figma's: Esc and ⇧Enter select the parent (text → frame → section), Enter selects inside
-      if (!typing && (e.key === 'Escape' || (e.key === 'Enter' && e.shiftKey))) { if (!sel) return; e.preventDefault(); if (sel.el && sel.item !== undefined && sel.block !== CHAPTER) setSel({ block: sel.block, item: sel.item }); else if (sel.el || sel.item !== undefined || sel.gap) setSel(sel.block === CHAPTER ? null : { block: sel.block }); else if (e.key === 'Escape') setSel(null); return; }
-      if (!typing && e.key === 'Enter' && !cmd && b && sel && sel.item === undefined && !sel.el && (b.items || []).length) { e.preventDefault(); setSel({ block: b.id, item: 0 }); return; }
+      if (!typing && (e.key === 'Escape' || (e.key === 'Enter' && e.shiftKey))) { if (!sel) return; e.preventDefault(); if (sel.el && sel.item !== undefined && sel.block !== CHAPTER) setSel({ block: sel.block, item: sel.item }); else if (sel.item !== undefined && b && ['columns', 'grid', 'carousel'].includes(b.kind)) setSel({ block: sel.block, el: 'items' }); else if (sel.el || sel.item !== undefined || sel.gap) setSel(sel.block === CHAPTER ? null : { block: sel.block }); else if (e.key === 'Escape') setSel(null); return; }
+      if (!typing && e.key === 'Enter' && !cmd && b && sel && sel.item === undefined && (!sel.el || sel.el === 'items') && (b.items || []).length) { e.preventDefault(); setSel({ block: b.id, item: 0 }); return; }
       if ((e.key === 'Backspace' || e.key === 'Delete') && !typing && sel) { e.preventDefault(); deleteSelection(); return; }
       if (typing) return;
       if (!cmd && !e.altKey) {
@@ -213,6 +214,18 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [keysOpen, setKeysOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   // Icons: where the next one goes (a frame, at an index), or which icon it replaces
+  // Make with Krea: where the result goes, and the dialog
+  const [makeFor, setMakeFor] = useState<{ block: string; target: string; aspect?: string } | null>(null);
+  async function make(prompt: string, kind: 'image' | 'video'): Promise<string | null> {
+    const t = makeFor; if (!t) return null;
+    const r = await fetch(`/api/projects/${projectId}/guide/make`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, kind, aspect: t.aspect }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return j.error || 'Krea couldn’t make that just now.';
+    setUrls((u) => ({ ...u, [j.path]: j.url }));
+    const [w, h] = (t.aspect || '4:3').split(':').map(Number);
+    putMedia({ block: t.block, target: t.target }, { path: j.path, w: (w || 4) * 400, h: (h || 3) * 400, kind: 'photo', ...(kind === 'video' ? { video: true } : {}) });
+    setMakeFor(null); return null;
+  }
   const [iconAt, setIconAt] = useState<{ block: string; item: number; index?: number; replace?: string } | null>(null);
   const putIcon = (icon: { set: string; name: string; svg: string }) => {
     const at = iconAt; setIconAt(null); if (!at || !ch) return;
@@ -669,6 +682,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   async function onFile(f?: File) {
     const t = fileFor.current; if (!f || !t || !ch) return;
     const up = await upload(f); if (!up) return;
+    putMedia(t, up);
+  }
+  /** Puts an uploaded or made picture where it was asked for */
+  function putMedia(t: { block: string; target: number | 'backdrop' | 'new' | 'thumb' | string }, up: BlockMedia) {
+    if (!ch) return;
     if (t.target === 'thumb') { setCh({ thumb: up.path }); return; }
     const b = ch.blocks.find((x) => x.id === t.block); if (!b) return;
     // A fill for a frame: a nested frame (look:k:el) or the frame itself (ilook:k)
@@ -870,9 +888,12 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                     const t = e.target as HTMLElement; const box = t.closest('[data-item]') as HTMLElement | null;
                     const spacer = t.closest('[data-spacer]') as HTMLElement | null;
                     if (spacer && box && !t.closest('.ve-grip-el')) { const it0 = (b.items || [])[Number(box.dataset.item)]; if (it0) { setSel({ block: b.id, item: Number(box.dataset.item), el: `${it0.id}.${spacer.dataset.el}` }); return; } }
+                    // The container that holds the frames (the auto layout or grid itself): its gaps and edges
+                    const cont = t.closest('.gb-columns, .gb-grid, .gc-track, .gc-wrap') as HTMLElement | null;
+                    if (!box && cont && cont.closest('.ve-block') === e.currentTarget) { setSel({ block: b.id, el: 'items' }); return; }
                     if (box && !t.closest('.ed, .ve-img, .ve-hd') && box.closest('.ve-block') === e.currentTarget) setSel({ block: b.id, item: Number(box.dataset.item) });
                     else if (sel?.block !== b.id) setSel({ block: b.id });
-                  }} data-block={b.id} className={'ve-block ve-slide' + (b.kind === 'divider' ? ' ve-slide-div' : '') + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
+                  }} data-block={b.id} data-sel={sel?.block === b.id ? (sel.el === 'items' ? 'items' : sel.item !== undefined ? 'frame' : 'section') : undefined} className={'ve-block ve-slide' + (b.kind === 'divider' ? ' ve-slide-div' : '') + (sel?.block === b.id ? ' sel' : '') + (b.hidden ? ' off' : '') + (b.draft ? ' is-draft' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '')}
                     onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }}>
                     {sel?.block === b.id ? <span className="ve-handle-tab" draggable onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragEnd={() => { setDrag(null); setOver(null); }} title="Drag to move" aria-label="Drag to move"><GripVertical size={12} strokeWidth={2} aria-hidden />{KINDS.find(([k]) => k === b.kind)?.[1]}</span> : <span className="ve-hint">Click to edit</span>}
                     {b.hidden ? <p className="ve-hidden">Hidden from the client · <button onClick={() => editBlock(b.id, { hidden: false })}>Show</button></p> : null}
@@ -892,9 +913,10 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {ch ? <AddBar onReview={() => setReviewOpen((o) => !o)} reviewOpen={reviewOpen} reviewCount={reviewCount} ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={() => { const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length; setPicker({ at: at > 0 ? at : ch.blocks.length }); }} /> : null}
         {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
-        {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} onIcon={(block, item, replace) => setIconAt({ block, item, replace })} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
+        {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} onIcon={(block, item, replace) => setIconAt({ block, item, replace })} onMake={(block, target, aspect) => setMakeFor({ block, target, aspect })} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
         {stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
         {keysOpen ? <Shortcuts onClose={() => setKeysOpen(false)} /> : null}
+        {makeFor ? <MakeDialog onMake={make} onClose={() => setMakeFor(null)} aspect={makeFor.aspect} /> : null}
         {iconAt && g ? <IconPicker set={g.icons?.set || 'lucide'} onSet={(set) => { if (set !== (g.icons?.set || 'lucide') && set !== 'custom') commit({ ...(latest.current || g), icons: { set } }); }} onPick={putIcon} onClose={() => setIconAt(null)} /> : null}
         {g ? <CreativeDirector projectId={projectId} guide={g} chapterId={chId} initial={(content.reviewSession as ReviewSession | undefined) || null} goTo={reviewGoTo} apply={reviewApply} focusOn={reviewFocus()} open={reviewOpen} setOpen={setReviewOpen} onCount={setReviewCount} /> : null}
         <style dangerouslySetInnerHTML={{ __html: systemCss(sys) }} />

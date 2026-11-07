@@ -63,7 +63,7 @@ export function Toolbar({ sel, setSel, ch, setBlocks, editBlock, onReset, onDele
   const dup = () => { const l = [...ch.blocks]; const copy = { ...b, id: 'b-' + Math.random().toString(36).slice(2, 10), source: undefined, edited: true }; l.splice(idx + 1, 0, copy); setBlocks(l); setSel({ block: copy.id }); };
   const kindLabel = NAME(b.kind);
   const inner = !!sel.el || i !== undefined || !!sel.gap;
-  const ctx = sel.gap ? 'Spacing' : elKind === 'spacer' ? 'Spacer' : elKind === 'frame' ? 'Frame' : elKind === 'icon' ? 'Icon' : isImg ? 'Image' : sel.el ? (FIELD[field] || (sel.el.startsWith('x-') ? 'Text' : 'Text')) : `Frame ${i! + 1}`;
+  const ctx = sel.el === 'items' ? (b.kind === 'grid' ? 'Grid' : b.kind === 'carousel' ? 'Carousel' : 'Auto layout') : sel.gap ? 'Spacing' : elKind === 'spacer' ? 'Spacer' : elKind === 'frame' ? 'Frame' : elKind === 'icon' ? 'Icon' : isImg ? 'Image' : sel.el ? (FIELD[field] || (sel.el.startsWith('x-') ? 'Text' : 'Text')) : `Frame ${i! + 1}`;
 
   return (
     <div className="tb" role="toolbar" aria-label="Editing tools" onMouseDown={keep}>
@@ -73,7 +73,7 @@ export function Toolbar({ sel, setSel, ch, setBlocks, editBlock, onReset, onDele
           {onLayout ? <button type="button" className="tb-menu-item" onClick={() => { setPop(null); onLayout(b); }}>Choose a layout…</button> : null}
           {KINDS.map(([k, l]) => <button type="button" key={k} role="menuitemradio" aria-checked={b.kind === k} className={'tb-menu-item' + (b.kind === k ? ' on' : '')} onClick={() => { editBlock(b.id, convert(b, k as BlockKind)); setPop(null); }}><KindIcon k={k} />{k === 'columns' ? 'Auto layout' : l}</button>)}
         </Pop>
-        {inner ? <><ChevronRight size={14} strokeWidth={1.75} aria-hidden />{sel.el && i !== undefined ? <><button type="button" className="tb-crumb" onClick={() => setSel({ block: b.id, item: i })} data-tip="Select the frame ⇧Enter">Frame {i + 1}</button><ChevronRight size={14} strokeWidth={1.75} aria-hidden /></> : null}<span className="tb-crumb on">{ctx}</span></> : null}
+        {inner ? <><ChevronRight size={14} strokeWidth={1.75} aria-hidden />{i !== undefined && ['columns', 'grid', 'carousel'].includes(b.kind) ? <><button type="button" className="tb-crumb" onClick={() => setSel({ block: b.id, el: 'items' })} data-tip="Select the layout that holds the frames">{b.kind === 'grid' ? 'Grid' : b.kind === 'carousel' ? 'Carousel' : 'Auto layout'}</button><ChevronRight size={14} strokeWidth={1.75} aria-hidden /></> : null}{sel.el && i !== undefined ? <><button type="button" className="tb-crumb" onClick={() => setSel({ block: b.id, item: i })} data-tip="Select the frame ⇧Enter">Frame {i + 1}</button><ChevronRight size={14} strokeWidth={1.75} aria-hidden /></> : null}<span className="tb-crumb on">{ctx}</span></> : null}
       </span>
       <div className="tb-grp tb-end" aria-label="Section">
         {tools}

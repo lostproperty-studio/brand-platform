@@ -2294,3 +2294,16 @@ body.ve-sizing, body.ve-sizing * { user-select: none; }
 .ip-ic img { width: 22px; height: 22px; }
 .ip-note { grid-column: 1 / -1; color: var(--mute); margin: 16px 0; text-align: center; }
 .dp-addrow { flex-wrap: wrap; } .dp-addrow button { flex: none; }
+.mk { width: min(480px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; }
+.mk-kind { align-self: flex-start; }
+.mk-ta { min-height: 96px; }
+.mk-busy { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mute); }
+.adm-krea { display: flex; flex-direction: column; gap: 10px; } .adm-ok { display: flex; align-items: center; gap: 6px; margin: 0; color: #2e6b3a; }
+/* The layout that holds the frames, selectable on its own */
+.ve-block[data-sel="items"] [data-part="items"] > :is(.gb-columns, .gb-grid), .ve-block[data-sel="items"] :is(.gc-wrap, .gc-track) { outline: 2px solid #0d99ff; outline-offset: 6px; }
+.ve-block[data-sel="frame"] [data-part="items"] > :is(.gb-columns, .gb-grid) { outline: 1px dashed rgba(13, 153, 255, .5); outline-offset: 6px; }
+.ve-block:not([data-sel]) .gb-columns:hover, .ve-block[data-sel="section"] .gb-columns:hover, .ve-block[data-sel="section"] .gb-grid:hover { outline: 1px solid rgba(13, 153, 255, .45); outline-offset: 6px; }
+/* The + between frames: only the circle is a button, so the gap itself selects the layout */
+.ve-ins { pointer-events: none; }
+.ve-ins > span { pointer-events: auto; }
+.ve-block.sel .ve-ins:hover, .ve-block .ve-ins:has(> span:hover) { opacity: 1; }

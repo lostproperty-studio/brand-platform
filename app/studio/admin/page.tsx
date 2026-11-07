@@ -1,11 +1,12 @@
 import Link from 'next/link';
-import { ArrowLeft, Globe, Mail, Users } from 'lucide-react';
+import { Sparkles, ArrowLeft, Globe, Mail, Users } from 'lucide-react';
 import { adminClient } from '@/lib/supabase/server';
 import { AdminEmail } from '@/components/AdminEmail';
 import { requireAdmin, listStaff } from '@/lib/admin';
 import { env } from '@/lib/env';
 import { AdminTeam } from '@/components/AdminTeam';
 import { AdminDomain } from '@/components/AdminDomain';
+import { AdminKrea } from '@/components/AdminKrea';
 
 // Admin settings for the studio: who's on the platform, and its domain
 export default async function Admin() {
@@ -28,6 +29,10 @@ export default async function Admin() {
         <section className="ov-card" aria-labelledby="adm-domain">
           <h2 id="adm-domain" className="ov-h"><Globe size={16} strokeWidth={1.75} aria-hidden />Domain</h2>
           <AdminDomain appHost={new URL(env.appUrl()).host} />
+        </section>
+        <section className="ov-card" aria-labelledby="adm-krea">
+          <h2 id="adm-krea" className="ov-h"><Sparkles size={16} strokeWidth={1.75} aria-hidden />Krea</h2>
+          <AdminKrea />
         </section>
         <section className="ov-card" aria-labelledby="adm-email">
           <h2 id="adm-email" className="ov-h"><Mail size={16} strokeWidth={1.75} aria-hidden />Emails</h2>
