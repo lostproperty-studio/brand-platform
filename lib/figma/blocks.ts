@@ -19,9 +19,11 @@ export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swat
 /** How a group of text or content is held: free-standing, or in a container (corner marks as in the brand's own layouts, a fine outline, or a light fill). */
 export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';
 /** One item in a columns or grid section: a small label, a headline, body text and/or an image. Grid items span columns and rows. */
-export type TextCase = 'upper' | 'lower' | 'sentence' | 'title';
+export type TextCase = 'upper' | 'lower' | 'sentence' | 'title' | 'smallcaps';
 /** Text styling set in the editor. font is a typeface role on the project; tracking is in em (-0.02 = -2%); leading is a line-height multiple. */
-export type TextStyle = { /** One of the guide's text styles (h1–h6, body, caption) instead of the default for this text */ ts?: import('@/lib/guideSystem').TypeId; size?: number; weight?: number; color?: string; font?: string; tracking?: number; leading?: number; case?: TextCase };
+export type TextStyle = { /** One of the guide's text styles (h1–h6, body, caption) instead of the default for this text */ ts?: import('@/lib/guideSystem').TypeId; size?: number; weight?: number; color?: string; font?: string; tracking?: number; leading?: number; case?: TextCase;
+  /** Figma's text settings: alignment, decoration, lists, paragraph spacing (px), truncation, wrapping, fill opacity and layer opacity (0–100) */
+  align?: 'left' | 'center' | 'right' | 'justify'; decoration?: 'underline' | 'strike'; list?: 'bullet' | 'number'; paraGap?: number; truncate?: boolean; wrap?: 'balance' | 'pretty'; alpha?: number; opacity?: number };
 /** One element inside a box, in order: a small label, a headline, text or an image */
 export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer'; text?: string; media?: BlockMedia; /** spacer height in pixels */ size?: number };
 export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number;

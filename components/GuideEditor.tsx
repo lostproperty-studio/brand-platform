@@ -658,7 +658,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           <button className="btn ic" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); setSel(null); }}><Plus size={15} strokeWidth={1.75} aria-hidden />Chapter</button>
         </nav>
 
-        {chId === HOME && home ? <HomeEditor projectId={projectId} home={home} colours={colours} sys={sys} openStyles={(focus) => setStylesOpen({ focus })} chapters={g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => c.title)} />
+        {chId === HOME && home ? <HomeEditor projectId={projectId} home={home} colours={colours} fonts={toolbarFonts(fonts)} sys={sys} openStyles={(focus) => setStylesOpen({ focus })} chapters={g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => c.title)} />
           : null}
         {chId === HOME && home && stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
         {ch ? <div className="ve-main">
@@ -729,7 +729,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={() => { const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length; setPicker({ at: at > 0 ? at : ch.blocks.length }); }} /> : null}
         {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
-        {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} /> : null}
+        {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
         {stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
         {keysOpen ? <Shortcuts onClose={() => setKeysOpen(false)} /> : null}
         <style dangerouslySetInnerHTML={{ __html: systemCss(sys) }} />
@@ -801,7 +801,7 @@ function FontDialog({ projectId, fonts, onClose, onDone }: { projectId: string; 
 const HOME = '__home';
 /** The portal's home page as the first item in the guidelines: the brand's line and the welcome, edited in place */
 type HomeData = { client: string; line: string; intro: string; fallback: string; version?: string; title?: string; styles?: Record<string, TextStyle> };
-function HomeEditor({ projectId, home, chapters, colours, sys, openStyles }: { projectId: string; home: HomeData; chapters: string[]; colours: { name: string; hex: string }[]; sys: GuideSystem; openStyles: (focus?: TypeId) => void }) {
+function HomeEditor({ projectId, home, chapters, colours, fonts, sys, openStyles }: { projectId: string; home: HomeData; chapters: string[]; colours: { name: string; hex: string }[]; fonts: ToolbarFont[]; sys: GuideSystem; openStyles: (focus?: TypeId) => void }) {
   const [msg, setMsg] = useState('');
   const [sel, setSel] = useState<Sel | null>(null);
   const [styles, setStyles] = useState<Record<string, TextStyle>>(home.styles || {});
@@ -830,7 +830,7 @@ function HomeEditor({ projectId, home, chapters, colours, sys, openStyles }: { p
       </div>
     </article></div>
   </div>
-  {sel ? <Inspector sel={sel} setSel={setSel} ch={fake} colours={colours} editBlock={() => {}} pickImage={() => {}} sys={sys} setSys={() => {}} openStyles={openStyles} setChStyle={(f, st) => setStyle(f, st)} onDelete={() => {}} />
+  {sel ? <Inspector sel={sel} setSel={setSel} ch={fake} colours={colours} editBlock={() => {}} pickImage={() => {}} sys={sys} setSys={() => {}} openStyles={openStyles} setChStyle={(f, st) => setStyle(f, st)} onDelete={() => {}} fonts={fonts} />
     : <aside className="dp" aria-label="About the home page"><div className="dp-sec"><p className="dp-h"><House size={15} strokeWidth={1.75} aria-hidden />Home page</p><p className="dp-tip" style={{ padding: 0 }}>The first page clients see. Click the title or the welcome to edit them. Leave the welcome empty to use the standard one. Changes here show straight away, without publishing.</p><p className="dp-tip" style={{ padding: 0 }}>The showcase reel runs above it, and the chapters and recently used apps follow below.</p></div></aside>}
   </>;
 }

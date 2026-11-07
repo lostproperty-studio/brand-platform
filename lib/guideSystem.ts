@@ -110,7 +110,7 @@ const WHERE: Record<TypeId, string[]> = {
   h1: ['.pt-chhead .pt-display', '.gb-h.xl', '.gb-div-h', '.gb-stmt-h', '.gb-cover .gb-h'],
   h2: ['.gb-h'], h3: ['.gc-h', '.gb-xh'], h4: ['.gi-h'],
   h5: ['.pt-chhead .pt-lede', '.gb-body.lg', '.gb-stmt-sub'], h6: ['.gi-label'],
-  body: ['.gb-body', '.gi-body p', '.gc-body'], caption: ['.gb-eb', '.gc-label', '.gb-cap', '.gb-div-n', '.gb-fig figcaption']
+  body: ['.gb-body', '.gi-body', '.gc-body'], caption: ['.gb-eb', '.gc-label', '.gb-cap', '.gb-div-n', '.gb-fig figcaption']
 };
 
 /** The CSS for the system, scoped to an element with class gsys (the chapter page, and the editor's page) */
@@ -121,6 +121,8 @@ export function systemCss(sys: GuideSystem): string {
   return [
     `.gsys { ${vars} }`,
     `${S} .pt-blocks:not(.ve-blocks) { gap: var(--sp-section); }`,
+    // Paragraphs take the text's settings from the text block they're in
+    `${S} :is(.gb-body, .gi-body, .gc-body, .pt-lede) p { font: inherit; letter-spacing: inherit; text-transform: inherit; }`,
     ...TYPE_IDS.map((id) => `${WHERE[id].map((w) => `${S} ${w}`).join(', ')} { ${decl(sys.type[id])} }`),
     // A sentence-case style: lowercase with the first letter up
     ...TYPE_IDS.filter((id) => sys.type[id].case === 'sentence').map((id) => `${WHERE[id].map((w) => `${S} ${w}::first-letter`).join(', ')} { text-transform: uppercase; }`),

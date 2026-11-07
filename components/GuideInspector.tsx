@@ -2,8 +2,9 @@
 import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
 import type { BlockItem, BoxAlign, BoxStyle, TextStyle } from '@/lib/figma/blocks';
 import { KINDS, KindIcon, convert } from '@/components/GuideEditor';
-import { CHAPTER, type Sel } from '@/components/GuideDock';
-import { SpaceCtl, TypePick } from '@/components/GuideStyles';
+import { CHAPTER, type Sel, type ToolbarFont } from '@/components/GuideDock';
+import { TypePanel } from '@/components/TypePanel';
+import { SpaceCtl } from '@/components/GuideStyles';
 import type { GuideSystem, SpaceRule, TypeId } from '@/lib/guideSystem';
 import {
   AlignEndHorizontal, AlignCenterHorizontal, AlignStartHorizontal, ArrowLeft, ArrowRight, Captions, Copy, GalleryHorizontal, ImageOff, ImagePlus,
@@ -83,27 +84,26 @@ export type InspectorProps = {
   editBlock: (id: string, p: Partial<Block>, key?: string) => void; pickImage: (block: string, target: number | 'new' | string) => void;
   sys: GuideSystem; setSys: (s: GuideSystem, key?: string) => void; openStyles: (focus?: TypeId) => void;
   setChStyle?: (field: string, s: TextStyle, key?: string) => void; onFill?: () => void; filling?: boolean; onDelete: () => void;
+  fonts?: ToolbarFont[]; onAddFont?: (then: (role: string) => void) => void;
 };
 
 // The design panel on the right, like Figma's: it shows what you can change about what's selected, and only that.
 // Text: its style, colour and the space above it. A frame: its size, padding, gap and alignment. An auto layout:
 // direction, gap, padding, frame style and fill. Everything visual is here; the top bar is for history and order.
-export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pickImage, sys, setSys, openStyles, setChStyle, onFill, filling, onDelete }: InspectorProps) {
+export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pickImage, sys, setSys, openStyles, setChStyle, onFill, filling, onDelete, fonts, onAddFont }: InspectorProps) {
   const palette = [...new Map([...colours, { name: 'Black', hex: '#000000' }, { name: 'White', hex: '#FFFFFF' }].map((c) => [c.hex.toUpperCase(), c])).values()].slice(0, 16);
   const setRule = (rule: SpaceRule, px: number) => setSys({ ...sys, edited: true, space: { ...sys.space, [rule]: px } }, 'sp:' + rule);
   const keep = (e: React.MouseEvent) => { const t = e.target as HTMLElement; if (!t.closest('input, select')) e.preventDefault(); };
   const clean = (o: TextStyle) => { (Object.keys(o) as (keyof TextStyle)[]).forEach((k) => o[k] === undefined && delete o[k]); return o; };
 
-  /** Text: its style from the guide's set, its colour, and a way back from older one-off sizes */
-  const typeSec = (style: TextStyle, auto: TypeId, setStyle: (p: Partial<TextStyle>, key?: string) => void, del?: () => void) => {
-    const custom = style.size || style.weight || style.font || style.tracking !== undefined || style.leading || style.case;
-    return <Sec title="Text" icon={<Type {...I} />} extra={onFill ? <button type="button" className={'dp-ai' + (filling ? ' busy' : '')} onClick={onFill} disabled={filling} data-tip="Fill with AI: a first draft from what’s around it" aria-label="Fill with AI">{filling ? <Loader2 {...I} className="spin" /> : <Sparkles {...I} />}{filling ? 'Writing…' : 'AI'}</button> : null}>
-      <div className="dp-full" title="One of the guide’s text styles. Edit a style and every text using it changes."><TypePick sys={sys} value={style.ts} auto={auto} set={(ts) => setStyle({ ts })} onEdit={openStyles} /></div>
-      <Row label="Colour"><Chips palette={palette} value={style.color} set={(color) => setStyle({ color })} none="Auto" /></Row>
-      {custom ? <p className="dp-note">This text has its own size or weight from before the styles. <button type="button" className="dp-link" onClick={() => setStyle({ size: undefined, weight: undefined, font: undefined, tracking: undefined, leading: undefined, case: undefined })}>Use the style</button></p> : null}
-      {del ? <div className="dp-foot"><button type="button" className="dp-act danger" onClick={del}><Trash2 {...I} />Delete text <kbd>⌫</kbd></button></div> : null}
-    </Sec>;
-  };
+  /** Text: Figma's typography, fill and appearance, starting from one of the guide's styles */
+  const typeSec = (style: TextStyle, auto: TypeId, setStyle: (p: Partial<TextStyle>, key?: string) => void, del?: () => void, valign?: Parameters<typeof TypePanel>[0]['valign']) => <>
+    <TypePanel style={style} setStyle={setStyle} sys={sys} auto={auto} fonts={fonts || []} onAddFont={onAddFont} palette={palette} openStyles={openStyles} valign={valign} />
+    {onFill || del ? <section className="dp-sec"><div className="dp-foot">
+      {onFill ? <button type="button" className={'dp-act' + (filling ? ' busy' : '')} onClick={onFill} disabled={filling} data-tip="A first draft from what’s around it">{filling ? <Loader2 {...I} className="spin" /> : <Sparkles {...I} />}{filling ? 'Writing…' : 'Write with AI'}</button> : null}
+      {del ? <button type="button" className="dp-act danger" onClick={del}><Trash2 {...I} />Delete <kbd>⌫</kbd></button> : null}
+    </div></section> : null}
+  </>;
 
   // The chapter's label, title and introduction
   if (sel?.block === CHAPTER && sel.el && setChStyle) {
@@ -164,7 +164,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
     const style: TextStyle = b.styles?.[el] || {};
     const setStyle = (p: Partial<TextStyle>, key?: string) => set({ styles: { ...(b.styles || {}), [el]: clean({ ...style, ...p }) } }, key && `${el}:${key}`);
     return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>
-      {typeSec(style, autoType(b, el, it), setStyle, onDelete)}
+      {typeSec(style, autoType(b, el, it), setStyle, onDelete, it ? { value: (it.align || b.boxAlign)?.y, set: (y) => setItem({ align: { ...(it.align || b.boxAlign || {}), y } }) } : undefined)}
       {it ? frameSec(false) : spaceAbove(partOf(el))}
     </aside>;
   }
