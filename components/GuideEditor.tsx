@@ -200,7 +200,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     return b;
   };
   // ---------- placing with the adding bar: pick a tool, the cursor becomes a cross, click where it goes
-  type Spot = { mode: 'line' | 'box'; block?: string; item?: number; index?: number; label: string; line: { top: number; left: number; width: number; height: number } };
+  type Spot = { mode: 'line' | 'box'; block?: string; item?: number; index?: number; part?: number; parts?: string[]; label: string; line: { top: number; left: number; width: number; height: number } };
   const [picker, setPicker] = useState<{ at: number } | { convert: string } | null>(null);
   const [tool, setTool] = useState<AddWhat | null>(null);
   const [spot, setSpot] = useState<Spot | null>(null);
@@ -217,6 +217,18 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       const index = els.filter((x) => { const q = x.getBoundingClientRect(); return q.top + q.height / 2 < e.clientY; }).length;
       const y = !els.length ? r.top + r.height / 2 : index === 0 ? els[0].getBoundingClientRect().top - 6 : els[index - 1].getBoundingClientRect().bottom + 6;
       return { mode: 'line', block: blockEl.dataset.block, item: Number(box.dataset.item), index, label: `${WHAT[tool]} here`, line: { top: y - 1, left: r.left + 16, width: r.width - 32, height: 2 } };
+    }
+    // Text anywhere in a section (not inside a box): it lands between the section's parts, on its grid
+    if (!box && blockEl && (tool === 'text' || tool === 'headline' || tool === 'label')) {
+      const parts = [...blockEl.querySelectorAll('[data-part]')].filter((x) => x.closest('[data-block]') === blockEl) as HTMLElement[];
+      if (parts.length) {
+        const index = parts.filter((x) => { const q = x.getBoundingClientRect(); return q.top + q.height / 2 < e.clientY; }).length;
+        const r0 = parts[0].parentElement!.getBoundingClientRect();
+        const y = index === 0 ? parts[0].getBoundingClientRect().top - 8 : index >= parts.length ? parts[parts.length - 1].getBoundingClientRect().bottom + 8 : (parts[index - 1].getBoundingClientRect().bottom + parts[index].getBoundingClientRect().top) / 2;
+        const after = index > 0 ? parts[index - 1].dataset.part : undefined;
+        const name = (p?: string) => (p === 'head' ? 'the headline' : p === 'body' ? 'the introduction' : p === 'items' ? 'the boxes' : p === 'media' ? 'the images' : 'this text');
+        return { mode: 'line', block: blockEl.dataset.block, part: index, parts: parts.map((x) => x.dataset.part!), label: `${WHAT[tool]} ${index === 0 ? 'at the top' : `under ${name(after)}`}`, line: { top: y - 1, left: r0.left, width: r0.width, height: 2 } };
+      }
     }
     if (box && blockEl && tool === 'box') { const r = box.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, item: Number(box.dataset.item), label: 'New box after this one', line: { top: r.top, left: r.right + 4, width: 3, height: r.height } }; }
     if (blockEl) { const r = blockEl.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, label: `${WHAT[tool]} → ${addTarget(tool, ch, { block: blockEl.dataset.block! })}`, line: { top: r.top - 6, left: r.left - 6, width: r.width + 12, height: r.height + 12 } }; }
@@ -327,6 +339,12 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (!what || !ch) return;
     if (!sp?.block) { setSel(null); add(what, null); return; }
     const b = ch.blocks.find((x) => x.id === sp.block); if (!b) return;
+    if (sp.part !== undefined && sp.parts && (what === 'text' || what === 'headline' || what === 'label')) {
+      const id = uid(); const kind = what === 'headline' ? 'heading' : what;
+      const order = [...sp.parts]; order.splice(sp.part, 0, 'x-' + id);
+      editBlock(b.id, { extras: [...(b.extras || []), { id, kind, text: kind === 'heading' ? 'Headline' : kind === 'label' ? 'Label' : 'Write something…' }], order });
+      setSel({ block: b.id, el: 'x-' + id }); focusNext.current = true; return;
+    }
     if (sp.item === undefined) { add(what, { block: b.id }); return; }
     if (what === 'box') { add('box', { block: b.id, item: sp.item }); return; }
     // Into the box, at the point clicked. Its fixed fields become a free list of elements the first time.
@@ -391,6 +409,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (!ch || !sel || sel.block === CHAPTER) return;
     const b = ch.blocks.find((x) => x.id === sel.block); if (!b) return;
     const items = b.items || [];
+    if (sel.el?.startsWith('x-')) { const id = sel.el.slice(2); editBlock(b.id, { extras: (b.extras || []).filter((x) => x.id !== id), order: (b.order || []).filter((p) => p !== sel.el) }); setSel({ block: b.id }); return; }
+    if (sel.gap) { const { [sel.gap]: _g, ...rest } = b.gapBefore || {}; void _g; editBlock(b.id, { gapBefore: rest }); setSel({ block: b.id }); return; }
     if (sel.el?.startsWith('img:')) { const k = Number(sel.el.slice(4)); editBlock(b.id, { media: (b.media || []).filter((_, n) => n !== k) }); setSel({ block: b.id }); return; }
     if (sel.el?.startsWith('itemimg:')) { editBlock(b.id, { items: items.map((x, n) => (n === sel.item ? { ...x, media: undefined } : x)) }); setSel({ block: b.id, item: sel.item }); return; }
     if (sel.el && sel.item !== undefined) {
@@ -500,8 +520,21 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     itemElText: (i, e, el) => <Editable key={e.id} value={e.text} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === el.key} onFocus={() => setSel({ block: b.id, el: el.key, item: i })} onSave={(v) => editBlock(b.id, { items: (b.items || []).map((x, n) => (n === i ? { ...x, els: (x.els || []).map((y) => (y.id === e.id ? { ...y, text: v || undefined } : y)) } : x)) })} />,
     itemElImage: (i, e, img) => { const key = `${(b.items || [])[i]?.id}.${e.id}`; return img ? <span className={'ve-img' + (sel?.block === b.id && sel.el === key ? ' on' : '')} onMouseDown={(ev) => { ev.stopPropagation(); setSel({ block: b.id, el: key, item: i }); }}>{img}</span> : <button className={'ve-add ve-elimg' + (sel?.block === b.id && sel.el === key ? ' on' : '')} onMouseDown={(ev) => { ev.stopPropagation(); setSel({ block: b.id, el: key, item: i }); }} onClick={() => pickImage(b.id, `itemel:${i}:${e.id}`)}><ImageIcon size={16} strokeWidth={1.75} aria-hidden />Choose an image</button>; },
     itemImage: (i, m, pic) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `itemimg:${i}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `itemimg:${i}`, item: i }); }}>{pic}</span>,
+    insertItem: (at, edge) => <button key={'ins-' + edge} type="button" className={'ve-ins ' + edge} aria-label={edge === 'after' ? 'Add a box at the end' : `Add a box before box ${at + 1}`} data-tip="Add a box" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const items = [...(b.items || [])]; const nb = items[at] || items[at - 1]; items.splice(at, 0, { id: iid(), label: nb?.label !== undefined ? 'Label' : undefined, heading: nb?.heading ? 'A headline' : undefined, body: nb?.body || !nb ? 'Text' : undefined, w: 1 }); editBlock(b.id, { items, ...(b.flow?.dir !== 'col' ? { cols: Math.min(6, items.length) } : {}) }); setSel({ block: b.id, item: at }); }}><span><Plus size={12} strokeWidth={2} aria-hidden /></span></button>,
     addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => { editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: b.kind === 'carousel' ? String((b.items || []).length + 1).padStart(2, '0') : 'Label', ...(b.kind === 'carousel' ? { heading: 'A headline for this card' } : { body: 'Text' }), w: b.kind === 'grid' ? 2 : 1, h: 2 }] }); setSel({ block: b.id, item: (b.items || []).length }); }}><Plus size={15} strokeWidth={1.75} aria-hidden />{b.kind === 'carousel' ? 'Card' : 'Box'}</button> : null,
     // The selected box: an outline and handles to drag its width (and height, in a grid) across the columns
+    extraText: (x, el) => <Editable key={el.key} value={x.text} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === `x-${x.id}`} onFocus={() => setSel({ block: b.id, el: `x-${x.id}` })} onSave={(v) => editBlock(b.id, v ? { extras: (b.extras || []).map((y) => (y.id === x.id ? { ...y, text: v } : y)) } : { extras: (b.extras || []).filter((y) => y.id !== x.id), order: (b.order || []).filter((p) => p !== `x-${x.id}`) })} />,
+    gap: (part, value) => { const on = sel?.block === b.id && sel.gap === part; const v = value ?? 20; const setV = (n: number) => editBlock(b.id, { gapBefore: { ...(b.gapBefore || {}), [part]: Math.max(0, Math.min(240, Math.round(n))) } }, 'gap-' + part);
+      return <div key={'gap-' + part} className={'ve-pgap' + (on ? ' on' : '')} style={{ ['--g' as string]: `${value ?? 'var(--part-gap, 20px)'}${value !== undefined ? 'px' : ''}` }} onMouseDown={(e) => { e.stopPropagation(); if (!on) setSel({ block: b.id, gap: part }); }} title="Space between these: click to adjust">
+        <span className="ve-pgap-v">{value ?? 'Auto'}</span>
+        {on ? <span className="ve-pgap-pop" onMouseDown={(e) => e.stopPropagation()} role="group" aria-label="Space between">
+          <button type="button" onClick={() => setV(v - 4)} aria-label="Less space">−</button>
+          <input type="range" min={0} max={160} step={2} value={v} onChange={(e) => setV(Number(e.target.value))} aria-label="Space in pixels" />
+          <input className="ve-pgap-n" type="number" min={0} max={240} value={v} onChange={(e) => setV(Number(e.target.value) || 0)} aria-label="Space in pixels" />
+          <button type="button" onClick={() => setV(v + 4)} aria-label="More space">+</button>
+          {value !== undefined ? <button type="button" className="ve-pgap-r" onClick={() => { const { [part]: _x, ...rest } = b.gapBefore || {}; void _x; editBlock(b.id, { gapBefore: rest }); }}>Reset</button> : null}
+        </span> : null}
+      </div>; },
     partGrip: (part) => <span className="ve-grip-el ve-grip-part" onPointerDown={(e) => startMove(e, 'part', b.id, -1, part)} title="Drag to move" aria-hidden><GripVertical size={14} strokeWidth={2} /></span>,
     grip: (i, elId) => ['columns', 'grid', 'carousel'].includes(b.kind) ? <span className="ve-grip-el" onPointerDown={(e) => startMove(e, 'el', b.id, i, elId)} title="Drag to move" aria-hidden><GripVertical size={14} strokeWidth={2} /></span> : null,
     itemBar: (i) => sel?.block === b.id && sel.item === i ? <>
@@ -583,7 +616,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           {g.chapters.filter((c) => !c.removed).map((c, i) => <div key={c.id} draggable onDragStart={() => setDrag({ kind: 'chapter', id: c.id })} onDragOver={(e) => { if (drag?.kind === 'chapter') { e.preventDefault(); setOver(c.id); } }} onDrop={() => { if (drag?.kind === 'chapter') moveChapter(drag.id, c.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }}
             className={'ve-ch' + (c.id === chId ? ' on' : '') + (c.hidden ? ' off' : '') + (over === c.id && drag?.kind === 'chapter' ? ' over' : '')}>
             <span className="ve-grip" aria-hidden><GripVertical size={14} strokeWidth={1.75} /></span>
-            <button onClick={() => { setChId(c.id); setSel(null); }}><span className="pt-n">{String(i + 1).padStart(2, '0')}</span>{c.title}{chDrafts(c) ? <span className="ve-dcount" title="Drafts and missing items to check">{chDrafts(c)}</span> : null}</button>
+            <button onClick={() => { setChId(c.id); setSel(null); }}><span className="pt-n">{String(i + 1).padStart(2, '0')}</span><span className="ve-ch-t" title={c.title}>{c.title}</span>{chDrafts(c) ? <span className="ve-dcount" title="Drafts and missing items to check">{chDrafts(c)}</span> : null}</button>
             <button className={'ve-eye' + (c.hidden ? ' on' : '')} onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, hidden: !x.hidden } : x)))} aria-label={c.hidden ? `Show ${c.title} to the client` : `Hide ${c.title} from the client`} data-tip={c.hidden ? 'Hidden. Show it' : 'Hide from the client'}>{c.hidden ? <EyeOff size={14} strokeWidth={1.75} aria-hidden /> : <Eye size={14} strokeWidth={1.75} aria-hidden />}</button>
             <button className="ve-eye ve-del" onClick={() => deleteChapter(c)} aria-label={`Delete ${c.title}`} data-tip="Delete chapter"><Trash2 size={14} strokeWidth={1.75} aria-hidden /></button>
           </div>).flatMap((row, i) => { const c = g.chapters.filter((x) => !x.removed)[i];

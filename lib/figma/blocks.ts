@@ -12,7 +12,9 @@ export type FNode = {
 
 /** The layout a section was made with, chosen like a slide layout (the editor's name for it; the kind and its
  *  settings are what render) */
-export type SectionLayout = 'cols2' | 'cols3' | 'cols4' | 'carousel' | 'bento' | 'image' | 'split';
+export type SectionLayout = 'cols2' | 'cols3' | 'cols4' | 'carousel' | 'bento' | 'image' | 'split' | 'statement';
+/** Text added anywhere in a section (not inside a box): a label, a headline or a paragraph, placed among its parts */
+export type SectionText = { id: string; kind: 'label' | 'heading' | 'text'; text: string };
 export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swatches' | 'columns' | 'grid' | 'statement' | 'image' | 'carousel' | 'spacer';
 /** How a group of text or content is held: free-standing, or in a container (corner marks as in the brand's own layouts, a fine outline, or a light fill). */
 export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';
@@ -53,7 +55,7 @@ export type Block = {
   items?: BlockItem[]; box?: BoxStyle;
   /** Columns as an auto-layout stack, like Figma: wrap onto new rows or keep one row; items share the width equally or
    *  fill the space left; boxes match the tallest (fill) or fit their content (hug); gap and vertical alignment. */
-  flow?: { wrap?: boolean; width?: 'equal' | 'fill'; height?: 'fill' | 'hug'; gap?: 's' | 'm' | 'l'; align?: 'start' | 'center' | 'end' };
+  flow?: { dir?: 'row' | 'col'; wrap?: boolean; width?: 'equal' | 'fill'; height?: 'fill' | 'hug'; gap?: 's' | 'm' | 'l'; align?: 'start' | 'center' | 'end' };
   /** Grid: number of columns (default 6) and row height */
   gridCols?: number; rowH?: 's' | 'm' | 'l'; gap?: 's' | 'm' | 'l';
   /** Exact spacing in pixels, set in the design panel: between columns, between rows, and inside each box */
@@ -67,6 +69,14 @@ export type Block = {
   /** Carousel: cards of hero text (from items) or images to click through (from media) */
   variant?: 'cards' | 'images';
   layout?: SectionLayout;
+  /** Text placed freely in the section, among its parts (ordered with them in `order` as 'x-<id>') */
+  extras?: SectionText[];
+  /** Space before a part, in pixels (part key: 'body', 'items', 'media', 'x-<id>'); the default is 20 */
+  gapBefore?: Record<string, number>;
+  /** A locked shape for the section, like a slide ('16:9'); statements and covers */
+  ratio?: '16:9' | '21:9' | '3:2' | '4:3' | '1:1';
+  /** Runs edge to edge in the portal */
+  full?: boolean;
   /** Per-text styling set in the editor, keyed by field ('heading', 'body', 'eyebrow') or '<itemId>.<field>' */
   styles?: Record<string, TextStyle>;
   /** Text the studio deleted, so it doesn't come back as an empty placeholder */

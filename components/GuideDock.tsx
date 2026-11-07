@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 /** What's selected in the editor: a section, and optionally a piece of text, an item or an image inside it. */
-export type Sel = { block: string; el?: string; item?: number };
+export type Sel = { block: string; el?: string; item?: number; /** The space before a part of the section */ gap?: string };
 /** The chapter's own label, title and introduction are selected as this block id */
 export const CHAPTER = '__chapter';
 /** Typefaces with files uploaded to the project, and the weights uploaded for each */

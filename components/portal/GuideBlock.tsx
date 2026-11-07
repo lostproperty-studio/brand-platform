@@ -1,4 +1,4 @@
-import type { Block, BlockItem, BlockMedia, BlockSwatch, ItemEl } from '@/lib/figma/blocks';
+import type { Block, BlockItem, BlockMedia, BlockSwatch, ItemEl, SectionText } from '@/lib/figma/blocks';
 import { Swatch } from '@/components/portal/Swatch';
 import { textProps } from '@/lib/textStyle';
 import { Carousel } from '@/components/portal/Carousel';
@@ -27,11 +27,17 @@ export type EditKit = {
   itemImage?: (i: number, m: BlockMedia | undefined, img: React.ReactNode) => React.ReactNode;
   itemBar?: (i: number, it: BlockItem) => React.ReactNode;
   addItem?: () => React.ReactNode;
+  /** A small + in the gap before item i (or after the last), to add a box there */
+  insertItem?: (at: number, edge: 'before' | 'after') => React.ReactNode;
   /** Elements added freely inside a box */
   itemElText?: (i: number, e: ItemEl, el: El) => React.ReactNode;
   itemElImage?: (i: number, e: ItemEl, img: React.ReactNode) => React.ReactNode;
   /** A handle to move one of the section's parts (headline, text, images, boxes) */
   partGrip?: (part: string) => React.ReactNode;
+  /** Text placed freely in the section */
+  extraText?: (x: SectionText, el: El) => React.ReactNode;
+  /** The space before a part, to select and adjust */
+  gap?: (part: string, value: number | undefined) => React.ReactNode;
   /** A handle to pick an element up and move it */
   grip?: (i: number, elId: string) => React.ReactNode;
 };
@@ -46,7 +52,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const H = (headingLevel === 2 ? 'h2' : 'h3') as 'h2';
   // Panels only for covers and statements
   const panel = b.kind === 'cover' || b.kind === 'statement';
-  const back = b.kind === 'cover' && b.backdrop ? urls[b.backdrop.path] : undefined;
+  const back = (b.kind === 'cover' || b.kind === 'statement') && b.backdrop ? urls[b.backdrop.path] : undefined;
   const bg = panel && b.bg && /^#[0-9A-F]{6}$/i.test(b.bg) ? b.bg : undefined;
   const darkBack = !!back && (!b.ink || lum(b.ink) > 0.6);
   const ink = panel ? (b.ink && (!bg || Math.abs(lum(b.ink) - lum(bg)) > 0.3 || back) ? b.ink : bg ? textOn(bg) : undefined) : (b.ink && lum(b.ink) < 0.5 ? b.ink : undefined);
@@ -64,9 +70,15 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     return <div key={e.id} data-el={e.id} className={cls}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;
   }); };
   // The section's parts in the order set in the editor (or the layout's own order), each movable
+  // Text placed freely in the section joins its parts; the space before each part can be set
+  const XCLS: Record<SectionText['kind'], [El['tag'], string, string]> = { label: ['p', 'gb-eb', 'Label'], heading: ['p', 'gb-h gb-xh', 'Headline'], text: ['div', 'gb-body', 'Write something…'] };
+  const extraEl = (x: SectionText) => { const [tag, cls, ph] = XCLS[x.kind]; const tp = st(`x-${x.id}`); const el: El = { tag, className: cls + (tp.className ? ' ' + tp.className : ''), placeholder: ph, multiline: x.kind === 'text', style: tp.style, key: `x-${x.id}` }; return edit?.extraText ? edit.extraText(x, el) : !x.text ? null : el.multiline ? <Paras text={x.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{x.text}</p>; };
   const parts = (def: string[], map: Record<string, React.ReactNode>) => {
-    const saved = (b.order || []).filter((p) => def.includes(p));
-    return [...saved, ...def.filter((p) => !saved.includes(p))].map((p) => (map[p] ? <div key={p} data-part={p} className={'gb-part gb-part-' + p}>{edit?.partGrip ? edit.partGrip(p) : null}{map[p]}</div> : null));
+    const xs = (b.extras || []).map((x) => 'x-' + x.id);
+    const all = [...def, ...xs];
+    const saved = (b.order || []).filter((p) => all.includes(p));
+    const nodes = [...saved, ...all.filter((p) => !saved.includes(p))].map((p) => [p, p.startsWith('x-') ? extraEl(b.extras!.find((x) => 'x-' + x.id === p)!) : map[p]] as const).filter(([, n]) => n);
+    return nodes.map(([p, n], k) => { const g = k > 0 ? b.gapBefore?.[p] : undefined; return <div key={p} data-part={p} className={'gb-part gb-part-' + (p.startsWith('x-') ? 'x' : p)} style={g !== undefined ? { marginTop: `calc(${g}px - var(--part-gap, 20px))` } : undefined}>{k > 0 && edit?.gap ? edit.gap(p, g) : null}{edit?.partGrip ? edit.partGrip(p) : null}{n}</div>; });
   };
   // How content sits inside each box: the box's own setting, else the section's
   const alignCls = (it: BlockItem) => { const a = it.align || b.boxAlign; return a && (a.x || a.y) ? ` ga ga-x-${a.x || 'start'} ga-y-${a.y || 'start'}` : ''; };
@@ -103,9 +115,12 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
       {heading('gb-div-h')}
     </section>
   );
+  // A statement: a large headline and a line under it, on the page, a colour or an image; it can run edge to edge
+  // in a locked shape, like a slide
   if (b.kind === 'statement') return (
-    <section className={'gb gb-stmt' + (bg ? ' pad' : '') + ' ' + tone} style={bg ? style : ink ? { color: ink } : undefined}>
-      <div className="gb-in">{eyebrow()}{txt('heading', b.heading, 'p', 'gb-stmt-h', 'A statement')}{body()}</div>
+    <section className={'gb gb-stmt' + (bg || back ? ' pad' : '') + (back ? ' has-back' : '') + (darkBack ? ' on-dark' : '') + (b.full ? ' gb-bleed' : '') + (b.ratio ? ' gb-ratio' : '') + ' ' + tone} style={{ ...(bg || back ? style : ink ? { color: ink } : {}), ...(b.ratio ? { aspectRatio: b.ratio.replace(':', ' / ') } : {}) }}>
+      {backEl}
+      <div className="gb-in">{parts(['head', 'body'], { head: <>{eyebrow()}{txt('heading', b.heading, 'p', 'gb-stmt-h', 'A statement')}</>, body: edit || b.body ? body('gb-body gb-stmt-sub') : null })}</div>
     </section>
   );
   if (b.kind === 'swatches') return (
@@ -119,11 +134,13 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     const items = b.items || [];
     const f = b.flow || {};
     const cols = Math.max(1, Math.min(6, b.cols || items.length || 2)), gcols = b.gridCols || 6;
+    // Columns run one way: side by side, or stacked as rows. Older sections that wrapped more boxes than columns keep wrapping.
+    const flowCls = f.dir === 'col' ? 'col' : f.dir === 'row' || f.wrap === false || items.length <= cols ? 'row' : 'wrap';
     const itxt = (i: number, f: 'label' | 'heading' | 'body', v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const tp = st(key); const el = { ...el0, style: tp.style, className: tp.className ? `${el0.className} ${tp.className}` : el0.className, key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
     return (
       <section className={'gb gb-items ' + tone}>
         {parts(['head', 'body', 'items', 'media'], { head: edit || b.heading || b.eyebrow ? head : null, body: edit || b.body ? body('gb-body gb-intro') : null, media: media.length ? mediaEl : null, items: <>
-        <div className={'gb-' + b.kind + ' bx-' + (b.box || 'none') + (b.kind === 'columns' ? ` fl-${f.wrap === false ? 'row' : 'wrap'} fw-${f.width || 'equal'} fh-${f.height || 'fill'} ia-${f.align || 'start'}` : '')} style={{ ...(b.kind === 'columns' ? { ['--cols' as string]: String(cols), ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_COL[f.gap || 'm'] } : { ['--gcols' as string]: String(gcols), ['--row' as string]: ROW_H[b.rowH || 'm'], ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_GRID[b.gap || 'm'] }), ...(b.gapY !== undefined ? { ['--rgap' as string]: `${b.gapY}px` } : {}), ...(b.pad !== undefined ? { ['--pad' as string]: `${b.pad}px` } : {}) }}>
+        <div className={'gb-' + b.kind + ' bx-' + (b.box || 'none') + (b.kind === 'columns' ? ` fl-${flowCls} fw-${f.width || 'equal'} fh-${f.height || 'fill'} ia-${f.align || 'start'}` : '')} style={{ ...(b.kind === 'columns' ? { ['--cols' as string]: String(cols), ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_COL[f.gap || 'm'] } : { ['--gcols' as string]: String(gcols), ['--row' as string]: ROW_H[b.rowH || 'm'], ['--gap' as string]: b.gapX !== undefined ? `${b.gapX}px` : GAP_GRID[b.gap || 'm'] }), ...(b.gapY !== undefined ? { ['--rgap' as string]: `${b.gapY}px` } : {}), ...(b.pad !== undefined ? { ['--pad' as string]: `${b.pad}px` } : {}) }}>
           {items.map((it, i) => {
             const m = it.media && urls[it.media.path] ? it.media : undefined;
             const pic = m ? <img src={urls[m.path]} alt="" loading="lazy" /> : null;
@@ -131,6 +148,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
             return (
               <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '') + alignCls(it)} style={{ ...(b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }), ...gapVar(it) }}>
                 {edit?.itemBar ? edit.itemBar(i, it) : null}
+                {b.kind === 'columns' && edit?.insertItem ? <>{edit.insertItem(i, 'before')}{i === items.length - 1 ? edit.insertItem(i + 1, 'after') : null}</> : null}
                 {it.els ? elsOf(i, it, true) : <>
                 {m ? <div className="gi-media" data-el="media">{edit?.grip ? edit.grip(i, 'media') : null}{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
                 {onlyImage ? null : <div className="gi-txt">
@@ -143,7 +161,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
               </div>
             );
           })}
-          {edit?.addItem ? edit.addItem() : null}
+          {edit?.addItem && (b.kind !== 'columns' || !items.length) ? edit.addItem() : null}
         </div></> })}
       </section>
     );
