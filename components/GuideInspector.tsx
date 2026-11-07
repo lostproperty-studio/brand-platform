@@ -1,6 +1,6 @@
 'use client';
 import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
-import { itemEls, type BlockItem, type BoxAlign, type BoxStyle, type FrameLook, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
+import { fillMedia, itemEls, type BlockItem, type BoxAlign, type BoxStyle, type FrameLook, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
 import { KINDS, KindIcon, convert } from '@/components/GuideEditor';
 import { CHAPTER, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { TypePanel } from '@/components/TypePanel';
@@ -93,6 +93,8 @@ export type InspectorProps = {
 // direction, gap, padding, frame style and fill. Everything visual is here; the top bar is for history and order.
 export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pickImage, sys, setSys, openStyles, setChStyle, onFill, filling, onDelete, fonts, onAddFont }: InspectorProps) {
   const palette = [...new Map([...colours, { name: 'Black', hex: '#000000' }, { name: 'White', hex: '#FFFFFF' }].map((c) => [c.hex.toUpperCase(), c])).values()].slice(0, 16);
+  // Colours already used in this chapter, for the fill picker
+  const pageColours = [...new Set((JSON.stringify(ch.blocks).match(/#[0-9a-f]{6}\b/gi) || []).map((h) => h.toUpperCase()))].slice(0, 24);
   const setRule = (rule: SpaceRule, px: number) => setSys({ ...sys, edited: true, space: { ...sys.space, [rule]: px } }, 'sp:' + rule);
   const keep = (e: React.MouseEvent) => { const t = e.target as HTMLElement; if (!t.closest('input, select')) e.preventDefault(); };
   const clean = (o: TextStyle) => { (Object.keys(o) as (keyof TextStyle)[]).forEach((k) => o[k] === undefined && delete o[k]); return o; };
@@ -159,7 +161,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
         <button type="button" className="dp-act danger" onClick={onDelete}><Trash2 {...I} />Delete <kbd>⌫</kbd></button>
       </div>
     </Sec>
-    {b.variant !== 'images' ? <FramePanel look={it.look} set={(l, key) => setItem({ look: l }, key && 'look-' + key)} palette={palette} upload={() => pickImage(b.id, `ilook:${i}`)} sizing={b.kind === 'columns'} hasContent
+    {b.variant !== 'images' ? <FramePanel pageColours={pageColours} look={it.look} set={(l, key) => setItem({ look: l }, key && 'look-' + key)} palette={palette} upload={() => pickImage(b.id, `ilook:${i}`)} sizing={b.kind === 'columns'} hasContent
       layout={{ align: it.align || b.boxAlign, setAlign: (a) => setItem({ align: a }), gap: it.gap ?? b.boxGap, gapRule: sys.space['el-gap'], setGap: (n) => setItem({ gap: n }, 'gap'), padRule: framed ? sys.space['box-pad'] : 0,
         alignGrid: <AlignGrid value={it.align || b.boxAlign} set={(a) => setItem({ align: a })} label="Alignment in this frame" /> }} /> : null}
   </>;
@@ -189,12 +191,12 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
 
   if (frameEl && it && i !== undefined) {
     const setLook = (l: FrameLook, key?: string) => setItem({ els: (it.els || []).map((e) => (e.id === frameEl.id ? { ...e, look: l } : e)) }, key && 'fl-' + key);
-    const m = frameEl.look?.fill && frameEl.look.fill.type !== 'colour' ? frameEl.look.fill.media : frameEl.media;
+    const m = fillMedia(frameEl.look) || frameEl.media;
     return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>
       <Sec title={m ? (m.video ? 'Video frame' : 'Image frame') : 'Frame'} icon={<Square {...I} />}>
         <div className="dp-foot"><button type="button" className="dp-act danger" onClick={onDelete}><Trash2 {...I} />Delete <kbd>⌫</kbd></button></div>
       </Sec>
-      <FramePanel look={frameEl.look} set={setLook} palette={palette} upload={() => pickImage(b.id, `look:${i}:${frameEl.id}`)} />
+      <FramePanel pageColours={pageColours} look={frameEl.look} set={setLook} palette={palette} upload={() => pickImage(b.id, `look:${i}:${frameEl.id}`)} />
     </aside>;
   }
   if (isImg && el) {

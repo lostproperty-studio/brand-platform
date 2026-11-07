@@ -1,7 +1,7 @@
 import type { Block, BlockItem, BlockMedia, BlockSwatch, ItemEl, SectionText } from '@/lib/figma/blocks';
 import { Swatch } from '@/components/portal/Swatch';
 import { textProps } from '@/lib/textStyle';
-import type { FrameLook } from '@/lib/figma/blocks';
+import { fillMedia, type FrameLook } from '@/lib/figma/blocks';
 import { spaceRule } from '@/lib/guideSystem';
 import { Carousel } from '@/components/portal/Carousel';
 
@@ -173,7 +173,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
             return (
               <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '') + alignCls(it)} style={{ ...(b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }), ...gapVar(it), ...sizeOf(it) }}>
                 {edit?.itemBar ? edit.itemBar(i, it) : null}
-                {it.look?.fill && it.look.fill.type !== 'colour' ? <FrameMedia look={it.look} urls={urls} className="gi-bg" /> : null}
+                {fillMedia(it.look) ? <FrameMedia look={it.look} urls={urls} className="gi-bg" /> : null}
                 {(b.kind === 'columns' || b.kind === 'grid') && edit?.insertItem ? <>{edit.insertItem(i, 'before')}{i === items.length - 1 ? edit.insertItem(i + 1, 'after') : null}</> : null}
                 {it.els ? elsOf(i, it) : <>
                 {m ? <div className="gi-media" data-el="media">{edit?.grip ? edit.grip(i, 'media') : null}{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
@@ -245,6 +245,7 @@ export function lookVars(l?: FrameLook): React.CSSProperties {
   const pos = l.strokePos || 'inside';
   return {
     ...(l.fill?.type === 'colour' ? { background: rgba(l.fill.colour, l.fillAlpha), color: lum(l.fill.colour) < 0.5 && (l.fillAlpha ?? 100) > 40 ? '#fff' : undefined } : {}),
+    ...(l.fill?.type === 'gradient' ? { background: `linear-gradient(${l.fill.angle}deg, ${l.fill.stops.map((x) => `${rgba(x.colour, l.fillAlpha)} ${x.pos}%`).join(', ')})` } : {}),
     ...(l.radius ? { borderRadius: l.radius } : {}),
     ...(st && pos === 'inside' ? { ['--fr-sw' as string]: `${st.width}px`, ['--fr-sc' as string]: sc } : {}),
     ...(st && pos !== 'inside' ? { outline: `${st.width}px solid ${sc}`, outlineOffset: pos === 'center' ? -st.width / 2 : 0 } : {}),
@@ -252,17 +253,20 @@ export function lookVars(l?: FrameLook): React.CSSProperties {
     ...(l.padX !== undefined || l.padY !== undefined ? { padding: `${l.padY ?? l.pad ?? 0}px ${l.padX ?? l.pad ?? 0}px` } : {}),
     ...(l.clip === true ? { overflow: 'hidden' } : l.clip === false ? { overflow: 'visible' } : {}),
     ...(l.flow === 'row' || l.flow === 'wrap' ? { flexDirection: 'row', flexWrap: l.flow === 'wrap' ? 'wrap' : 'nowrap', alignItems: 'flex-start' } : {}),
-    ...(l.fill && l.fill.type !== 'colour' ? { isolation: 'isolate' } : {})
+    ...(fillMedia(l) ? { isolation: 'isolate' } : {})
   };
 }
 
 /** An image or video filling a frame: fill (cover), fit (contain) or crop (zoomed, from a focal point) */
 export function FrameMedia({ look, media: m0, urls, className = 'fr-m' }: { look?: FrameLook; media?: BlockMedia; urls: Record<string, string>; className?: string }) {
-  const m = look?.fill && look.fill.type !== 'colour' ? look.fill.media : m0;
+  const m = fillMedia(look) || m0;
   const src = m ? urls[m.path] : undefined;
   if (!m || !src) return null;
   const fit = look?.fit || 'fill', x = look?.x ?? 50, y = look?.y ?? 50;
-  const style: React.CSSProperties = { objectFit: fit === 'fit' ? 'contain' : 'cover', objectPosition: `${x}% ${y}%`, ...(fit === 'crop' && (look?.zoom || 1) > 1 ? { transform: `scale(${look!.zoom})`, transformOrigin: `${x}% ${y}%` } : {}) };
+  // Figma's image adjustments, as CSS filters
+  const a = look?.adjust || {};
+  const filter = [a.exposure ? `brightness(${1 + a.exposure / 200})` : '', a.highlights ? `brightness(${1 + a.highlights / 500})` : '', a.contrast || a.shadows ? `contrast(${1 + (a.contrast || 0) / 100 - (a.shadows || 0) / 400})` : '', a.saturation ? `saturate(${1 + a.saturation / 100})` : '', a.temperature && a.temperature > 0 ? `sepia(${a.temperature / 250})` : '', a.temperature && a.temperature < 0 ? `hue-rotate(${a.temperature / 8}deg) saturate(${1 + a.temperature / 400})` : '', a.tint ? `hue-rotate(${a.tint / 4}deg)` : ''].filter(Boolean).join(' ');
+  const style: React.CSSProperties = { ...(filter ? { filter } : {}), objectFit: fit === 'fit' ? 'contain' : 'cover', objectPosition: `${x}% ${y}%`, ...(fit === 'crop' && (look?.zoom || 1) > 1 ? { transform: `scale(${look!.zoom})`, transformOrigin: `${x}% ${y}%` } : {}) };
   return m.video || (look?.fill && look.fill.type === 'video')
     ? <video className={className} src={src} style={style} autoPlay muted loop playsInline aria-hidden />
     : <img className={className} src={src} alt={m.caption || ''} loading="lazy" style={style} />;
@@ -270,7 +274,7 @@ export function FrameMedia({ look, media: m0, urls, className = 'fr-m' }: { look
 
 /** A frame inside a frame: filled with a colour, an image or a video, with its own stroke, radius, padding and shape */
 function Frame({ look, media, urls, on, onPick, empty, onSize }: { look?: FrameLook; media?: BlockMedia; urls: Record<string, string>; on?: boolean; onPick?: () => void; empty?: boolean; onSize?: (side: 'n' | 's' | 'e' | 'w', e: React.PointerEvent) => void }) {
-  const m = look?.fill && look.fill.type !== 'colour' ? look.fill.media : media;
+  const m = fillMedia(look) || media;
   const ratio = look?.ratio && look.ratio !== 'auto' ? look.ratio.replace(':', ' / ') : m && (look?.fit || 'fill') !== 'fit' ? undefined : undefined;
   const sw = look?.sw, sh = look?.sh;
   const fixed = !!ratio || sh === 'fill' || typeof sh === 'number';

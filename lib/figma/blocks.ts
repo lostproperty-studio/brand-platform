@@ -28,7 +28,9 @@ export type TextStyle = { /** One of the guide's text styles (h1–h6, body, cap
 /** How a frame looks, as in Figma: a fill (colour, image or video), how an image sits (fill, fit or crop, with zoom
  *  and focal point in %), a stroke, corner radius, padding and a locked shape */
 export type FrameLook = {
-  fill?: { type: 'colour'; colour: string } | { type: 'image' | 'video'; media: BlockMedia };
+  fill?: { type: 'colour'; colour: string } | { type: 'image' | 'video'; media: BlockMedia } | { type: 'gradient'; stops: { colour: string; pos: number }[]; angle: number };
+  /** Image adjustments, −100 to 100, as in Figma */
+  adjust?: { exposure?: number; contrast?: number; saturation?: number; temperature?: number; tint?: number; highlights?: number; shadows?: number };
   fit?: 'fill' | 'fit' | 'crop'; zoom?: number; x?: number; y?: number;
   stroke?: { colour: string; width: number }; radius?: number; pad?: number; ratio?: string;
   /** Sizing, as in Figma: fill the space, hug the content, or a fixed size in pixels */
@@ -415,6 +417,9 @@ export function blockText(b: Block) {
 
 /** Every stored image or video a section uses: backdrop, images, frames' images and fills, and frames inside frames */
 export function blockPaths(b: Block): string[] {
-  const fill = (l?: FrameLook) => (l?.fill && l.fill.type !== 'colour' ? l.fill.media.path : undefined);
+  const fill = (l?: FrameLook) => fillMedia(l)?.path;
   return [b.backdrop?.path, ...(b.media || []).map((m) => m.path), ...(b.items || []).flatMap((i) => [i.media?.path, fill(i.look), ...(i.els || []).flatMap((e) => [e.media?.path, fill(e.look)])])].filter(Boolean) as string[];
 }
+
+/** The image or video a frame is filled with, if any */
+export const fillMedia = (l?: FrameLook): BlockMedia | undefined => (l?.fill && (l.fill.type === 'image' || l.fill.type === 'video') ? l.fill.media : undefined);
