@@ -33,6 +33,11 @@ export type FrameLook = {
   stroke?: { colour: string; width: number }; radius?: number; pad?: number; ratio?: string;
   /** Sizing, as in Figma: fill the space, hug the content, or a fixed size in pixels */
   sw?: 'fill' | 'hug' | number; sh?: 'fill' | 'hug' | number;
+  /** Auto layout of the frame's contents: vertical (default), horizontal, or horizontal wrapping */ flow?: 'col' | 'row' | 'wrap';
+  /** Padding across and down, in pixels (overrides pad) */ padX?: number; padY?: number;
+  /** Clip content to the frame (default on for frames inside frames) */ clip?: boolean;
+  /** Layer opacity and fill opacity, 0–100 */ opacity?: number; fillAlpha?: number;
+  /** Stroke opacity and position */ strokeAlpha?: number; strokePos?: 'inside' | 'center' | 'outside';
 };
 /** One element inside a frame, in order: a label, a headline, text, an image, a spacer, or a frame inside the frame */
 export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer' | 'frame'; text?: string; media?: BlockMedia; /** spacer height in pixels */ size?: number; look?: FrameLook };

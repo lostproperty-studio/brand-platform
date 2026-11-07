@@ -238,7 +238,20 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
 /** A frame's fill colour, stroke and corner radius as CSS */
 export function lookVars(l?: FrameLook): React.CSSProperties {
   if (!l) return {};
-  return { ...(l.fill?.type === 'colour' ? { background: l.fill.colour, color: lum(l.fill.colour) < 0.5 ? '#fff' : undefined } : {}), ...(l.radius ? { borderRadius: l.radius } : {}), ...(l.stroke && l.stroke.width ? { ['--fr-sw' as string]: `${l.stroke.width}px`, ['--fr-sc' as string]: l.stroke.colour } : {}), ...(l.fill && l.fill.type !== 'colour' ? { isolation: 'isolate' } : {}) };
+  const rgba = (hex: string, a?: number) => { if (a === undefined || a >= 100 || !/^#[0-9a-f]{6}$/i.test(hex)) return hex; const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a / 100})`; };
+  const st = l.stroke && l.stroke.width ? l.stroke : undefined, sc = st ? rgba(st.colour, l.strokeAlpha) : '';
+  const pos = l.strokePos || 'inside';
+  return {
+    ...(l.fill?.type === 'colour' ? { background: rgba(l.fill.colour, l.fillAlpha), color: lum(l.fill.colour) < 0.5 && (l.fillAlpha ?? 100) > 40 ? '#fff' : undefined } : {}),
+    ...(l.radius ? { borderRadius: l.radius } : {}),
+    ...(st && pos === 'inside' ? { ['--fr-sw' as string]: `${st.width}px`, ['--fr-sc' as string]: sc } : {}),
+    ...(st && pos !== 'inside' ? { outline: `${st.width}px solid ${sc}`, outlineOffset: pos === 'center' ? -st.width / 2 : 0 } : {}),
+    ...(l.opacity !== undefined && l.opacity < 100 ? { opacity: l.opacity / 100 } : {}),
+    ...(l.padX !== undefined || l.padY !== undefined ? { padding: `${l.padY ?? l.pad ?? 0}px ${l.padX ?? l.pad ?? 0}px` } : {}),
+    ...(l.clip === true ? { overflow: 'hidden' } : l.clip === false ? { overflow: 'visible' } : {}),
+    ...(l.flow === 'row' || l.flow === 'wrap' ? { flexDirection: 'row', flexWrap: l.flow === 'wrap' ? 'wrap' : 'nowrap', alignItems: 'flex-start' } : {}),
+    ...(l.fill && l.fill.type !== 'colour' ? { isolation: 'isolate' } : {})
+  };
 }
 
 /** An image or video filling a frame: fill (cover), fit (contain) or crop (zoomed, from a focal point) */
@@ -259,7 +272,7 @@ function Frame({ look, media, urls, on, onPick, empty }: { look?: FrameLook; med
   const ratio = look?.ratio && look.ratio !== 'auto' ? look.ratio.replace(':', ' / ') : m && (look?.fit || 'fill') !== 'fit' ? undefined : undefined;
   const sw = look?.sw, sh = look?.sh;
   const fixed = !!ratio || sh === 'fill' || typeof sh === 'number';
-  const style: React.CSSProperties = { ...lookVars(look), ...(ratio && sh === undefined ? { aspectRatio: ratio } : {}), ...(look?.pad ? { padding: look.pad } : {}),
+  const style: React.CSSProperties = { ...lookVars(look), ...(ratio && sh === undefined ? { aspectRatio: ratio } : {}), ...(look?.pad && look.padX === undefined && look.padY === undefined ? { padding: look.pad } : {}),
     ...(typeof sw === 'number' ? { width: sw, maxWidth: '100%' } : sw === 'hug' ? { width: 'fit-content', maxWidth: '100%' } : {}), ...(typeof sh === 'number' ? { height: sh } : sh === 'fill' ? { flex: '1 1 auto', minHeight: 80 } : {}) };
   const has = !!look?.fill || !!m;
   return <div className={'fr' + (fixed ? ' fixed' : '') + (on ? ' on' : '') + (!has && empty ? ' fr-empty' : '')} style={style} onMouseDown={onPick ? (e) => { e.stopPropagation(); onPick(); } : undefined}>
