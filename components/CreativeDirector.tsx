@@ -32,8 +32,9 @@ function Said({ text, onGo, label }: { text: string; onGo: (ref: string) => void
   return <div className="cd-said">{blocks}</div>;
 }
 
-export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, apply, open, setOpen, onCount }: {
+export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, apply, open, setOpen, onCount, focusOn }: {
   projectId: string; guide: Guide; chapterId: string; initial?: ReviewSession | null; open: boolean; setOpen: (o: boolean) => void; onCount?: (n: number) => void;
+  /** What's selected in the editor: Review helps with just that */ focusOn?: { label: string; refs: string[] } | null;
   goTo: (ref: Ref) => void; apply: (ref: Ref, quote: string, suggestion: string) => boolean;
 }) {
   const [s, setS] = useState<ReviewSession | null>(initial || null);
@@ -49,6 +50,16 @@ export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, a
   const [talking, setTalking] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const log = useRef<HTMLDivElement>(null);
+  // A floating window: drag it by its title bar; where you leave it is remembered on this computer
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(() => { try { const v = JSON.parse(localStorage.getItem('lp-review-pos') || 'null'); return v && typeof v.x === 'number' ? v : null; } catch { return null; } });
+  const dragWin = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    const box = (e.currentTarget as HTMLElement).closest('.cd') as HTMLElement; const r = box.getBoundingClientRect(); const dx = e.clientX - r.left, dy = e.clientY - r.top;
+    let last = { x: r.left, y: r.top };
+    const mv = (ev: PointerEvent) => { last = { x: Math.max(8, Math.min(window.innerWidth - r.width - 8, ev.clientX - dx)), y: Math.max(8, Math.min(window.innerHeight - 80, ev.clientY - dy)) }; setPos(last); };
+    const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); try { localStorage.setItem('lp-review-pos', JSON.stringify(last)); } catch { /* not kept */ } };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); e.preventDefault();
+  };
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chapters = guide.chapters.filter((c) => !c.removed && !c.hidden);
 
@@ -81,13 +92,16 @@ export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, a
     setS(j.session); setSetup(false); setTab(depth === 'detail' ? 'detail' : 'big');
   }
 
-  async function send(q: string) {
-    if (!q.trim() || !s || talking) return;
-    const thread: Msg[] = [...(s.messages || []), { role: 'user', content: q.trim() }];
-    let cur: ReviewSession = { ...s, messages: [...thread, { role: 'assistant', content: '' }] };
+  async function send(q: string, about?: string[]) {
+    if (!q.trim() || talking) return;
+    // No session yet: a conversation can still start, about what's selected
+    const base: ReviewSession = s || { at: new Date().toISOString(), depth: 'big', chapter: null, result: { summary: '', strengths: [], big: [], detail: [], questions: [] }, refs: {}, closed: {}, messages: [] };
+    if (!s) setSetup(false);
+    const thread: Msg[] = [...(base.messages || []), { role: 'user', content: q.trim() }];
+    let cur: ReviewSession = { ...base, messages: [...thread, { role: 'assistant', content: '' }] };
     setS(cur); setText(''); setTalking(true);
     try {
-      const r = await fetch(`/api/projects/${projectId}/guide/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'chat', messages: thread.slice(-30) }) });
+      const r = await fetch(`/api/projects/${projectId}/guide/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'chat', messages: thread.slice(-30), selection: about ?? focusOn?.refs }) });
       if (!r.ok || !r.body) throw new Error();
       const rd = r.body.getReader(), dec = new TextDecoder(); let acc = '';
       for (;;) { const { done, value } = await rd.read(); if (done) break; acc += dec.decode(value, { stream: true }); cur = { ...cur, messages: [...thread, { role: 'assistant', content: acc }] }; setS(cur); }
@@ -107,14 +121,18 @@ export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, a
   useEffect(() => { onCount?.(openBig.length + openDetail.length); }, [openBig.length, openDetail.length, onCount]);
   if (!open) return null;
 
-  return <div className="cd" role="dialog" aria-label="Review">
-    <div className="cd-top">
+  return <div className={'cd' + (pos ? ' moved' : '')} role="dialog" aria-label="Review" style={pos ? { left: pos.x, top: pos.y } : undefined}>
+    <div className="cd-top" onPointerDown={dragWin} title="Drag to move">
       <span className="cd-mark"><LpMark state={busy ? 'scan' : talking ? 'contour' : 'rest'} /></span>
-      <div className="cd-top-t"><strong>Review</strong>{s && !setup ? <span>{scopeName(s.chapter)} · {DEPTHS.find((d) => d.id === s.depth)?.title} · {new Date(s.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : <span>Reviews the guide against the studio standard</span>}</div>
+      <div className="cd-top-t"><strong>Review</strong>{s && !setup ? <span>{s.result.summary ? `${scopeName(s.chapter)} · ${DEPTHS.find((d) => d.id === s.depth)?.title} · ${new Date(s.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Conversation · drag to move'}</span> : <span>Reviews the guide against the studio standard</span>}</div>
       {s && !setup ? <button type="button" className="cd-ic" onClick={() => { setSetup(true); setScope(''); }} data-tip="New session" aria-label="Start a new session"><Plus {...I} /></button> : null}
       <button type="button" className="cd-ic" onClick={() => setOpen(false)} aria-label="Minimise"><ChevronDown {...I} /></button>
     </div>
 
+    {focusOn && focusOn.refs.length ? <div className="cd-focus">
+      <span className="cd-focus-t"><Crosshair size={12} strokeWidth={2} aria-hidden />Helping with <b>{focusOn.label}</b></span>
+      <div className="cd-focus-acts">{[['Review this', 'Review just this: what works, what doesn’t, and what would make it clearer.'], ['Tighten the wording', 'Tighten the wording of this, keeping the meaning. Show the before and after.'], ['Suggest a headline', 'Suggest three headlines for this that claim or count, in house style.'], ['Proofread', 'Proofread this: spelling, grammar, punctuation and house style. List the fixes.']].map(([l, q]) => <button key={l} type="button" className="cd-chip" disabled={talking} onClick={() => send(q, focusOn.refs)}>{l}</button>)}</div>
+    </div> : null}
     {setup || !s ? <div className="cd-body cd-setup">
       {busy ? <div className="cd-busy"><span className="cd-mark lg"><LpMark state="scan" /></span><p>{STEPS[step]}<span className="ak-dots" aria-hidden><span>.</span><span>.</span><span>.</span></span></p><p className="mute">A thorough read takes a minute or two.</p></div> : <>
         <p className="cd-lede">Start a review session. I’ll read {scope ? 'the chapter' : 'the guide'}, hold it to the studio’s standard, and work through it with you.</p>
@@ -128,7 +146,7 @@ export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, a
         <div className="cd-row">{s ? <button type="button" className="btn" onClick={() => setSetup(false)}>Back to the last session</button> : null}<button type="button" className="btn solid" onClick={start}>Start review</button></div>
       </>}
     </div> : <div className="cd-body" ref={log}>
-      <div className="cd-sum"><Said text={s.result.summary} onGo={go} label={labelOf} />{s.result.strengths.length ? <ul className="cd-good">{s.result.strengths.map((x, i) => <li key={i}><Check size={12} strokeWidth={2} aria-hidden />{x}</li>)}</ul> : null}</div>
+      {s.result.summary || big.length || detail.length ? <><div className="cd-sum"><Said text={s.result.summary} onGo={go} label={labelOf} />{s.result.strengths.length ? <ul className="cd-good">{s.result.strengths.map((x, i) => <li key={i}><Check size={12} strokeWidth={2} aria-hidden />{x}</li>)}</ul> : null}</div>
       <div className="cd-tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'big'} className={tab === 'big' ? 'on' : ''} onClick={() => setTab('big')}>Direction <i>{openBig.length}</i></button>
         <button role="tab" aria-selected={tab === 'detail'} className={tab === 'detail' ? 'on' : ''} onClick={() => setTab('detail')}>Details <i>{openDetail.length}</i></button>
@@ -169,12 +187,13 @@ export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, a
 
       {tab === 'questions' ? <div className="cd-list">{s.result.questions.map((q, i) => <button key={i} type="button" className="cd-qbtn" onClick={() => { setText(`On “${q}”: `); setTimeout(() => document.getElementById('cd-in')?.focus(), 0); }}><CornerDownRight {...I} />{q}</button>)}</div> : null}
 
+      </> : <p className="cd-empty">No review session yet. Ask anything, or <button type="button" className="cd-link" onClick={() => setSetup(true)}>start a review</button>.</p>}
       {(s.messages || []).length ? <div className="cd-thread">{(s.messages || []).map((m, i) => m.role === 'user' ? <div key={i} className="cd-u">{m.content}</div>
         : <div key={i} className="cd-a-msg"><span className="cd-mark sm"><LpMark state={talking && i === (s.messages || []).length - 1 ? (m.content ? 'contour' : 'scan') : 'rest'} /></span>{m.content ? <Said text={m.content} onGo={go} label={labelOf} /> : <p className="ak-step">Thinking<span className="ak-dots" aria-hidden><span>.</span><span>.</span><span>.</span></span></p>}</div>)}</div> : null}
     </div>}
 
-    {s && !setup ? <form className="cd-bar" onSubmit={(e) => { e.preventDefault(); send(text); }}>
-      <textarea id="cd-in" rows={1} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask, push back, or tell me what you changed…" onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }} aria-label="Message Review" />
+    {s ? <form className="cd-bar" onSubmit={(e) => { e.preventDefault(); send(text); }}>
+      <textarea id="cd-in" rows={1} value={text} onChange={(e) => setText(e.target.value)} placeholder={focusOn?.refs.length ? `Ask about ${focusOn.label.toLowerCase()}…` : 'Ask, push back, or tell me what you changed…'} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }} aria-label="Message Review" />
       <button className="cd-send" disabled={!text.trim() || talking} aria-label="Send">{talking ? <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden /> : <ArrowUp size={15} strokeWidth={2} aria-hidden />}</button>
     </form> : null}
   </div>;

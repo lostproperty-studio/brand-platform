@@ -16,7 +16,7 @@ export const maxDuration = 300;
 const Msg = z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(8000) });
 const Body = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('start'), depth: z.enum(['big', 'detail', 'both']), chapter: z.string().max(200).nullable().optional(), focus: z.string().max(1000).optional() }),
-  z.object({ mode: z.literal('chat'), messages: z.array(Msg).min(1).max(40) })
+  z.object({ mode: z.literal('chat'), messages: z.array(Msg).min(1).max(40), selection: z.array(z.string().max(80)).max(60).optional() })
 ]);
 
 const MODEL = 'claude-opus-5-5';
@@ -121,6 +121,11 @@ ${focus ? `THE DESIGNER ASKS YOU TO FOCUS ON: ${focus}\n\n` : ''}${ask} Then cal
 Summary: ${s.result.summary}
 ${s.result.big.map((x) => `- [${s.closed?.[x.id] || 'open'}] ${x.title}: ${x.steer}`).join('\n')}
 ${s.result.detail.length ? `${s.result.detail.length} detail fixes, ${Object.keys(s.closed || {}).filter((k) => k.startsWith('d')).length} dealt with.` : ''}` : 'No review has been run yet.';
+  // What the designer has selected in the editor: help with that, unless they ask about something else
+  const whole = guideMap(g, null);
+  const picked = (b.data.selection || []).filter((r) => whole.refs[r]);
+  const lines = whole.text.split('\n');
+  const sel = picked.length ? `THE DESIGNER HAS SELECTED THIS IN THE EDITOR (help with this only, unless they ask about something else):\n${picked.map((r) => lines.find((l) => l.includes(`[${r}]`))?.trim()).filter(Boolean).join('\n')}\n\n` : '';
   const system = `${persona(client)}
 
 ${standard}
@@ -130,7 +135,7 @@ ${map.text}
 
 ${notes}
 
-In this conversation: answer in short paragraphs or a short list. When you point at text, write its reference as [[go:C2.S4.heading]] so the designer can jump to it. If you suggest wording, give it on its own line. Ask one question at a time.`;
+${sel}In this conversation: answer in short paragraphs or a short list. When you point at text, write its reference as [[go:C2.S4.heading]] so the designer can jump to it. If you suggest wording, give it on its own line. Ask one question at a time.`;
   const stream = studioAnthropic().messages.stream({ model: MODEL, max_tokens: 1500, system, messages: b.data.messages });
   const enc = new TextEncoder();
   return new Response(new ReadableStream({

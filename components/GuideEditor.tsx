@@ -11,7 +11,7 @@ import type { SectionLayout } from '@/lib/figma/blocks';
 import { CHAPTER, Shortcuts, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { SpaceCtl, StylesWindow } from '@/components/GuideStyles';
 import { CreativeDirector } from '@/components/CreativeDirector';
-import type { Ref as ReviewRef, ReviewSession } from '@/lib/review/director';
+import { guideMap, type Ref as ReviewRef, type ReviewSession } from '@/lib/review/director';
 import { defaultSystem, spaceName, systemCss, systemFor, type GuideSystem, type TypeId } from '@/lib/guideSystem';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
@@ -219,6 +219,19 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     else { const c0 = latest.current?.chapters.find((c) => c.id === r.chapter); const b0 = c0?.blocks.find((x) => x.id === r.block); const ii = r.item ? (b0?.items || []).findIndex((x) => x.id === r.item) : -1;
       setSel(ii >= 0 ? { block: r.block, item: ii, el: `${r.item}.${r.field}` } : r.field.startsWith('cap:') ? { block: r.block, el: 'img:' + r.field.slice(4) } : { block: r.block, el: r.field }); }
     setTimeout(() => { const el = r.block ? document.querySelector(`[data-block="${r.block}"]`) : document.querySelector('.ve-chhead'); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
+  };
+  /** What Review should help with: the selected text, frame or section, as references to its words */
+  const reviewFocus = () => {
+    if (!g || !sel || !chId) return null;
+    const refs = Object.entries(guideMap(g, chId).refs);
+    const blk = ch?.blocks.find((x) => x.id === sel.block); const it = sel.item !== undefined ? blk?.items?.[sel.item] : undefined;
+    const elId = sel.el?.includes('.') ? sel.el.split('.')[1] : sel.el;
+    const pick = (f: (r: ReviewRef) => boolean) => refs.filter(([, r]) => f(r)).map(([k]) => k);
+    if (sel.block === CHAPTER) return sel.el ? { label: sel.el === 'title' ? 'The chapter title' : sel.el === 'lede' ? 'The introduction' : 'The chapter label', refs: pick((r) => !r.block && r.field === sel.el) } : null;
+    if (it && elId && sel.el?.includes('.')) return { label: `This text in frame ${sel.item! + 1}`, refs: pick((r) => r.block === sel.block && r.item === it.id && r.field === elId) };
+    if (it) return { label: `Frame ${sel.item! + 1}`, refs: pick((r) => r.block === sel.block && r.item === it.id) };
+    if (sel.el && !sel.el.startsWith('img')) return { label: sel.el === 'heading' ? 'This headline' : sel.el === 'eyebrow' ? 'This label' : 'This text', refs: pick((r) => r.block === sel.block && r.field === sel.el) };
+    return { label: `This section${blk?.heading ? ` · ${blk.heading.slice(0, 24)}` : ''}`, refs: pick((r) => r.block === sel.block) };
   };
   const reviewApply = (r: ReviewRef, quote: string, sug: string): boolean => {
     const g0 = latest.current; if (!g0) return false;
@@ -866,7 +879,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
         {stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
         {keysOpen ? <Shortcuts onClose={() => setKeysOpen(false)} /> : null}
-        {g ? <CreativeDirector projectId={projectId} guide={g} chapterId={chId} initial={(content.reviewSession as ReviewSession | undefined) || null} goTo={reviewGoTo} apply={reviewApply} open={reviewOpen} setOpen={setReviewOpen} onCount={setReviewCount} /> : null}
+        {g ? <CreativeDirector projectId={projectId} guide={g} chapterId={chId} initial={(content.reviewSession as ReviewSession | undefined) || null} goTo={reviewGoTo} apply={reviewApply} focusOn={reviewFocus()} open={reviewOpen} setOpen={setReviewOpen} onCount={setReviewCount} /> : null}
         <style dangerouslySetInnerHTML={{ __html: systemCss(sys) }} />
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}

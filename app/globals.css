@@ -2190,3 +2190,22 @@ body.ve-moving .ve-ins, body.ve-moving .ve-pgap { display: none; }
 .fr .ve-fh { z-index: 3; }
 [data-size]::before { content: attr(data-size); position: absolute; z-index: 7; left: 50%; bottom: -26px; transform: translateX(-50%); padding: 2px 6px; border-radius: 4px; background: #0d99ff; color: #fff; font: 11px var(--font); white-space: nowrap; }
 body.ve-sizing, body.ve-sizing * { user-select: none; }
+/* Review: a window you can move, that helps with what's selected */
+.cd.moved { right: auto; bottom: auto; max-height: min(78vh, calc(100vh - 24px)); }
+.cd-top { cursor: grab; user-select: none; }
+.cd-top:active { cursor: grabbing; }
+.cd-focus { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: #fdf6fc; }
+.cd-focus-t { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #7a2a73; }
+.cd-focus-t b { font-weight: 500; }
+.cd-focus-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.cd-chip { all: unset; cursor: pointer; height: 26px; padding: 0 10px; border-radius: 13px; background: #fff; box-shadow: inset 0 0 0 1px #ecd2e9; font-size: 12px; }
+.cd-chip:hover { box-shadow: inset 0 0 0 1px #D64BC9; }
+.cd-chip:disabled { opacity: .5; cursor: default; }
+.cd-link { all: unset; cursor: pointer; text-decoration: underline; }
+/* Fill means fill: a frame inside a frame takes the parent's width (and height, when Fill is set), whatever the alignment */
+.gi > .gi-frame-el:not(.hug) { align-self: stretch; width: auto; }
+.gi > .gi-frame-el:not(.hug) > .fr { width: 100%; }
+.gi > .gi-frame-el.grow { flex: 1 1 0; min-height: 48px; align-self: stretch; }
+.gi > .gi-frame-el.grow > .fr { flex: 1 1 auto; height: auto; }
+.gi[style*="flex-direction: row"] > .gi-frame-el:not(.hug) { flex: 1 1 0; min-width: 0; }
+.gi[style*="flex-direction: row"] > .gi-frame-el.grow { align-self: stretch; }
