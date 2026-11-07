@@ -304,13 +304,35 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const els = itemEls(it).map((x) => { const id = 'e-' + uid(); ids[x.id] = id; const old = `${it.id}.${x.id}`; if (styles[old]) { const { [old]: st0, ...rest } = styles; styles = { ...rest, [`${it.id}.${id}`]: st0 }; } return { ...x, id }; });
     return { els, styles, ids };
   }
+  /** Pick up a frame, or anything in one, and move it, as in Figma: press and drag a few pixels. A click without
+   *  moving still selects (and a click on text still edits it). Text being edited selects text instead. */
+  function armMove(e: React.PointerEvent, b: Block) {
+    if (e.button !== 0 || tool || !['columns', 'grid', 'carousel'].includes(b.kind)) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('button, input, select, textarea, label, a, .ve-hd, .ve-ins, .ve-pgap, .ve-grip-el, .ve-grip-box, .ve-grip-part, .ve-handle-tab, .ve-pgap-pop')) return;
+    const ed = t.closest('[contenteditable="true"]') as HTMLElement | null;
+    if (ed && document.activeElement === ed) return;
+    const box = t.closest('[data-item]') as HTMLElement | null;
+    if (!box || (box.closest('[data-block]') as HTMLElement | null)?.dataset.block !== b.id) return;
+    const node = t.closest('[data-el]') as HTMLElement | null;
+    const inBox = !!node && node.closest('[data-item]') === box && !!node.dataset.el && !node.dataset.el.startsWith('img');
+    const x0 = e.clientX, y0 = e.clientY, item = Number(box.dataset.item);
+    const mv = (ev: PointerEvent) => {
+      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+      off();
+      if (inBox) startMove(ev, 'el', b.id, item, node!.dataset.el, node!); else startMove(ev, 'box', b.id, item, undefined, box);
+    };
+    const off = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', off); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', off);
+  }
   // ---------- drag to move: an element within or between boxes, or a box among its neighbours. Snaps into place.
   type Drag = { kind: 'el' | 'box' | 'part'; block: string; item: number; el?: string; order?: string[]; label: string; x: number; y: number; target?: { block: string; item: number; index: number }; line?: { top: number; left: number; width: number; height: number } };
   const [moving, setMoving] = useState<Drag | null>(null);
-  function startMove(e: React.PointerEvent, kind: 'el' | 'box' | 'part', blockId: string, item: number, el?: string) {
+  function startMove(e: React.PointerEvent | PointerEvent, kind: 'el' | 'box' | 'part', blockId: string, item: number, el?: string, from?: HTMLElement) {
     e.preventDefault(); e.stopPropagation();
     const a0 = document.activeElement as HTMLElement | null; if (a0?.isContentEditable) a0.blur();
-    const src = (e.currentTarget as HTMLElement).closest(kind === 'el' ? '[data-el]' : kind === 'part' ? '[data-part]' : '[data-item]') as HTMLElement | null;
+    window.getSelection()?.removeAllRanges();
+    const src = from || (e.currentTarget as HTMLElement).closest(kind === 'el' ? '[data-el]' : kind === 'part' ? '[data-part]' : '[data-item]') as HTMLElement | null;
     // Parts move among their siblings: headline, text, images and boxes within the section
     const siblings = kind === 'part' && src?.parentElement ? ([...src.parentElement.children] as HTMLElement[]).filter((x) => x.dataset.part) : [];
     const PART: Record<string, string> = { head: 'Headline', body: 'Text', media: 'Images', items: 'Frames' };
@@ -754,7 +776,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                     {layoutOf(b) ? <button className="ve-slide-lay" onClick={() => { setSel({ block: b.id }); setPicker({ convert: b.id }); }} aria-label={`Layout: ${layoutLabel(b)}. Change layout`}>{layoutLabel(b)}<ChevronDown size={12} strokeWidth={2} aria-hidden /></button> : <span>{layoutLabel(b)}</span>}
                     {b.hidden ? <span className="ve-slide-hid">Hidden</span> : null}
                   </div>
-                  <div onMouseDown={(e) => {
+                  <div onPointerDown={(e) => armMove(e, b)} onMouseDown={(e) => {
                     // A click on a box (not its text or image) selects the box; anywhere else selects the section
                     const t = e.target as HTMLElement; const box = t.closest('[data-item]') as HTMLElement | null;
                     const spacer = t.closest('[data-spacer]') as HTMLElement | null;
