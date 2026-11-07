@@ -63,7 +63,7 @@ export function Toolbar({ sel, setSel, ch, setBlocks, editBlock, onReset, onDele
   const dup = () => { const l = [...ch.blocks]; const copy = { ...b, id: 'b-' + Math.random().toString(36).slice(2, 10), source: undefined, edited: true }; l.splice(idx + 1, 0, copy); setBlocks(l); setSel({ block: copy.id }); };
   const kindLabel = NAME(b.kind);
   const inner = !!sel.el || i !== undefined || !!sel.gap;
-  const ctx = sel.gap ? 'Spacing' : elKind === 'spacer' ? 'Spacer' : elKind === 'frame' ? 'Frame' : isImg ? 'Image' : sel.el ? (FIELD[field] || (sel.el.startsWith('x-') ? 'Text' : 'Text')) : `Frame ${i! + 1}`;
+  const ctx = sel.gap ? 'Spacing' : elKind === 'spacer' ? 'Spacer' : elKind === 'frame' ? 'Frame' : elKind === 'icon' ? 'Icon' : isImg ? 'Image' : sel.el ? (FIELD[field] || (sel.el.startsWith('x-') ? 'Text' : 'Text')) : `Frame ${i! + 1}`;
 
   return (
     <div className="tb" role="toolbar" aria-label="Editing tools" onMouseDown={keep}>

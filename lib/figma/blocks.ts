@@ -42,7 +42,8 @@ export type FrameLook = {
   /** Stroke opacity and position */ strokeAlpha?: number; strokePos?: 'inside' | 'center' | 'outside';
 };
 /** One element inside a frame, in order: a label, a headline, text, an image, a spacer, or a frame inside the frame */
-export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer' | 'frame'; text?: string; media?: BlockMedia; /** spacer height in pixels */ size?: number; look?: FrameLook };
+export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer' | 'frame' | 'icon'; text?: string; media?: BlockMedia; /** spacer height, or icon size, in pixels */ size?: number; look?: FrameLook;
+  /** An icon from a library (Lucide by default), kept as its SVG so it renders anywhere */ icon?: { set: string; name: string; svg: string }; colour?: string };
 export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number;
   /** When set, the box's content as a free list of elements (added with the adding bar), instead of the fixed fields */
   els?: ItemEl[];
@@ -62,7 +63,7 @@ export function itemEls(it: BlockItem): ItemEl[] {
   ];
 }
 /** All the words in a box */
-export const itemWords = (it: BlockItem) => itemEls(it).filter((e) => e.kind !== 'image' && e.kind !== 'spacer' && e.kind !== 'frame').map((e) => e.text).filter(Boolean) as string[];
+export const itemWords = (it: BlockItem) => itemEls(it).filter((e) => e.kind !== 'image' && e.kind !== 'spacer' && e.kind !== 'frame' && e.kind !== 'icon').map((e) => e.text).filter(Boolean) as string[];
 export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string; /** A video file (MP4 or WebM), played muted on a loop */ video?: boolean };
 export type BlockSwatch = { name: string; hex: string; note?: string };
 export type Block = {
@@ -423,3 +424,10 @@ export function blockPaths(b: Block): string[] {
 
 /** The image or video a frame is filled with, if any */
 export const fillMedia = (l?: FrameLook): BlockMedia | undefined => (l?.fill && (l.fill.type === 'image' || l.fill.type === 'video') ? l.fill.media : undefined);
+
+/** An SVG made safe to show: no scripts, event handlers, links or foreign content; sized by its frame */
+export function cleanSvg(svg: string): string {
+  const m = svg.match(/<svg[\s\S]*<\/svg>/i); if (!m) return '';
+  return m[0].replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '').replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi, '').replace(/\s(xlink:)?href\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*')/gi, '')
+    .replace(/<svg([^>]*?)\swidth="[^"]*"/i, '<svg$1').replace(/<svg([^>]*?)\sheight="[^"]*"/i, '<svg$1').replace(/<svg/i, '<svg width="100%" height="100%"');
+}

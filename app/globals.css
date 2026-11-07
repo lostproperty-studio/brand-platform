@@ -2272,3 +2272,25 @@ body.ve-sizing, body.ve-sizing * { user-select: none; }
 .fk-adj label { display: grid; grid-template-columns: 84px 1fr; align-items: center; gap: 8px; color: #333; }
 .fk-adj input[type=range] { width: 100%; accent-color: #0d99ff; }
 @media (max-width: 1180px) { .fk { right: 16px; } }
+/* Icons */
+.gi-icon-el { display: flex; }
+.gi-icon { display: inline-flex; flex: none; }
+.gi-icon svg { display: block; width: 100%; height: 100%; }
+.ve-block .gi-icon { cursor: pointer; }
+.ve-block .gi-icon.on { outline: 2px solid #0d99ff; outline-offset: 3px; border-radius: 2px; }
+.dp-icprev { display: inline-flex; width: 16px; height: 16px; }
+.dp-icprev svg { width: 100%; height: 100%; }
+.ip { width: min(560px, calc(100vw - 32px)); }
+.ip-top { display: flex; align-items: center; justify-content: space-between; }
+.ip-bar { display: grid; grid-template-columns: 1fr 170px; gap: 8px; margin-top: 8px; }
+.ip-search { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border-radius: 8px; background: var(--fill); color: var(--mute); }
+.ip-search input { flex: 1; border: 0; background: none; font: 13px var(--font); }
+.ip-bar select { height: 34px; border: 0; border-radius: 8px; background: var(--fill); font: 13px var(--font); padding: 0 8px; }
+.ip-other { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--mute); }
+.ip-other input { flex: 1; height: 30px; border: 0; border-radius: 8px; background: var(--fill); font: 13px var(--font); padding: 0 8px; }
+.ip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 4px; max-height: 360px; overflow-y: auto; margin-top: 12px; padding: 2px; }
+.ip-ic { all: unset; cursor: pointer; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+.ip-ic:hover { background: var(--fill); box-shadow: inset 0 0 0 1px #0d99ff; }
+.ip-ic img { width: 22px; height: 22px; }
+.ip-note { grid-column: 1 / -1; color: var(--mute); margin: 16px 0; text-align: center; }
+.dp-addrow { flex-wrap: wrap; } .dp-addrow button { flex: none; }

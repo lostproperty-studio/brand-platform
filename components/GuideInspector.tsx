@@ -10,7 +10,7 @@ import type { GuideSystem, SpaceRule, TypeId } from '@/lib/guideSystem';
 import {
   AlignEndHorizontal, AlignCenterHorizontal, AlignStartHorizontal, ArrowLeft, ArrowRight, Captions, Copy, GalleryHorizontal, ImageOff, ImagePlus,
   ImageUp, Images, LayoutGrid, Loader2, Maximize2, Minimize2, Minus, MousePointerClick, PanelLeft, PanelRight, Plus, RectangleHorizontal, Scan, Sparkles, Square, SquareDashed,
-  Trash2, UnfoldVertical, Type, Columns3, Rows3, Palette, Ban, Video, Image as ImageIcon, type LucideIcon
+  Trash2, UnfoldVertical, Type, Columns3, Rows3, Palette, Shapes, Ban, Video, Image as ImageIcon, type LucideIcon
 } from 'lucide-react';
 
 const I = { size: 15, strokeWidth: 1.75, 'aria-hidden': true } as const;
@@ -86,12 +86,13 @@ export type InspectorProps = {
   sys: GuideSystem; setSys: (s: GuideSystem, key?: string) => void; openStyles: (focus?: TypeId) => void;
   setChStyle?: (field: string, s: TextStyle, key?: string) => void; onFill?: () => void; filling?: boolean; onDelete: () => void;
   fonts?: ToolbarFont[]; onAddFont?: (then: (role: string) => void) => void;
+  /** Choose an icon for a frame, or a new one for an icon already there */ onIcon?: (block: string, item: number, replace?: string) => void;
 };
 
 // The design panel on the right, like Figma's: it shows what you can change about what's selected, and only that.
 // Text: its style, colour and the space above it. A frame: its size, padding, gap and alignment. An auto layout:
 // direction, gap, padding, frame style and fill. Everything visual is here; the top bar is for history and order.
-export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pickImage, sys, setSys, openStyles, setChStyle, onFill, filling, onDelete, fonts, onAddFont }: InspectorProps) {
+export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pickImage, sys, setSys, openStyles, setChStyle, onFill, filling, onDelete, fonts, onAddFont, onIcon }: InspectorProps) {
   const palette = [...new Map([...colours, { name: 'Black', hex: '#000000' }, { name: 'White', hex: '#FFFFFF' }].map((c) => [c.hex.toUpperCase(), c])).values()].slice(0, 16);
   // Colours already used in this chapter, for the fill picker
   const pageColours = [...new Set((JSON.stringify(ch.blocks).match(/#[0-9a-f]{6}\b/gi) || []).map((h) => h.toUpperCase()))].slice(0, 24);
@@ -132,7 +133,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   const itemElKind = itemElId ? it?.els?.find((e) => e.id === itemElId)?.kind ?? (itemElId === 'media' ? 'image' : itemElId) : undefined;
   const isImg = !!el && (el.startsWith('img:') || el.startsWith('itemimg:') || itemElKind === 'image');
   const spacerEl = itemElKind === 'spacer' && it ? it.els?.find((e) => e.id === itemElId) : undefined;
-  const isText = !!el && !isImg && !spacerEl && itemElKind !== 'frame';
+  const isText = !!el && !isImg && !spacerEl && itemElKind !== 'frame' && itemElKind !== 'icon';
   const span = b.kind === 'grid' ? Math.min(gcols, it?.w || 2) : Math.min(cols, it?.w || 1);
   const kindLabel = b.kind === 'columns' ? 'Auto layout' : KINDS.find(([k]) => k === b.kind)?.[1] || 'Section';
 
@@ -154,7 +155,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
     <Sec title={`Frame ${i! + 1} of ${items.length}`} icon={<Square {...I} />}>
     {full && b.kind === 'grid' ? <Row label="Width" hint="Columns this frame spans, or drag its edge"><Step value={span} min={1} max={b.kind === 'grid' ? gcols : cols} set={(n) => setItem({ w: n }, 'w')} label="Columns spanned" suffix={` / ${b.kind === 'grid' ? gcols : cols}`} /><button type="button" className={'dp-pill' + (span === (b.kind === 'grid' ? gcols : cols) ? ' on' : '')} onClick={() => setItem({ w: b.kind === 'grid' ? gcols : cols })}>Fill</button></Row> : null}
     {full && b.kind === 'grid' ? <Row label="Height" hint="Rows this frame spans, or drag its bottom edge"><Step value={it.h || 2} min={1} max={8} set={(n) => setItem({ h: n }, 'h')} label="Rows spanned" /></Row> : null}
-      {onAddToBox && b.variant !== 'images' ? <Row label="Add" hint="Add inside this frame"><div className="dp-addrow">{([['text', 'Text', Type], ['spacer', 'Spacer', UnfoldVertical]] as const).map(([w, l, Ic]) => <button type="button" key={w} onClick={() => onAddToBox(b.id, i!, w)} aria-label={`Add ${l.toLowerCase()} to this frame`} data-tip={l}><Ic {...I} /></button>)}<button type="button" onClick={() => nest(false)} aria-label="Add a frame inside this frame" data-tip="Frame F"><Square {...I} /></button><button type="button" onClick={() => nest(true)} aria-label="Add an image frame" data-tip="Image ⇧⌘K"><ImagePlus {...I} /></button></div></Row> : null}
+      {onAddToBox && b.variant !== 'images' ? <Row label="Add" hint="Add inside this frame"><div className="dp-addrow">{([['text', 'Text', Type], ['spacer', 'Spacer', UnfoldVertical]] as const).map(([w, l, Ic]) => <button type="button" key={w} onClick={() => onAddToBox(b.id, i!, w)} aria-label={`Add ${l.toLowerCase()} to this frame`} data-tip={l}><Ic {...I} /></button>)}<button type="button" onClick={() => nest(false)} aria-label="Add a frame inside this frame" data-tip="Frame F"><Square {...I} /></button><button type="button" onClick={() => nest(true)} aria-label="Add an image frame" data-tip="Image ⇧⌘K"><ImagePlus {...I} /></button><button type="button" onClick={() => onIcon?.(b.id, i!)} aria-label="Add an icon" data-tip="Icon"><Shapes {...I} /></button></div></Row> : null}
       <Row label="Order" hint="⌘[ and ⌘]"><div className="dp-btns"><button type="button" onClick={() => moveItem(-1)} disabled={i === 0} aria-label="Move earlier" data-tip="Earlier ⌘["><ArrowLeft {...I} /></button><button type="button" onClick={() => moveItem(1)} disabled={i === items.length - 1} aria-label="Move later" data-tip="Later ⌘]"><ArrowRight {...I} /></button></div></Row>
       <div className="dp-foot">
         <button type="button" className="dp-act" onClick={() => { set({ items: [...items.slice(0, i! + 1), { ...it, id: iid() }, ...items.slice(i! + 1)] }); setSel({ block: b.id, item: i! + 1 }); }}><Copy {...I} />Duplicate <kbd>⌘D</kbd></button>
@@ -189,6 +190,20 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
     </aside>;
   }
 
+  const iconEl = it && itemElId ? it.els?.find((e) => e.id === itemElId && e.kind === 'icon') : undefined;
+  if (iconEl && it && i !== undefined) {
+    const setIcon = (p: Partial<ItemEl>, key?: string) => setItem({ els: (it.els || []).map((e) => (e.id === iconEl.id ? { ...e, ...p } : e)) }, key && 'ic-' + key);
+    return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>
+      <Sec title="Icon" icon={<span className="dp-icprev" style={{ color: iconEl.colour }} dangerouslySetInnerHTML={{ __html: iconEl.icon?.svg || '' }} />}>
+        <Row label="Icon"><button type="button" className="dp-act" onClick={() => onIcon?.(b.id, i, iconEl.id)}><Shapes {...I} />Replace {iconEl.icon?.name ? `(${iconEl.icon.name})` : ''}</button></Row>
+        <Row label="Size"><Px value={iconEl.size} placeholder={32} step={4} set={(n) => setIcon({ size: n }, 'size')} label="Icon size" icon={Square} /></Row>
+        <Row label="Colour"><Chips palette={palette} value={iconEl.colour} set={(c) => setIcon({ colour: c })} none="Text colour" /></Row>
+        <p className="dp-tip" style={{ padding: 0 }}>From {iconEl.icon?.set === 'custom' ? 'your own SVG' : `the ${iconEl.icon?.set || 'lucide'} library`}. Change the library in the icon picker.</p>
+        <div className="dp-foot"><button type="button" className="dp-act danger" onClick={onDelete}><Trash2 {...I} />Delete <kbd>⌫</kbd></button></div>
+      </Sec>
+      {frameSec(false)}
+    </aside>;
+  }
   if (frameEl && it && i !== undefined) {
     const setLook = (l: FrameLook, key?: string) => setItem({ els: (it.els || []).map((e) => (e.id === frameEl.id ? { ...e, look: l } : e)) }, key && 'fl-' + key);
     const m = fillMedia(frameEl.look) || frameEl.media;

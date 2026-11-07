@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
 import { KINDS, KindIcon } from '@/components/GuideEditor';
 import type { Sel } from '@/components/GuideDock';
-import { UnfoldVertical, ChevronUp, ImagePlus, Palette, Plus, Sparkles, SquarePlus, Type, type LucideIcon } from 'lucide-react';
+import { UnfoldVertical, ChevronUp, ImagePlus, Palette, Plus, Shapes, Sparkles, SquarePlus, Type, type LucideIcon } from 'lucide-react';
 
-export type AddWhat = 'headline' | 'label' | 'text' | 'image' | 'box' | 'swatch' | 'spacer';
+export type AddWhat = 'headline' | 'label' | 'text' | 'image' | 'box' | 'swatch' | 'spacer' | 'icon';
 const I = { size: 18, strokeWidth: 1.6, 'aria-hidden': true } as const;
 const ITEMISH = ['columns', 'grid', 'carousel'];
 
@@ -17,6 +17,7 @@ export function addTarget(what: AddWhat, ch: GuideChapter, sel: Sel | null): str
   const it = sel?.item !== undefined && ITEMISH.includes(b.kind) ? b.items?.[sel.item] : undefined;
   const name = KINDS.find(([k]) => k === b.kind)?.[1].toLowerCase() || 'section';
   if (what === 'spacer') return 'a new spacer below';
+  if (what === 'icon') return 'a frame';
   if (what === 'swatch') return b.kind === 'swatches' ? 'this palette' : 'a new colour section below';
   if (what === 'box') return ITEMISH.includes(b.kind) && b.variant !== 'images' ? `this ${name}` : 'a new auto layout below';
   if (it) {
@@ -38,7 +39,7 @@ export function AddBar({ ch, sel, tool, onTool, onSection, onReview, reviewOpen,
   const b: Block | undefined = sel ? ch.blocks.find((x) => x.id === sel.block) : undefined;
   void addTarget;
   // Figma's tools and keys: T text, F frame, ⇧⌘K place image. A text's style (headline, label…) is set in the panel.
-  const tools: [AddWhat, string, LucideIcon, string][] = [['text', 'Text', Type, 'T'], ['image', 'Image', ImagePlus, '⇧⌘K'], ['box', 'Frame', SquarePlus, 'F'], ['spacer', 'Spacer', UnfoldVertical, ''], ...(b?.kind === 'swatches' ? [['swatch', 'Colour', Palette, ''] as [AddWhat, string, LucideIcon, string]] : [])];
+  const tools: [AddWhat, string, LucideIcon, string][] = [['text', 'Text', Type, 'T'], ['image', 'Image', ImagePlus, '⇧⌘K'], ['box', 'Frame', SquarePlus, 'F'], ['icon', 'Icon', Shapes, ''], ['spacer', 'Spacer', UnfoldVertical, ''], ...(b?.kind === 'swatches' ? [['swatch', 'Colour', Palette, ''] as [AddWhat, string, LucideIcon, string]] : [])];
   return (
     <div className="ab" role="toolbar" aria-label="Add to the page" onMouseDown={(e) => e.preventDefault()}>
       <div className="ab-menu-wrap">

@@ -11,6 +11,7 @@ import type { SectionLayout } from '@/lib/figma/blocks';
 import { CHAPTER, Shortcuts, Toolbar, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { SpaceCtl, StylesWindow } from '@/components/GuideStyles';
 import { CreativeDirector } from '@/components/CreativeDirector';
+import { IconPicker } from '@/components/IconPicker';
 import { guideMap, type Ref as ReviewRef, type ReviewSession } from '@/lib/review/director';
 import { defaultSystem, spaceName, systemCss, systemFor, type GuideSystem, type TypeId } from '@/lib/guideSystem';
 import { textProps } from '@/lib/textStyle';
@@ -211,6 +212,18 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [stylesOpen, setStylesOpen] = useState<{ focus?: TypeId } | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  // Icons: where the next one goes (a frame, at an index), or which icon it replaces
+  const [iconAt, setIconAt] = useState<{ block: string; item: number; index?: number; replace?: string } | null>(null);
+  const putIcon = (icon: { set: string; name: string; svg: string }) => {
+    const at = iconAt; setIconAt(null); if (!at || !ch) return;
+    const b = ch.blocks.find((x) => x.id === at.block); const items = b?.items || []; const it = items[at.item]; if (!b || !it) return;
+    if (at.replace) { editBlock(b.id, { items: items.map((x, n) => (n !== at.item ? x : { ...x, els: (x.els || []).map((e) => (e.id === at.replace ? { ...e, icon } : e)) })) }); return; }
+    const { els, styles } = materialise(it, b.styles || {});
+    const ne: ItemEl = { id: 'e-' + uid(), kind: 'icon', icon, size: 32 };
+    els.splice(Math.min(at.index ?? els.length, els.length), 0, ne);
+    editBlock(b.id, { items: items.map((x, n) => (n === at.item ? { ...x, els, label: undefined, heading: undefined, body: undefined, media: undefined } : x)), styles });
+    setSel({ block: b.id, item: at.item, el: `${it.id}.${ne.id}` });
+  };
   const [reviewCount, setReviewCount] = useState(0);
   // The creative director's notes point at text by id: jump to it, or apply a fix to it
   const reviewGoTo = (r: ReviewRef) => {
@@ -281,7 +294,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [tool, setTool] = useState<AddWhat | null>(null);
   const [spot, setSpot] = useState<Spot | null>(null);
   useEffect(() => { document.body.classList.toggle('ve-tool', !!tool); return () => document.body.classList.remove('ve-tool'); }, [tool]);
-  const WHAT: Record<AddWhat, string> = { headline: 'Headline', text: 'Text', label: 'Label', image: 'Image', box: 'Frame', swatch: 'Colour', spacer: 'Spacer' };
+  const WHAT: Record<AddWhat, string> = { headline: 'Headline', text: 'Text', label: 'Label', image: 'Image', box: 'Frame', swatch: 'Colour', spacer: 'Spacer', icon: 'Icon' };
   function findSpot(e: React.MouseEvent): Spot | null {
     if (!tool || !ch) return null;
     const t = e.target as HTMLElement;
@@ -306,7 +319,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         return { mode: 'line', block: blockEl.dataset.block, part: index, parts: parts.map((x) => x.dataset.part!), label: `${WHAT[tool]} ${index === 0 ? 'at the top' : `under ${name(after)}`}`, line: { top: y - 1, left: r0.left, width: r0.width, height: 2 } };
       }
     }
-    if (box && blockEl && tool === 'box') { const r = box.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, item: Number(box.dataset.item), label: 'New frame after this one', line: { top: r.top, left: r.right + 4, width: 3, height: r.height } }; }
+    if (box && blockEl && tool === 'box') { const r = box.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, item: Number(box.dataset.item), label: 'Frame inside this one', line: { top: r.top, left: r.left, width: r.width, height: r.height } }; }
     if (blockEl) { const r = blockEl.getBoundingClientRect(); return { mode: 'box', block: blockEl.dataset.block, label: `${WHAT[tool]} → ${addTarget(tool, ch, { block: blockEl.dataset.block! })}`, line: { top: r.top - 6, left: r.left - 6, width: r.width + 12, height: r.height + 12 } }; }
     return null;
   }
@@ -499,6 +512,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       setSel({ block: b.id, el: 'x-' + id }); focusNext.current = true; return;
     }
     if (sp.item === undefined) { add(what, { block: b.id }); return; }
+    if (what === 'icon') { setIconAt({ block: b.id, item: sp.item, index: sp.index }); return; }
     // Into the box, at the point clicked. Its fixed fields become a free list of elements the first time.
     const items = b.items || []; const it = items[sp.item]; if (!it) return;
     const { els, styles } = materialise(it, b.styles || {});
@@ -537,9 +551,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       if (sel.el.includes('.') && sel.item !== undefined) {
         const field = sel.el.split('.')[1]; const it = items[sel.item]; if (!it) return;
         const els = itemEls(it); const target = els.find((e) => e.id === field);
-        if (target?.kind === 'spacer' || target?.kind === 'frame') return;
+        if (target?.kind === 'spacer' || target?.kind === 'frame' || target?.kind === 'icon') return;
         kind = target ? (target.kind === 'image' ? 'text' : target.kind) : KIND[field] || 'text'; current = target?.text || '';
-        box = els.filter((e) => e.kind !== 'image' && e.kind !== 'spacer' && e.kind !== 'frame').map((e) => ({ kind: e.kind, text: e.text || '', target: e.id === field }));
+        box = els.filter((e) => e.kind !== 'image' && e.kind !== 'spacer' && e.kind !== 'frame' && e.kind !== 'icon').map((e) => ({ kind: e.kind, text: e.text || '', target: e.id === field }));
         others = items.filter((_, n) => n !== sel.item).map((x) => itemWords(x).join(' · ')).filter(Boolean).slice(0, 8);
         const n = sel.item;
         apply = (t) => writeBlock(b.id, (x) => ({ ...x, items: (x.items || []).map((y, k) => (k !== n ? y : y.els ? { ...y, els: y.els.map((e) => (e.id === field ? { ...e, text: t } : e)) } : { ...y, [field]: t })) }));
@@ -610,6 +624,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const items = b?.items || [];
     const newBox = (p: Partial<BlockItem>) => { if (!b) return; const i = sel?.item !== undefined ? sel.item + 1 : items.length; const it = { id: iid(), w: b.kind === 'grid' ? 2 : 1, h: 2, ...p }; editBlock(b.id, { items: [...items.slice(0, i), it, ...items.slice(i)] }); return { i, it }; };
     const afterSection = (kind: BlockKind, then?: (nb: Block) => void) => { const nb = addSection(kind, sel); if (nb && then) then(nb); };
+    if (!b && what === 'icon') { afterSection('columns', (nb) => setIconAt({ block: nb.id, item: 0 })); return; }
     if (!b) { // nothing selected: a new section at the end
       const kind: BlockKind = what === 'headline' ? 'divider' : what === 'image' ? 'image' : what === 'box' ? 'columns' : what === 'swatch' ? 'swatches' : what === 'spacer' ? 'spacer' : 'text';
       afterSection(kind, (nb) => { if (what === 'image') pickImage(nb.id, 'new'); });
@@ -618,6 +633,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (what === 'spacer') { afterSection('spacer'); return; }
     if (what === 'swatch') { if (b.kind === 'swatches') editBlock(b.id, { swatches: [...(b.swatches || []), { name: 'Colour', hex: '#000000' }] }); else afterSection('swatches'); return; }
     if (what === 'box' && itemish && sel?.item !== undefined && items[sel.item]) { nestFrame(b, sel.item, false); return; }
+    if (what === 'icon') { if (itemish && sel?.item !== undefined && items[sel.item]) setIconAt({ block: b.id, item: sel.item }); else if (itemish) { const r = newBox({}); if (r) setIconAt({ block: b.id, item: r.i }); } else setMsg('Icons go inside a frame: pick a frame, or use the icon tool on one.'); return; }
     if (what === 'box') { if (itemish) { const r = newBox(b.kind === 'carousel' ? { label: String(items.length + 1).padStart(2, '0'), heading: 'A headline for this card', body: 'A sentence or two to go with it.' } : { label: 'Label', body: 'Text' }); if (r) setSel({ block: b.id, item: r.i }); } else afterSection('columns'); return; }
     // Inside a selected box
     const it = sel?.item !== undefined && itemish ? items[sel.item] : undefined;
@@ -876,9 +892,10 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {ch ? <AddBar onReview={() => setReviewOpen((o) => !o)} reviewOpen={reviewOpen} reviewCount={reviewCount} ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={() => { const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length; setPicker({ at: at > 0 ? at : ch.blocks.length }); }} /> : null}
         {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
-        {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
+        {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} onIcon={(block, item, replace) => setIconAt({ block, item, replace })} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
         {stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
         {keysOpen ? <Shortcuts onClose={() => setKeysOpen(false)} /> : null}
+        {iconAt && g ? <IconPicker set={g.icons?.set || 'lucide'} onSet={(set) => { if (set !== (g.icons?.set || 'lucide') && set !== 'custom') commit({ ...(latest.current || g), icons: { set } }); }} onPick={putIcon} onClose={() => setIconAt(null)} /> : null}
         {g ? <CreativeDirector projectId={projectId} guide={g} chapterId={chId} initial={(content.reviewSession as ReviewSession | undefined) || null} goTo={reviewGoTo} apply={reviewApply} focusOn={reviewFocus()} open={reviewOpen} setOpen={setReviewOpen} onCount={setReviewCount} /> : null}
         <style dangerouslySetInnerHTML={{ __html: systemCss(sys) }} />
       </div>
