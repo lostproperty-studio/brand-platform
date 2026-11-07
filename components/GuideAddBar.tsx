@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
 import { KINDS, KindIcon } from '@/components/GuideEditor';
 import type { Sel } from '@/components/GuideDock';
-import { UnfoldVertical, ChevronUp, ImagePlus, Palette, Plus, SquarePlus, Type, type LucideIcon } from 'lucide-react';
+import { UnfoldVertical, ChevronUp, ImagePlus, Palette, Plus, Sparkles, SquarePlus, Type, type LucideIcon } from 'lucide-react';
 
 export type AddWhat = 'headline' | 'label' | 'text' | 'image' | 'box' | 'swatch' | 'spacer';
 const I = { size: 18, strokeWidth: 1.6, 'aria-hidden': true } as const;
@@ -32,7 +32,7 @@ export function addTarget(what: AddWhat, ch: GuideChapter, sel: Sel | null): str
 
 // The adding bar at the bottom of the screen, like Figma's: top and side are for changing what's there; this is for
 // adding. Each tool adds to whatever you've selected (a box, then a section), or below it when there's no room.
-export function AddBar({ ch, sel, tool, onTool, onSection }: { ch: GuideChapter; sel: Sel | null; tool: AddWhat | null; onTool: (w: AddWhat | null) => void; onSection: () => void }) {
+export function AddBar({ ch, sel, tool, onTool, onSection, onReview, reviewOpen, reviewCount }: { ch: GuideChapter; sel: Sel | null; tool: AddWhat | null; onTool: (w: AddWhat | null) => void; onSection: () => void; onReview?: () => void; reviewOpen?: boolean; reviewCount?: number }) {
   const [menu, setMenu] = useState(false);
   useEffect(() => { if (!menu) return; const off = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.ab-menu-wrap')) setMenu(false); }; document.addEventListener('mousedown', off); return () => document.removeEventListener('mousedown', off); }, [menu]);
   const b: Block | undefined = sel ? ch.blocks.find((x) => x.id === sel.block) : undefined;
@@ -47,6 +47,7 @@ export function AddBar({ ch, sel, tool, onTool, onSection }: { ch: GuideChapter;
       <span className="ab-sep" />
       {tools.map(([w, l, Ic, key]) => (
         <button key={w} type="button" className={'ab-btn' + (tool === w ? ' on' : '')} onClick={() => onTool(tool === w ? null : w)} aria-pressed={tool === w} aria-label={`${l}: click, then click on the page where it goes`} data-tip={tool === w ? `Click where the ${l.toLowerCase()} goes · Esc to cancel` : `${l}${key ? ` ${key}` : ''} · then point where it goes`}><Ic {...I} /></button>))}
+      {onReview ? <><span className="ab-sep" /><button type="button" className={'ab-btn ab-review' + (reviewOpen ? ' on' : '')} onClick={onReview} aria-pressed={reviewOpen} aria-label="Review: an AI creative director for the guidelines" data-tip="Review the guidelines with AI"><Sparkles {...I} /><span>Review</span>{reviewCount ? <i className="ab-count">{reviewCount}</i> : null}</button></> : null}
     </div>
   );
 }

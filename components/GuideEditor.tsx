@@ -210,6 +210,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const setSysKey = (next: GuideSystem, key?: string) => { if (g) commit({ ...g, system: next.edited === false ? undefined : next }, key); };
   const [stylesOpen, setStylesOpen] = useState<{ focus?: TypeId } | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewCount, setReviewCount] = useState(0);
   // The creative director's notes point at text by id: jump to it, or apply a fix to it
   const reviewGoTo = (r: ReviewRef) => {
     setChId(r.chapter);
@@ -407,15 +409,15 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       setSel({ block: b.id, el: 'x-' + id }); focusNext.current = true; return;
     }
     if (sp.item === undefined) { add(what, { block: b.id }); return; }
-    if (what === 'box') { add('box', { block: b.id, item: sp.item }); return; }
     // Into the box, at the point clicked. Its fixed fields become a free list of elements the first time.
     const items = b.items || []; const it = items[sp.item]; if (!it) return;
     const { els, styles } = materialise(it, b.styles || {});
-    const kind: ItemEl['kind'] = what === 'headline' ? 'heading' : what === 'text' ? 'text' : what === 'label' ? 'label' : what === 'spacer' ? 'spacer' : 'image';
-    const ne: ItemEl = { id: 'e-' + uid(), kind, ...(kind === 'image' ? {} : kind === 'spacer' ? { size: 32 } : { text: kind === 'heading' ? 'Headline' : kind === 'label' ? 'Label' : 'Write something…' }) };
+    // Figma's way: a frame (F) or an image dropped into a frame becomes a frame inside it; an image is a frame filled with it
+    const kind: ItemEl['kind'] = what === 'headline' ? 'heading' : what === 'text' ? 'text' : what === 'label' ? 'label' : what === 'spacer' ? 'spacer' : 'frame';
+    const ne: ItemEl = { id: 'e-' + uid(), kind, ...(kind === 'frame' ? { look: what === 'image' ? { ratio: '4:3' } : { ratio: '16:9', fill: { type: 'colour' as const, colour: '#EEEEEE' } } } : kind === 'spacer' ? { size: 32 } : { text: kind === 'heading' ? 'Headline' : kind === 'label' ? 'Label' : 'Write something…' }) };
     els.splice(Math.min(sp.index ?? els.length, els.length), 0, ne);
     editBlock(b.id, { items: items.map((x, n) => (n === sp.item ? { ...x, els, label: undefined, heading: undefined, body: undefined, media: undefined } : x)), styles });
-    if (kind === 'image') { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); pickImage(b.id, `itemel:${sp.item}:${ne.id}`); }
+    if (kind === 'frame') { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); if (what === 'image') pickImage(b.id, `look:${sp.item}:${ne.id}`); }
     else if (kind === 'spacer') setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` });
     else { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); focusNext.current = true; }
   }
@@ -445,9 +447,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       if (sel.el.includes('.') && sel.item !== undefined) {
         const field = sel.el.split('.')[1]; const it = items[sel.item]; if (!it) return;
         const els = itemEls(it); const target = els.find((e) => e.id === field);
-        if (target?.kind === 'spacer') return;
+        if (target?.kind === 'spacer' || target?.kind === 'frame') return;
         kind = target ? (target.kind === 'image' ? 'text' : target.kind) : KIND[field] || 'text'; current = target?.text || '';
-        box = els.filter((e) => e.kind !== 'image' && e.kind !== 'spacer').map((e) => ({ kind: e.kind, text: e.text || '', target: e.id === field }));
+        box = els.filter((e) => e.kind !== 'image' && e.kind !== 'spacer' && e.kind !== 'frame').map((e) => ({ kind: e.kind, text: e.text || '', target: e.id === field }));
         others = items.filter((_, n) => n !== sel.item).map((x) => itemWords(x).join(' · ')).filter(Boolean).slice(0, 8);
         const n = sel.item;
         apply = (t) => writeBlock(b.id, (x) => ({ ...x, items: (x.items || []).map((y, k) => (k !== n ? y : y.els ? { ...y, els: y.els.map((e) => (e.id === field ? { ...e, text: t } : e)) } : { ...y, [field]: t })) }));
@@ -500,6 +502,16 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length;
     return insertAt(at > 0 ? at : ch.blocks.length, kind);
   }
+  /** A frame inside a frame (at the end): filled with an image when asked, else a light colour to change */
+  function nestFrame(b: Block, k: number, image: boolean) {
+    const items = b.items || []; const it = items[k]; if (!it) return;
+    const { els, styles } = materialise(it, b.styles || {});
+    const ne: ItemEl = { id: 'e-' + uid(), kind: 'frame', look: image ? { ratio: '4:3' } : { ratio: '16:9', fill: { type: 'colour', colour: '#EEEEEE' } } };
+    els.push(ne);
+    editBlock(b.id, { items: items.map((x, n) => (n === k ? { ...x, els, label: undefined, heading: undefined, body: undefined, media: undefined } : x)), styles });
+    setSel({ block: b.id, item: k, el: `${it.id}.${ne.id}` });
+    if (image) pickImage(b.id, `look:${k}:${ne.id}`);
+  }
   function add(what: AddWhat, at?: Sel | null) {
     if (!ch) return;
     const sel = at === undefined ? selRef : at;
@@ -515,12 +527,13 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     }
     if (what === 'spacer') { afterSection('spacer'); return; }
     if (what === 'swatch') { if (b.kind === 'swatches') editBlock(b.id, { swatches: [...(b.swatches || []), { name: 'Colour', hex: '#000000' }] }); else afterSection('swatches'); return; }
+    if (what === 'box' && itemish && sel?.item !== undefined && items[sel.item]) { nestFrame(b, sel.item, false); return; }
     if (what === 'box') { if (itemish) { const r = newBox(b.kind === 'carousel' ? { label: String(items.length + 1).padStart(2, '0'), heading: 'A headline for this card', body: 'A sentence or two to go with it.' } : { label: 'Label', body: 'Text' }); if (r) setSel({ block: b.id, item: r.i }); } else afterSection('columns'); return; }
     // Inside a selected box
     const it = sel?.item !== undefined && itemish ? items[sel.item] : undefined;
     if (it && sel?.item !== undefined) {
       const field = what === 'headline' ? 'heading' : what === 'label' ? 'label' : 'body';
-      if (what === 'image') { if (!it.media) { pickImage(b.id, `item:${sel.item}`); return; } const r = newBox({}); if (r) { setSel({ block: b.id, item: r.i }); pickImage(b.id, `item:${r.i}`); } return; }
+      if (what === 'image') { nestFrame(b, sel.item, true); return; }
       if (!it[field as 'heading']) { editBlock(b.id, { items: items.map((x, n) => (n === sel.item ? { ...x, [field]: PH[field] } : x)), off: (b.off || []).filter((k) => k !== `${it.id}.${field}`) }); setSel({ block: b.id, item: sel.item, el: `${it.id}.${field}` }); focusNext.current = true; return; }
       const r = newBox({ [field]: PH[field] }); if (r) { setSel({ block: b.id, item: r.i, el: `${r.it.id}.${field}` }); focusNext.current = true; } return;
     }
@@ -536,13 +549,15 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const moveChapter = (id: string, toId: string) => { if (!g || id === toId) return; const l = [...g.chapters]; const from = l.findIndex((c) => c.id === id); const [c] = l.splice(from, 1); l.splice(l.findIndex((x) => x.id === toId), 0, c); setChapters(l); };
 
   async function upload(file: File): Promise<BlockMedia | null> {
-    const dims = await new Promise<{ w: number; h: number }>((ok) => { const im = new Image(); im.onload = () => ok({ w: im.naturalWidth || 1200, h: im.naturalHeight || 800 }); im.onerror = () => ok({ w: 1200, h: 800 }); im.src = URL.createObjectURL(file); });
+    const isVideo = file.type.startsWith('video/');
+    const dims = isVideo ? await new Promise<{ w: number; h: number }>((ok) => { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => ok({ w: v.videoWidth || 1920, h: v.videoHeight || 1080 }); v.onerror = () => ok({ w: 1920, h: 1080 }); v.src = URL.createObjectURL(file); })
+      : await new Promise<{ w: number; h: number }>((ok) => { const im = new Image(); im.onload = () => ok({ w: im.naturalWidth || 1200, h: im.naturalHeight || 800 }); im.onerror = () => ok({ w: 1200, h: 800 }); im.src = URL.createObjectURL(file); });
     const fd = new FormData(); fd.set('file', file); setMsg('Uploading…');
     const r = await fetch(`/api/projects/${projectId}/guide/upload`, { method: 'POST', body: fd });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { setMsg(j.error || 'Upload failed.'); return null; }
     setUrls((u) => ({ ...u, [j.path]: j.url })); setMsg('');
-    return { path: j.path, w: dims.w, h: dims.h, kind: file.type === 'image/svg+xml' ? 'graphic' : 'photo' };
+    return { path: j.path, w: dims.w, h: dims.h, kind: file.type === 'image/svg+xml' ? 'graphic' : 'photo', ...(isVideo ? { video: true } : {}) };
   }
   function pickImage(block: string, target: number | 'backdrop' | 'new' | 'thumb' | string) { fileFor.current = { block, target }; fileInput.current?.click(); }
   async function onFile(f?: File) {
@@ -550,6 +565,12 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const up = await upload(f); if (!up) return;
     if (t.target === 'thumb') { setCh({ thumb: up.path }); return; }
     const b = ch.blocks.find((x) => x.id === t.block); if (!b) return;
+    // A fill for a frame: a nested frame (look:k:el) or the frame itself (ilook:k)
+    if (typeof t.target === 'string' && (t.target.startsWith('look:') || t.target.startsWith('ilook:'))) {
+      const [kind, k, elId] = t.target.split(':'); const fill = { type: up.video ? 'video' as const : 'image' as const, media: up };
+      editBlock(b.id, { items: (b.items || []).map((x, n) => (n !== Number(k) ? x : kind === 'ilook' ? { ...x, look: { ...(x.look || {}), fill } } : { ...x, els: (x.els || itemEls(x)).map((e) => (e.id === elId ? { ...e, look: { ...(e.look || {}), fill } } : e)) })) });
+      return;
+    }
     if (typeof t.target === 'string' && t.target.startsWith('itemel:')) { const [, k, elId] = t.target.split(':'); editBlock(b.id, { items: (b.items || []).map((x, n) => (n === Number(k) ? { ...x, els: (x.els || []).map((e) => (e.id === elId ? { ...e, media: up } : e)) } : x)) }); return; }
     if (typeof t.target === 'string' && t.target.startsWith('item:')) { const k = Number(t.target.slice(5)); editBlock(b.id, { items: (b.items || []).map((x, n) => (n === k ? { ...x, media: up } : x)) }); return; }
     if (t.target === 'backdrop') editBlock(b.id, { backdrop: up });
@@ -581,8 +602,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     itemElText: (i, e, el) => <Editable key={e.id} value={e.text} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === el.key} onFocus={() => setSel({ block: b.id, el: el.key, item: i })} onSave={(v) => editBlock(b.id, { items: (b.items || []).map((x, n) => (n === i ? { ...x, els: (x.els || []).map((y) => (y.id === e.id ? { ...y, text: v || undefined } : y)) } : x)) })} />,
     itemElImage: (i, e, img) => { const key = `${(b.items || [])[i]?.id}.${e.id}`; return img ? <span className={'ve-img' + (sel?.block === b.id && sel.el === key ? ' on' : '')} onMouseDown={(ev) => { ev.stopPropagation(); setSel({ block: b.id, el: key, item: i }); }}>{img}</span> : <button className={'ve-add ve-elimg' + (sel?.block === b.id && sel.el === key ? ' on' : '')} onMouseDown={(ev) => { ev.stopPropagation(); setSel({ block: b.id, el: key, item: i }); }} onClick={() => pickImage(b.id, `itemel:${i}:${e.id}`)}><ImageIcon size={16} strokeWidth={1.75} aria-hidden />Choose an image</button>; },
     itemImage: (i, m, pic) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `itemimg:${i}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `itemimg:${i}`, item: i }); }}>{pic}</span>,
-    insertItem: (at, edge) => <button key={'ins-' + edge} type="button" className={'ve-ins ' + edge} aria-label={edge === 'after' ? 'Add a frame at the end' : `Add a frame before frame ${at + 1}`} data-tip="Add frame" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const items = [...(b.items || [])]; const nb = items[at] || items[at - 1]; items.splice(at, 0, { id: iid(), label: nb?.label !== undefined ? 'Label' : undefined, heading: nb?.heading ? 'A headline' : undefined, body: nb?.body || !nb ? 'Text' : undefined, w: 1 }); editBlock(b.id, { items, ...(b.flow?.dir !== 'col' ? { cols: Math.min(6, items.length) } : {}) }); setSel({ block: b.id, item: at }); }}><span><Plus size={12} strokeWidth={2} aria-hidden /></span></button>,
-    addItem: () => sel?.block === b.id ? <button key="additem" className="ve-add ve-additem" style={b.kind === 'grid' ? { gridColumn: 'span 2' } : undefined} onClick={() => { editBlock(b.id, { items: [...(b.items || []), { id: iid(), label: b.kind === 'carousel' ? String((b.items || []).length + 1).padStart(2, '0') : 'Label', ...(b.kind === 'carousel' ? { heading: 'A headline for this card' } : { body: 'Text' }), w: b.kind === 'grid' ? 2 : 1, h: 2 }] }); setSel({ block: b.id, item: (b.items || []).length }); }}><Plus size={15} strokeWidth={1.75} aria-hidden />{b.kind === 'carousel' ? 'Card' : 'Frame'}</button> : null,
+    insertItem: (at, edge) => <button key={'ins-' + edge} type="button" className={'ve-ins ' + edge} aria-label={edge === 'after' ? 'Add a frame at the end' : `Add a frame before frame ${at + 1}`} data-tip="Add frame" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const items = [...(b.items || [])]; const nb = items[at] || items[at - 1]; items.splice(at, 0, { id: iid(), label: nb?.label !== undefined ? 'Label' : undefined, heading: nb?.heading ? 'A headline' : undefined, body: nb?.body || !nb ? 'Text' : undefined, w: b.kind === 'grid' ? (nb?.w || 2) : 1, h: nb?.h || 2 }); editBlock(b.id, { items, ...(b.kind === 'columns' && b.flow?.dir !== 'col' ? { cols: Math.min(6, items.length) } : {}) }); setSel({ block: b.id, item: at }); }}><span><Plus size={12} strokeWidth={2} aria-hidden /></span></button>,
+    selectEl: (i, key) => setSel({ block: b.id, item: i, el: key }), isSel: (key) => sel?.block === b.id && sel.el === key,
+    addItem: () => null, // frames are added with the + between frames, the panel or F; never a tile
     // The selected box: an outline and handles to drag its width (and height, in a grid) across the columns
     extraText: (x, el) => <Editable key={el.key} value={x.text} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === `x-${x.id}`} onFocus={() => setSel({ block: b.id, el: `x-${x.id}` })} onSave={(v) => editBlock(b.id, v ? { extras: (b.extras || []).map((y) => (y.id === x.id ? { ...y, text: v } : y)) } : { extras: (b.extras || []).filter((y) => y.id !== x.id), order: (b.order || []).filter((p) => p !== `x-${x.id}`) })} />,
     gap: (part, value, rule) => { const on = sel?.block === b.id && sel.gap === part;
@@ -656,7 +678,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   return (
     <div className="ve">
       <style>{fontCss}</style>{liveFontCss ? <style>{liveFontCss}</style> : null}
-      <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={fileInput} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" hidden onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
       <div className="ve-top">
         <button className="btn solid ic" disabled={busy} onClick={() => setRebuildOpen(true)} aria-haspopup="dialog"><RefreshCw size={15} strokeWidth={1.75} aria-hidden />Import from Figma</button>
         <a className="btn ic" href={`/p/${slug}/guidelines`} target="_blank" rel="noopener"><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a>
@@ -756,13 +778,13 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {picker && ch ? ('convert' in picker
           ? <LayoutPicker title="Change the layout" current={layoutOf(ch.blocks.find((x) => x.id === picker.convert)!)} onPick={(l) => changeLayout(picker.convert, l)} onClose={() => setPicker(null)} />
           : <LayoutPicker onPick={(l) => insertLayout(picker.at, l)} onPickKind={(k) => insertAt(picker.at, k)} onClose={() => setPicker(null)} />) : null}
-        {ch ? <AddBar ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={() => { const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length; setPicker({ at: at > 0 ? at : ch.blocks.length }); }} /> : null}
+        {ch ? <AddBar onReview={() => setReviewOpen((o) => !o)} reviewOpen={reviewOpen} reviewCount={reviewCount} ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={() => { const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length; setPicker({ at: at > 0 ? at : ch.blocks.length }); }} /> : null}
         {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
         {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
         {stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
         {keysOpen ? <Shortcuts onClose={() => setKeysOpen(false)} /> : null}
-        {g ? <CreativeDirector projectId={projectId} guide={g} chapterId={chId} initial={(content.reviewSession as ReviewSession | undefined) || null} goTo={reviewGoTo} apply={reviewApply} /> : null}
+        {g ? <CreativeDirector projectId={projectId} guide={g} chapterId={chId} initial={(content.reviewSession as ReviewSession | undefined) || null} goTo={reviewGoTo} apply={reviewApply} open={reviewOpen} setOpen={setReviewOpen} onCount={setReviewCount} /> : null}
         <style dangerouslySetInnerHTML={{ __html: systemCss(sys) }} />
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}

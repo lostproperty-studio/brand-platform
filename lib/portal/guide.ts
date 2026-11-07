@@ -1,3 +1,4 @@
+import { blockPaths } from '@/lib/figma/blocks';
 import type { TextStyle } from '@/lib/figma/blocks';
 import { adminClient } from '@/lib/supabase/server';
 import { exportNodes, fetchPage, scanFigmaPage, type ScanFrame } from '@/lib/figma/scan';
@@ -239,7 +240,7 @@ export async function buildGuide(projectId: string, mode: BuildMode = 'update', 
 
 /** Every stored image a guide refers to. */
 export function guidePaths(g: Guide) {
-  return g.chapters.flatMap((c) => [c.thumb, ...c.blocks.flatMap((b) => [b.original, b.backdrop?.path, ...(b.media || []).map((m) => m.path), ...(b.items || []).map((i) => i.media?.path)])]).filter(Boolean) as string[];
+  return g.chapters.flatMap((c) => [c.thumb, ...c.blocks.flatMap((b) => [b.original, ...blockPaths(b)])]).filter(Boolean) as string[];
 }
 
 /** Plain text of a chapter, for the brand chat and the connector. */

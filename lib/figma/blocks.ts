@@ -25,12 +25,23 @@ export type TextStyle = { /** One of the guide's text styles (h1–h6, body, cap
   /** Figma's text settings: alignment, decoration, lists, paragraph spacing (px), truncation, wrapping, fill opacity and layer opacity (0–100) */
   align?: 'left' | 'center' | 'right' | 'justify'; decoration?: 'underline' | 'strike'; list?: 'bullet' | 'number'; paraGap?: number; truncate?: boolean; wrap?: 'balance' | 'pretty'; alpha?: number; opacity?: number };
 /** One element inside a box, in order: a small label, a headline, text or an image */
-export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer'; text?: string; media?: BlockMedia; /** spacer height in pixels */ size?: number };
+/** How a frame looks, as in Figma: a fill (colour, image or video), how an image sits (fill, fit or crop, with zoom
+ *  and focal point in %), a stroke, corner radius, padding and a locked shape */
+export type FrameLook = {
+  fill?: { type: 'colour'; colour: string } | { type: 'image' | 'video'; media: BlockMedia };
+  fit?: 'fill' | 'fit' | 'crop'; zoom?: number; x?: number; y?: number;
+  stroke?: { colour: string; width: number }; radius?: number; pad?: number; ratio?: string;
+  /** Sizing, as in Figma: fill the space, hug the content, or a fixed size in pixels */
+  sw?: 'fill' | 'hug' | number; sh?: 'fill' | 'hug' | number;
+};
+/** One element inside a frame, in order: a label, a headline, text, an image, a spacer, or a frame inside the frame */
+export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer' | 'frame'; text?: string; media?: BlockMedia; /** spacer height in pixels */ size?: number; look?: FrameLook };
 export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number;
   /** When set, the box's content as a free list of elements (added with the adding bar), instead of the fixed fields */
   els?: ItemEl[];
   /** How the content sits in the box (overrides the section's setting), and the space between its elements in pixels */
-  align?: BoxAlign; gap?: number; /** Padding inside this frame, in pixels (overrides the guide's rule) */ pad?: number };
+  align?: BoxAlign; gap?: number; /** Padding inside this frame, in pixels (overrides the guide's rule) */ pad?: number;
+  /** The frame's own fill, stroke and corner radius */ look?: FrameLook };
 /** Content alignment inside a box, like Figma's auto layout: x across, y down; 'between' spreads elements evenly */
 export type BoxAlign = { x?: 'start' | 'center' | 'end'; y?: 'start' | 'center' | 'end' | 'between' };
 /** A box's elements in order, from its free list or from the fixed fields (image, label, headline, text) */
@@ -44,8 +55,8 @@ export function itemEls(it: BlockItem): ItemEl[] {
   ];
 }
 /** All the words in a box */
-export const itemWords = (it: BlockItem) => itemEls(it).filter((e) => e.kind !== 'image' && e.kind !== 'spacer').map((e) => e.text).filter(Boolean) as string[];
-export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string };
+export const itemWords = (it: BlockItem) => itemEls(it).filter((e) => e.kind !== 'image' && e.kind !== 'spacer' && e.kind !== 'frame').map((e) => e.text).filter(Boolean) as string[];
+export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string; /** A video file (MP4 or WebM), played muted on a loop */ video?: boolean };
 export type BlockSwatch = { name: string; hex: string; note?: string };
 export type Block = {
   id: string; source?: string; kind: BlockKind;
@@ -395,4 +406,10 @@ function groupItems({ rest, vis, boxes, marks, F, tidy }: { rest: T[]; vis: V[];
 /** Plain text of a block, for search, the brand chat and the connector. */
 export function blockText(b: Block) {
   return [b.eyebrow, b.heading, b.body, ...(b.items || []).flatMap((i) => itemWords(i)), ...(b.media || []).map((m) => m.caption), ...(b.swatches || []).map((s) => `${s.name} ${s.hex}${s.note ? ' ' + s.note : ''}`)].filter(Boolean) as string[];
+}
+
+/** Every stored image or video a section uses: backdrop, images, frames' images and fills, and frames inside frames */
+export function blockPaths(b: Block): string[] {
+  const fill = (l?: FrameLook) => (l?.fill && l.fill.type !== 'colour' ? l.fill.media.path : undefined);
+  return [b.backdrop?.path, ...(b.media || []).map((m) => m.path), ...(b.items || []).flatMap((i) => [i.media?.path, fill(i.look), ...(i.els || []).flatMap((e) => [e.media?.path, fill(e.look)])])].filter(Boolean) as string[];
 }

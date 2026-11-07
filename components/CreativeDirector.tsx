@@ -32,11 +32,10 @@ function Said({ text, onGo, label }: { text: string; onGo: (ref: string) => void
   return <div className="cd-said">{blocks}</div>;
 }
 
-export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, apply }: {
-  projectId: string; guide: Guide; chapterId: string; initial?: ReviewSession | null;
+export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, apply, open, setOpen, onCount }: {
+  projectId: string; guide: Guide; chapterId: string; initial?: ReviewSession | null; open: boolean; setOpen: (o: boolean) => void; onCount?: (n: number) => void;
   goTo: (ref: Ref) => void; apply: (ref: Ref, quote: string, suggestion: string) => boolean;
 }) {
-  const [open, setOpen] = useState(false);
   const [s, setS] = useState<ReviewSession | null>(initial || null);
   const [setup, setSetup] = useState(!initial);
   const [depth, setDepth] = useState<Depth>('big');
@@ -70,7 +69,7 @@ export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, a
     const f = ref.field; const what = f === 'title' ? 'Chapter title' : f === 'lede' ? 'Introduction' : f === 'kicker' || f === 'eyebrow' || f === 'label' ? 'Label' : f === 'heading' ? 'Headline' : f.startsWith('cap:') ? 'Caption' : 'Text';
     const fi = ref.item && b ? (b.items || []).findIndex((x) => x.id === ref.item) : -1;
     const where = b ? (b.heading || b.eyebrow || '').replace(/\s+/g, ' ').trim() : c?.title || '';
-    return [what + (fi >= 0 ? ` in frame ${fi + 1}` : ''), where && !(f === 'heading' && !ref.item) ? where.slice(0, 26) + (where.length > 26 ? '…' : '') : ''].filter(Boolean).join(' · ');
+    return [what + (fi >= 0 ? ` in frame ${fi + 1}` : ''), where && f !== 'title' ? where.slice(0, 26) + (where.length > 26 ? '…' : '') : ''].filter(Boolean).join(' · ');
   };
 
   async function start() {
@@ -105,14 +104,13 @@ export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, a
   const byChapter = (ns: DetailNote[]) => { const m = new Map<string, DetailNote[]>(); for (const n of ns) { const k = n.ref.split('.')[0]; m.set(k, [...(m.get(k) || []), n]); } return [...m]; };
   const chapterTitle = (C: string) => { const r = s && Object.entries(s.refs).find(([k]) => k.startsWith(C + '.'))?.[1]; return r ? chapters.find((c) => c.id === r.chapter)?.title || C : C; };
 
-  if (!open) return <button type="button" className="cd-fab" onClick={() => setOpen(true)} aria-label="Open the creative director">
-    <span className="cd-mark"><LpMark state={busy || talking ? 'scan' : 'rest'} /></span><span>Creative director</span>{s && openBig.length + openDetail.length ? <span className="cd-badge">{openBig.length + openDetail.length}</span> : null}
-  </button>;
+  useEffect(() => { onCount?.(openBig.length + openDetail.length); }, [openBig.length, openDetail.length, onCount]);
+  if (!open) return null;
 
-  return <div className="cd" role="dialog" aria-label="Creative director">
+  return <div className="cd" role="dialog" aria-label="Review">
     <div className="cd-top">
       <span className="cd-mark"><LpMark state={busy ? 'scan' : talking ? 'contour' : 'rest'} /></span>
-      <div className="cd-top-t"><strong>Creative director</strong>{s && !setup ? <span>{scopeName(s.chapter)} · {DEPTHS.find((d) => d.id === s.depth)?.title} · {new Date(s.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : <span>Reviews the guide against the studio standard</span>}</div>
+      <div className="cd-top-t"><strong>Review</strong>{s && !setup ? <span>{scopeName(s.chapter)} · {DEPTHS.find((d) => d.id === s.depth)?.title} · {new Date(s.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : <span>Reviews the guide against the studio standard</span>}</div>
       {s && !setup ? <button type="button" className="cd-ic" onClick={() => { setSetup(true); setScope(''); }} data-tip="New session" aria-label="Start a new session"><Plus {...I} /></button> : null}
       <button type="button" className="cd-ic" onClick={() => setOpen(false)} aria-label="Minimise"><ChevronDown {...I} /></button>
     </div>
@@ -176,7 +174,7 @@ export function CreativeDirector({ projectId, guide, chapterId, initial, goTo, a
     </div>}
 
     {s && !setup ? <form className="cd-bar" onSubmit={(e) => { e.preventDefault(); send(text); }}>
-      <textarea id="cd-in" rows={1} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask, push back, or tell me what you changed…" onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }} aria-label="Message the creative director" />
+      <textarea id="cd-in" rows={1} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask, push back, or tell me what you changed…" onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }} aria-label="Message Review" />
       <button className="cd-send" disabled={!text.trim() || talking} aria-label="Send">{talking ? <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden /> : <ArrowUp size={15} strokeWidth={2} aria-hidden />}</button>
     </form> : null}
   </div>;

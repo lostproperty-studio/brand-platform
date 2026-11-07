@@ -1,6 +1,7 @@
 import type { Block, BlockItem, BlockMedia, BlockSwatch, ItemEl, SectionText } from '@/lib/figma/blocks';
 import { Swatch } from '@/components/portal/Swatch';
 import { textProps } from '@/lib/textStyle';
+import type { FrameLook } from '@/lib/figma/blocks';
 import { spaceRule } from '@/lib/guideSystem';
 import { Carousel } from '@/components/portal/Carousel';
 
@@ -30,6 +31,8 @@ export type EditKit = {
   addItem?: () => React.ReactNode;
   /** A small + in the gap before item i (or after the last), to add a box there */
   insertItem?: (at: number, edge: 'before' | 'after') => React.ReactNode;
+  /** Select an element in a frame (a nested frame), and whether it's selected */
+  selectEl?: (item: number, key: string) => void; isSel?: (key: string) => boolean;
   /** Elements added freely inside a box */
   itemElText?: (i: number, e: ItemEl, el: El) => React.ReactNode;
   itemElImage?: (i: number, e: ItemEl, img: React.ReactNode) => React.ReactNode;
@@ -63,11 +66,12 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const tone = [b.headSize ? `hs-${b.headSize}` : '', b.bodySize ? `bs-${b.bodySize}` : '', b.bodyCols && b.bodyCols > 1 ? `bc-${b.bodyCols}` : '', b.align === 'center' ? 'al-c' : ''].filter(Boolean).join(' ');
 
     // A box with its own list of elements, in the order they were placed
-  const CLS: Record<ItemEl['kind'], string> = { label: 'gi-label', heading: 'gi-h', text: 'gi-body', image: 'gi-media', spacer: '' };
-  const CARD_CLS: Record<ItemEl['kind'], string> = { label: 'gc-label', heading: 'gc-h', text: 'gc-body', image: 'gc-cardimg', spacer: '' };
+  const CLS: Record<ItemEl['kind'], string> = { label: 'gi-label', heading: 'gi-h', text: 'gi-body', image: 'gi-media', spacer: '', frame: 'gi-frame' };
+  const CARD_CLS: Record<ItemEl['kind'], string> = { label: 'gc-label', heading: 'gc-h', text: 'gc-body', image: 'gc-cardimg', spacer: '', frame: 'gi-frame' };
   const elsOf = (i: number, it: BlockItem, card = false) => { const els = it.els || []; const push = els.findIndex((e) => e.kind === 'heading' || e.kind === 'text'); const pushOk = push > 0 && els.slice(0, push).every((e) => e.kind === 'label' || e.kind === 'image') && !els.some((e) => e.kind === 'spacer'); return els.map((e, k) => {
     const cls = (k === push && pushOk ? 'gi-push ' : '') + 'gi-el';
     if (e.kind === 'spacer') return <div key={e.id} data-el={e.id} data-spacer="" className={'gi-el gi-spacer' + (edit ? ' ed-spacer' : '')} style={{ height: e.size ?? 32 }}>{edit?.grip ? edit.grip(i, e.id) : null}{edit ? <span>Spacer · {e.size ?? 32}px</span> : null}</div>;
+    if (e.kind === 'frame' || (e.kind === 'image' && e.look)) { const key = `${it.id}.${e.id}`; return <div key={e.id} data-el={e.id} className={cls + ' gi-frame-el' + (e.look?.sh === 'fill' ? ' grow' : '') + (e.look?.sw === 'hug' || typeof e.look?.sw === 'number' ? ' hug' : '')}>{edit?.grip ? edit.grip(i, e.id) : null}<Frame look={e.look} media={e.kind === 'image' ? e.media : undefined} urls={urls} on={edit?.isSel?.(key)} onPick={edit?.selectEl ? () => edit.selectEl!(i, key) : undefined} empty={!!edit} /></div>; }
     if (e.kind === 'image') { const mm = e.media && urls[e.media.path] ? e.media : undefined; const img = mm ? <img src={urls[mm.path]} alt="" loading="lazy" /> : null; return <div key={e.id} data-el={e.id} className={cls + ' gi-media'}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElImage ? edit.itemElImage(i, e, img) : img}</div>; }
     const key = `${it.id}.${e.id}`; const tp = st(key); const el: El = { tag: e.kind === 'text' ? 'div' : 'p', className: (card ? CARD_CLS[e.kind] : CLS[e.kind]) + (tp.className ? ' ' + tp.className : ''), placeholder: e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text', multiline: e.kind === 'text', style: tp.style, key };
     return <div key={e.id} data-el={e.id} className={cls}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;
@@ -93,7 +97,15 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   };
   // How content sits inside each box: the box's own setting, else the section's
   const alignCls = (it: BlockItem) => { const a = it.align || b.boxAlign; return a && (a.x || a.y) ? ` ga ga-x-${a.x || 'start'} ga-y-${a.y || 'start'}` : ''; };
-  const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return { ...(g !== undefined ? { ['--egap' as string]: `${g}px` } : {}), ...(it.pad !== undefined ? { padding: it.pad } : {}) }; };
+  /** A frame's sizing in an auto layout: fill the space, hug its content, or a fixed size */
+  const sizeOf = (it: BlockItem): React.CSSProperties => {
+    if (b.kind !== 'columns') return {};
+    const sw = it.look?.sw, sh = it.look?.sh, col = b.flow?.dir === 'col';
+    return { ...(col ? (sw === 'hug' ? { width: 'fit-content', alignSelf: 'flex-start' } : typeof sw === 'number' ? { width: sw, maxWidth: '100%', alignSelf: 'flex-start' } : {})
+      : (sw === 'hug' ? { flex: '0 0 auto', width: 'auto' } : typeof sw === 'number' ? { flex: `0 0 ${sw}px`, maxWidth: '100%' } : {})),
+      ...(sh === 'hug' ? { alignSelf: 'flex-start' } : typeof sh === 'number' ? { height: sh, alignSelf: 'flex-start' } : sh === 'fill' && !col ? { alignSelf: 'stretch' } : {}) };
+  };
+  const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return { ...(g !== undefined ? { ['--egap' as string]: `${g}px` } : {}), ...(it.pad !== undefined ? { padding: it.pad } : {}), ...lookVars(it.look) }; };
   // Per-text styling from the editor: size, weight, colour
   const st = (key: string) => textProps(b.styles?.[key]);
   const txt = (field: TextField, value: string | undefined, tag: El['tag'], className0: string, placeholder: string, multiline = false) => {
@@ -157,10 +169,11 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
             const pic = m ? <img src={urls[m.path]} alt="" loading="lazy" /> : null;
             const onlyImage = !!m && !it.label && !it.heading && !it.body && !it.els && !edit;
             return (
-              <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '') + alignCls(it)} style={{ ...(b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }), ...gapVar(it) }}>
+              <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '') + alignCls(it)} style={{ ...(b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }), ...gapVar(it), ...sizeOf(it) }}>
                 {edit?.itemBar ? edit.itemBar(i, it) : null}
-                {b.kind === 'columns' && edit?.insertItem ? <>{edit.insertItem(i, 'before')}{i === items.length - 1 ? edit.insertItem(i + 1, 'after') : null}</> : null}
-                {it.els ? elsOf(i, it, true) : <>
+                {it.look?.fill && it.look.fill.type !== 'colour' ? <FrameMedia look={it.look} urls={urls} className="gi-bg" /> : null}
+                {(b.kind === 'columns' || b.kind === 'grid') && edit?.insertItem ? <>{edit.insertItem(i, 'before')}{i === items.length - 1 ? edit.insertItem(i + 1, 'after') : null}</> : null}
+                {it.els ? elsOf(i, it) : <>
                 {m ? <div className="gi-media" data-el="media">{edit?.grip ? edit.grip(i, 'media') : null}{edit?.itemImage ? edit.itemImage(i, m, pic) : pic}</div> : null}
                 {onlyImage ? null : <div className="gi-txt">
                   {it.label ? <div data-el="label">{edit?.grip ? edit.grip(i, 'label') : null}{itxt(i, 'label', it.label, { tag: 'p', className: 'gi-label', placeholder: 'Label' })}</div> : null}
@@ -220,4 +233,36 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
       {parts(['head', 'body', 'media'], { head, body: body(), media: b.kind === 'media' ? mediaEl : media.length ? mediaEl : null })}
     </section>
   );
+}
+
+/** A frame's fill colour, stroke and corner radius as CSS */
+export function lookVars(l?: FrameLook): React.CSSProperties {
+  if (!l) return {};
+  return { ...(l.fill?.type === 'colour' ? { background: l.fill.colour, color: lum(l.fill.colour) < 0.5 ? '#fff' : undefined } : {}), ...(l.radius ? { borderRadius: l.radius } : {}), ...(l.stroke && l.stroke.width ? { ['--fr-sw' as string]: `${l.stroke.width}px`, ['--fr-sc' as string]: l.stroke.colour } : {}), ...(l.fill && l.fill.type !== 'colour' ? { isolation: 'isolate' } : {}) };
+}
+
+/** An image or video filling a frame: fill (cover), fit (contain) or crop (zoomed, from a focal point) */
+export function FrameMedia({ look, media: m0, urls, className = 'fr-m' }: { look?: FrameLook; media?: BlockMedia; urls: Record<string, string>; className?: string }) {
+  const m = look?.fill && look.fill.type !== 'colour' ? look.fill.media : m0;
+  const src = m ? urls[m.path] : undefined;
+  if (!m || !src) return null;
+  const fit = look?.fit || 'fill', x = look?.x ?? 50, y = look?.y ?? 50;
+  const style: React.CSSProperties = { objectFit: fit === 'fit' ? 'contain' : 'cover', objectPosition: `${x}% ${y}%`, ...(fit === 'crop' && (look?.zoom || 1) > 1 ? { transform: `scale(${look!.zoom})`, transformOrigin: `${x}% ${y}%` } : {}) };
+  return m.video || (look?.fill && look.fill.type === 'video')
+    ? <video className={className} src={src} style={style} autoPlay muted loop playsInline aria-hidden />
+    : <img className={className} src={src} alt={m.caption || ''} loading="lazy" style={style} />;
+}
+
+/** A frame inside a frame: filled with a colour, an image or a video, with its own stroke, radius, padding and shape */
+function Frame({ look, media, urls, on, onPick, empty }: { look?: FrameLook; media?: BlockMedia; urls: Record<string, string>; on?: boolean; onPick?: () => void; empty?: boolean }) {
+  const m = look?.fill && look.fill.type !== 'colour' ? look.fill.media : media;
+  const ratio = look?.ratio && look.ratio !== 'auto' ? look.ratio.replace(':', ' / ') : m && (look?.fit || 'fill') !== 'fit' ? undefined : undefined;
+  const sw = look?.sw, sh = look?.sh;
+  const fixed = !!ratio || sh === 'fill' || typeof sh === 'number';
+  const style: React.CSSProperties = { ...lookVars(look), ...(ratio && sh === undefined ? { aspectRatio: ratio } : {}), ...(look?.pad ? { padding: look.pad } : {}),
+    ...(typeof sw === 'number' ? { width: sw, maxWidth: '100%' } : sw === 'hug' ? { width: 'fit-content', maxWidth: '100%' } : {}), ...(typeof sh === 'number' ? { height: sh } : sh === 'fill' ? { flex: '1 1 auto', minHeight: 80 } : {}) };
+  const has = !!look?.fill || !!m;
+  return <div className={'fr' + (fixed ? ' fixed' : '') + (on ? ' on' : '') + (!has && empty ? ' fr-empty' : '')} style={style} onMouseDown={onPick ? (e) => { e.stopPropagation(); onPick(); } : undefined}>
+    <div className="fr-in">{m ? <FrameMedia look={look} media={media} urls={urls} /> : !has && empty ? <span className="fr-ph">Frame · choose a fill</span> : null}</div>
+  </div>;
 }

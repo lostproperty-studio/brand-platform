@@ -8,6 +8,7 @@ import { GuideBlock } from '@/components/portal/GuideBlock';
 import { SubNav } from '@/components/portal/SubNav';
 import { Swatch } from '@/components/portal/Swatch';
 import { systemCss, systemFor } from '@/lib/guideSystem';
+import { blockPaths } from '@/lib/figma/blocks';
 
 const textOn = (hex: string) => { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#000' : '#fff'; };
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB ${n >> 16} ${(n >> 8) & 255} ${n & 255}`; };
@@ -21,7 +22,7 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   const idx = chapters.findIndex((c) => chapterSlug(c.id) === chapter);
   if (idx < 0) notFound();
   const c = chapters[idx];
-  const urls = await signFrames(c.blocks.flatMap((b) => [b.backdrop?.path, ...(b.media || []).map((m) => m.path), ...(b.items || []).map((i) => i.media?.path)]).filter(Boolean) as string[]);
+  const urls = await signFrames(c.blocks.flatMap(blockPaths));
   const hasCover = c.blocks[0]?.kind === 'cover' && !c.blocks[0].hidden;
   // Subsections: each divider slide starts one (e.g. Wordmark, Symbol, How to use)
   const subs = c.blocks.filter((b) => b.kind === 'divider' && !b.hidden && b.heading).map((b) => ({ id: 's-' + b.id.replace(/[^a-z0-9]/gi, '-'), title: b.heading!.replace(/\n/g, ' '), block: b.id }));

@@ -1,6 +1,6 @@
 'use client';
 import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
-import type { BlockItem, BoxAlign, BoxStyle, TextStyle } from '@/lib/figma/blocks';
+import { itemEls, type BlockItem, type BoxAlign, type BoxStyle, type FrameLook, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
 import { KINDS, KindIcon, convert } from '@/components/GuideEditor';
 import { CHAPTER, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { TypePanel } from '@/components/TypePanel';
@@ -9,7 +9,7 @@ import type { GuideSystem, SpaceRule, TypeId } from '@/lib/guideSystem';
 import {
   AlignEndHorizontal, AlignCenterHorizontal, AlignStartHorizontal, ArrowLeft, ArrowRight, Captions, Copy, GalleryHorizontal, ImageOff, ImagePlus,
   ImageUp, Images, LayoutGrid, Loader2, Maximize2, Minimize2, Minus, MousePointerClick, PanelLeft, PanelRight, Plus, RectangleHorizontal, Scan, Sparkles, Square, SquareDashed,
-  Trash2, UnfoldVertical, Type, Columns3, Rows3, Palette, type LucideIcon
+  Trash2, UnfoldVertical, Type, Columns3, Rows3, Palette, Ban, Video, Image as ImageIcon, type LucideIcon
 } from 'lucide-react';
 
 const I = { size: 15, strokeWidth: 1.75, 'aria-hidden': true } as const;
@@ -56,6 +56,37 @@ function Step({ value, min, max, set, label, suffix }: { value: number; min: num
 }
 function Chips({ palette, value, set, none = 'None' }: { palette: { name: string; hex: string }[]; value?: string; set: (hex?: string) => void; none?: string }) {
   return <div className="dp-chips">{palette.map((c) => <button type="button" key={c.hex} className={'dp-chip' + (value?.toUpperCase() === c.hex.toUpperCase() ? ' on' : '')} style={{ background: c.hex }} onClick={() => set(c.hex)} aria-label={`${c.name} ${c.hex}`} title={`${c.name} ${c.hex}`} />)}<button type="button" className="dp-link" onClick={() => set(undefined)}>{none}</button></div>;
+}
+/** A frame's look, as in Figma: fill (none, colour, image or video), how an image sits (fill, fit, crop with zoom
+ *  and focal point), shape, stroke, corner radius and padding */
+function LookRows({ look = {}, set, palette, upload, shape, pad }: { look?: FrameLook; set: (l: FrameLook, key?: string) => void; palette: { name: string; hex: string }[]; upload: () => void; shape?: boolean; pad?: boolean }) {
+  const kind = look.fill?.type || 'none';
+  const media = look.fill && look.fill.type !== 'colour' ? look.fill.media : undefined;
+  const p = (patch: Partial<FrameLook>, key?: string) => set({ ...look, ...patch }, key);
+  return <>
+    <Row label="Fill" hint="A colour, an image or a video"><Seg value={kind} opts={[['none', 'None', Ban], ['colour', 'Colour', Palette], ['image', 'Image', ImageIcon], ['video', 'Video', Video]]} set={(v) => { if (v === 'none') p({ fill: undefined }); else if (v === 'colour') p({ fill: { type: 'colour', colour: look.fill?.type === 'colour' ? look.fill.colour : palette[0]?.hex || '#EEEEEE' } }); else upload(); }} label="Fill" /></Row>
+    {look.fill?.type === 'colour' ? <Row label=""><Chips palette={palette} value={look.fill.colour} set={(hex) => p({ fill: hex ? { type: 'colour', colour: hex } : undefined })} /></Row> : null}
+    {media ? <>
+      <Row label={media.video ? 'Video' : 'Image'}><div className="dp-btns"><button type="button" onClick={upload} aria-label="Replace" data-tip="Replace ⇧⌘K"><ImageUp {...I} /></button><button type="button" onClick={() => p({ fill: undefined })} aria-label="Remove" data-tip="Remove"><ImageOff {...I} /></button></div></Row>
+      <Row label="Mode" hint="Fill covers the frame, Fit shows all of it, Crop lets you zoom and move it"><Seg value={look.fit || 'fill'} opts={[['fill', 'Fill'], ['fit', 'Fit'], ['crop', 'Crop']]} set={(v) => p({ fit: v === 'fill' ? undefined : v })} label="Image mode" /></Row>
+      {look.fit === 'crop' ? <>
+        <Row label="Zoom"><input className="dp-range" type="range" min={1} max={3} step={0.05} value={look.zoom || 1} onChange={(e) => p({ zoom: Number(e.target.value) }, 'zoom')} aria-label="Zoom" /></Row>
+        <Row label="Position" hint="The focal point, across and down"><div className="dp-xy"><input className="dp-range" type="range" min={0} max={100} value={look.x ?? 50} onChange={(e) => p({ x: Number(e.target.value) }, 'x')} aria-label="Across" /><input className="dp-range" type="range" min={0} max={100} value={look.y ?? 50} onChange={(e) => p({ y: Number(e.target.value) }, 'y')} aria-label="Down" /></div></Row>
+      </> : null}
+    </> : null}
+    {shape ? <Row label="Shape" hint="A locked shape, or Auto to hug the image"><select className="dp-select" value={look.ratio || 'auto'} onChange={(e) => p({ ratio: e.target.value === 'auto' ? undefined : e.target.value })} aria-label="Shape">{['auto', '1:1', '4:5', '3:4', '4:3', '3:2', '16:9', '21:9', '9:16'].map((r) => <option key={r} value={r}>{r === 'auto' ? 'Auto' : r}</option>)}</select></Row> : null}
+    <Row label="Stroke"><Chips palette={palette} value={look.stroke?.colour} set={(hex) => p({ stroke: hex ? { colour: hex, width: look.stroke?.width || 1 } : undefined })} />{look.stroke ? <Px value={look.stroke.width} placeholder={1} step={1} set={(n) => p({ stroke: { ...look.stroke!, width: n ?? 1 } }, 'sw')} label="Stroke width" icon={Square} /> : null}</Row>
+    <Row label="Radius"><Px value={look.radius} placeholder={0} step={2} set={(n) => p({ radius: n || undefined }, 'radius')} label="Corner radius" icon={Scan} /></Row>
+    {pad ? <Row label="Padding" hint="Space between the frame's edge and its fill"><Px value={look.pad} placeholder={0} step={2} set={(n) => p({ pad: n || undefined }, 'pad')} label="Padding" icon={Square} /></Row> : null}
+  </>;
+}
+/** Figma's resizing: fill the space, hug the contents, or a fixed size */
+function SizeRow({ label, value, set, fallback }: { label: string; value?: 'fill' | 'hug' | number; set: (v: 'fill' | 'hug' | number | undefined, key?: string) => void; fallback: 'fill' | 'hug' }) {
+  const mode = typeof value === 'number' ? 'fixed' : value || fallback;
+  return <Row label={label} hint="Fill: take the space. Hug: fit the contents. Fixed: a set size."><div className="dp-size">
+    <Seg value={mode} opts={[['fill', 'Fill'], ['hug', 'Hug'], ['fixed', 'Fixed']]} set={(v) => set(v === 'fixed' ? (typeof value === 'number' ? value : 240) : v === fallback ? undefined : v)} label={label} />
+    {typeof value === 'number' ? <Px value={value} placeholder={240} step={8} set={(n) => set(n ?? 240, label)} label={`${label} in pixels`} icon={Square} /> : null}
+  </div></Row>;
 }
 function Sec({ title, icon, children, extra }: { title: string; icon?: React.ReactNode; children: React.ReactNode; extra?: React.ReactNode }) {
   return <section className="dp-sec" aria-label={title}><p className="dp-h">{icon}{title}{extra ? <span className="dp-h-x">{extra}</span> : null}</p>{children}</section>;
@@ -129,7 +160,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   const itemElKind = itemElId ? it?.els?.find((e) => e.id === itemElId)?.kind ?? (itemElId === 'media' ? 'image' : itemElId) : undefined;
   const isImg = !!el && (el.startsWith('img:') || el.startsWith('itemimg:') || itemElKind === 'image');
   const spacerEl = itemElKind === 'spacer' && it ? it.els?.find((e) => e.id === itemElId) : undefined;
-  const isText = !!el && !isImg && !spacerEl;
+  const isText = !!el && !isImg && !spacerEl && itemElKind !== 'frame';
   const span = b.kind === 'grid' ? Math.min(gcols, it?.w || 2) : Math.min(cols, it?.w || 1);
   const kindLabel = b.kind === 'columns' ? 'Auto layout' : KINDS.find(([k]) => k === b.kind)?.[1] || 'Section';
 
@@ -140,7 +171,8 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   };
   /** A frame in an auto layout or grid: its size, padding, gap and alignment */
   const frameSec = (full: boolean) => it ? <Sec title={`Frame ${i! + 1} of ${items.length}`} icon={<Square {...I} />}>
-    {full && ((b.kind === 'columns' && flow.dir !== 'col') || b.kind === 'grid') ? <Row label="Width" hint="Columns this frame spans, or drag its edge"><Step value={span} min={1} max={b.kind === 'grid' ? gcols : cols} set={(n) => setItem({ w: n }, 'w')} label="Columns spanned" suffix={` / ${b.kind === 'grid' ? gcols : cols}`} /><button type="button" className={'dp-pill' + (span === (b.kind === 'grid' ? gcols : cols) ? ' on' : '')} onClick={() => setItem({ w: b.kind === 'grid' ? gcols : cols })}>Fill</button></Row> : null}
+    {full && b.kind === 'columns' ? <><SizeRow label="Width" value={it.look?.sw} fallback="fill" set={(v, key) => setItem({ look: { ...(it.look || {}), sw: v } }, key)} /><SizeRow label="Height" value={it.look?.sh} fallback={flow.dir === 'col' || flow.height === 'hug' ? 'hug' : 'fill'} set={(v, key) => setItem({ look: { ...(it.look || {}), sh: v } }, key)} /></> : null}
+    {full && b.kind === 'grid' ? <Row label="Width" hint="Columns this frame spans, or drag its edge"><Step value={span} min={1} max={b.kind === 'grid' ? gcols : cols} set={(n) => setItem({ w: n }, 'w')} label="Columns spanned" suffix={` / ${b.kind === 'grid' ? gcols : cols}`} /><button type="button" className={'dp-pill' + (span === (b.kind === 'grid' ? gcols : cols) ? ' on' : '')} onClick={() => setItem({ w: b.kind === 'grid' ? gcols : cols })}>Fill</button></Row> : null}
     {full && b.kind === 'grid' ? <Row label="Height" hint="Rows this frame spans, or drag its bottom edge"><Step value={it.h || 2} min={1} max={8} set={(n) => setItem({ h: n }, 'h')} label="Rows spanned" /></Row> : null}
     {b.variant !== 'images' ? <>
       <Row label="Align" hint="How the content sits in this frame. Double-click for space between."><AlignGrid value={it.align || b.boxAlign} set={(a) => setItem({ align: a })} label="Alignment in this frame" /></Row>
@@ -148,7 +180,8 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
       {framed ? <Row label="Padding" hint="Inside this frame"><SpaceCtl sys={sys} rule="box-pad" own={it.pad ?? b.pad} setRule={(px) => setRule('box-pad', px)} setOwn={(px) => setItem({ pad: px }, 'pad')} label="Padding" /></Row> : null}
     </> : null}
     {full ? <>
-      {onAddToBox && b.variant !== 'images' ? <Row label="Add" hint="Add to this frame"><div className="dp-addrow">{([['text', 'Text', Type], ['spacer', 'Spacer', UnfoldVertical]] as const).map(([w, l, Ic]) => <button type="button" key={w} onClick={() => onAddToBox(b.id, i!, w)} aria-label={`Add ${l.toLowerCase()} to this frame`} data-tip={l}><Ic {...I} /></button>)}<button type="button" onClick={() => pickImage(b.id, `item:${i}`)} aria-label={it.media ? 'Replace the image' : 'Add an image'} data-tip={it.media ? 'Replace image' : 'Image'}>{it.media ? <ImageUp {...I} /> : <ImagePlus {...I} />}</button></div></Row> : null}
+      {b.variant !== 'images' ? <LookRows look={it.look} set={(l, key) => setItem({ look: l }, key && 'look-' + key)} palette={palette} upload={() => pickImage(b.id, `ilook:${i}`)} /> : null}
+      {onAddToBox && b.variant !== 'images' ? <Row label="Add" hint="Add inside this frame"><div className="dp-addrow">{([['text', 'Text', Type], ['spacer', 'Spacer', UnfoldVertical]] as const).map(([w, l, Ic]) => <button type="button" key={w} onClick={() => onAddToBox(b.id, i!, w)} aria-label={`Add ${l.toLowerCase()} to this frame`} data-tip={l}><Ic {...I} /></button>)}<button type="button" onClick={() => nest(false)} aria-label="Add a frame inside this frame" data-tip="Frame F"><Square {...I} /></button><button type="button" onClick={() => nest(true)} aria-label="Add an image frame" data-tip="Image ⇧⌘K"><ImagePlus {...I} /></button></div></Row> : null}
       <Row label="Order" hint="⌘[ and ⌘]"><div className="dp-btns"><button type="button" onClick={() => moveItem(-1)} disabled={i === 0} aria-label="Move earlier" data-tip="Earlier ⌘["><ArrowLeft {...I} /></button><button type="button" onClick={() => moveItem(1)} disabled={i === items.length - 1} aria-label="Move later" data-tip="Later ⌘]"><ArrowRight {...I} /></button></div></Row>
       <div className="dp-foot">
         <button type="button" className="dp-act" onClick={() => { set({ items: [...items.slice(0, i! + 1), { ...it, id: iid() }, ...items.slice(i! + 1)] }); setSel({ block: b.id, item: i! + 1 }); }}><Copy {...I} />Duplicate <kbd>⌘D</kbd></button>
@@ -156,6 +189,17 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
       </div>
     </> : null}
   </Sec> : null;
+
+  /** A frame inside the selected frame; an image one opens the file picker */
+  const nest = (image: boolean) => {
+    if (!it || i === undefined) return;
+    const els = (it.els || itemEls(it)).slice(); const id = 'e-' + Math.random().toString(36).slice(2, 8);
+    const ne: ItemEl = { id, kind: 'frame', look: image ? { ratio: '4:3' } : { ratio: '16:9', fill: { type: 'colour', colour: '#EEEEEE' } } };
+    set({ items: items.map((x, n) => (n === i ? { ...x, els: [...els, ne], label: undefined, heading: undefined, body: undefined, media: undefined } : x)) });
+    setSel({ block: b.id, item: i, el: `${it.id}.${id}` });
+    if (image) pickImage(b.id, `look:${i}:${id}`);
+  };
+  const frameEl = it && itemElId ? it.els?.find((e) => e.id === itemElId && (e.kind === 'frame' || (e.kind === 'image' && !!e.look))) : undefined;
 
   // ---------- the selection decides the panel
   if (sel.gap) return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>{spaceAbove(sel.gap) || <p className="dp-tip">No space to set here.</p>}</aside>;
@@ -169,6 +213,19 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
     </aside>;
   }
 
+  if (frameEl && it && i !== undefined) {
+    const setLook = (l: FrameLook, key?: string) => setItem({ els: (it.els || []).map((e) => (e.id === frameEl.id ? { ...e, look: l } : e)) }, key && 'fl-' + key);
+    const m = frameEl.look?.fill && frameEl.look.fill.type !== 'colour' ? frameEl.look.fill.media : frameEl.media;
+    return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>
+      <Sec title={m ? (m.video ? 'Video frame' : 'Image frame') : 'Frame'} icon={<Square {...I} />}>
+        <SizeRow label="Width" value={frameEl.look?.sw} fallback="fill" set={(v, key) => setLook({ ...(frameEl.look || {}), sw: v }, key)} />
+        <SizeRow label="Height" value={frameEl.look?.sh} fallback="hug" set={(v, key) => setLook({ ...(frameEl.look || {}), sh: v }, key)} />
+        <LookRows look={frameEl.look} set={setLook} palette={palette} upload={() => pickImage(b.id, `look:${i}:${frameEl.id}`)} shape pad />
+        <div className="dp-foot"><button type="button" className="dp-act danger" onClick={onDelete}><Trash2 {...I} />Delete <kbd>⌫</kbd></button></div>
+      </Sec>
+      {frameSec(false)}
+    </aside>;
+  }
   if (isImg && el) {
     const k = el.startsWith('img:') ? Number(el.slice(4)) : undefined;
     const m = k !== undefined ? (b.media || [])[k] : undefined;
