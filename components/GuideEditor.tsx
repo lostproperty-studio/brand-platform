@@ -633,7 +633,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       const setOwn = (px: number | undefined) => { const g0 = { ...(b.gapBefore || {}) }; if (px === undefined) delete g0[part]; else g0[part] = px; editBlock(b.id, { gapBefore: g0 }, 'gap-' + part); };
       const shown = value ?? (rule ? sys.space[rule] : undefined);
       return <div key={'gap-' + part} className={'ve-pgap' + (on ? ' on' : '')} style={{ ['--g' as string]: value !== undefined ? `${value}px` : rule ? `var(--sp-${rule}, var(--part-gap, 20px))` : 'var(--part-gap, 20px)' }} onMouseDown={(e) => { e.stopPropagation(); if (!on) setSel({ block: b.id, gap: part }); }} title="Space between these: click to adjust">
-        <span className="ve-pgap-v">{shown !== undefined ? `${spaceName(shown)} · ${shown}` : 'Auto'}{value !== undefined ? ' · only here' : ''}</span>
+        <span className="ve-pgap-v">{shown !== undefined ? spaceName(shown) : 'Auto'}{value !== undefined ? ' · only here' : ''}</span>
         {on && rule ? <span className="ve-pgap-pop" onMouseDown={(e) => e.stopPropagation()} role="group" aria-label="Space between">
           <SpaceCtl sys={sys} rule={rule} own={value} setRule={(px) => setSysKey({ ...sys, edited: true, space: { ...sys.space, [rule]: px } }, 'sp:' + rule)} setOwn={setOwn} label="Space" />
         </span> : null}

@@ -23,7 +23,7 @@ export const SPACE_STEPS: { px: number; name: string }[] = [
   { px: 28, name: 'L' }, { px: 40, name: 'XL' }, { px: 48, name: '2XL' }, { px: 64, name: '3XL' }, { px: 96, name: '4XL' }, { px: 128, name: '5XL' }
 ];
 export const snapSpace = (px: number) => SPACE_STEPS.reduce((best, s) => (Math.abs(s.px - px) < Math.abs(best.px - px) ? s : best), SPACE_STEPS[0]).px;
-export const spaceName = (px: number) => SPACE_STEPS.find((s) => s.px === px)?.name || `${px}px`;
+export const spaceName = (px: number) => `${px}px`;
 export const SPACE_RULES: { id: SpaceRule; label: string; help: string }[] = [
   { id: 'head-body', label: 'Headline to text', help: 'Between a headline and the text under it' },
   { id: 'intro-content', label: 'Text to content', help: 'Between a section’s introduction and its auto layout, grid or images' },

@@ -21,7 +21,7 @@ export function SpaceSelect({ value, set, label }: { value: number; set: (px: nu
   const i = Math.max(0, SPACE_STEPS.findIndex((s) => s.px === value));
   return <div className="sp-sel" role="group" aria-label={label}>
     <button type="button" onClick={() => set(SPACE_STEPS[Math.max(0, i - 1)].px)} disabled={i === 0} aria-label={`Less ${label.toLowerCase()}`}><Minus size={12} strokeWidth={2} aria-hidden /></button>
-    <select value={value} onChange={(e) => set(Number(e.target.value))} aria-label={label}>{(SPACE_STEPS.some((s) => s.px === value) ? SPACE_STEPS : [...SPACE_STEPS, { px: value, name: 'Custom' }]).map((s) => <option key={s.px} value={s.px}>{s.name} · {s.px}</option>)}</select>
+    <select value={value} onChange={(e) => set(Number(e.target.value))} aria-label={label}>{(SPACE_STEPS.some((s) => s.px === value) ? SPACE_STEPS : [...SPACE_STEPS, { px: value, name: 'Custom' }]).map((s) => <option key={s.px} value={s.px}>{s.px}px</option>)}</select>
     <button type="button" onClick={() => set(SPACE_STEPS[Math.min(SPACE_STEPS.length - 1, i + 1)].px)} disabled={i === SPACE_STEPS.length - 1} aria-label={`More ${label.toLowerCase()}`}><Plus size={12} strokeWidth={2} aria-hidden /></button>
   </div>;
 }
@@ -36,7 +36,7 @@ export function SpaceCtl({ sys, rule, own, setRule, setOwn, label }: { sys: Guid
       <button type="button" role="radio" aria-checked={own === undefined} className={own === undefined ? 'on' : ''} onClick={() => setOwn(undefined)} data-tip={`The rule “${ruleInfo.label}”, across the whole guide`}>Everywhere</button>
       <button type="button" role="radio" aria-checked={own !== undefined} className={own !== undefined ? 'on' : ''} onClick={() => setOwn(v)} data-tip="Only here; the rule stays as it is">Only here</button>
     </div>
-    {own !== undefined ? <p className="sp-note">The guide’s rule is {spaceName(sys.space[rule])} · {sys.space[rule]}</p> : null}
+    {own !== undefined ? <p className="sp-note">The guide’s rule is {spaceName(sys.space[rule])}</p> : null}
   </div>;
 }
 
