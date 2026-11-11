@@ -4,6 +4,7 @@ import { requireProjectAccess } from '@/lib/supabase/server';
 import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
 import { portalAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
 import { aiFailure } from '@/lib/ai/errors';
+import { callTool } from '@/lib/ai/tool';
 import { logActivity } from '@/lib/activity';
 import { voiceMd, voiceReady, VOICE_GUARD } from '@/lib/voice';
 
@@ -65,7 +66,7 @@ ${VOICE_GUARD(snap.client)}
     if (q.mode === 'write') {
       const els = q.elements;
       const props = Object.fromEntries(els.map((e) => [e, { type: 'string', description: NAMES[e] }]));
-      const res = await ai.messages.create({
+      const res = await callTool<{ options?: Record<string, string>[] }>(ai, {
         model: 'claude-sonnet-5-5', max_tokens: Math.min(16000, 600 + q.count * (q.length === 'long' ? 700 : 250) * els.length),
         system,
         messages: [{ role: 'user', content: `Write ${q.count} option${q.count > 1 ? 's' : ''}, each with: ${els.map((e) => NAMES[e]).join(', ')}.${els.length === 1 ? ` Only the ${NAMES[els[0]].toLowerCase()}.` : ' Make them work together as one piece, in that hierarchy.'}
@@ -76,17 +77,15 @@ ${conditions}
 
 THE BRIEF (or their first go)
 ${q.brief}${q.like ? `\n\nMORE LIKE THIS ONE (keep its angle, vary the wording)\n${Object.entries(q.like).map(([k, t]) => `${k}: ${t}`).join('\n')}` : ''}` }],
-        tools: [{ name: 'options', description: 'The copy options', input_schema: { type: 'object', properties: { options: { type: 'array', items: { type: 'object', properties: { ...props, why: { type: 'string', description: 'One short line: which voice principle or trait this option leans on' } }, required: [...els, 'why'] } } }, required: ['options'] } }],
-        tool_choice: { type: 'tool', name: 'options' }
+        tool: { name: 'options', description: 'The copy options', input_schema: { type: 'object', properties: { options: { type: 'array', items: { type: 'object', properties: { ...props, why: { type: 'string', description: 'One short line: which voice principle or trait this option leans on' } }, required: [...els, 'why'] } } }, required: ['options'] } }
       });
       if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
       if (!acc.staff) await logActivity(p.id, acc.user.id, 'tool', 'Writer');
-      const out = res.content.find((c) => c.type === 'tool_use');
-      const options = ((out && out.type === 'tool_use' ? (out.input as { options?: Record<string, string>[] }).options : []) || []).slice(0, q.count)
+      const options = (res.input?.options || []).slice(0, q.count)
         .map((o) => ({ ...o, over: q.limit ? els.filter((e) => o[e] && count(o[e], q.limit!.unit) > q.limit!.n) : [] }));
       return NextResponse.json({ options });
     }
-    const res = await ai.messages.create({
+    const res = await callTool<{ summary: string; notes: unknown[] }>(ai, {
       model: 'claude-sonnet-5-5', max_tokens: 4000, system,
       messages: [{ role: 'user', content: `Review this copy against the ${snap.client} voice. Note what's on brand and what isn't. For anything off brand, quote the exact words, name the rule, and give a fix in the voice.
 
@@ -95,15 +94,13 @@ ${conditions}
 
 THE COPY
 ${q.brief}` }],
-      tools: [{ name: 'review', description: 'The review', input_schema: { type: 'object', properties: {
+      tool: { name: 'review', description: 'The review', input_schema: { type: 'object', properties: {
         summary: { type: 'string', description: 'One or two sentences overall' },
         notes: { type: 'array', items: { type: 'object', properties: { kind: { type: 'string', enum: ['good', 'fix'] }, quote: { type: 'string', description: 'The exact words from the copy this is about' }, rule: { type: 'string', description: 'The voice rule or principle' }, note: { type: 'string' }, fix: { type: 'string', description: 'For fixes: the replacement words, in the voice' } }, required: ['kind', 'note'] } }
-      }, required: ['summary', 'notes'] } }],
-      tool_choice: { type: 'tool', name: 'review' }
+      }, required: ['summary', 'notes'] } }
     });
     if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
-    const out = res.content.find((c) => c.type === 'tool_use');
-    return NextResponse.json({ review: out && out.type === 'tool_use' ? out.input : { summary: '', notes: [] } });
+    return NextResponse.json({ review: res.input || { summary: '', notes: [] } });
   } catch (e) {
     return NextResponse.json({ error: await aiFailure(p.id, e, studio) }, { status: 502 });
   }

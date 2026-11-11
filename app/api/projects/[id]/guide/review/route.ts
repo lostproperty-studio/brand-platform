@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { teamGate } from '@/lib/studioTeam';
+import { callTool } from '@/lib/ai/tool';
 import { studioAnthropic } from '@/lib/ai/studio';
 import { aboutMd, readForm } from '@/lib/brandForm';
 import { normaliseGuide, type Guide } from '@/lib/portal/guide';
@@ -96,8 +97,8 @@ ${map.text}
 
 ${focus ? `THE DESIGNER ASKS YOU TO FOCUS ON: ${focus}\n\n` : ''}${ask} Then call record_review.`;
     try {
-      const res = await studioAnthropic().messages.create({ model: MODEL, max_tokens: 8000, system: persona(client), tools: [tool], tool_choice: { type: 'tool', name: 'record_review' }, messages: [{ role: 'user', content: user }] });
-      const out = res.content.find((c) => c.type === 'tool_use') as { input: Omit<ReviewResult, 'big' | 'detail'> & { big?: Omit<ReviewResult['big'][number], 'id'>[]; detail?: Omit<ReviewResult['detail'][number], 'id'>[] } } | undefined;
+      const res = await callTool<unknown>(studioAnthropic(), { model: MODEL, max_tokens: 8000, system: persona(client), tool, messages: [{ role: 'user', content: user }] });
+      const out = (res.input ? { input: res.input } : undefined) as { input: Omit<ReviewResult, 'big' | 'detail'> & { big?: Omit<ReviewResult['big'][number], 'id'>[]; detail?: Omit<ReviewResult['detail'][number], 'id'>[] } } | undefined;
       if (!out) return NextResponse.json({ error: 'The review didn’t come back. Try again.' }, { status: 502 });
       // Keep only fixes that point at real text and quote it exactly, so Apply always works
       const textOf = (ref: string) => { const m = map.text.match(new RegExp(`\\[${ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\] [^:]+: (.*)`)); return m?.[1] || ''; };

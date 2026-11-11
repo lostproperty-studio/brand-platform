@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { teamGate } from '@/lib/studioTeam';
 import { studioAnthropic } from '@/lib/ai/studio';
+import { callTool } from '@/lib/ai/tool';
 import { buildSnapshot } from '@/lib/projects/snapshot';
 import { aboutMd } from '@/lib/brandForm';
 import { notesText, readVoice, VOICE_FIELDS, type VoiceCoach } from '@/lib/voice';
@@ -32,7 +33,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     const open = VOICE_FIELDS.filter((f) => !v.fields?.[f.id]?.trim());
     const fieldList = open.map((f) => `- ${f.id} (${f.label}${f.core ? ', needed' : ''}): ${f.ask}`).join('\n');
 
-    const res = await studioAnthropic().messages.create({
+    const res = await callTool<Partial<VoiceCoach>>(studioAnthropic(), {
       model: 'claude-opus-5-5', max_tokens: 8000,
       system: `You help a brand studio turn its tone-of-voice notes for ${p.client} into guidance an AI can follow when writing for the brand.
 Rules:
@@ -41,15 +42,14 @@ Rules:
 - For each question, offer three short candidate answers or example lines for the studio to react to. Make them specific to this brand, from what it is and what the notes already say, never generic. Make the three genuinely different so the choice teaches you something. They are suggestions for the studio to accept or reject, not the voice.
 - UK English. Plain, short sentences.`,
       messages: [{ role: 'user', content: `WHAT WE KNOW ABOUT THE BRAND\n${brand}\n\n${answered.length ? `ALREADY ANSWERED BY THE STUDIO (don't codify or ask these again)\n${answered.map((f) => `- ${f.label}: ${v.fields![f.id].trim().slice(0, 600)}`).join('\n')}\n\n` : ''}THE ANSWERS STILL OPEN\n${fieldList}\n\nTHE NOTES\n${notes.slice(0, 60_000)}` }],
-      tools: [{ name: 'reading', description: 'How you read the notes', input_schema: { type: 'object', properties: {
+      tool: { name: 'reading', description: 'How you read the notes', input_schema: { type: 'object', properties: {
         summary: { type: 'string', description: 'Two to four sentences: how you understand the voice from the notes, in plain words' },
         codified: { type: 'array', description: 'Open answers the notes cover, codified from the notes only', items: { type: 'object', properties: { field: { type: 'string', enum: open.map((f) => f.id) }, text: { type: 'string', description: 'The answer, keeping the notes\' words and examples; one item per line for lists' } }, required: ['field', 'text'] } },
         questions: { type: 'array', items: { type: 'object', properties: { field: { type: 'string', enum: open.map((f) => f.id) }, question: { type: 'string' }, why: { type: 'string', description: 'One short line: why the AI needs this' }, options: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 3 } }, required: ['field', 'question', 'options'] } }
-      }, required: ['summary', 'codified', 'questions'] } }],
-      tool_choice: { type: 'tool', name: 'reading' }
+      }, required: ['summary', 'codified', 'questions'] } }
     });
-    const out = res.content.find((c) => c.type === 'tool_use');
-    const got = (out && out.type === 'tool_use' ? out.input : {}) as Partial<VoiceCoach>;
+    const got = res.input || {};
+    if (!res.input) throw new Error('The AI didn’t return a reading. Try again.');
     const ok = new Set(open.map((f) => f.id));
     const coach: VoiceCoach = {
       at: new Date().toISOString(), summary: String(got.summary || '').trim(),
