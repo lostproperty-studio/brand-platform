@@ -52,7 +52,8 @@ export type BlockItem = { id: string; label?: string; heading?: string; body?: s
   /** How the content sits in the box (overrides the section's setting), and the space between its elements in pixels */
   align?: BoxAlign; gap?: number; /** Padding inside this frame, in pixels (overrides the guide's rule) */ pad?: number;
   /** The frame's own fill, stroke and corner radius */ look?: FrameLook;
-  /** Its name in the layers panel, and hidden from the client (still shown, faded, in the editor) */ name?: string; hidden?: boolean };
+  /** Its name in the layers panel, and hidden from the client (still shown, faded, in the editor) */ name?: string; hidden?: boolean;
+  /** This frame's own style (stroke, corner marks, fill), over the set's */ box?: BoxStyle };
 /** Content alignment inside a box, like Figma's auto layout: x across, y down; 'between' spreads elements evenly */
 export type BoxAlign = { x?: 'start' | 'center' | 'end'; y?: 'start' | 'center' | 'end' | 'between' };
 /** A box's elements in order, from its free list or from the fixed fields (image, label, headline, text) */

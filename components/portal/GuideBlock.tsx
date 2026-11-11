@@ -173,7 +173,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
             const pic = m ? <img src={urls[m.path]} alt="" loading="lazy" /> : null;
             const onlyImage = !!m && !it.label && !it.heading && !it.body && !it.els && !edit;
             return (
-              <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '') + alignCls(it)} style={{ ...(b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }), ...gapVar(it), ...sizeOf(it) }}>
+              <div key={it.id} data-item={edit ? i : undefined} className={'gi' + (onlyImage ? ' gi-img' : '') + (m ? ' has-img' : '') + (it.box && it.box !== (b.box || 'none') ? ' ibx-' + it.box : '') + alignCls(it)} style={{ ...(b.kind === 'grid' ? { gridColumn: `span ${Math.min(gcols, it.w || 2)}`, gridRow: `span ${it.h || 2}` } : { ['--w' as string]: String(Math.min(cols, it.w || 1)) }), ...gapVar(it), ...sizeOf(it) }}>
                 {edit?.itemBar ? edit.itemBar(i, it) : null}
                 {fillMedia(it.look) ? <FrameMedia look={it.look} urls={urls} className="gi-bg" /> : null}
                 {(b.kind === 'columns' || b.kind === 'grid') && edit?.insertItem ? <>{edit.insertItem(i, 'before')}{i === items.length - 1 ? edit.insertItem(i + 1, 'after') : null}</> : null}
@@ -204,7 +204,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
       ? [...media.map(({ m, i }) => <figure key={m.path} className="gc-fig">{img(m, i, <img src={urls[m.path]} alt={m.caption || ''} loading="lazy" />)}{edit ? edit.caption(i, m.caption) : m.caption ? <figcaption>{m.caption}</figcaption> : null}</figure>), ...(edit ? [edit.addImage()] : [])]
       : [...items.map((it, i) => {
           const m = it.media && urls[it.media.path] ? it.media : undefined;
-          return <div key={it.id} data-item={edit ? i : undefined} className={'gc-card bx-' + (b.box || 'fill') + alignCls(it)} style={{ ...(b.pad !== undefined ? { padding: b.pad } : {}), ...gapVar(it) }}>
+          return <div key={it.id} data-item={edit ? i : undefined} className={'gc-card bx-' + (it.box || b.box || 'fill') + alignCls(it)} style={{ ...(b.pad !== undefined ? { padding: b.pad } : {}), ...gapVar(it) }}>
             {edit?.itemBar ? edit.itemBar(i, it) : null}
             {it.els ? elsOf(i, it, true) : <>
             {it.label ? <div data-el="label" className="gc-el">{edit?.grip ? edit.grip(i, 'label') : null}{itxt(i, 'label', it.label, { tag: 'p', className: 'gc-label', placeholder: 'Label' })}</div> : null}

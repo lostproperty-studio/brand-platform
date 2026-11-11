@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Eye, EyeOff, Frame, Heading, Image as ImageIcon, LayoutPanelTop, MoveVertical, Shapes, Tag, Type } from 'lucide-react';
+import { ChevronRight, Columns3, Eye, EyeOff, Frame, GalleryHorizontal, Heading, Image as ImageIcon, LayoutGrid, LayoutPanelTop, MoveVertical, Rows3, Shapes, Tag, Type } from 'lucide-react';
 import { itemEls, type BlockItem, type ItemEl } from '@/lib/figma/blocks';
 import type { Block } from '@/lib/portal/guide';
 import { CHAPTER, type Sel } from '@/components/GuideDock';
@@ -48,7 +48,7 @@ export function LayersPanel({ block, title, sel, multi, select, hide, rename, mo
     const on = picked.has(key(o.s));
     const dropAt = (e: React.DragEvent): LayerDrop['pos'] => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); const y = (e.clientY - r.top) / r.height; return o.drop === 'item' && drag?.el !== undefined ? (y < 0.25 ? 'before' : y > 0.75 ? 'after' : 'inside') : y < 0.5 ? 'before' : 'after'; };
     const canDrop = !!drag && !!o.at && (drag.el === undefined ? o.drop === 'item' : true) && !(drag.i === o.at.i && drag.el === o.at.el);
-    return <div key={o.k} role="treeitem" aria-selected={on} aria-expanded={o.kids ? !!open[o.openKey!] : undefined}
+    return <div key={o.k} role="treeitem" aria-selected={on} aria-expanded={o.kids ? (o.openKey === '__group' ? open.__group !== false : !!open[o.openKey!]) : undefined}
       className={'ly-row' + (on ? ' on' : '') + (o.hidden ? ' off' : '') + (over?.k === o.k ? ' ov-' + over.pos : '')} style={{ paddingLeft: 6 + o.depth * 14 }}
       draggable={!!o.at && editing !== o.k} onDragStart={(e) => { if (!o.at) return; e.dataTransfer.effectAllowed = 'move'; setDrag(o.at); }} onDragEnd={() => { setDrag(null); setOver(null); }}
       onDragOver={(e) => { if (!canDrop) return; e.preventDefault(); const pos = dropAt(e); if (over?.k !== o.k || over.pos !== pos) setOver({ k: o.k, pos }); }}
@@ -57,7 +57,7 @@ export function LayersPanel({ block, title, sel, multi, select, hide, rename, mo
       onMouseEnter={() => hover(o.s)} onMouseLeave={() => hover(null)}
       onClick={(e) => { if (editing === o.k) return; select(o.s, e.shiftKey); nodeFor(o.s)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }}
       onDoubleClick={() => { if (o.at) setEditing(o.k); }}>
-      {o.kids ? <button type="button" className={'ly-tw' + (open[o.openKey!] ? ' open' : '')} onClick={(e) => { e.stopPropagation(); setOpen((x) => ({ ...x, [o.openKey!]: !x[o.openKey!] })); }} aria-label={open[o.openKey!] ? 'Collapse' : 'Expand'}><ChevronRight size={12} strokeWidth={2} aria-hidden /></button> : <span className="ly-tw" />}
+      {o.kids ? <button type="button" className={'ly-tw' + ((o.openKey === '__group' ? open.__group !== false : open[o.openKey!]) ? ' open' : '')} onClick={(e) => { e.stopPropagation(); setOpen((x) => ({ ...x, [o.openKey!]: o.openKey === '__group' ? x.__group === false : !x[o.openKey!] })); }} aria-label="Expand or collapse"><ChevronRight size={12} strokeWidth={2} aria-hidden /></button> : <span className="ly-tw" />}
       <span className="ly-ic">{o.icon}</span>
       {editing === o.k ? <input className="ly-in" autoFocus defaultValue={o.name} onClick={(e) => e.stopPropagation()} onFocus={(e) => e.target.select()}
         onBlur={(e) => { rename(o.at!, e.target.value.trim()); setEditing(null); }} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditing(null); }} />
@@ -71,10 +71,19 @@ export function LayersPanel({ block, title, sel, multi, select, hide, rename, mo
   if (b.eyebrow) rows.push(row({ k: 'eb', s: { block: b.id, el: 'eyebrow' }, depth: 1, icon: <Tag {...I} />, name: clip(b.eyebrow) }));
   if (b.heading) rows.push(row({ k: 'hd', s: { block: b.id, el: 'heading' }, depth: 1, icon: <Heading {...I} />, name: clip(b.heading) }));
   if (b.body) rows.push(row({ k: 'bd', s: { block: b.id, el: 'body' }, depth: 1, icon: <Type {...I} />, name: clip(b.body) }));
-  items.forEach((it, i) => {
+  // The frames sit inside their auto layout (or grid, or carousel), which can be selected on its own
+  const group = ['columns', 'grid', 'carousel'].includes(b.kind) && items.length > 0;
+  const groupOpen = open.__group !== false;
+  if (group) {
+    const vert = b.flow?.dir === 'col';
+    rows.push(row({ k: 'grp', s: { block: b.id, el: 'items' }, depth: 1, icon: b.kind === 'grid' ? <LayoutGrid {...I} /> : b.kind === 'carousel' ? <GalleryHorizontal {...I} /> : vert ? <Rows3 {...I} /> : <Columns3 {...I} />,
+      name: b.kind === 'grid' ? 'Grid' : b.kind === 'carousel' ? 'Carousel' : `Auto layout · ${vert ? 'vertical' : 'horizontal'}`, kids: true, openKey: '__group' }));
+  }
+  if (!group || groupOpen) items.forEach((it, i) => {
     const els = itemEls(it);
-    rows.push(row({ k: 'i' + it.id, s: { block: b.id, item: i }, depth: 1, icon: <Frame {...I} />, name: itemName(it, i), hidden: it.hidden, at: { i }, kids: els.length > 0, openKey: it.id, drop: 'item' }));
-    if (open[it.id]) els.forEach((e) => rows.push(row({ k: 'e' + it.id + e.id, s: { block: b.id, item: i, el: `${it.id}.${e.id}` }, depth: 2, icon: elIcon(e), name: elName(e), hidden: e.hidden, at: { i, el: e.id }, drop: 'el' })));
+    const d = group ? 1 : 0;
+    rows.push(row({ k: 'i' + it.id, s: { block: b.id, item: i }, depth: 1 + d, icon: <Frame {...I} />, name: itemName(it, i), hidden: it.hidden, at: { i }, kids: els.length > 0, openKey: it.id, drop: 'item' }));
+    if (open[it.id]) els.forEach((e) => rows.push(row({ k: 'e' + it.id + e.id, s: { block: b.id, item: i, el: `${it.id}.${e.id}` }, depth: 2 + d, icon: elIcon(e), name: elName(e), hidden: e.hidden, at: { i, el: e.id }, drop: 'el' })));
   });
   return <section className="ly" aria-label="Layers">
     <p className="ly-h">Layers</p>

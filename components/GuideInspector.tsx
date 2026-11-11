@@ -123,7 +123,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   const flow = b.flow || {};
   const setFlow = (p: Partial<NonNullable<Block['flow']>>) => set({ flow: { ...flow, ...p } });
   const itemish = b.kind === 'columns' || b.kind === 'grid' || b.kind === 'carousel';
-  const framed = (b.box || (b.kind === 'carousel' ? 'fill' : 'none')) !== 'none';
+  const framed = ((sel.item !== undefined ? items[sel.item]?.box : undefined) || b.box || (b.kind === 'carousel' ? 'fill' : 'none')) !== 'none';
   const cols = Math.max(1, Math.min(6, b.cols || items.length || 2));
   const gcols = b.gridCols || 6;
   const i = sel.item, it: BlockItem | undefined = i !== undefined ? items[i] : undefined;
@@ -154,6 +154,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
     </> : null}
   </Sec> : <>
     <Sec title={`Frame ${i! + 1} of ${items.length}`} icon={<Square {...I} />}>
+    {b.variant !== 'images' ? <Row label="Style" hint="This frame's own style. Same as the set unless you change it."><Seg value={it.box || b.box || (b.kind === 'carousel' ? 'fill' : 'none')} opts={FRAME_STYLES} set={(v) => setItem({ box: v === (b.box || (b.kind === 'carousel' ? 'fill' : 'none')) ? undefined : v })} label="Frame style" /></Row> : null}
     {full && b.kind === 'grid' ? <Row label="Width" hint="Columns this frame spans, or drag its edge"><Step value={span} min={1} max={b.kind === 'grid' ? gcols : cols} set={(n) => setItem({ w: n }, 'w')} label="Columns spanned" suffix={` / ${b.kind === 'grid' ? gcols : cols}`} /><button type="button" className={'dp-pill' + (span === (b.kind === 'grid' ? gcols : cols) ? ' on' : '')} onClick={() => setItem({ w: b.kind === 'grid' ? gcols : cols })}>Fill</button></Row> : null}
     {full && b.kind === 'grid' ? <Row label="Height" hint="Rows this frame spans, or drag its bottom edge"><Step value={it.h || 2} min={1} max={8} set={(n) => setItem({ h: n }, 'h')} label="Rows spanned" /></Row> : null}
       {onAddToBox && b.variant !== 'images' ? <Row label="Add" hint="Add inside this frame"><div className="dp-addrow">{([['text', 'Text', Type], ['spacer', 'Spacer', UnfoldVertical]] as const).map(([w, l, Ic]) => <button type="button" key={w} onClick={() => onAddToBox(b.id, i!, w)} aria-label={`Add ${l.toLowerCase()} to this frame`} data-tip={l}><Ic {...I} /></button>)}<button type="button" onClick={() => nest(false)} aria-label="Add a frame inside this frame" data-tip="Frame F"><Square {...I} /></button><button type="button" onClick={() => nest(true)} aria-label="Add an image frame" data-tip="Image ⇧⌘K"><ImagePlus {...I} /></button><button type="button" onClick={() => onIcon?.(b.id, i!)} aria-label="Add an icon" data-tip="Icon"><Shapes {...I} /></button></div></Row> : null}
