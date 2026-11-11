@@ -2347,3 +2347,12 @@ body.ve-sizing, body.ve-sizing * { user-select: none; }
 .vh-list li.named .vh-t b { color: #000; }
 .vh-list .btn { opacity: 0; }
 .vh-list li:hover .btn, .vh-list .btn:focus { opacity: 1; }
+
+/* Panel fields, as in Figma: no ring on the text itself, just a thin line around the whole field while you edit it,
+   no number spinners, and the value selected when you click in so typing replaces it straight away */
+:is(.dp, .sw, .fk, .gs, .tx-2, .fp-size, .sp-sel, .tx-size) :is(input, select, textarea):is(:focus, :focus-visible) { outline: none; }
+:is(.tx-in, .sw-in, .fp-size, .sp-sel, .tx-size, .dp-px):focus-within { box-shadow: inset 0 0 0 1px var(--sel); outline: none; }
+.tx-in:is(input, select):focus, .sw-in:is(input, select):focus { outline: none; box-shadow: inset 0 0 0 1px var(--sel); }
+.tx-size .tx-in:focus, .tx-size .tx-in:focus-within { box-shadow: none; }
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

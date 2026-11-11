@@ -371,6 +371,12 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const collab = useCollab({ projectId, me, ch: chId, sel, onPatch: onRemote, onReload: () => router.refresh(), onResync: resync });
   collabRef.current = collab;
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Panel number fields select their value when you click in, so typing replaces it straight away, as in Figma
+  useEffect(() => {
+    const pick = (e: FocusEvent) => { const t = e.target as HTMLInputElement; if (t?.matches?.(':is(.dp, .sw, .fk) input:is([type=number], [type=text], :not([type]))')) requestAnimationFrame(() => { try { t.select(); } catch { /* not selectable */ } }); };
+    document.addEventListener('focusin', pick);
+    return () => document.removeEventListener('focusin', pick);
+  }, []);
   useEffect(() => {
     const move = (e: MouseEvent) => { if ((e.target as HTMLElement).closest?.('.ve-main')) collab.moveCursor(e); };
     const out = (e: MouseEvent) => { if (!(e.relatedTarget as HTMLElement | null)?.closest?.('.ve-main') && (e.target as HTMLElement).closest?.('.ve-main')) collab.moveCursor(null); };
