@@ -74,6 +74,16 @@ function Editable({ value, onSave, tag, className, placeholder, multiline, style
 // The studio's guidelines editor: the client's view, editable in place.
 const toolbarFonts = (fs: ProjectFont[]): ToolbarFont[] => fs.filter((f) => f.files.length).map((f) => ({ role: f.role, label: f.label, name: f.name, weights: [...new Set(f.files.map((x) => x.weight))].sort((a, b) => a - b) }));
 
+/** A picture's proportions as a ratio, simplified (1600×1200 → 4:3); close enough to a common one snaps to it */
+function ratioOf(w?: number, h?: number) {
+  if (!w || !h) return undefined;
+  const common = [[1, 1], [4, 3], [3, 4], [3, 2], [2, 3], [16, 9], [9, 16], [4, 5], [5, 4], [21, 9], [2, 1]];
+  const near = common.find(([a, b]) => Math.abs(a / b - w / h) < 0.012);
+  if (near) return `${near[0]}:${near[1]}`;
+  const g = (a: number, b: number): number => (b ? g(b, a % b) : a); const d = g(Math.round(w), Math.round(h)) || 1;
+  return `${Math.round(w / d)}:${Math.round(h / d)}`;
+}
+
 export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, fonts: initialFonts = [], tier, colours = [], logoUrl = null, home, me = null }: { me?: Me | null; home?: HomeData; projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; fonts?: ProjectFont[]; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
   // Typefaces: only those uploaded to the project. A new one uploaded from the toolbar is loaded straight away.
   const [fonts, setFonts] = useState(initialFonts);
@@ -295,6 +305,19 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const k = selKey(t); const next = base.some((x) => selKey(x) === k) ? base.filter((x) => selKey(x) !== k) : [...base, t];
     setMulti(next.length > 1 ? next : []); setSel(next[next.length - 1] || null);
   }
+  // Clicking empty space (the grey around the page, the gaps between sections, the margins) clears the selection
+  useEffect(() => {
+    const down = (e: MouseEvent) => {
+      if (e.button !== 0 || e.shiftKey) return;
+      const t = e.target as HTMLElement | null; if (!t?.closest) return;
+      if (!t.closest('#pj-panel, .ve-grid')) return;
+      if (t.closest('.ve-block, .dp, .ve-side, .ve-chset, [role="dialog"], [role="toolbar"], [role="menu"], .sh-wrap, .pl, .vh, button, input, select, textarea, a, label, [contenteditable="true"], .ve-top, .ve-dock, .ve-addbar, .ve-secs, .ve-hidden, .ve-removed')) return;
+      const a0 = document.activeElement as HTMLElement | null; if (a0?.isContentEditable) a0.blur();
+      setSel(null); setMulti([]);
+    };
+    document.addEventListener('mousedown', down);
+    return () => document.removeEventListener('mousedown', down);
+  }, []);
   // Outline everything in a multiple selection
   useEffect(() => {
     document.querySelectorAll('.ve-multi').forEach((x) => x.classList.remove('ve-multi'));
@@ -867,7 +890,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     // A fill for a frame: a nested frame (look:k:el) or the frame itself (ilook:k)
     if (typeof t.target === 'string' && (t.target.startsWith('look:') || t.target.startsWith('ilook:'))) {
       const [kind, k, elId] = t.target.split(':'); const fill = { type: up.video ? 'video' as const : 'image' as const, media: up };
-      editBlock(b.id, { items: (b.items || []).map((x, n) => (n !== Number(k) ? x : kind === 'ilook' ? { ...x, look: { ...(x.look || {}), fill } } : { ...x, els: (x.els || itemEls(x)).map((e) => (e.id === elId ? { ...e, look: { ...(e.look || {}), fill } } : e)) })) });
+      // The frame takes the picture's own proportions, so nothing is cropped; a set height gives way to them
+      const shape = (l?: FrameLook): FrameLook => { const r = ratioOf(up.w, up.h); return { ...(l || {}), fill, ...(r ? { ratio: r, fit: 'fill' as const, ...(typeof l?.sh === 'number' ? { sh: undefined } : {}) } : {}) }; };
+      editBlock(b.id, { items: (b.items || []).map((x, n) => (n !== Number(k) ? x : kind === 'ilook' ? { ...x, look: shape(x.look) } : { ...x, els: (x.els || itemEls(x)).map((e) => (e.id === elId ? { ...e, look: shape(e.look) } : e)) })) });
       return;
     }
     if (typeof t.target === 'string' && t.target.startsWith('itemel:')) { const [, k, elId] = t.target.split(':'); editBlock(b.id, { items: (b.items || []).map((x, n) => (n === Number(k) ? { ...x, els: (x.els || []).map((e) => (e.id === elId ? { ...e, media: up } : e)) } : x)) }); return; }
