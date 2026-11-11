@@ -27,6 +27,8 @@ import { coverKind } from '@/lib/portal/covers';
 import { HistoryPanel, PeerLayer, Roundels, useCollab, type Incoming, type Me } from '@/components/Collab';
 import { apply, compose, diff, isEmpty, type GuidePatch } from '@/lib/guidePatch';
 import { History } from 'lucide-react';
+import { LayersPanel, type LayerAt, type LayerDrop } from '@/components/LayersPanel';
+import { nodeFor } from '@/components/Collab';
 
 export const KINDS: [BlockKind, string][] = [['divider', 'Subsection headline'], ['text', 'Text'], ['columns', 'Auto layout'], ['grid', 'Grid'], ['statement', 'Statement'], ['split', 'Text + image'], ['image', 'Full-width image'], ['media', 'Images'], ['carousel', 'Carousel'], ['swatches', 'Colour swatches'], ['spacer', 'Spacer']];
 export const BOXES: [BoxStyle, string][] = [['none', 'None'], ['corners', 'Corner marks'], ['outline', 'Outline'], ['fill', 'Fill']];
@@ -736,6 +738,56 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     setSel({ block: b.id, item: k, el: `${it.id}.${ne.id}` });
     if (image) pickImage(b.id, `look:${k}:${ne.id}`);
   }
+  // ── Layers: select (shift adds), hide, rename and move frames and what's in them
+  function layerSelect(s: Sel, shift: boolean) {
+    const a0 = document.activeElement as HTMLElement | null; if (a0?.isContentEditable) a0.blur();
+    if (!shift) { setMulti([]); setSel(s); return; }
+    const base = multi.length ? multi : sel ? [sel] : [];
+    const k = selKey(s); const next = base.some((x) => selKey(x) === k) ? base.filter((x) => selKey(x) !== k) : [...base, s];
+    setMulti(next.length > 1 ? next : []); setSel(next[next.length - 1] || null);
+  }
+  const CLEAR = { label: undefined, heading: undefined, body: undefined, media: undefined };
+  function layerPatch(b: Block, at: LayerAt, patch: Partial<ItemEl>) {
+    const items = b.items || []; const it = items[at.i]; if (!it) return;
+    if (at.el === undefined) { editBlock(b.id, { items: items.map((x, n) => (n === at.i ? { ...x, ...patch } as BlockItem : x)) }); return; }
+    const { els, styles, ids } = materialise(it, b.styles || {}); const id = ids[at.el] || at.el;
+    editBlock(b.id, { items: items.map((x, n) => (n === at.i ? { ...x, els: els.map((e) => (e.id === id ? { ...e, ...patch } : e)), ...CLEAR } : x)), styles });
+    if (ids[at.el] && sel?.el === `${it.id}.${at.el}`) setSel({ ...sel, el: `${it.id}.${id}` });
+  }
+  function layerMove(b: Block, from: LayerAt, to: LayerDrop) {
+    const items = [...(b.items || [])];
+    if (from.el === undefined) {
+      if (to.el !== undefined) return;
+      const [it] = items.splice(from.i, 1); let at = to.i + (to.pos === 'after' ? 1 : 0); if (from.i < at) at--;
+      items.splice(at, 0, it); editBlock(b.id, { items }); setMulti([]); setSel({ block: b.id, item: at }); return;
+    }
+    const src = items[from.i], dst0 = items[to.i]; if (!src || !dst0) return;
+    let styles = b.styles || {};
+    const m1 = materialise(src, styles); styles = m1.styles;
+    const mid = m1.ids[from.el] || from.el;
+    const k = m1.els.findIndex((e) => e.id === mid); if (k < 0) return;
+    const [moving] = m1.els.splice(k, 1);
+    items[from.i] = { ...src, els: m1.els, ...CLEAR };
+    let dstEls = m1.els, tids = m1.ids;
+    if (to.i !== from.i) {
+      const m2 = materialise(dst0, styles); styles = m2.styles; dstEls = m2.els; tids = m2.ids;
+      const ok = `${src.id}.${mid}`; if (styles[ok]) { const { [ok]: st0, ...rest } = styles; styles = { ...rest, [`${dst0.id}.${mid}`]: st0 }; }
+    }
+    if (to.el === undefined || to.pos === 'inside') dstEls.push(moving);
+    else { const tid = tids[to.el] || to.el; const j = dstEls.findIndex((e) => e.id === tid); dstEls.splice(j < 0 ? dstEls.length : j + (to.pos === 'after' ? 1 : 0), 0, moving); }
+    items[to.i] = { ...items[to.i], els: dstEls, ...CLEAR };
+    editBlock(b.id, { items, styles }); setMulti([]); setSel({ block: b.id, item: to.i, el: `${items[to.i].id}.${mid}` });
+  }
+  // Hidden layers stay in the editor, faded
+  useEffect(() => {
+    document.querySelectorAll('.ve-hid').forEach((x) => x.classList.remove('ve-hid'));
+    for (const b of ch?.blocks || []) (b.items || []).forEach((it, i) => {
+      if (it.hidden) nodeFor({ block: b.id, item: i })?.classList.add('ve-hid');
+      for (const e of it.els || []) if (e.hidden) nodeFor({ block: b.id, item: i, el: `${it.id}.${e.id}` })?.classList.add('ve-hid');
+    });
+  });
+  const layerBlock = (() => { const s = multi.length ? multi[multi.length - 1] : sel; return s && s.block !== CHAPTER ? ch?.blocks.find((x) => x.id === s.block) : undefined; })();
+
   function add(what: AddWhat, at?: Sel | null) {
     if (!ch) return;
     const sel = at === undefined ? selRef : at;
@@ -934,6 +986,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       <TimedProgress label="Reading Figma and rebuilding every slide" expected={Math.max(45, g.chapters.reduce((n, c) => n + c.blocks.length, 0) * 2)} running={busy} />
 
       <div className="ve-grid">
+        <aside className="ve-side">
         <nav className="ve-chs" aria-label="Chapters">
           {home ? <div className={'ve-ch ve-home' + (chId === HOME ? ' on' : '')}><button onClick={() => { setChId(HOME); setSel(null); }}><House size={14} strokeWidth={1.75} aria-hidden />Home page</button></div> : null}
           <p className="ve-label">Chapters · drag to reorder</p>
@@ -952,6 +1005,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
             {showRemoved ? g.chapters.filter((c) => c.removed).map((c) => <div key={c.id} className="ve-removed-row"><span>{c.title}</span><button className="ve-linkbtn" onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, removed: false } : x)))}>Restore</button></div>) : null}</div> : null}
           <button className="btn ic" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); setSel(null); }}><Plus size={15} strokeWidth={1.75} aria-hidden />Chapter</button>
         </nav>
+        {ch ? <LayersPanel block={layerBlock} title={layerBlock ? layoutLabel(layerBlock) : ''} sel={sel} multi={multi}
+          select={layerSelect} hide={(at, hidden) => layerBlock && layerPatch(layerBlock, at, { hidden: hidden || undefined })} rename={(at, name) => layerBlock && layerPatch(layerBlock, at, { name: name || undefined })} move={(f, t) => layerBlock && layerMove(layerBlock, f, t)} /> : null}
+        </aside>
 
         {chId === HOME && home ? <HomeEditor projectId={projectId} home={home} colours={colours} fonts={toolbarFonts(fonts)} sys={sys} openStyles={(focus) => setStylesOpen({ focus })} chapters={g.chapters.filter((c) => !c.hidden && !c.removed).map((c) => c.title)} />
           : null}

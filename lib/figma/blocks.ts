@@ -44,13 +44,15 @@ export type FrameLook = {
 };
 /** One element inside a frame, in order: a label, a headline, text, an image, a spacer, or a frame inside the frame */
 export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer' | 'frame' | 'icon'; text?: string; media?: BlockMedia; /** spacer height, or icon size, in pixels */ size?: number; look?: FrameLook;
-  /** An icon from a library (Lucide by default), kept as its SVG so it renders anywhere */ icon?: { set: string; name: string; svg: string }; colour?: string };
+  /** An icon from a library (Lucide by default), kept as its SVG so it renders anywhere */ icon?: { set: string; name: string; svg: string }; colour?: string;
+  /** Its name in the layers panel, and hidden from the client (still shown, faded, in the editor) */ name?: string; hidden?: boolean };
 export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number;
   /** When set, the box's content as a free list of elements (added with the adding bar), instead of the fixed fields */
   els?: ItemEl[];
   /** How the content sits in the box (overrides the section's setting), and the space between its elements in pixels */
   align?: BoxAlign; gap?: number; /** Padding inside this frame, in pixels (overrides the guide's rule) */ pad?: number;
-  /** The frame's own fill, stroke and corner radius */ look?: FrameLook };
+  /** The frame's own fill, stroke and corner radius */ look?: FrameLook;
+  /** Its name in the layers panel, and hidden from the client (still shown, faded, in the editor) */ name?: string; hidden?: boolean };
 /** Content alignment inside a box, like Figma's auto layout: x across, y down; 'between' spreads elements evenly */
 export type BoxAlign = { x?: 'start' | 'center' | 'end'; y?: 'start' | 'center' | 'end' | 'between' };
 /** A box's elements in order, from its free list or from the fixed fields (image, label, headline, text) */

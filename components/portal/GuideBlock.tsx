@@ -70,7 +70,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     // A box with its own list of elements, in the order they were placed
   const CLS: Record<ItemEl['kind'], string> = { label: 'gi-label', heading: 'gi-h', text: 'gi-body', image: 'gi-media', spacer: '', frame: 'gi-frame', icon: 'gi-icon' };
   const CARD_CLS: Record<ItemEl['kind'], string> = { label: 'gc-label', heading: 'gc-h', text: 'gc-body', image: 'gc-cardimg', spacer: '', frame: 'gi-frame', icon: 'gi-icon' };
-  const elsOf = (i: number, it: BlockItem, card = false) => { const els = it.els || []; const push = els.findIndex((e) => e.kind === 'heading' || e.kind === 'text'); const pushOk = push > 0 && els.slice(0, push).every((e) => e.kind === 'label' || e.kind === 'image') && !els.some((e) => e.kind === 'spacer'); return els.map((e, k) => {
+  const elsOf = (i: number, it: BlockItem, card = false) => { const els = (it.els || []).filter((e) => edit || !e.hidden); const push = els.findIndex((e) => e.kind === 'heading' || e.kind === 'text'); const pushOk = push > 0 && els.slice(0, push).every((e) => e.kind === 'label' || e.kind === 'image') && !els.some((e) => e.kind === 'spacer'); return els.map((e, k) => {
     const cls = (k === push && pushOk ? 'gi-push ' : '') + 'gi-el';
     if (e.kind === 'spacer') return <div key={e.id} data-el={e.id} data-spacer="" className={'gi-el gi-spacer' + (edit ? ' ed-spacer' : '')} style={{ height: e.size ?? 32 }}>{edit?.grip ? edit.grip(i, e.id) : null}{edit ? <span>Spacer · {e.size ?? 32}px</span> : null}</div>;
     if (e.kind === 'icon') { const key = `${it.id}.${e.id}`; const sz = e.size ?? 32; return <div key={e.id} data-el={e.id} className={cls + ' gi-icon-el'}>{edit?.grip ? edit.grip(i, e.id) : null}<span className={'gi-icon' + (edit?.isSel?.(key) ? ' on' : '')} style={{ width: sz, height: sz, color: e.colour }} role="img" aria-label={e.icon?.name || 'Icon'} onMouseDown={edit?.selectEl ? (ev) => { ev.stopPropagation(); edit.selectEl!(i, key); } : undefined} dangerouslySetInnerHTML={{ __html: e.icon?.svg || '' }} /></div>; }
@@ -157,7 +157,8 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     </section>
   );
   if (b.kind === 'columns' || b.kind === 'grid') {
-    const items = b.items || [];
+    // Hidden frames stay in the editor (faded) but aren't shown to the client
+    const items = edit ? b.items || [] : (b.items || []).filter((x) => !x.hidden);
     const f = b.flow || {};
     const cols = Math.max(1, Math.min(6, b.cols || items.length || 2)), gcols = b.gridCols || 6;
     // Columns run one way: side by side, or stacked as rows. Older sections that wrapped more boxes than columns keep wrapping.
@@ -194,7 +195,8 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     );
   }
   if (b.kind === 'carousel') {
-    const items = b.items || [];
+    // Hidden frames stay in the editor (faded) but aren't shown to the client
+    const items = edit ? b.items || [] : (b.items || []).filter((x) => !x.hidden);
     const itxt = (i: number, f: ItemField, v: string | undefined, el0: El) => { const key = `${items[i].id}.${f}`; const tp = st(key); const el = { ...el0, style: tp.style, className: tp.className ? `${el0.className} ${tp.className}` : el0.className, key }; return edit?.itemText ? edit.itemText(i, f, v, el) : !v ? null : el.multiline ? <Paras text={v} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{v}</p>; };
     const images = b.variant === 'images';
     const addCard = !images && edit?.addItem ? edit.addItem() : null; const sel0 = !!addCard;
