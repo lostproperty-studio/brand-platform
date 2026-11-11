@@ -14,7 +14,9 @@ import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
 import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
 import { readSources, type Source } from '@/lib/figma/sources';
-import { pickLogo, withFigmaLogos } from '@/lib/portal/logo';
+import { pickLogo, sidebarChoice, withFigmaLogos } from '@/lib/portal/logo';
+import { SidebarLogoPicker } from '@/components/SidebarLogoPicker';
+import { avatarUrl } from '@/lib/portal/context';
 import { DesignProfile } from '@/components/DesignProfile';
 import { readProfile } from '@/lib/designProfile';
 import type { AssetsReport } from '@/lib/portal/templateBuild';
@@ -200,8 +202,22 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const tokens = (usage || []).reduce((n, r) => n + (r.input_tokens || 0) + (r.output_tokens || 0), 0);
     const emailOf = Object.fromEntries(members.map((m) => [m.user_id, m.email]));
     const look: LoginLook = { ...DEFAULT_LOOK, ...((content as { login?: Partial<LoginLook> }).login || {}) };
+    // The portal sidebar's logos
+    const { data: kparts } = await sb.from('deliverable_parts').select('key, status, deliverable_files(path, format, storage_path)').eq('project_id', id).order('ord');
+    const kfiles: KitFileRow[] = withFigmaLogos((kparts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string }))), p.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
+    const logoRows = kfiles.filter((f) => /^assets\/logo\/.+\.(svg|png)$/i.test(f.path) && f.storage_path);
+    const signed = await Promise.all(logoRows.map(async (f) => ({ path: f.path, name: f.path.split('/').pop()!, url: (await sb.storage.from('kits').createSignedUrl(f.storage_path!, 3600)).data?.signedUrl ?? null })));
+    const snapC = await buildSnapshot(id).catch(() => null);
+    const avatar = await avatarUrl(kfiles, p.client, snapC?.colours || []).catch(() => null);
+    const autoFull = signed.find((x) => x.path === pickLogo(kfiles).main?.path)?.url ?? null;
+    const sideNow = sidebarChoice(p.content);
     const VERB: Record<string, string> = { visit: 'visited', download: 'downloaded', tool: 'opened', skill: 'downloaded the skill', ask: 'asked a question on', join: 'joined as', upload: 'uploaded' };
     body = <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 1000 }}>
+      <section className="cl-sec">
+        <h2>Portal sidebar</h2>
+        <p className="mute" style={{ marginTop: -4 }}>The logos the client sees in the portal’s sidebar. Clients can open and close the sidebar; closed, it shows the small logo and icons.</p>
+        {signed.length ? <SidebarLogoPicker projectId={id} logos={signed} full={sideNow.full} mini={sideNow.mini} avatarUrl={avatar} autoFullUrl={autoFull} /> : <p className="mute">Add logos to the kit or import them from Figma to choose them here.</p>}
+      </section>
       <section className="cl-sec">
         <h2>Last 30 days</h2>
         <div className="cl-stats">

@@ -28,3 +28,8 @@ export function pickLogo<T extends Row>(files: T[]) {
   const main = logos.find((l) => !isLight(l.path)) || logos[0];
   return { main, light: logos.find((l) => isLight(l.path)) };
 }
+
+/** The studio's choice of logos for the portal sidebar: a full logo for the open sidebar and a small one for the
+ *  closed sidebar, as kit paths (assets/logo/…). Unset means automatic. */
+export type SidebarLogos = { full?: string; mini?: string };
+export const sidebarChoice = (content: unknown): SidebarLogos => ((content as { sidebar?: SidebarLogos } | null)?.sidebar) || {};

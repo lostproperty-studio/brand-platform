@@ -4,7 +4,8 @@ import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/
 import { readFonts, signFontUrls } from '@/lib/projects/fonts';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
 import type { Snapshot } from '@/lib/ai/project';
-import { pickLogo, withFigmaLogos } from '@/lib/portal/logo';
+import { pickLogo, sidebarChoice, withFigmaLogos } from '@/lib/portal/logo';
+import { avatarSvgs, pickAvatarLogos } from '@/lib/portal/generated';
 
 export type KitFileRow = { path: string; format: string; storage_path: string | null; part: string; partStatus: string };
 
@@ -25,8 +26,15 @@ export const portalContext = cache(async (slug: string) => {
   // Logos imported from Figma replace the kit's
   const files = withFigmaLogos(kit, p.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
   const logoFile = pickLogo(files).main;
-  const logoUrl = logoFile?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoFile.storage_path, 6 * 3600)).data?.signedUrl ?? null : null;
-  return { project: p, access: acc, preview, snap, fonts: fonts as ProjectFont[], fontCss, files, logoUrl };
+  const sign = async (f?: { storage_path: string | null }) => (f?.storage_path ? (await sb.storage.from('kits').createSignedUrl(f.storage_path, 6 * 3600)).data?.signedUrl ?? null : null);
+  const logoUrl = await sign(logoFile);
+  // The sidebar: the studio's chosen full and small logos; the small one falls back to the social avatar
+  const pickd = sidebarChoice(p.content);
+  const byPath = (path?: string) => (path ? files.find((f) => f.path === path && f.storage_path) : undefined);
+  const fullUrl = (await sign(byPath(pickd.full))) || logoUrl;
+  let miniUrl = await sign(byPath(pickd.mini));
+  if (!miniUrl) miniUrl = await avatarUrl(files, p.client, snap?.colours || []).catch(() => null);
+  return { project: p, access: acc, preview, snap, fonts: fonts as ProjectFont[], fontCss, files, logoUrl, sidebar: { full: fullUrl, mini: miniUrl } };
 });
 
 export type PortalCtx = NonNullable<Awaited<ReturnType<typeof portalContext>>>;
@@ -48,3 +56,15 @@ export async function downloadUrl(f: KitFileRow, preview: boolean, slug?: string
 export const chapterNum = (i: number) => String(i + 1).padStart(2, '0');
 
 export const chapterSlug = (id: string) => id.replace(/[:;]/g, '-');
+
+/** The first social avatar, as the platform makes it (the symbol in the brand's lead colour), for the small sidebar */
+export async function avatarUrl(files: KitFileRow[], client: string, colours: { name: string; hex: string }[]) {
+  if (!colours.length) return null;
+  const pick = pickAvatarLogos(files.map((f) => f.path));
+  const sb = adminClient();
+  const text = async (path?: string) => { const f = path ? files.find((x) => x.path === path) : undefined; if (!f?.storage_path) return undefined; const { data } = await sb.storage.from('kits').download(f.storage_path); return data ? await data.text() : undefined; };
+  const any = await text(pick.any);
+  if (!any) return null;
+  const first = Object.values(avatarSvgs(client, colours, { any, light: await text(pick.light), dark: await text(pick.dark) }))[0];
+  return first ? 'data:image/svg+xml;base64,' + Buffer.from(first).toString('base64') : null;
+}

@@ -10,7 +10,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   const { slug } = await params;
   const ctx = await portalContext(slug);
   if (!ctx) notFound();
-  const { project, snap, fontCss, fonts, logoUrl, preview, access } = ctx;
+  const { project, snap, fontCss, fonts, sidebar, preview, access } = ctx;
   if (!access.staff) await logVisit(project.id, access.user.id);
   const display = fonts.find((f) => f.role === 'display' && f.files.length) || fonts.find((f) => f.files.length);
   const body = fonts.find((f) => f.role === 'body' && f.files.length);
@@ -19,7 +19,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   return (
     <div className="pt">
       <style>{css}</style>
-      <PortalNav slug={slug} client={project.client} logoUrl={logoUrl} chapters={chapters} showSettings={access.canManage} showShowcase={preview || hasShowcase(snap?.showcase)} />
+      <PortalNav slug={slug} client={project.client} logoUrl={sidebar.full} miniUrl={sidebar.mini} chapters={chapters} showSettings={access.canManage} showShowcase={preview || hasShowcase(snap?.showcase)} />
       <div className="pt-main">
         {preview ? <div className="pt-preview" role="status">Studio preview of the working copy. {project.status === 'live' ? 'Clients see the last published version.' : 'Not published yet, so clients can’t see it.'} <a href={`/studio/projects/${project.id}`}>Back to the studio</a></div> : null}
         {snap ? <AskDock slug={slug} client={project.client} aiConnected={!!project.ai_key_hint || preview} studioAi={preview} canConnect={access.clientAdmin} /> : null}
