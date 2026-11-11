@@ -2,7 +2,7 @@
 import { createElement, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
-import { blockText, itemEls, itemWords, type BlockItem, type BoxStyle, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
+import { blockText, itemEls, itemWords, type BlockItem, type BoxStyle, type FrameLook, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
 import { Inspector } from '@/components/GuideInspector';
 import { AddBar, addTarget, type AddWhat } from '@/components/GuideAddBar';
@@ -12,6 +12,8 @@ import { CHAPTER, Shortcuts, Toolbar, type Sel, type ToolbarFont } from '@/compo
 import { SpaceCtl, StylesWindow } from '@/components/GuideStyles';
 import { CreativeDirector } from '@/components/CreativeDirector';
 import { IconPicker } from '@/components/IconPicker';
+import { MultiPanel, type MultiItem } from '@/components/MultiPanel';
+import { autoType } from '@/components/GuideInspector';
 import { MakeDialog } from '@/components/MakeDialog';
 import { guideMap, type Ref as ReviewRef, type ReviewSession } from '@/lib/review/director';
 import { defaultSystem, spaceName, systemCss, systemFor, type GuideSystem, type TypeId } from '@/lib/guideSystem';
@@ -181,7 +183,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       // Figma's: Esc and ⇧Enter select the parent (text → frame → section), Enter selects inside
       if (!typing && (e.key === 'Escape' || (e.key === 'Enter' && e.shiftKey))) { if (!sel) return; e.preventDefault(); if (sel.el && sel.item !== undefined && sel.block !== CHAPTER) setSel({ block: sel.block, item: sel.item }); else if (sel.item !== undefined && b && ['columns', 'grid', 'carousel'].includes(b.kind)) setSel({ block: sel.block, el: 'items' }); else if (sel.el || sel.item !== undefined || sel.gap) setSel(sel.block === CHAPTER ? null : { block: sel.block }); else if (e.key === 'Escape') setSel(null); return; }
       if (!typing && e.key === 'Enter' && !cmd && b && sel && sel.item === undefined && (!sel.el || sel.el === 'items') && (b.items || []).length) { e.preventDefault(); setSel({ block: b.id, item: 0 }); return; }
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !typing && multi.length > 1) { e.preventDefault(); (document.querySelector('.dp .dp-act.danger') as HTMLButtonElement | null)?.click(); return; }
       if ((e.key === 'Backspace' || e.key === 'Delete') && !typing && sel) { e.preventDefault(); deleteSelection(); return; }
+      if (e.key === 'Escape' && multi.length) { setMulti([]); return; }
       if (typing) return;
       if (!cmd && !e.altKey) {
         if (k === 'v' && !e.shiftKey) { setTool(null); return; }
@@ -213,6 +217,43 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [stylesOpen, setStylesOpen] = useState<{ focus?: TypeId } | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  // ---------- several things selected with shift; changes to what they share apply to all of them
+  const [multi, setMulti] = useState<Sel[]>([]);
+  const selKey = (x: Sel) => `${x.block}|${x.item ?? ''}|${x.el ?? ''}`;
+  /** What a click lands on, as a selection: text, a frame (or what's in it), a part of a section, or the section */
+  function selAt(t: HTMLElement): Sel | null {
+    if (!ch) return null;
+    if (t.closest('.ve-chhead')) return { block: CHAPTER, el: t.closest('.pt-display') ? 'title' : t.closest('.pt-lede') ? 'lede' : 'kicker' };
+    const blockEl = t.closest('.ve-blocks [data-block]') as HTMLElement | null; const b = blockEl ? ch.blocks.find((x) => x.id === blockEl.dataset.block) : undefined; if (!b) return null;
+    const box = t.closest('[data-item]') as HTMLElement | null;
+    if (box && box.closest('.ve-block') === blockEl) { const i = Number(box.dataset.item); const it = (b.items || [])[i]; const node = t.closest('[data-el]') as HTMLElement | null;
+      if (it && node && node.closest('[data-item]') === box && node.dataset.el && !node.dataset.el.startsWith('img')) return { block: b.id, item: i, el: `${it.id}.${node.dataset.el}` }; return { block: b.id, item: i }; }
+    const part = t.closest('[data-part]') as HTMLElement | null; const pk = part?.dataset.part;
+    if (pk === 'head') return { block: b.id, el: t.closest('.gb-eb') ? 'eyebrow' : 'heading' };
+    if (pk === 'body') return { block: b.id, el: 'body' };
+    if (pk?.startsWith('x-')) return { block: b.id, el: pk };
+    return { block: b.id };
+  }
+  function shiftPick(e: React.MouseEvent) {
+    if (!e.shiftKey) { if (multi.length) setMulti([]); return; }
+    const t = selAt(e.target as HTMLElement); if (!t) return;
+    e.preventDefault(); e.stopPropagation();
+    const a0 = document.activeElement as HTMLElement | null; if (a0?.isContentEditable) a0.blur();
+    const base = multi.length ? multi : sel ? [sel] : [];
+    const k = selKey(t); const next = base.some((x) => selKey(x) === k) ? base.filter((x) => selKey(x) !== k) : [...base, t];
+    setMulti(next.length > 1 ? next : []); setSel(next[next.length - 1] || null);
+  }
+  // Outline everything in a multiple selection
+  useEffect(() => {
+    document.querySelectorAll('.ve-multi').forEach((x) => x.classList.remove('ve-multi'));
+    for (const m of multi) {
+      const bl = document.querySelector(`.ve-blocks [data-block="${m.block}"]`) as HTMLElement | null;
+      const node = m.block === CHAPTER ? document.querySelector(`.ve-chhead ${m.el === 'title' ? '.pt-display' : m.el === 'lede' ? '.pt-lede' : '.mute'}`)
+        : !bl ? null : m.item !== undefined ? (m.el ? bl.querySelector(`[data-item="${m.item}"] [data-el="${m.el.split('.')[1]}"]`) : bl.querySelector(`[data-item="${m.item}"]`))
+        : m.el ? bl.querySelector(m.el === 'heading' ? '[data-part="head"] .gb-h, [data-part="head"] h2, [data-part="head"] h3' : m.el === 'eyebrow' ? '.gb-eb' : `[data-part="${m.el}"]`) : bl;
+      node?.classList.add('ve-multi');
+    }
+  });
   // Icons: where the next one goes (a frame, at an index), or which icon it replaces
   // Make with Krea: where the result goes, and the dialog
   const [makeFor, setMakeFor] = useState<{ block: string; target: string; aspect?: string } | null>(null);
@@ -858,7 +899,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                 </div>
               </div>
           </section>
-          <div className={'ve-canvas pt' + (tool ? ' ve-adding' : '')} onMouseMoveCapture={(e) => { if (tool) setSpot(findSpot(e)); }} onMouseLeave={() => setSpot(null)} onMouseDownCapture={(e) => { if (!tool) return; e.preventDefault(); e.stopPropagation(); place(findSpot(e)); }} onClickCapture={(e) => { if (tool) { e.preventDefault(); e.stopPropagation(); } }}>
+          <div className={'ve-canvas pt' + (tool ? ' ve-adding' : '')} onMouseMoveCapture={(e) => { if (tool) setSpot(findSpot(e)); }} onMouseLeave={() => setSpot(null)} onMouseDownCapture={(e) => { if (!tool) { shiftPick(e); return; } e.preventDefault(); e.stopPropagation(); place(findSpot(e)); }} onClickCapture={(e) => { if (tool) { e.preventDefault(); e.stopPropagation(); } }}>
           <article className="pt-page ve-page gsys">
             <header className="pt-chhead ve-chhead">
               <p className="mute"><span className="pt-n">{String(g.chapters.indexOf(ch) + 1).padStart(2, '0')}</span><Editable value={ch.kicker} tag="span" {...chText('kicker', '')} placeholder="Label" onSave={(v) => setCh({ kicker: v, edited: true })} /></p>
@@ -913,7 +954,39 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {ch ? <AddBar onReview={() => setReviewOpen((o) => !o)} reviewOpen={reviewOpen} reviewCount={reviewCount} ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={() => { const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length; setPicker({ at: at > 0 ? at : ch.blocks.length }); }} /> : null}
         {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}
-        {ch ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} onIcon={(block, item, replace) => setIconAt({ block, item, replace })} onMake={(block, target, aspect) => setMakeFor({ block, target, aspect })} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
+        {ch && multi.length > 1 ? (() => {
+          // What each selected thing is, and the text style or frame look it has now
+          const items: MultiItem[] = multi.map((m) => {
+            const k = selKey(m);
+            if (m.block === CHAPTER) return { key: k, kind: 'text' as const, style: ch.styles?.[m.el!] || {}, auto: autoType(null, m.el!) };
+            const b = ch.blocks.find((x) => x.id === m.block); const it = m.item !== undefined ? b?.items?.[m.item] : undefined;
+            if (!b) return { key: k, kind: 'other' as const };
+            if (it && !m.el) return { key: k, kind: 'frame' as const, look: it.look || {} };
+            if (it && m.el) { const id = m.el.split('.')[1]; const e = it.els?.find((x) => x.id === id); if (e?.kind === 'frame') return { key: k, kind: 'frame' as const, look: e.look || {} }; if (e && (e.kind === 'image' || e.kind === 'spacer' || e.kind === 'icon')) return { key: k, kind: 'other' as const }; if (id === 'media') return { key: k, kind: 'other' as const }; return { key: k, kind: 'text' as const, style: b.styles?.[m.el] || {}, auto: autoType(b, m.el, it) }; }
+            if (m.el && !m.el.startsWith('img')) return { key: k, kind: 'text' as const, style: b.styles?.[m.el] || {}, auto: autoType(b, m.el) };
+            return { key: k, kind: 'other' as const };
+          });
+          const tidy = (o: TextStyle) => { (Object.keys(o) as (keyof TextStyle)[]).forEach((x) => o[x] === undefined && delete o[x]); return o; };
+          // One change, applied to every selected thing, as one step to undo
+          const setText = (patch: Partial<TextStyle>) => { const g0 = latest.current; if (!g0) return; commit({ ...g0, chapters: g0.chapters.map((c) => c.id !== chId ? c : { ...c,
+            styles: multi.filter((m) => m.block === CHAPTER).reduce((st, m) => ({ ...st, [m.el!]: tidy({ ...(st[m.el!] || {}), ...patch }) }), c.styles || {}),
+            blocks: c.blocks.map((b) => { const mine = multi.filter((m) => m.block === b.id && m.el && items.find((x) => x.key === selKey(m))?.kind === 'text'); return mine.length ? { ...b, edited: true, styles: mine.reduce((st, m) => ({ ...st, [m.el!]: tidy({ ...(st[m.el!] || {}), ...patch }) }), b.styles || {}) } : b; }) }) }); };
+          const setLook = (patch: Partial<FrameLook>) => { const g0 = latest.current; if (!g0) return; commit({ ...g0, chapters: g0.chapters.map((c) => c.id !== chId ? c : { ...c, blocks: c.blocks.map((b) => { const mine = multi.filter((m) => m.block === b.id && m.item !== undefined); if (!mine.length) return b;
+            return { ...b, edited: true, items: (b.items || []).map((it, n) => { const hits = mine.filter((m) => m.item === n); if (!hits.length) return it; let x = it;
+              for (const m of hits) { if (!m.el) x = { ...x, look: { ...(x.look || {}), ...patch } }; else { const id = m.el.split('.')[1]; x = { ...x, els: (x.els || []).map((e) => (e.id === id && e.kind === 'frame' ? { ...e, look: { ...(e.look || {}), ...patch } } : e)) }; } }
+              return x; }) }; }) }) }); };
+          const delAll = () => { const g0 = latest.current; if (!g0) return; commit({ ...g0, chapters: g0.chapters.map((c) => c.id !== chId ? c : { ...c, blocks: c.blocks.map((b) => { const mine = multi.filter((m) => m.block === b.id); if (!mine.length) return b;
+            if (mine.some((m) => m.item === undefined && !m.el)) return { ...b, hidden: true };
+            const dropItems = new Set(mine.filter((m) => m.item !== undefined && !m.el).map((m) => m.item));
+            const dropEls = mine.filter((m) => m.item !== undefined && m.el).map((m) => m.el!);
+            const dropFields = mine.filter((m) => m.item === undefined && m.el).map((m) => m.el!);
+            return { ...b, edited: true, ...Object.fromEntries(dropFields.filter((f) => !f.startsWith('x-')).map((f) => [f, undefined])), off: [...new Set([...(b.off || []), ...dropFields.filter((f) => !f.startsWith('x-'))])],
+              extras: (b.extras || []).filter((x) => !dropFields.includes('x-' + x.id)),
+              items: (b.items || []).filter((_, n) => !dropItems.has(n)).map((it) => { const ids = dropEls.filter((k) => k.startsWith(it.id + '.')).map((k) => k.split('.')[1]); if (!ids.length) return it; return it.els ? { ...it, els: it.els.filter((e) => !ids.includes(e.id)) } : { ...it, ...Object.fromEntries(ids.map((f) => [f, undefined])) }; }) }; }) }) });
+            setMulti([]); setSel(null); };
+          return <MultiPanel items={items} sys={sys} fonts={toolbarFonts(fonts)} palette={colours} openStyles={(focus) => setStylesOpen({ focus })} setText={setText} setLook={setLook} onDelete={delAll} onAddFont={(then) => setFontAsk(() => then)} />;
+        })() : null}
+        {ch && multi.length < 2 ? <Inspector onAddToBox={addToBox} sel={sel} setSel={setSel} ch={ch} colours={colours} editBlock={editBlock} pickImage={pickImage} sys={sys} setSys={setSysKey} openStyles={(focus) => setStylesOpen({ focus })} setChStyle={setChStyle} onFill={fillWithAi} filling={filling} onDelete={deleteSelection} onIcon={(block, item, replace) => setIconAt({ block, item, replace })} onMake={(block, target, aspect) => setMakeFor({ block, target, aspect })} fonts={toolbarFonts(fonts)} onAddFont={(then) => setFontAsk(() => then)} /> : null}
         {stylesOpen ? <StylesWindow sys={sys} auto={autoSys} setSys={setSysKey} fonts={toolbarFonts(fonts)} colours={colours} focus={stylesOpen.focus} onAddFont={(then) => setFontAsk(() => then)} onClose={() => setStylesOpen(null)} /> : null}
         {keysOpen ? <Shortcuts onClose={() => setKeysOpen(false)} /> : null}
         {makeFor ? <MakeDialog onMake={make} onClose={() => setMakeFor(null)} aspect={makeFor.aspect} /> : null}

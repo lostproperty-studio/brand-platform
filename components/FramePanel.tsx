@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowRight, Ban, CornerDownLeft, Eye, EyeOff, Image as ImageIcon, ImageOff, ImageUp, Minus, Palette, Plus, Scan, Video } from 'lucide-react';
 import { fillMedia, type BoxAlign, type FrameLook } from '@/lib/figma/blocks';
 import { FillPicker } from '@/components/FillPicker';
+import { ScaleSelect } from '@/components/GuideStyles';
 
 // A frame in the design panel, laid out like Figma's: Auto layout (flow, resizing, alignment, gap, padding, clip),
 // Appearance (opacity, corner radius), Fill (colour, image or video) and Stroke (colour, opacity, position, weight).
@@ -53,12 +54,12 @@ export function FramePanel({ look = {}, set, palette, upload, layout, sizing = t
         <div className="tx-2"><SizeField axis="W" value={look.sw} fallback="fill" set={(v) => p({ sw: v }, 'sw')} /><SizeField axis="H" value={look.sh} fallback="hug" set={(v) => p({ sh: v }, 'sh')} /></div></> : null}
       {layout ? <div className="fp-ag">
         <div><div className="tx-lab">Alignment</div>{layout.alignGrid}</div>
-        <div><div className="tx-lab">Gap</div><Num value={layout.gap} placeholder={layout.gapRule} set={layout.setGap} label="Gap between items" icon={<span className="tx-glyph">)·(</span>} max={400} /></div>
+        <div><div className="tx-lab">Gap</div><ScaleSelect value={layout.gap} auto={layout.gapRule} set={layout.setGap} label="Gap between items" /></div>
       </div> : null}
       <div className="tx-lab">Padding</div>
       <div className="tx-2">
-        <Num value={look.padX ?? look.pad} placeholder={layout?.padRule ?? 0} set={(n) => p({ padX: n, pad: undefined }, 'padX')} label="Padding left and right" icon={<span className="tx-glyph">|◫|</span>} max={400} />
-        <Num value={look.padY ?? look.pad} placeholder={layout?.padRule ?? 0} set={(n) => p({ padY: n, pad: undefined }, 'padY')} label="Padding top and bottom" icon={<span className="tx-glyph">⊟</span>} max={400} />
+        <ScaleSelect value={look.padX ?? look.pad} auto={layout?.padRule ?? 0} set={(n) => p({ padX: n, pad: undefined }, 'padX')} label="Padding left and right" icon={<span className="tx-glyph">↔</span>} />
+        <ScaleSelect value={look.padY ?? look.pad} auto={layout?.padRule ?? 0} set={(n) => p({ padY: n, pad: undefined }, 'padY')} label="Padding top and bottom" icon={<span className="tx-glyph">↕</span>} />
       </div>
       <label className="fp-check"><input type="checkbox" checked={look.clip ?? !hasContent} onChange={(e) => p({ clip: e.target.checked })} />Clip content</label>
     </section>

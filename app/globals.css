@@ -2307,3 +2307,7 @@ body.ve-sizing, body.ve-sizing * { user-select: none; }
 .ve-ins { pointer-events: none; }
 .ve-ins > span { pointer-events: auto; }
 .ve-block.sel .ve-ins:hover, .ve-block .ve-ins:has(> span:hover) { opacity: 1; }
+.ve-multi { outline: 2px solid #0d99ff !important; outline-offset: 2px; }
+.sp-scale { min-width: 0; }
+.sp-scale .sp-ic { padding-left: 8px; color: var(--mute); font-size: 11px; }
+.tx-narrow2 { width: 140px; }

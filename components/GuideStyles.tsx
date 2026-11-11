@@ -26,6 +26,23 @@ export function SpaceSelect({ value, set, label }: { value: number; set: (px: nu
   </div>;
 }
 
+/** A space picked from the scale only, or left on Auto (the guide's rule, shown) */
+export function ScaleSelect({ value, auto, set, label, icon }: { value?: number; auto?: number; set: (px: number | undefined) => void; label: string; icon?: React.ReactNode }) {
+  const steps = SPACE_STEPS.map((x) => x.px);
+  const i = value === undefined ? -1 : steps.indexOf(value);
+  const near = value !== undefined && i < 0 ? steps.reduce((b, x) => (Math.abs(x - value) < Math.abs(b - value) ? x : b), 0) : undefined;
+  const cur = near ?? value;
+  const k = cur === undefined ? steps.indexOf(auto ?? 0) : steps.indexOf(cur);
+  return <div className="sp-sel sp-scale" role="group" aria-label={label} data-tip={label}>
+    {icon ? <span className="sp-ic">{icon}</span> : null}
+    <button type="button" onClick={() => set(steps[Math.max(0, k - 1)])} disabled={k <= 0} aria-label={`Less ${label.toLowerCase()}`}><Minus size={12} strokeWidth={2} aria-hidden /></button>
+    <select value={cur === undefined ? '' : String(cur)} onChange={(e) => set(e.target.value === '' ? undefined : Number(e.target.value))} aria-label={label}>
+      {auto !== undefined ? <option value="">Auto · {auto}px</option> : null}{steps.map((x) => <option key={x} value={x}>{x}px</option>)}
+    </select>
+    <button type="button" onClick={() => set(steps[Math.min(steps.length - 1, k + 1)])} disabled={k >= steps.length - 1} aria-label={`More ${label.toLowerCase()}`}><Plus size={12} strokeWidth={2} aria-hidden /></button>
+  </div>;
+}
+
 /** A space that follows a guide-wide rule, or is set for just this one place */
 export function SpaceCtl({ sys, rule, own, setRule, setOwn, label }: { sys: GuideSystem; rule: SpaceRule; own?: number; setRule: (px: number) => void; setOwn: (px: number | undefined) => void; label: string }) {
   const ruleInfo = SPACE_RULES.find((r) => r.id === rule)!;

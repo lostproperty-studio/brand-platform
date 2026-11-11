@@ -5,7 +5,7 @@ import { KINDS, KindIcon, convert } from '@/components/GuideEditor';
 import { CHAPTER, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { TypePanel } from '@/components/TypePanel';
 import { FramePanel } from '@/components/FramePanel';
-import { SpaceCtl } from '@/components/GuideStyles';
+import { ScaleSelect, SpaceCtl } from '@/components/GuideStyles';
 import type { GuideSystem, SpaceRule, TypeId } from '@/lib/guideSystem';
 import {
   AlignEndHorizontal, AlignCenterHorizontal, AlignStartHorizontal, ArrowLeft, ArrowRight, Captions, Copy, GalleryHorizontal, ImageOff, ImagePlus,
@@ -232,7 +232,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   }
 
   if (spacerEl && it) return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>
-    <Sec title="Spacer" icon={<UnfoldVertical {...I} />}><Row label="Height"><Px value={spacerEl.size} placeholder={32} step={4} set={(n) => setItem({ els: (it.els || []).map((e) => (e.id === spacerEl.id ? { ...e, size: n } : e)) }, 'spacer')} label="Spacer height" icon={UnfoldVertical} /></Row></Sec>
+    <Sec title="Spacer" icon={<UnfoldVertical {...I} />}><Row label="Height"><ScaleSelect value={spacerEl.size ?? 28} set={(n) => setItem({ els: (it.els || []).map((e) => (e.id === spacerEl.id ? { ...e, size: n } : e)) }, 'spacer')} label="Spacer height" /></Row></Sec>
     {frameSec(false)}
   </aside>;
 
@@ -254,7 +254,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
           <Row label="Row height"><Seg value={b.rowH || 'm'} opts={[['s', 'S'], ['m', 'M'], ['l', 'L']]} set={(v) => set({ rowH: v })} label="Row height" /></Row>
         </> : null}
         {b.kind === 'carousel' ? <Row label="Slides"><Seg value={b.variant || 'cards'} opts={[['cards', 'Frames of text', RectangleHorizontal], ['images', 'Images', Images]]} set={(v) => set(v === 'images' ? { variant: v } : { variant: v, box: b.box && b.box !== 'none' ? b.box : 'fill', items: items.length ? items : [{ id: iid(), label: '01', heading: 'A headline for this card' }] })} label="Slides" /></Row> : null}
-        {b.kind === 'spacer' ? <Row label="Height"><Px value={b.size} placeholder={64} step={8} set={(n) => set({ size: n }, 'size')} label="Spacer height" icon={UnfoldVertical} /></Row> : null}
+        {b.kind === 'spacer' ? <Row label="Height"><ScaleSelect value={b.size ?? 64} set={(n) => set({ size: n }, 'size')} label="Spacer height" /></Row> : null}
         {b.kind === 'media' ? <Row label="Per row"><Step value={b.cols || 2} min={1} max={4} set={(n) => set({ cols: n })} label="Images per row" /></Row> : null}
         {b.kind === 'split' ? <Row label="Image"><Seg value={b.side || 'right'} opts={[['left', 'Image left', PanelLeft], ['right', 'Image right', PanelRight]]} set={(v) => set({ side: v })} label="Image side" /></Row> : null}
         {b.kind === 'statement' ? <>

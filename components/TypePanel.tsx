@@ -6,7 +6,7 @@ import {
 import type { TextCase, TextStyle } from '@/lib/figma/blocks';
 import { TYPE_IDS, type GuideSystem, type TypeId } from '@/lib/guideSystem';
 import type { ToolbarFont } from '@/components/GuideDock';
-import { typeLabel } from '@/components/GuideStyles';
+import { ScaleSelect, typeLabel } from '@/components/GuideStyles';
 
 // Text in the design panel, laid out like Figma's: Typography (style, typeface, weight, size, line height, letter
 // spacing, alignment), Fill and Appearance, with the finer settings (decoration, case, lists, paragraph spacing,
@@ -82,7 +82,7 @@ export function TypePanel({ style, setStyle, sys, auto, fonts, onAddFont, palett
         <div className="tx-row"><span>Case</span><Ic<TextCase> value={style.case ?? base.case} set={(v) => setStyle({ case: v === base.case ? undefined : v })} label="Case" opts={[[undefined, 'As typed', <Minus key="n" {...I} />], ['upper', 'Uppercase', <b key="u">AG</b>], ['lower', 'Lowercase', <b key="l">ag</b>], ['title', 'Title case', <b key="t">Ag</b>], ['smallcaps', 'Small caps', <b key="s" style={{ fontVariantCaps: 'all-small-caps' }}>Ag</b>]]} /></div>
         <span className="tx-sep" />
         <div className="tx-row"><span>List style</span><Ic value={style.list} set={(v) => setStyle({ list: v })} label="List style" opts={[[undefined, 'None', <Minus key="n" {...I} />], ['bullet', 'Bullets', <List key="b" {...I} />], ['number', 'Numbers', <ListOrdered key="o" {...I} />]]} /></div>
-        <div className="tx-row"><span>Paragraph spacing</span><label className="tx-in tx-unit tx-narrow"><input type="number" min={0} max={120} step={2} value={style.paraGap ?? ''} placeholder="Auto" onChange={(e) => setStyle({ paraGap: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)) }, 'para')} aria-label="Paragraph spacing in pixels" /></label></div>
+        <div className="tx-row"><span>Paragraph spacing</span><div className="tx-narrow2"><ScaleSelect value={style.paraGap} auto={10} set={(n) => setStyle({ paraGap: n }, 'para')} label="Paragraph spacing" /></div></div>
         <div className="tx-row"><span>Truncate text</span><Ic value={style.truncate ? 'on' : undefined} set={(v) => setStyle({ truncate: v === 'on' || undefined })} label="Truncate text" opts={[[undefined, 'Off', <Minus key="n" {...I} />], ['on', 'Truncate with …', <b key="t">A…</b>]]} /></div>
         <div className="tx-row"><span>Wrap style</span><select className="tx-in tx-narrow" value={style.wrap || ''} onChange={(e) => setStyle({ wrap: (e.target.value || undefined) as TextStyle['wrap'] })} aria-label="Wrap style"><option value="">Auto</option><option value="balance">Balance</option><option value="pretty">Pretty</option></select></div>
       </div> : null}
