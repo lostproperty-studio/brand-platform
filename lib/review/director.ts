@@ -13,18 +13,29 @@ export type ReviewSession = {
   at: string; depth: Depth; chapter?: string | null; focus?: string; result: ReviewResult; refs: Record<string, Ref>;
   /** Notes dealt with: applied, done or dismissed */ closed?: Record<string, 'applied' | 'done' | 'dismissed'>;
   messages?: { role: 'user' | 'assistant'; content: string }[];
+  /** Kept in the history: an id, what kind of session it is, and where in the guide it was started */
+  id?: string; kind?: 'review' | 'consistency' | 'chat'; title?: string;
+  /** Consistency check: words written more than one way, and what was chosen for each */
+  consistency?: import('./consistency').ConsistencyGroup[];
 };
+/** Every session, newest first (older guides kept one, as reviewSession) */
+export function readSessions(content: unknown): ReviewSession[] {
+  const c = (content || {}) as { reviewSessions?: ReviewSession[]; reviewSession?: ReviewSession };
+  const list = Array.isArray(c.reviewSessions) ? c.reviewSessions : c.reviewSession ? [{ ...c.reviewSession, id: c.reviewSession.id || 'r-legacy' }] : [];
+  return list.map((x, i) => ({ ...x, id: x.id || 'r-' + i }));
+}
 
 const live = (c: GuideChapter) => !c.removed && !c.hidden;
 
 /** The guide as text with references, for the prompt; and the references, for the editor */
-export function guideMap(g: Guide, chapter?: string | null): { text: string; refs: Record<string, Ref> } {
+export function guideMap(g: Guide, chapter?: string | null): { text: string; refs: Record<string, Ref>; texts: Record<string, string> } {
   const refs: Record<string, Ref> = {};
+  const texts: Record<string, string> = {};
   const out: string[] = [];
   g.chapters.forEach((c, ci) => {
     if (!live(c) || (chapter && c.id !== chapter)) return;
     const C = `C${ci + 1}`;
-    const put = (r: string, ref: Ref, label: string, text?: string) => { if (!text?.trim()) return; refs[r] = ref; out.push(`  [${r}] ${label}: ${text.replace(/\s+/g, ' ').trim().slice(0, 1200)}`); };
+    const put = (r: string, ref: Ref, label: string, text?: string) => { if (!text?.trim()) return; refs[r] = ref; texts[r] = text; out.push(`  [${r}] ${label}: ${text.replace(/\s+/g, ' ').trim().slice(0, 1200)}`); };
     out.push(`\n# ${C} Chapter: ${c.title}`);
     put(`${C}.title`, { chapter: c.id, field: 'title' }, 'Chapter title', c.title);
     put(`${C}.kicker`, { chapter: c.id, field: 'kicker' }, 'Chapter label', c.kicker);
@@ -43,7 +54,7 @@ export function guideMap(g: Guide, chapter?: string | null): { text: string; ref
       (b.media || []).forEach((m, mi) => put(`${S}.cap${mi}`, { chapter: c.id, block: b.id, field: `cap:${mi}` }, 'Caption', m.caption));
     });
   });
-  return { text: out.join('\n'), refs };
+  return { text: out.join('\n'), refs, texts };
 }
 
 /** How the studio's other guides are built, as counts only: which chapters they have and how many sections.

@@ -17,7 +17,7 @@ export const maxDuration = 300;
 const Msg = z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(8000) });
 const Body = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('start'), depth: z.enum(['big', 'detail', 'both']), chapter: z.string().max(200).nullable().optional(), focus: z.string().max(1000).optional() }),
-  z.object({ mode: z.literal('chat'), messages: z.array(Msg).min(1).max(40), selection: z.array(z.string().max(80)).max(60).optional() })
+  z.object({ mode: z.literal('chat'), messages: z.array(Msg).min(1).max(40), selection: z.array(z.string().max(80)).max(60).optional(), chapter: z.string().max(200).nullable().optional(), notes: z.string().max(12000).optional() })
 ]);
 
 const MODEL = 'claude-opus-5-5';
@@ -43,7 +43,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('client, line, content').eq('id', id).single();
-  const content = (p?.content || {}) as { guide?: Guide; reviewSession?: ReviewSession };
+  const content = (p?.content || {}) as { guide?: Guide };
   const g = normaliseGuide(content.guide);
   if (!g) return NextResponse.json({ error: 'Build the guidelines first.' }, { status: 400 });
   const client = p?.client || 'the client';
@@ -108,20 +108,17 @@ ${focus ? `THE DESIGNER ASKS YOU TO FOCUS ON: ${focus}\n\n` : ''}${ask} Then cal
         detail: (out.input.detail || []).filter((x) => map.refs[x.ref] && x.quote && x.quote !== x.suggestion && textOf(x.ref).includes(x.quote)).slice(0, 60).map((x, i) => ({ ...x, id: 'd' + i }))
       };
       const session: ReviewSession = { at: new Date().toISOString(), depth, chapter: chapter || null, focus, result, refs: map.refs, closed: {}, messages: [] };
-      await sb.from('projects').update({ content: { ...(p?.content as object), reviewSession: session } }).eq('id', id);
+      // The editor adds it to the history and saves the list
       return NextResponse.json({ session });
     } catch (e) {
       return NextResponse.json({ error: /api[_ ]key|authentication/i.test(String(e)) ? 'The studio’s AI key isn’t set up (ANTHROPIC_API_KEY).' : 'The review couldn’t run just now. Try again.' }, { status: 500 });
     }
   }
 
-  // A conversation about the review: the latest guide text, the notes so far, and the thread
-  const s = content.reviewSession;
-  const map = guideMap(g, s?.chapter || null);
-  const notes = s ? `YOUR REVIEW SO FAR (${s.depth === 'big' ? 'direction' : s.depth === 'detail' ? 'detail' : 'direction and detail'}${s.chapter ? ', one chapter' : ''}):
-Summary: ${s.result.summary}
-${s.result.big.map((x) => `- [${s.closed?.[x.id] || 'open'}] ${x.title}: ${x.steer}`).join('\n')}
-${s.result.detail.length ? `${s.result.detail.length} detail fixes, ${Object.keys(s.closed || {}).filter((k) => k.startsWith('d')).length} dealt with.` : ''}` : 'No review has been run yet.';
+  // A conversation in a session: the guide as it is now (the session's chapter, or all of it), what the session
+  // has found so far, and the thread
+  const map = guideMap(g, b.data.chapter || null);
+  const notes = b.data.notes?.trim() ? `WHAT THIS SESSION HAS FOUND SO FAR:\n${b.data.notes.trim()}` : 'This is a conversation; no review has been run in it yet.';
   // What the designer has selected in the editor: help with that, unless they ask about something else
   const whole = guideMap(g, null);
   const picked = (b.data.selection || []).filter((r) => whole.refs[r]);

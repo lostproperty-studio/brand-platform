@@ -15,7 +15,7 @@ import { IconPicker } from '@/components/IconPicker';
 import { MultiPanel, type MultiItem } from '@/components/MultiPanel';
 import { autoType } from '@/components/GuideInspector';
 import { MakeDialog } from '@/components/MakeDialog';
-import { guideMap, type Ref as ReviewRef, type ReviewSession } from '@/lib/review/director';
+import { guideMap, readSessions, type Ref as ReviewRef } from '@/lib/review/director';
 import { defaultSystem, spaceName, systemCss, systemFor, type GuideSystem, type TypeId } from '@/lib/guideSystem';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
@@ -372,10 +372,12 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (sel.el && !sel.el.startsWith('img')) return { label: sel.el === 'heading' ? 'This headline' : sel.el === 'eyebrow' ? 'This label' : 'This text', refs: pick((r) => r.block === sel.block && r.field === sel.el) };
     return { label: `This section${blk?.heading ? ` · ${blk.heading.slice(0, 24)}` : ''}`, refs: pick((r) => r.block === sel.block) };
   };
-  const reviewApply = (r: ReviewRef, quote: string, sug: string): boolean => {
+  const reviewApply = (r: ReviewRef, quote: string, sug: string): boolean => reviewRewrite(r, (t) => (t.includes(quote) ? t.replace(quote, sug) : null));
+  /** Change one piece of text the review points at: f gets the text and returns the new text, or null for no change */
+  const reviewRewrite = (r: ReviewRef, f: (t: string) => string | null): boolean => {
     const g0 = latest.current; if (!g0) return false;
     const c0 = g0.chapters.find((c) => c.id === r.chapter); if (!c0) return false;
-    const rep = (t?: string) => (t && t.includes(quote) ? t.replace(quote, sug) : null);
+    const rep = (t?: string) => { if (!t) return null; const v = f(t); return v === null || v === t ? null : v; };
     let next: GuideChapter | null = null;
     if (!r.block) { const v = rep((c0 as unknown as Record<string, string>)[r.field]); if (v === null) return false; next = { ...c0, [r.field]: v, edited: true }; }
     else {
@@ -1191,7 +1193,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         {keysOpen ? <Shortcuts onClose={() => setKeysOpen(false)} /> : null}
         {makeFor ? <MakeDialog onMake={make} onClose={() => setMakeFor(null)} aspect={makeFor.aspect} /> : null}
         {iconAt && g ? <IconPicker set={g.icons?.set || 'lucide'} onSet={(set) => { if (set !== (g.icons?.set || 'lucide') && set !== 'custom') commit({ ...(latest.current || g), icons: { set } }); }} onPick={putIcon} onClose={() => setIconAt(null)} /> : null}
-        {g ? <CreativeDirector projectId={projectId} guide={g} chapterId={chId} initial={(content.reviewSession as ReviewSession | undefined) || null} goTo={reviewGoTo} apply={reviewApply} focusOn={reviewFocus()} open={reviewOpen} setOpen={setReviewOpen} onCount={setReviewCount} /> : null}
+        {g ? <CreativeDirector projectId={projectId} guide={g} chapterId={chId} history={readSessions(content)} known={known} goTo={reviewGoTo} apply={reviewApply} rewrite={reviewRewrite} focusOn={reviewFocus()} open={reviewOpen} setOpen={setReviewOpen} onCount={setReviewCount} /> : null}
         <style dangerouslySetInnerHTML={{ __html: systemCss(sys) }} />
       </div>
       {ask ? <Confirm ask={ask} onClose={() => setAsk(null)} /> : null}
