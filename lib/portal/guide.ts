@@ -19,7 +19,7 @@ export type GuideChapter = { id: string; key: string | null; title: string; kick
   /** When the chapter was last brought in from Figma */ importedAt?: string;
   /** Styling for the chapter's label, title and introduction, set in the editor */ styles?: Record<string, TextStyle> };
 export type GuideColour = { name: string; hex: string; role: string };
-export type Guide = { version?: number; generatedAt: string; file: string; page: string; chapters: GuideChapter[]; colours: GuideColour[];
+export type Guide = { version?: number; generatedAt: string; file: string; page: string; chapters: GuideChapter[]; colours: GuideColour[]; /** Words the spell check accepts for this brand */ dictionary?: string[];
   /** The guide's text styles and spacing, as set in the Styles window (otherwise generated from the guidelines) */ system?: import('@/lib/guideSystem').GuideSystem;
   /** The icon library used in the editor: an Iconify set prefix (lucide by default) */ icons?: { set: string } };
 export const GUIDE_VERSION = 3;

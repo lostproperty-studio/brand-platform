@@ -68,7 +68,8 @@ export function itemEls(it: BlockItem): ItemEl[] {
 }
 /** All the words in a box */
 export const itemWords = (it: BlockItem) => itemEls(it).filter((e) => e.kind !== 'image' && e.kind !== 'spacer' && e.kind !== 'frame' && e.kind !== 'icon').map((e) => e.text).filter(Boolean) as string[];
-export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string; /** A video file (MP4 or WebM), played muted on a loop */ video?: boolean };
+export type BlockMedia = { path: string; w: number; h: number; caption?: string; kind: 'photo' | 'graphic'; nodeId?: string; /** A video file (MP4 or WebM), played muted on a loop */ video?: boolean;
+  /** How it's framed: shape, fit, crop, adjustments, corners and stroke, as for any frame */ look?: FrameLook };
 export type BlockSwatch = { name: string; hex: string; note?: string };
 export type Block = {
   id: string; source?: string; kind: BlockKind;
@@ -434,4 +435,35 @@ export function cleanSvg(svg: string): string {
   const m = svg.match(/<svg[\s\S]*<\/svg>/i); if (!m) return '';
   return m[0].replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '').replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi, '').replace(/\s(xlink:)?href\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*')/gi, '')
     .replace(/<svg([^>]*?)\swidth="[^"]*"/i, '<svg$1').replace(/<svg([^>]*?)\sheight="[^"]*"/i, '<svg$1').replace(/<svg/i, '<svg width="100%" height="100%"');
+}
+
+/** A picture's proportions as a ratio, simplified (1600×1200 → 4:3); close enough to a common one snaps to it */
+export function ratioOf(w?: number, h?: number) {
+  if (!w || !h) return undefined;
+  const common = [[1, 1], [4, 3], [3, 4], [3, 2], [2, 3], [16, 9], [9, 16], [4, 5], [5, 4], [21, 9], [2, 1]];
+  const near = common.find(([a, b]) => Math.abs(a / b - w / h) < 0.012);
+  if (near) return `${near[0]}:${near[1]}`;
+  const g = (a: number, b: number): number => (b ? g(b, a % b) : a); const d = g(Math.round(w), Math.round(h)) || 1;
+  return `${Math.round(w / d)}:${Math.round(h / d)}`;
+}
+
+/** An image as a frame filled with it: one kind of thing, with the same options, wherever a picture sits */
+const imageFrame = (m: BlockMedia, look?: FrameLook): FrameLook => ({ ...(look || {}), fill: { type: m.video ? 'video' : 'image', media: m }, fit: look?.fit || (m.kind === 'graphic' ? 'fit' : 'fill'), ratio: look?.ratio || ratioOf(m.w, m.h) });
+
+/** Pictures inside frames become frames filled with the picture (an image element, or a frame's old single
+ *  picture). A frame that was only a picture takes the picture as its own fill. Returns the same block when
+ *  nothing changes. */
+export function unifyImages(b: Block): Block {
+  if (!b.items?.some((it) => it.media || it.els?.some((e) => e.kind === 'image' && e.media))) return b;
+  const items = b.items.map((it): BlockItem => {
+    if (it.els) {
+      if (!it.els.some((e) => e.kind === 'image' && e.media)) return it;
+      return { ...it, els: it.els.map((e) => (e.kind === 'image' && e.media ? { id: e.id, kind: 'frame' as const, look: imageFrame(e.media, e.look), name: e.name, hidden: e.hidden } : e)) };
+    }
+    if (!it.media) return it;
+    const words = !!(it.label || it.heading || it.body);
+    if (!words) return { ...it, media: undefined, els: [], look: imageFrame(it.media, it.look) };
+    return { ...it, media: undefined, label: undefined, heading: undefined, body: undefined, els: itemEls(it).map((e) => (e.kind === 'image' && e.media ? { id: e.id, kind: 'frame' as const, look: imageFrame(e.media) } : e)) };
+  });
+  return { ...b, items };
 }

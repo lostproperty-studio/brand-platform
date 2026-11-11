@@ -316,7 +316,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .gb-swn { font-family: var(--pt-display); font-size: 20px; line-height: 1.1; }
 .gb-orig { margin: 0; }
 .gb-orig img { width: 100%; height: auto; display: block; border-radius: 4px; }
-.pt-blocks { display: flex; flex-direction: column; gap: clamp(32px, 5vw, 64px); }
+.pt-blocks { display: flex; flex-direction: column; gap: clamp(48px, 10vw, 128px); }
 @media (max-width: 760px) {
   .gb-two, .gb-split { grid-template-columns: 1fr; }
   .gb-split.left > .gb-media { order: 0; }
@@ -2882,3 +2882,14 @@ a.pt-credit { font-size: 10.5px; padding: 0 8px; column-gap: 4px; }
 .vs-more { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .vs-kn .kn-list { margin-top: 4px; }
 .kn-add textarea { min-height: 96px; }
+
+/* Spell check: a red zigzag under misspelt words, and corrections on click */
+::highlight(spell) { text-decoration: underline wavy #E5484D; text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
+.spk { position: fixed; z-index: 400; min-width: 200px; max-width: 260px; background: #fff; border-radius: 10px; box-shadow: 0 0 0 1px var(--line, #e5e5e5), 0 12px 32px rgba(0,0,0,.16); padding: 4px; display: flex; flex-direction: column; font-size: 13px; }
+.spk button { all: unset; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; color: #444; }
+.spk button:hover, .spk button:focus-visible { background: var(--fill, #f2f2f2); color: #000; }
+.spk .spk-s { font-weight: 600; color: #111; }
+.spk-none { margin: 0; padding: 7px 10px; color: var(--mute, #777); }
+.spk-sep { height: 1px; background: var(--line, #e5e5e5); margin: 4px 2px; }
+/* Pictures in sections, framed like any frame */
+.gb-fimg { width: 100%; }

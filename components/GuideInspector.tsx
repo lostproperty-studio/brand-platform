@@ -1,6 +1,6 @@
 'use client';
 import type { Block, BlockKind, GuideChapter } from '@/lib/portal/guide';
-import { fillMedia, itemEls, type BlockItem, type BoxAlign, type BoxStyle, type FrameLook, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
+import { fillMedia, itemEls, ratioOf, type BlockItem, type BoxAlign, type BoxStyle, type FrameLook, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
 import { KINDS, KindIcon, convert } from '@/components/GuideEditor';
 import { CHAPTER, type Sel, type ToolbarFont } from '@/components/GuideDock';
 import { TypePanel } from '@/components/TypePanel';
@@ -219,15 +219,19 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   if (isImg && el) {
     const k = el.startsWith('img:') ? Number(el.slice(4)) : undefined;
     const m = k !== undefined ? (b.media || [])[k] : undefined;
+    // A picture in a section is a frame like any other: the same fill, fit, crop, adjustments, corners and stroke
+    const look: FrameLook | undefined = m ? { ...(m.look || {}), fill: { type: m.video ? 'video' : 'image', media: m }, fit: m.look?.fit || (m.kind === 'graphic' ? 'fit' : 'fill'), ratio: m.look?.ratio || ratioOf(m.w, m.h) } : undefined;
+    const setMediaLook = (l: FrameLook) => { if (k === undefined || !m) return; const fm = l.fill && (l.fill.type === 'image' || l.fill.type === 'video') ? l.fill.media : undefined; const { fill: _f, ...rest } = l;
+      set({ media: (b.media || []).map((x, n) => (n === k ? { ...x, ...(fm ? { path: fm.path, w: fm.w, h: fm.h, video: fm.video } : {}), look: rest } : x)) }, 'mlook'); };
     return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>
       <Sec title="Image" icon={<ImagePlus {...I} />}>
         <div className="dp-btns dp-btns-row">
           <button type="button" onClick={() => pickImage(b.id, k !== undefined ? k : `item:${i}`)} aria-label="Replace image" data-tip="Replace ⇧⌘K"><ImageUp {...I} /></button>
-          {m ? <button type="button" onClick={() => set({ media: (b.media || []).map((x, n) => (n === k ? { ...x, kind: x.kind === 'photo' ? 'graphic' : 'photo' } : x)) })} aria-label={m.kind === 'photo' ? 'Fit the whole image' : 'Fill the frame'} data-tip={m.kind === 'photo' ? 'Fit' : 'Fill'}>{m.kind === 'photo' ? <Minimize2 {...I} /> : <Maximize2 {...I} />}</button> : null}
           {m ? <button type="button" disabled={m.caption !== undefined} onClick={() => set({ media: (b.media || []).map((x, n) => (n === k ? { ...x, caption: '' } : x)) })} aria-label="Add a caption" data-tip="Caption"><Captions {...I} /></button> : null}
           <button type="button" className="danger" onClick={onDelete} aria-label="Delete image" data-tip="Delete ⌫"><ImageOff {...I} /></button>
         </div>
       </Sec>
+      {m && look ? <FramePanel pageColours={pageColours} look={look} set={setMediaLook} palette={palette} upload={() => pickImage(b.id, k!)} sizing={false} /> : null}
       {it ? frameSec(false) : spaceAbove('media')}
     </aside>;
   }

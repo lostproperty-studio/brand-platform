@@ -44,7 +44,7 @@ const FALLBACK: Record<TypeId, TypeDef> = {
   body: { name: 'Body', font: 'body', weight: 400, size: 15, leading: 1.5, tracking: 0 },
   caption: { name: 'Caption', font: 'body', weight: 400, size: 12, leading: 1.4, tracking: 0.02 }
 };
-const SPACE: Record<SpaceRule, number> = { 'head-body': 20, 'intro-content': 28, part: 20, section: 64, 'box-gap': 20, 'box-pad': 28, 'el-gap': 14 };
+const SPACE: Record<SpaceRule, number> = { 'head-body': 20, 'intro-content': 28, part: 20, section: 128, 'box-gap': 20, 'box-pad': 28, 'el-gap': 14 };
 
 type ScaleStyle = { name: string; family?: string; size?: number; lineHeight?: number; tracking?: number; weight?: number };
 type Setting<T> = { value: T; off?: boolean } | undefined;
@@ -90,7 +90,10 @@ export function defaultSystem({ typeScale, profile, fonts }: { typeScale?: Scale
 export function systemFor(saved: GuideSystem | undefined, from: Parameters<typeof defaultSystem>[0]): GuideSystem {
   const d = defaultSystem(from);
   if (!saved) return d;
-  return { ...saved, type: { ...d.type, ...saved.type }, space: { ...d.space, ...saved.space } };
+  // 64 was the old default between sections, too tight on the page; guides still on it get the new default
+  const space = { ...d.space, ...saved.space };
+  if (space.section === 64) space.section = d.space.section;
+  return { ...saved, type: { ...d.type, ...saved.type }, space };
 }
 
 /** Which spacing rule sits between two parts of a section */
@@ -120,7 +123,7 @@ export function systemCss(sys: GuideSystem): string {
   const vars = Object.entries(sys.space).map(([k, v]) => `--sp-${k}: ${v}px;`).join(' ');
   return [
     `.gsys { ${vars} }`,
-    `${S} .pt-blocks:not(.ve-blocks) { gap: var(--sp-section); }`,
+    `${S} .pt-blocks:not(.ve-blocks) { gap: clamp(48px, 10vw, var(--sp-section)); }`,
     // Paragraphs take the text's settings from the text block they're in
     `${S} :is(.gb-body, .gi-body, .gc-body, .pt-lede) p { font: inherit; letter-spacing: inherit; text-transform: inherit; }`,
     ...TYPE_IDS.map((id) => `${WHERE[id].map((w) => `${S} ${w}`).join(', ')} { ${decl(sys.type[id])} }`),

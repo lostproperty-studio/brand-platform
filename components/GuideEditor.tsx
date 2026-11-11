@@ -1,8 +1,8 @@
 'use client';
-import { createElement, useEffect, useRef, useState } from 'react';
+import { createElement, useEffect, useRef, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
-import { blockText, itemEls, itemWords, type BlockItem, type BoxStyle, type FrameLook, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
+import { blockText, itemEls, itemWords, ratioOf, unifyImages, type BlockItem, type BoxStyle, type FrameLook, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
 import { GuideBlock, textOn, type EditKit, type TextField } from '@/components/portal/GuideBlock';
 import { Inspector } from '@/components/GuideInspector';
 import { AddBar, addTarget, type AddWhat } from '@/components/GuideAddBar';
@@ -29,6 +29,7 @@ import { apply, compose, diff, isEmpty, type GuidePatch } from '@/lib/guidePatch
 import { History } from 'lucide-react';
 import { LayersPanel, type LayerAt, type LayerDrop } from '@/components/LayersPanel';
 import { nodeFor } from '@/components/Collab';
+import { useSpellCheck } from '@/components/SpellCheck';
 import type { ChapterSuggestion } from '@/lib/portal/drafts';
 import { Lightbulb, X } from 'lucide-react';
 
@@ -61,7 +62,7 @@ function Editable({ value, onSave, tag, className, placeholder, multiline, style
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { const el = ref.current; if (el && document.activeElement !== el) el.innerHTML = toHtml(value, !!multiline); }, [value, multiline]);
   return createElement(tag, {
-    ref, className: className + ' ed' + (on ? ' ed-on' : ''), style, onFocus, contentEditable: true, suppressContentEditableWarning: true, 'data-ph': placeholder, spellCheck: true, role: 'textbox', 'aria-label': placeholder, 'aria-multiline': multiline || undefined,
+    ref, className: className + ' ed' + (on ? ' ed-on' : ''), style, onFocus, contentEditable: true, suppressContentEditableWarning: true, 'data-ph': placeholder, spellCheck: false, role: 'textbox', 'aria-label': placeholder, 'aria-multiline': multiline || undefined,
     onBlur: () => { const el = ref.current; if (!el) return; const v = fromEl(el); if (v !== (value || '').trim()) onSave(v); if (!v) el.innerHTML = ''; },
     onPaste: (e: React.ClipboardEvent) => { e.preventDefault(); document.execCommand('insertText', false, e.clipboardData.getData('text/plain')); },
     onKeyDown: (e: React.KeyboardEvent) => {
@@ -74,15 +75,11 @@ function Editable({ value, onSave, tag, className, placeholder, multiline, style
 // The studio's guidelines editor: the client's view, editable in place.
 const toolbarFonts = (fs: ProjectFont[]): ToolbarFont[] => fs.filter((f) => f.files.length).map((f) => ({ role: f.role, label: f.label, name: f.name, weights: [...new Set(f.files.map((x) => x.weight))].sort((a, b) => a - b) }));
 
-/** A picture's proportions as a ratio, simplified (1600×1200 → 4:3); close enough to a common one snaps to it */
-function ratioOf(w?: number, h?: number) {
-  if (!w || !h) return undefined;
-  const common = [[1, 1], [4, 3], [3, 4], [3, 2], [2, 3], [16, 9], [9, 16], [4, 5], [5, 4], [21, 9], [2, 1]];
-  const near = common.find(([a, b]) => Math.abs(a / b - w / h) < 0.012);
-  if (near) return `${near[0]}:${near[1]}`;
-  const g = (a: number, b: number): number => (b ? g(b, a % b) : a); const d = g(Math.round(w), Math.round(h)) || 1;
-  return `${Math.round(w / d)}:${Math.round(h / d)}`;
-}
+/** A section's number among the ones the client sees, so deleting or hiding one never leaves a gap; hidden ones show a dash */
+const secNo = (blocks: Block[], b: Block) => (b.hidden ? '–' : String(blocks.filter((x) => !x.hidden).indexOf(b) + 1).padStart(2, '0'));
+
+/** Pictures in frames, everywhere, as frames filled with the picture */
+const unify = (g: Guide | null): Guide | null => { if (!g) return g; let changed = false; const chapters = g.chapters.map((c) => { const blocks = c.blocks.map((b) => { const n = unifyImages(b); if (n !== b) changed = true; return n; }); return blocks.some((b, k) => b !== c.blocks[k]) ? { ...c, blocks } : c; }); return changed ? { ...g, chapters } : g; };
 
 export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, fonts: initialFonts = [], tier, colours = [], logoUrl = null, home, me = null }: { me?: Me | null; home?: HomeData; projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; fonts?: ProjectFont[]; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
   // Typefaces: only those uploaded to the project. A new one uploaded from the toolbar is loaded straight away.
@@ -90,7 +87,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [liveFontCss, setLiveFontCss] = useState('');
   const [fontAsk, setFontAsk] = useState<((role: string) => void) | null>(null);
   const router = useRouter();
-  const [guide, setGuide] = useState(initial);
+  const [guide, setGuide] = useState(() => unify(initial));
   const [urls, setUrls] = useState(thumbs);
   const [chId, setChId] = useState(initial?.chapters[0]?.id || '');
   const [msg, setMsg] = useState('');
@@ -117,7 +114,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     return () => cancelAnimationFrame(t);
   }, [sel]);
   const fileInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { const next = apply(initial, pending.current) || initial; setGuide(next); latest.current = next; setUrls((u) => ({ ...u, ...thumbs })); past.current = []; future.current = []; setHist(0); }, [initial, thumbs]);
+  useEffect(() => { const next = unify(apply(initial, pending.current) || initial); setGuide(next); latest.current = next; setUrls((u) => ({ ...u, ...thumbs })); past.current = []; future.current = []; setHist(0); }, [initial, thumbs]);
 
   // Undo and redo: every change to the guidelines is a step. Quick repeats of the same control (typing a size,
   // stepping it up) count as one step. Inside a text field, ⌘Z undoes typing as usual.
@@ -210,7 +207,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const r = await fetch(`/api/projects/${projectId}/guide/patch`).catch(() => null);
     const j = r?.ok ? await r.json().catch(() => null) : null;
     if (!j?.guide) return;
-    const next = apply(j.guide, pending.current) || j.guide;
+    const next = unify(apply(j.guide, pending.current) || j.guide);
     latest.current = next; setGuide(next); past.current = []; future.current = []; setHist((n) => n + 1);
     router.refresh();
   }
@@ -400,6 +397,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const collab = useCollab({ projectId, me, ch: chId, sel, onPatch: onRemote, onReload: () => router.refresh(), onResync: resync });
   collabRef.current = collab;
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Live spell check (British English). The brand's own words count as spelt right: its name, typefaces, colours,
+  // its vocabulary from the voice, and anything added to the guide's dictionary.
+  const known = useMemo(() => [slug, ...(g?.dictionary || []), ...fonts.map((f) => f.name || ''), ...colours.map((c) => c.name),
+    ...((((content as { voice?: { fields?: Record<string, string> } } | undefined)?.voice?.fields) || {}).vocabulary || '').split(/[\n,]/)].filter(Boolean), [slug, g?.dictionary, fonts, colours, content]);
+  const spell = useSpellCheck({ root: '.ve-blocks, .ve-chhead', known, onAdd: (w) => { const g0 = latest.current; if (g0) commit({ ...g0, dictionary: [...new Set([...(g0.dictionary || []), w])] }); } });
   // Chapters the tier calls for that aren't in the guidelines: suggestions only, added when the studio says so
   const [suggs, setSuggs] = useState<ChapterSuggestion[]>(((content as { chapterSuggestions?: ChapterSuggestion[] } | undefined)?.chapterSuggestions) || []);
   useEffect(() => { setSuggs(((content as { chapterSuggestions?: ChapterSuggestion[] } | undefined)?.chapterSuggestions) || []); }, [content]);
@@ -899,7 +901,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (typeof t.target === 'string' && t.target.startsWith('item:')) { const k = Number(t.target.slice(5)); editBlock(b.id, { items: (b.items || []).map((x, n) => (n === k ? { ...x, media: up } : x)) }); return; }
     if (t.target === 'backdrop') editBlock(b.id, { backdrop: up });
     else if (t.target === 'new') editBlock(b.id, { media: [...(b.media || []), up] });
-    else editBlock(b.id, { media: (b.media || []).map((m, i) => (i === t.target ? { ...up, caption: m.caption } : m)) });
+    else editBlock(b.id, { media: (b.media || []).map((m, i) => (i === t.target ? { ...up, caption: m.caption, ...(m.look ? { look: { ...m.look, ratio: ratioOf(up.w, up.h) } } : {}) } : m)) });
   }
 
   if (!g) return (
@@ -1022,6 +1024,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         </div>
       </div>
       <PeerLayer peers={collab.peers} cursors={collab.cursors} ch={chId} />
+      {spell.menu}
       {historyOpen ? <HistoryPanel projectId={projectId} onClose={() => setHistoryOpen(false)} onRestored={(gd) => { const next = gd as Guide; pending.current = null; latest.current = next; setGuide(next); past.current = []; future.current = []; setHist((n) => n + 1); setMsg('Restored. Everyone editing now sees this version.'); collab.reloadOthers(); router.refresh(); }} /> : null}
       {(g.version || 1) < 2 ? <div className="card" role="status" style={{ borderColor: '#000' }}><p style={{ margin: 0 }}>These guidelines were built with an older version, so some pages may still show slide images.</p><p className="mute" style={{ margin: '4px 0 8px' }}>Rebuild to get live text, colour swatches you can click to copy, and subsections. Your edits are kept.</p><button className="btn solid" disabled={busy} onClick={() => setRebuildOpen(true)}>Rebuild now</button></div> : null}
       <TimedProgress label="Reading Figma and rebuilding every slide" expected={Math.max(45, g.chapters.reduce((n, c) => n + c.blocks.length, 0) * 2)} running={busy} />
@@ -1040,7 +1043,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           </div>).flatMap((row, i) => { const c = g.chapters.filter((x) => !x.removed)[i];
             // The open chapter's sections, like a slide sorter: click to go to one, drag to reorder
             return c.id !== chId ? [row] : [row, <ol key={c.id + '-s'} className="ve-secs" aria-label={`Sections in ${c.title}`}>{c.blocks.map((b, k) => (b.hidden && !showHidden ? null : <li key={b.id} draggable onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }} className={(sel?.block === b.id ? 'on' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '') + (b.hidden ? ' off' : '')}>
-              <button onClick={() => { setSel({ block: b.id }); document.querySelector(`[data-block="${b.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}><span className="n">{String(k + 1).padStart(2, '0')}</span><span className="t">{(b.heading || b.eyebrow || layoutLabel(b)).replace(/\s+/g, ' ').slice(0, 48)}</span></button>
+              <button onClick={() => { setSel({ block: b.id }); document.querySelector(`[data-block="${b.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}><span className="n">{secNo(c.blocks, b)}</span><span className="t">{(b.heading || b.eyebrow || layoutLabel(b)).replace(/\s+/g, ' ').slice(0, 48)}</span></button>
             </li>))}<li className="ve-secs-add"><button onClick={() => setPicker({ at: c.blocks.length })}><Plus size={12} strokeWidth={2} aria-hidden />Section</button></li></ol>]; })}
           {suggs.length ? <div className="ve-suggs" aria-label="Suggested chapters">
             <p className="ve-label"><Lightbulb size={11} strokeWidth={2} aria-hidden /> Suggested for the tier</p>
@@ -1098,7 +1101,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                     <span className="mute">Hidden from the client until accepted.</span>
                   </div> : null}
                   <div className="ve-slide-label">
-                    <span className="n">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="n">{secNo(ch.blocks, b)}</span>
                     {layoutOf(b) ? <button className="ve-slide-lay" onClick={() => { setSel({ block: b.id }); setPicker({ convert: b.id }); }} aria-label={`Layout: ${layoutLabel(b)}. Change layout`}>{layoutLabel(b)}<ChevronDown size={12} strokeWidth={2} aria-hidden /></button> : <span>{layoutLabel(b)}</span>}
                     {b.hidden ? <span className="ve-slide-hid">Hidden</span> : null}
                   </div>
