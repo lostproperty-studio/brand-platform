@@ -12,8 +12,12 @@ let loading: Promise<Speller | null> | null = null;
 function speller(): Promise<Speller | null> {
   if (!loading) loading = (async () => {
     try {
-      const [{ default: nspell }, aff, dic] = await Promise.all([import('nspell'), fetch('/dict/en-gb.aff').then((r) => r.text()), fetch('/dict/en-gb.dic').then((r) => r.text())]);
-      return nspell({ aff, dic }) as Speller;
+      const get = (u: string) => fetch(u).then((r) => (r.ok && !(r.headers.get('content-type') || '').includes('html') ? r.text() : ''));
+      const [{ default: nspell }, aff, dic] = await Promise.all([import('nspell'), get('/dict/en-gb.aff'), get('/dict/en-gb.dic')]);
+      // Only a real dictionary: anything else (a sign-in page, say) would mark every word wrong
+      if (!/^SET /m.test(aff) || dic.length < 100_000) return null;
+      const s = nspell({ aff, dic }) as Speller;
+      return s.correct('colour') && s.correct('the') ? s : null;
     } catch { return null; }
   })();
   return loading;

@@ -26,4 +26,4 @@ export async function middleware(req: NextRequest) {
   return res;
 }
 // Static files (the email images among them) are served as they are, without sign-in
-export const config = { matcher: ['/((?!_next|fonts|favicon|.*\\.(?:png|svg|jpg|jpeg|ico|webp|woff2?)$).*)'] };
+export const config = { matcher: ['/((?!_next|fonts|dict|favicon|.*\\.(?:png|svg|jpg|jpeg|ico|webp|woff2?|aff|dic|txt)$).*)'] };
