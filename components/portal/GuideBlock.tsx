@@ -106,7 +106,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     const sw = it.look?.sw, sh = it.look?.sh, col = b.flow?.dir === 'col';
     return { ...(col ? (sw === 'hug' ? { width: 'fit-content', alignSelf: 'flex-start' } : typeof sw === 'number' ? { width: sw, maxWidth: '100%', alignSelf: 'flex-start' } : {})
       : (sw === 'hug' ? { flex: '0 0 auto', width: 'auto' } : typeof sw === 'number' ? { flex: `0 0 ${sw}px`, maxWidth: '100%' } : {})),
-      ...(sh === 'hug' ? { alignSelf: 'flex-start' } : typeof sh === 'number' ? { height: sh, alignSelf: 'flex-start' } : sh === 'fill' && !col ? { alignSelf: 'stretch' } : {}) };
+      ...(sh === 'hug' ? { alignSelf: 'flex-start' } : typeof sh === 'number' ? (it.look?.clip ? { height: sh, alignSelf: 'flex-start' } : { minHeight: sh, height: 'auto', alignSelf: 'flex-start', aspectRatio: 'auto' }) : sh === 'fill' && !col ? { alignSelf: 'stretch' } : {}) };
   };
   const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return { ...(g !== undefined ? { ['--egap' as string]: `${g}px` } : {}), ...(it.pad !== undefined ? { padding: it.pad } : {}), ...lookVars(it.look), ...(it.look?.ratio && b.kind !== 'grid' ? { aspectRatio: it.look.ratio.replace(':', ' / ') } : {}) }; };
   // Per-text styling from the editor: size, weight, colour

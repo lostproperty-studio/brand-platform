@@ -502,16 +502,19 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const r0 = node.getBoundingClientRect(); const x0 = e.clientX, y0 = e.clientY; let last: { sw?: 'fill' | number; sh?: 'fill' | number } = {};
     const pr = () => { const r = parent.getBoundingClientRect(); const cs = getComputedStyle(parent); return { l: r.left + parseFloat(cs.paddingLeft), r: r.right - parseFloat(cs.paddingRight), t: r.top + parseFloat(cs.paddingTop), b: r.bottom - parseFloat(cs.paddingBottom) }; };
     document.body.classList.add('ve-sizing');
+    // The parent's edges as they were when you started: a parent that hugs grows with the frame, so measuring it live
+    // would always find the frame at its edge and snap to Fill. Hold Alt to drag without snapping.
+    const p0 = pr();
     const move = (ev: PointerEvent) => {
       const p = pr(); const dx = ev.clientX - x0, dy = ev.clientY - y0;
       if (side === 'e' || side === 'w') {
         const w = Math.max(24, Math.round(r0.width + (side === 'e' ? dx : -dx)));
-        const edge = Math.abs(side === 'e' ? r0.left + w - p.r : r0.right - w - p.l) <= 10 || (side === 'e' ? r0.left + w > p.r : r0.right - w < p.l);
+        const edge = !ev.altKey && (Math.abs(side === 'e' ? r0.left + w - p.r : r0.right - w - p.l) <= 10 || (side === 'e' ? r0.left + w > p.r : r0.right - w < p.l));
         last = { sw: edge ? 'fill' : w }; node.style.width = last.sw === 'fill' ? '100%' : `${w}px`; node.style.flex = last.sw === 'fill' ? '' : '0 0 auto';
       } else {
         const h = Math.max(24, Math.round(r0.height + (side === 's' ? dy : -dy)));
         // Height snaps to Fill only at the edge; dragged further, the frame grows and its parent with it
-        const edge = Math.abs(side === 's' ? r0.top + h - p.b : r0.bottom - h - p.t) <= 10;
+        const edge = !ev.altKey && Math.abs(side === 's' ? r0.top + h - p0.b : r0.bottom - h - p0.t) <= 6;
         last = { sh: edge ? 'fill' : h }; node.style.height = `${h}px`; node.style.aspectRatio = 'auto';
       }
       node.dataset.size = last.sw !== undefined ? (last.sw === 'fill' ? 'Fill' : `W ${last.sw}`) : last.sh === 'fill' ? 'Fill' : `H ${last.sh}`;
