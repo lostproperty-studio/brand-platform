@@ -16,7 +16,7 @@ const I = { size: 15, strokeWidth: 1.75, 'aria-hidden': true } as const;
 const uid = () => Math.random().toString(36).slice(2, 9);
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export function Writer({ slug, client, audiences, aiConnected, canConnect, preview }: { slug: string; client: string; audiences: string[]; aiConnected: boolean; canConnect: boolean; preview?: boolean }) {
+export function Writer({ slug, client, audiences, aiConnected, canConnect, note }: { slug: string; client: string; audiences: string[]; aiConnected: boolean; canConnect: boolean; note?: string }) {
   const [useCase, setUseCase] = useState('Website');
   const [audience, setAudience] = useState('');
   const [tone, setTone] = useState(50);
@@ -64,7 +64,8 @@ export function Writer({ slug, client, audiences, aiConnected, canConnect, previ
   return <div className="wr">
     <header className="wr-head">
       <h1 className="pt-display">Writer</h1>
-      <p className="mute">Copy in the {client} voice. Write a brief or a first go on the page, set the conditions, and choose from the options.{preview ? ' Studio preview: clients don’t see the Writer until it’s turned on in the Voice tab and published.' : ''}</p>
+      <p className="mute">Copy in the {client} voice. Write a brief or a first go on the page, set the conditions, and choose from the options.</p>
+      {note ? <p className="wr-note-studio" role="note">{note}</p> : null}
     </header>
 
     <div className="wr-conds" role="group" aria-label="Conditions">

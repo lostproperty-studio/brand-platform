@@ -1,3 +1,4 @@
+import { publishedSnapshot } from '@/lib/projects/snapshot';
 import { ProjectTabs } from '@/components/ProjectTabs';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -17,7 +18,7 @@ import { readSources, type Source } from '@/lib/figma/sources';
 import { pickLogo, sidebarChoice, withFigmaLogos } from '@/lib/portal/logo';
 import { SidebarLogoPicker } from '@/components/SidebarLogoPicker';
 import { VoiceStudio } from '@/components/VoiceStudio';
-import { readVoice } from '@/lib/voice';
+import { readVoice, voiceReady } from '@/lib/voice';
 import { avatarUrl } from '@/lib/portal/context';
 import { DesignProfile } from '@/components/DesignProfile';
 import { readProfile } from '@/lib/designProfile';
@@ -261,7 +262,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (tab === 'voice') {
     // How the brand writes: the voice work and what the AI needs, for the Writer, Ask, the skill and the connector
     const g = normaliseGuide((p.content as { guide?: Guide } | null)?.guide);
-    body = <VoiceStudio projectId={id} slug={p.slug} initial={readVoice(p.content)} hasGuide={!!g} hasChapter={!!g?.chapters.some((c) => c.key === 'voice' && !c.removed)} />;
+    const pub = await publishedSnapshot(id).catch(() => null);
+    body = <VoiceStudio liveWriter={!!pub?.voice?.writer && voiceReady(pub.voice)} published={!!pub} projectId={id} slug={p.slug} initial={readVoice(p.content)} hasGuide={!!g} hasChapter={!!g?.chapters.some((c) => c.key === 'voice' && !c.removed)} />;
   }
   if (tab === 'typefaces') {
     body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>

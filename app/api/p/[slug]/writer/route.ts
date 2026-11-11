@@ -6,7 +6,7 @@ import { portalAnthropic, logUsage, NoClientKey } from '@/lib/ai/project';
 import { aiFailure } from '@/lib/ai/errors';
 import { callTool } from '@/lib/ai/tool';
 import { logActivity } from '@/lib/activity';
-import { voiceMd, voiceReady, VOICE_GUARD } from '@/lib/voice';
+import { voiceHas, voiceMd, voiceReady, VOICE_GUARD } from '@/lib/voice';
 
 export const maxDuration = 120;
 const ELEMENTS = ['headline', 'subheading', 'body', 'caption', 'cta'] as const;
@@ -42,7 +42,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (!q.brief.trim()) return NextResponse.json({ error: q.mode === 'review' ? 'Write or paste the copy to review.' : 'Write a brief, or a first go at what you want to say.' }, { status: 400 });
   const snap = acc.staff ? await buildSnapshot(p.id) : await publishedSnapshot(p.id);
   const v = snap?.voice;
-  if (!snap || !v || !voiceReady(v) || (!v.writer && !acc.staff)) return NextResponse.json({ error: 'The Writer isn’t set up for this brand yet. Lost Property will turn it on.' }, { status: 409 });
+  // Clients: only when the voice is ready and the Writer is on. The studio can test it with a voice in progress.
+  if (!snap || !v || (acc.staff ? !voiceHas(v) : !(voiceReady(v) && v.writer))) return NextResponse.json({ error: 'The Writer isn’t set up for this brand yet. Lost Property will turn it on.' }, { status: 409 });
   let ai, studio = false;
   try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
 

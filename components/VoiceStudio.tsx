@@ -9,8 +9,16 @@ import { VOICE_FIELDS, voiceMissing, voiceReady, voiceTitle, type VoiceProfile }
 // with progress. The notes can be sorted into the answers (taken from the notes only, never invented); each
 // suggestion arrives as a card to keep or dismiss.
 const I = { size: 16, strokeWidth: 1.75, 'aria-hidden': true } as const;
+type WrState = 'off' | 'on-pending' | 'live' | 'off-pending';
+const WR_LABEL: Record<WrState, string> = { off: 'Off for the client', 'on-pending': 'On · publish to go live', live: 'Live for the client', 'off-pending': 'Still live · publish to turn off' };
+const WR_TEXT: Record<WrState, string> = {
+  off: 'Clients don’t see the Writer. You can try it as the client at any time, even while the voice is in progress.',
+  'on-pending': 'Switched on. Clients get it, in their sidebar, the next time you publish.',
+  live: 'Clients have the Writer in their sidebar, working from the voice as last published.',
+  'off-pending': 'Switched off here, but clients still have it until you publish.'
+};
 
-export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter }: { projectId: string; slug: string; initial: VoiceProfile; hasGuide: boolean; hasChapter: boolean }) {
+export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter, liveWriter, published }: { projectId: string; slug: string; initial: VoiceProfile; hasGuide: boolean; hasChapter: boolean; liveWriter: boolean; published: boolean }) {
   const router = useRouter();
   const [v, setV] = useState<VoiceProfile>(initial);
   const [msg, setMsg] = useState('');
@@ -64,6 +72,10 @@ export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter }: 
 
   const answered = VOICE_FIELDS.length - voiceMissing(v).length;
   const ready = voiceReady(v);
+  const missingCore = voiceMissing(v).filter((f) => f.core).map((f) => f.label.toLowerCase());
+  // Whether clients have the Writer: what's switched on here, against what they have from the last publish
+  const wrOn = !!v.writer && ready;
+  const wrState: WrState = wrOn ? (liveWriter ? 'live' : 'on-pending') : liveWriter ? 'off-pending' : 'off';
   return <div className="vs">
     <div className="vs-bar" role="toolbar" aria-label="Formatting" onMouseDown={(e) => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
       <button type="button" onClick={() => cmd('undo')} aria-label="Undo"><Undo2 {...I} /></button>
@@ -92,6 +104,18 @@ export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter }: 
       </article>
 
       <aside className="vs-side" aria-label="What the AI needs">
+        <section className={'vs-wr ' + wrState} aria-label="The Writer for the client">
+          <div className="vs-wr-top">
+            <span className="vs-wr-ic"><PenLine size={16} strokeWidth={1.75} aria-hidden /></span>
+            <div className="vs-wr-t"><strong>Writer</strong><span className="vs-wr-badge">{WR_LABEL[wrState]}</span></div>
+            <button type="button" role="switch" aria-checked={wrOn} aria-label="Writer on for the client" className={'vs-switch' + (wrOn ? ' on' : '')} disabled={!ready && !wrOn} onClick={() => put({ writer: !wrOn })}><span /></button>
+          </div>
+          <p className="vs-wr-p">{WR_TEXT[wrState]}{!ready ? ` To switch it on for the client, the voice still needs: ${missingCore.join(', ')}.` : ''}</p>
+          <div className="vs-wr-a">
+            <a className="btn ic" href={`/p/${slug}/writer`} target="_blank" rel="noopener"><PenLine size={14} strokeWidth={1.75} aria-hidden />{wrOn && ready ? 'See it as the client' : 'Try it as the client'}</a>
+            {wrState === 'on-pending' || wrState === 'off-pending' ? <a className="btn" href={`/studio/projects/${projectId}?tab=overview`}>Publish on the Overview</a> : null}
+          </div>
+        </section>
         <div className="vs-side-h">
           <p><strong>{ready ? 'Ready for the Writer' : 'What the AI needs'}</strong><span className="mute">{answered} of {VOICE_FIELDS.length} answered</span></p>
           <div className="vs-prog" aria-hidden><span style={{ width: `${(answered / VOICE_FIELDS.length) * 100}%` }} /></div>
@@ -156,10 +180,7 @@ export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter }: 
 
         <div className="vs-actions">
           <button type="button" className="btn ic" onClick={chapter} disabled={!!busy || !hasGuide} title={hasGuide ? undefined : 'Build the guidelines first'}>{busy === 'chapter' ? 'Working…' : hasChapter ? `Update “${voiceTitle(v)}” in the guidelines` : `Add “${voiceTitle(v)}” to the guidelines`}</button>
-          <label className={'vs-toggle' + (ready ? '' : ' off')}><input type="checkbox" checked={!!v.writer && ready} disabled={!ready} onChange={(e) => put({ writer: e.target.checked })} />
-            <span><PenLine size={14} strokeWidth={1.75} aria-hidden /> The Writer for the client{ready ? '' : ': answer what’s needed for the Writer first'}</span></label>
-          {v.writer && ready ? <a className="mute vs-link" href={`/p/${slug}/writer`} target="_blank" rel="noopener">Open the Writer in the portal</a> : null}
-          <p className="vs-help mute">Clients see changes here once you publish.</p>
+          <p className="vs-help mute">Clients see changes to the voice once you publish.</p>
         </div>
       </aside>
     </div>

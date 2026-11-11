@@ -2626,3 +2626,23 @@ a.pt-credit { font-size: 10.5px; padding: 0 8px; column-gap: 4px; }
 .vs-all summary::before { content: '›'; display: inline-block; width: 12px; transition: transform .15s; }
 .vs-all[open] summary::before { transform: rotate(90deg); }
 .vs-all .vs-qs { margin-top: 10px; }
+/* Voice: whether the client has the Writer */
+.vs-wr { border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--fill); box-shadow: inset 0 0 0 1px var(--line); }
+.vs-wr.live { background: #EEF7F1; box-shadow: inset 0 0 0 1px #BFE3CB; }
+.vs-wr.on-pending, .vs-wr.off-pending { background: #FFF6E8; box-shadow: inset 0 0 0 1px #F2D7A6; }
+.vs-wr-top { display: flex; align-items: center; gap: 10px; }
+.vs-wr-ic { width: 30px; height: 30px; border-radius: 8px; background: #fff; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.vs-wr-t { flex: 1; display: flex; flex-direction: column; gap: 1px; font-size: 14px; }
+.vs-wr-badge { font-size: 12px; color: var(--mute); }
+.vs-wr.live .vs-wr-badge { color: #1F7A45; font-weight: 500; }
+.vs-wr.on-pending .vs-wr-badge, .vs-wr.off-pending .vs-wr-badge { color: #9A5B00; font-weight: 500; }
+.vs-wr-p { margin: 0; font-size: 13px; line-height: 1.5; color: #444; }
+.vs-wr-a { display: flex; gap: 6px; flex-wrap: wrap; }
+.vs-wr-a .btn { height: 30px; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; background: #fff; }
+.vs-switch { all: unset; cursor: pointer; width: 38px; height: 22px; border-radius: 11px; background: #cfcfcf; position: relative; flex: none; transition: background .15s; }
+.vs-switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s; }
+.vs-switch.on { background: #111; }
+.vs-switch.on span { transform: translateX(16px); }
+.vs-switch:disabled { cursor: not-allowed; opacity: .5; }
+.vs-switch:focus-visible { box-shadow: 0 0 0 2px var(--sel); }
+.wr-note-studio { margin: 4px 0 0; padding: 8px 12px; border-radius: 8px; background: #FFF6E8; color: #7A4A00; font-size: 13px; line-height: 1.45; max-width: 80ch; }
