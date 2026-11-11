@@ -14,8 +14,11 @@ export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter }: 
   const router = useRouter();
   const [v, setV] = useState<VoiceProfile>(initial);
   const [msg, setMsg] = useState('');
-  const [open, setOpen] = useState<string | null>(voiceMissing(initial).find((f) => f.core)?.id || null);
-  const [sugg, setSugg] = useState<Record<string, string>>({});
+  const [open, setOpen] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [own, setOwn] = useState<string | null>(null);
+  const [ownText, setOwnText] = useState('');
+  const coach = v.coach;
   const [busy, setBusy] = useState<'sort' | 'chapter' | null>(null);
   const ed = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,15 +39,21 @@ export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter }: 
   const block = (tag: string) => { const cur = document.queryCommandValue('formatBlock').toLowerCase(); cmd('formatBlock', cur === tag ? 'p' : tag); };
 
   async function sort() {
-    setBusy('sort'); setMsg('Reading your notes…');
-    if (timer.current) { clearTimeout(timer.current); await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { voice: latest.current } }) }); }
-    const r = await fetch(`/api/projects/${projectId}/voice/sort`, { method: 'POST' }); const j = await r.json().catch(() => ({}));
+    setBusy('sort'); setMsg('');
+    if (timer.current) { clearTimeout(timer.current); await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { voice: latest.current } }) }).catch(() => {}); }
+    const r = await fetch(`/api/projects/${projectId}/voice/understand`, { method: 'POST' }).catch(() => null);
+    const j = r ? await r.json().catch(() => null) : null;
     setBusy(null);
-    if (!r.ok) { setMsg(j.error || 'Couldn’t read the notes.'); return; }
-    const n = Object.keys(j.suggestions || {}).length;
-    setSugg(j.suggestions || {}); setMsg(n ? `${n} answers found in your notes. Keep or dismiss each one.` : 'Nothing new in the notes for the empty questions.');
-    if (n) setOpen(Object.keys(j.suggestions)[0]);
+    if (!r?.ok || !j?.coach) { setMsg(j?.error || (r ? `Couldn’t read the notes (error ${r.status}). Try again.` : 'Couldn’t reach the platform. Check your connection.')); return; }
+    put({ coach: j.coach });
   }
+  // The reading: keep what it codified, or answer its questions; each answer goes into the voice
+  const setCoach = (c: NonNullable<VoiceProfile['coach']>) => put({ coach: c });
+  function settleCod(id: string, text: string) { if (!coach) return; const fields = { ...(latest.current.fields || {}), [id]: text.trim() }; put({ fields, coach: { ...coach, codified: coach.codified.filter((x) => x.field !== id) } }); }
+  function dropCod(id: string) { if (coach) setCoach({ ...coach, codified: coach.codified.filter((x) => x.field !== id) }); }
+  function keepAll() { if (!coach) return; const fields = { ...(latest.current.fields || {}) }; for (const c of coach.codified) fields[c.field] = c.text.trim(); put({ fields, coach: { ...coach, codified: [] } }); }
+  function answer(id: string, text: string) { if (!coach) return; const prev = latest.current.fields?.[id]?.trim(); const fields = { ...(latest.current.fields || {}), [id]: prev ? `${prev}\n${text}` : text }; put({ fields, coach: { ...coach, questions: coach.questions.filter((x) => x.field !== id) } }); }
+  function skip(id: string) { if (coach) setCoach({ ...coach, questions: coach.questions.filter((x) => x.field !== id) }); }
   async function chapter() {
     setBusy('chapter');
     if (timer.current) { clearTimeout(timer.current); await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { voice: latest.current } }) }); }
@@ -84,35 +93,71 @@ export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter }: 
 
       <aside className="vs-side" aria-label="What the AI needs">
         <div className="vs-side-h">
-          <p><strong>What the AI needs</strong><span className="mute">{answered} of {VOICE_FIELDS.length} answered</span></p>
+          <p><strong>{ready ? 'Ready for the Writer' : 'What the AI needs'}</strong><span className="mute">{answered} of {VOICE_FIELDS.length} answered</span></p>
           <div className="vs-prog" aria-hidden><span style={{ width: `${(answered / VOICE_FIELDS.length) * 100}%` }} /></div>
-          <button type="button" className="btn ic" onClick={sort} disabled={!!busy}><Sparkles {...I} />{busy === 'sort' ? 'Reading the notes…' : 'Find answers in my notes'}</button>
-          <p className="vs-help mute">Takes answers from your notes only. It never writes the voice for you.</p>
         </div>
-        <ol className="vs-qs">{VOICE_FIELDS.map((f) => {
-          const val = v.fields?.[f.id] || '', on = open === f.id, s = sugg[f.id];
-          return <li key={f.id} className={'vs-q' + (val.trim() ? ' done' : '') + (on ? ' open' : '')}>
-            <button type="button" className="vs-q-h" onClick={() => setOpen(on ? null : f.id)} aria-expanded={on}>
-              <span className="vs-dot">{val.trim() ? <Check size={11} strokeWidth={2.5} aria-hidden /> : null}</span>
-              <span className="vs-q-t">{f.label}{f.core && !val.trim() ? <em>Needed for the Writer</em> : null}{s ? <em className="new">Suggestion</em> : null}</span>
-              <ChevronDown size={14} strokeWidth={1.75} aria-hidden className="vs-chev" />
-            </button>
-            {on ? <div className="vs-q-b">
-              <p className="vs-ask">{f.ask}</p>
-              {s ? <div className="vs-card" role="group" aria-label="Suggestion from your notes">
-                <p className="vs-card-h"><Sparkles size={13} strokeWidth={1.75} aria-hidden />From your notes</p>
-                <p className="vs-card-t">{s}</p>
-                <div className="vs-card-a"><button type="button" className="btn solid" onClick={() => { field(f.id, s); setSugg(({ [f.id]: _x, ...rest }) => rest); }}><Check size={14} strokeWidth={2} aria-hidden />Keep</button>
-                  <button type="button" className="btn" onClick={() => setSugg(({ [f.id]: _x, ...rest }) => rest)}><X size={14} strokeWidth={2} aria-hidden />Dismiss</button></div>
-              </div> : null}
-              <textarea className="in vs-in" value={val} onChange={(e) => field(f.id, e.target.value)} placeholder={`e.g. ${f.eg}`} rows={Math.min(10, Math.max(3, val.split('\n').length + 1))} />
-            </div> : null}
-          </li>;
-        })}</ol>
+
+        {busy === 'sort' ? <div className="vs-card vs-reading" role="status"><p className="vs-card-h"><Sparkles size={13} strokeWidth={1.75} aria-hidden />Reading your notes</p><span className="wr-shim" /><span className="wr-shim s" /><span className="wr-shim" /><p className="vs-help mute">This takes up to a minute.</p></div>
+          : !coach ? <div className="vs-start">
+            <p>Write or paste the voice work on the left. I’ll read it, tell you how I understand it, and ask only what’s still missing.</p>
+            <button type="button" className="btn solid ic" onClick={sort} disabled={!!busy}><Sparkles {...I} />Read my notes</button>
+          </div> : <>
+            <div className="vs-card vs-sum">
+              <p className="vs-card-h"><Sparkles size={13} strokeWidth={1.75} aria-hidden />How I read it</p>
+              <p className="vs-card-t">{coach.summary}</p>
+              <button type="button" className="ve-linkbtn vs-again" onClick={sort} disabled={!!busy}>Read the notes again</button>
+            </div>
+
+            {coach.codified.length ? <section className="vs-group">
+              <div className="vs-group-h"><p>From your notes</p><button type="button" className="ve-linkbtn" onClick={() => keepAll()}>Keep all</button></div>
+              {coach.codified.map((c) => { const f = VOICE_FIELDS.find((x) => x.id === c.field)!; return <div key={c.field} className="vs-cod">
+                <p className="vs-cod-h">{f.label}</p>
+                {editing === c.field ? <textarea className="in vs-in" autoFocus defaultValue={c.text} rows={Math.min(10, c.text.split('\n').length + 2)} onBlur={(e) => { settleCod(c.field, e.target.value); setEditing(null); }} />
+                  : <p className="vs-cod-t">{c.text}</p>}
+                <div className="vs-card-a">
+                  <button type="button" className="btn solid" onClick={() => settleCod(c.field, c.text)}><Check size={14} strokeWidth={2} aria-hidden />Keep</button>
+                  <button type="button" className="btn" onClick={() => setEditing(c.field)}>Edit</button>
+                  <button type="button" className="btn" onClick={() => dropCod(c.field)} aria-label={`Dismiss ${f.label}`}><X size={14} strokeWidth={2} aria-hidden /></button>
+                </div>
+              </div>; })}
+            </section> : null}
+
+            {coach.questions.length ? <section className="vs-group">
+              <div className="vs-group-h"><p>{coach.questions.length === 1 ? 'One question' : `${coach.questions.length} questions`}</p></div>
+              {coach.questions.map((q) => <div key={q.field} className="vs-ques">
+                <p className="vs-ques-q">{q.question}</p>
+                {q.why ? <p className="vs-help mute">{q.why}</p> : null}
+                <p className="vs-help mute">Which feels right?</p>
+                <div className="vs-opts">{q.options.map((o, k) => <button key={k} type="button" className="vs-opt" onClick={() => answer(q.field, o)}><span>{o}</span><span className="vs-opt-a"><Check size={13} strokeWidth={2} aria-hidden />Feels right</span></button>)}</div>
+                {own === q.field ? <div className="vs-own"><textarea className="in vs-in" autoFocus rows={3} placeholder="Say it your way" value={ownText} onChange={(e) => setOwnText(e.target.value)} />
+                  <div className="vs-card-a"><button type="button" className="btn solid" disabled={!ownText.trim()} onClick={() => { answer(q.field, ownText.trim()); setOwn(null); setOwnText(''); }}>Save</button><button type="button" className="btn" onClick={() => setOwn(null)}>Cancel</button></div></div>
+                  : <div className="vs-card-a"><button type="button" className="btn" onClick={() => { setOwn(q.field); setOwnText(''); }}><PenLine size={13} strokeWidth={1.75} aria-hidden />None of these: write my own</button><button type="button" className="btn" onClick={() => skip(q.field)}>Skip</button></div>}
+              </div>)}
+            </section> : null}
+
+            {!coach.codified.length && !coach.questions.length ? <p className="vs-help mute">Nothing more to ask. Edit any answer below.</p> : null}
+          </>}
+
+        <details className="vs-all">
+          <summary>All answers <span className="mute">· edit any of them</span></summary>
+          <ol className="vs-qs">{VOICE_FIELDS.map((f) => {
+            const val = v.fields?.[f.id] || '', on = open === f.id;
+            return <li key={f.id} className={'vs-q' + (val.trim() ? ' done' : '') + (on ? ' open' : '')}>
+              <button type="button" className="vs-q-h" onClick={() => setOpen(on ? null : f.id)} aria-expanded={on}>
+                <span className="vs-dot">{val.trim() ? <Check size={11} strokeWidth={2.5} aria-hidden /> : null}</span>
+                <span className="vs-q-t">{f.label}{f.core && !val.trim() ? <em>Needed for the Writer</em> : null}</span>
+                <ChevronDown size={14} strokeWidth={1.75} aria-hidden className="vs-chev" />
+              </button>
+              {on ? <div className="vs-q-b"><p className="vs-ask">{f.ask}</p>
+                <textarea className="in vs-in" value={val} onChange={(e) => field(f.id, e.target.value)} placeholder={`e.g. ${f.eg}`} rows={Math.min(10, Math.max(3, val.split('\n').length + 1))} /></div> : null}
+            </li>;
+          })}</ol>
+        </details>
+
         <div className="vs-actions">
           <button type="button" className="btn ic" onClick={chapter} disabled={!!busy || !hasGuide} title={hasGuide ? undefined : 'Build the guidelines first'}>{busy === 'chapter' ? 'Working…' : hasChapter ? `Update “${voiceTitle(v)}” in the guidelines` : `Add “${voiceTitle(v)}” to the guidelines`}</button>
           <label className={'vs-toggle' + (ready ? '' : ' off')}><input type="checkbox" checked={!!v.writer && ready} disabled={!ready} onChange={(e) => put({ writer: e.target.checked })} />
-            <span><PenLine size={14} strokeWidth={1.75} aria-hidden /> The Writer for the client{ready ? '' : ': answer the questions marked “Needed for the Writer” first'}</span></label>
+            <span><PenLine size={14} strokeWidth={1.75} aria-hidden /> The Writer for the client{ready ? '' : ': answer what’s needed for the Writer first'}</span></label>
           {v.writer && ready ? <a className="mute vs-link" href={`/p/${slug}/writer`} target="_blank" rel="noopener">Open the Writer in the portal</a> : null}
           <p className="vs-help mute">Clients see changes here once you publish.</p>
         </div>

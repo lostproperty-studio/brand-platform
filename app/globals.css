@@ -2599,3 +2599,30 @@ a.pt-credit { font-size: 10.5px; padding: 0 8px; column-gap: 4px; }
 .ve-sugg + .ve-sugg { margin-top: 4px; }
 .ve-sugg-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ve-sugg .ve-linkbtn { font-size: 12px; }
+/* Voice: the reading of the notes, then only the questions worth asking */
+.vs-start { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 16px; border-radius: 12px; background: var(--fill); font-size: 13.5px; line-height: 1.5; }
+.vs-start p { margin: 0; }
+.vs-reading { gap: 8px; }
+.vs-sum .vs-card-t { font-size: 14px; }
+.vs-again { align-self: flex-start; font-size: 12px; }
+.vs-group { display: flex; flex-direction: column; gap: 8px; }
+.vs-group-h { display: flex; justify-content: space-between; align-items: baseline; }
+.vs-group-h p { margin: 0; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--mute); }
+.vs-cod, .vs-ques { border-radius: 10px; box-shadow: inset 0 0 0 1px var(--line); padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #fff; }
+.vs-cod-h { margin: 0; font-size: 12px; font-weight: 600; }
+.vs-cod-t { margin: 0; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; }
+.vs-ques-q { margin: 0; font-size: 14px; line-height: 1.45; font-weight: 500; }
+.vs-ques .vs-help { margin-top: -4px; }
+.vs-opts { display: flex; flex-direction: column; gap: 6px; }
+.vs-opt { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 8px; background: var(--fill); font-size: 13.5px; line-height: 1.45; }
+.vs-opt:hover { background: #FDF3FC; box-shadow: inset 0 0 0 1px #F4CDEF; }
+.vs-opt:focus-visible { box-shadow: inset 0 0 0 2px var(--sel); }
+.vs-opt-a { display: none; align-items: center; gap: 4px; font-size: 11.5px; color: #B23AA6; }
+.vs-opt:hover .vs-opt-a, .vs-opt:focus-visible .vs-opt-a { display: inline-flex; }
+.vs-own { display: flex; flex-direction: column; gap: 6px; }
+.vs-all { border-top: 1px solid var(--line); padding-top: 12px; }
+.vs-all summary { cursor: pointer; font-size: 13px; list-style: none; display: flex; gap: 4px; }
+.vs-all summary::-webkit-details-marker { display: none; }
+.vs-all summary::before { content: '›'; display: inline-block; width: 12px; transition: transform .15s; }
+.vs-all[open] summary::before { transform: rotate(90deg); }
+.vs-all .vs-qs { margin-top: 10px; }

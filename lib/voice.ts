@@ -30,8 +30,11 @@ export type VoiceProfile = {
   /** The studio's notes: workshop notes, the thinking, examples gathered with the client (simple HTML) */ notes?: string;
   fields?: Record<string, string>;
   /** Turn the Writer on for the client (needs the core answers) */ writer?: boolean;
+  /** The last reading of the notes: how the platform understands them, and what's still worth asking */ coach?: VoiceCoach;
   updatedAt?: string;
 };
+
+export type VoiceCoach = { at: string; summary: string; codified: { field: string; text: string }[]; questions: { field: string; question: string; why?: string; options: string[] }[] };
 
 export const readVoice = (content: unknown): VoiceProfile => ((content as { voice?: VoiceProfile } | null)?.voice) || {};
 export const voiceTitle = (v: VoiceProfile) => v.title?.trim() || 'Tone of voice';
