@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowRight, Ban, CornerDownLeft, Eye, EyeOff, Image as ImageIcon, ImageOff, ImageUp, Minus, Palette, Plus, Scan, Video } from 'lucide-react';
+import { ArrowDown, ArrowRight, Ban, Link2, Link2Off, CornerDownLeft, Eye, EyeOff, Image as ImageIcon, ImageOff, ImageUp, Minus, Palette, Plus, Scan, Video } from 'lucide-react';
 import { fillMedia, type BoxAlign, type FrameLook } from '@/lib/figma/blocks';
 import { FillPicker } from '@/components/FillPicker';
 import { ScaleSelect } from '@/components/GuideStyles';
@@ -18,11 +18,15 @@ function Num({ value, placeholder, set, label, icon, unit, min = 0, max = 2000, 
   return <label className="tx-in tx-unit" data-tip={label}>{icon}<input type="number" min={min} max={max} step={step} value={value ?? ''} placeholder={placeholder === undefined ? '' : String(placeholder)} onChange={(e) => set(e.target.value === '' ? undefined : Math.max(min, Math.min(max, Number(e.target.value))))} aria-label={label} />{unit ? <i>{unit}</i> : null}</label>;
 }
 /** W or H: a number when fixed, else Fill or Hug, with a menu to switch, as in Figma */
-function SizeField({ axis, value, set, fallback }: { axis: 'W' | 'H'; value: Size; set: (v: Size) => void; fallback: 'fill' | 'hug' }) {
+function SizeField({ axis, value, set, fallback, shown, follows }: { axis: 'W' | 'H'; value: Size; set: (v: Size) => void; fallback: 'fill' | 'hug'; shown?: number; follows?: boolean }) {
   const mode = typeof value === 'number' ? 'fixed' : value || fallback;
+  if (follows) return <div className="fp-size fp-follows" data-tip="Follows the width, to keep the proportions">
+    <span className="fp-axis">{axis}</span>
+    <input type="number" min={8} max={4000} value={shown ? Math.round(shown) : ''} placeholder="Auto" onChange={(e) => set(e.target.value ? Number(e.target.value) : undefined)} aria-label="Height in pixels (sets the width to keep the proportions)" />
+  </div>;
   return <div className="fp-size">
     <span className="fp-axis">{axis}</span>
-    <input type="number" min={8} max={4000} value={typeof value === 'number' ? value : ''} placeholder="" onChange={(e) => set(e.target.value ? Number(e.target.value) : undefined)} aria-label={`${axis === 'W' ? 'Width' : 'Height'} in pixels`} />
+    <input type="number" min={8} max={4000} value={typeof value === 'number' ? value : ''} placeholder={shown ? String(Math.round(shown)) : ''} onChange={(e) => set(e.target.value ? Number(e.target.value) : undefined)} aria-label={`${axis === 'W' ? 'Width' : 'Height'} in pixels`} />
     <select value={mode} onChange={(e) => set(e.target.value === 'fixed' ? (typeof value === 'number' ? value : 240) : e.target.value === fallback ? undefined : (e.target.value as 'fill' | 'hug'))} aria-label={`${axis === 'W' ? 'Width' : 'Height'} sizing`}><option value="fixed">Fixed</option><option value="hug">Hug</option><option value="fill">Fill</option></select>
   </div>;
 }
@@ -35,23 +39,57 @@ function Chips({ palette, value, set }: { palette: { name: string; hex: string }
   return <div className="dp-chips">{palette.map((c) => <button type="button" key={c.hex} className={'dp-chip' + (value?.toUpperCase() === c.hex.toUpperCase() ? ' on' : '')} style={{ background: c.hex }} onClick={() => set(c.hex)} aria-label={`${c.name} ${c.hex}`} title={`${c.name} ${c.hex}`} />)}</div>;
 }
 
-export function FramePanel({ look = {}, set, palette, upload, layout, sizing = true, hasContent, pageColours = [], onMake }: {
+/** A ratio as w:h, simplified, from a measured size */
+function ratioFrom(w: number, h: number) {
+  const W = Math.round(w), H = Math.round(h); if (!W || !H) return undefined;
+  const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a); const g = gcd(W, H);
+  return `${W / g}:${H / g}`;
+}
+const ratioNum = (r?: string) => { const [a, b] = (r || '').split(':').map(Number); return a && b ? a / b : undefined; };
+
+export function FramePanel({ look = {}, set, palette, upload, layout, sizing = true, hasContent, pageColours = [], onMake, measure }: {
   look?: FrameLook; set: (l: FrameLook, key?: string) => void; palette: { name: string; hex: string }[]; upload: () => void; pageColours?: string[]; onMake?: () => void;
   /** For a frame that holds content: its alignment and gap (the gap and padding follow the guide's rules unless set) */
   layout?: { align?: BoxAlign; setAlign: (a: BoxAlign | undefined) => void; gap?: number; gapRule: number; setGap: (n?: number) => void; padRule: number; alignGrid: React.ReactNode };
   sizing?: boolean; hasContent?: boolean;
+  /** The frame's size on the page right now, for locking its proportions */
+  measure?: () => { w: number; h: number } | null;
 }) {
   const p = (patch: Partial<FrameLook>, key?: string) => set({ ...look, ...patch }, key);
   const [picker, setPicker] = useState<'fill' | 'stroke' | null>(null);
   const kind = look.fill?.type || 'none';
   const media = fillMedia(look);
+  // Locked proportions: the frame keeps its shape at every window size, its height following its width
+  const locked = !!look.ratio && look.ratio !== 'auto';
+  const r = ratioNum(look.ratio);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const lookKey = JSON.stringify(look);
+  useEffect(() => { if (sizing && measure) { const t = setTimeout(() => setSize(measure()), 30); return () => clearTimeout(t); } }, [sizing, lookKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  function toggleLock() {
+    const now = measure?.() || size;
+    if (locked) {
+      // Unlock: keep the height it has now, as a fixed height, so nothing jumps
+      return p({ ratio: 'auto', sh: now ? Math.round(now.h) : look.sh }, 'ratio');
+    }
+    const w = typeof look.sw === 'number' ? look.sw : now?.w, h = typeof look.sh === 'number' ? look.sh : now?.h;
+    const ratio = w && h ? ratioFrom(w, h) : undefined;
+    if (ratio) p({ ratio, sh: undefined }, 'ratio');
+  }
   return <>
     <section className="dp-sec tx" aria-label="Auto layout">
       <p className="dp-h">{layout ? 'Auto layout' : 'Layout'}</p>
       {layout ? <><div className="tx-lab">Flow</div>
         <div className="fp-row"><Seg value={look.flow || 'col'} set={(v) => p({ flow: v === 'col' ? undefined : v })} label="Flow" opts={[['col', 'Vertical', <ArrowDown key="v" {...I} />], ['row', 'Horizontal', <ArrowRight key="h" {...I} />], ['wrap', 'Wrap', <CornerDownLeft key="w" {...I} />]]} /></div></> : null}
       {sizing ? <><div className="tx-lab">Resizing</div>
-        <div className="tx-2"><SizeField axis="W" value={look.sw} fallback="fill" set={(v) => p({ sw: v, swPct: undefined }, 'sw')} /><SizeField axis="H" value={look.sh} fallback="hug" set={(v) => p({ sh: v }, 'sh')} /></div></> : null}
+        <div className="fp-wh"><SizeField axis="W" value={look.sw} fallback="fill" set={(v) => p({ sw: v, swPct: undefined }, 'sw')} shown={size?.w} />
+          <SizeField axis="H" value={locked ? undefined : look.sh} fallback="hug" follows={locked} shown={locked ? (typeof look.sw === 'number' && r ? look.sw / r : size?.h) : size?.h}
+            set={(v) => {
+              if (!locked) return p({ sh: v }, 'sh');
+              // Locked: a new height keeps the shape, so the width moves with it
+              if (typeof v === 'number' && r) p({ sw: Math.round(v * r), swPct: undefined }, 'sw');
+            }} />
+          <button type="button" className={'fp-lock' + (locked ? ' on' : '')} onClick={toggleLock} aria-pressed={locked} aria-label={locked ? 'Unlock the proportions' : 'Lock the proportions'} data-tip={locked ? `Proportions locked at ${look.ratio}` : 'Lock aspect ratio'}>{locked ? <Link2 {...I} /> : <Link2Off {...I} />}</button>
+        </div></> : null}
       {layout ? <div className="fp-ag">
         <div><div className="tx-lab">Alignment</div>{layout.alignGrid}</div>
         <div><div className="tx-lab">Gap</div><ScaleSelect value={layout.gap} auto={layout.gapRule} set={layout.setGap} label="Gap between items" /></div>

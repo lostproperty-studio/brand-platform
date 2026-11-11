@@ -17,6 +17,8 @@ const I = { size: 15, strokeWidth: 1.75, 'aria-hidden': true } as const;
 const FilledSquare = ((p: React.ComponentProps<typeof Square>) => <Square {...p} fill="currentColor" fillOpacity={0.3} />) as unknown as LucideIcon;
 /** Figma's names: frames hold content; with no stroke or fill they're just a frame */
 const FRAME_STYLES: [BoxStyle, string, LucideIcon][] = [['none', 'No stroke', SquareDashed], ['corners', 'Corner marks', Scan], ['outline', 'Stroke', Square], ['fill', 'Fill', FilledSquare]];
+/** A frame's size on the page now (unscaled by the canvas zoom), found by selector */
+const measureOf = (sel: string) => () => { const n = document.querySelector(`.ve-blocks ${sel}`) as HTMLElement | null; return n && n.offsetWidth ? { w: n.offsetWidth, h: n.offsetHeight } : null; };
 const iid = () => 'i-' + Math.random().toString(36).slice(2, 9);
 const LAYOUTS: [BlockKind, string, LucideIcon][] = [['columns', 'Auto layout', Columns3], ['grid', 'Grid', LayoutGrid], ['carousel', 'Carousel', GalleryHorizontal]];
 
@@ -164,7 +166,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
         <button type="button" className="dp-act danger" onClick={onDelete}><Trash2 {...I} />Delete <kbd>⌫</kbd></button>
       </div>
     </Sec>
-    {b.variant !== 'images' ? <FramePanel pageColours={pageColours} look={it.look} set={(l, key) => setItem({ look: l }, key && 'look-' + key)} palette={palette} upload={() => pickImage(b.id, `ilook:${i}`)} onMake={onMake ? () => onMake(b.id, `ilook:${i}`, it.look?.ratio) : undefined} sizing={b.kind === 'columns'} hasContent
+    {b.variant !== 'images' ? <FramePanel pageColours={pageColours} look={it.look} set={(l, key) => setItem({ look: l }, key && 'look-' + key)} palette={palette} upload={() => pickImage(b.id, `ilook:${i}`)} onMake={onMake ? () => onMake(b.id, `ilook:${i}`, it.look?.ratio) : undefined} measure={measureOf(`[data-block="${b.id}"] [data-item="${i}"]`)} sizing={b.kind === 'columns'} hasContent
       layout={{ align: it.align || b.boxAlign, setAlign: (a) => setItem({ align: a }), gap: it.gap ?? b.boxGap, gapRule: sys.space['el-gap'], setGap: (n) => setItem({ gap: n }, 'gap'), padRule: framed ? sys.space['box-pad'] : 0,
         alignGrid: <AlignGrid value={it.align || b.boxAlign} set={(a) => setItem({ align: a })} label="Alignment in this frame" /> }} /> : null}
   </>;
@@ -213,7 +215,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
       <Sec title={m ? (m.video ? 'Video frame' : 'Image frame') : 'Frame'} icon={<Square {...I} />}>
         <div className="dp-foot"><button type="button" className="dp-act danger" onClick={onDelete}><Trash2 {...I} />Delete <kbd>⌫</kbd></button></div>
       </Sec>
-      <FramePanel pageColours={pageColours} look={frameEl.look} set={setLook} palette={palette} upload={() => pickImage(b.id, `look:${i}:${frameEl.id}`)} onMake={onMake ? () => onMake(b.id, `look:${i}:${frameEl.id}`, frameEl.look?.ratio) : undefined} />
+      <FramePanel pageColours={pageColours} look={frameEl.look} set={setLook} palette={palette} upload={() => pickImage(b.id, `look:${i}:${frameEl.id}`)} onMake={onMake ? () => onMake(b.id, `look:${i}:${frameEl.id}`, frameEl.look?.ratio) : undefined} measure={measureOf(`[data-block="${b.id}"] [data-item="${i}"] [data-el="${frameEl.id}"] .fr`)} />
     </aside>;
   }
   if (isImg && el) {

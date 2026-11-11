@@ -432,6 +432,20 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const setBlocks = (blocks: Block[], key?: string) => setCh({ blocks }, key);
   const editBlock = (id: string, patch: Partial<Block>, key?: string) => ch && setBlocks(ch.blocks.map((b) => (b.id === id ? { ...b, ...patch, edited: true } : b)), key && `${id}:${key}`);
   // A section in a layout (like a slide layout): headline, introduction, then the layout's content
+  // Add from Figma: a layout from the project's Figma guidelines, imported as a new section right here
+  const figmaPick = {
+    load: async () => { const r = await fetch(`/api/projects/${projectId}/guide/figma-layouts`); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Couldn’t read the Figma file.'); return j; },
+    pick: async (frameId: string) => {
+      const at = picker && 'at' in picker ? picker.at : null;
+      const r = await fetch(`/api/projects/${projectId}/guide/figma-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ frameId }) });
+      const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Couldn’t import that layout.');
+      if (!ch || at === null) return;
+      const b = unifyImages(j.block as Block) as Block;
+      setUrls((u) => ({ ...u, ...(j.urls || {}) }));
+      const l = [...ch.blocks]; l.splice(at, 0, b); setBlocks(l); setPicker(null); setSel({ block: b.id });
+      setTimeout(() => document.querySelector(`[data-block="${b.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+    }
+  };
   const insertLayout = (i: number, layout: SectionLayout) => {
     if (!ch) return;
     const b = { id: 'b-' + uid(), media: [], edited: true, ...newSection(layout) } as Block;
@@ -530,12 +544,17 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     // The parent's edges as they were when you started: a parent that hugs grows with the frame, so measuring it live
     // would always find the frame at its edge and snap to Fill. Hold Alt to drag without snapping.
     const p0 = pr();
+    // Proportions locked: dragging the height moves the width with it, so the shape holds
+    const ar = (() => { const v = getComputedStyle(node).aspectRatio; if (!v || v === 'auto') return 0; const [a, b] = v.replace('auto', '').split('/').map((x) => parseFloat(x)); return a && b ? a / b : a || 0; })();
     const move = (ev: PointerEvent) => {
       const p = pr(); const dx = ev.clientX - x0, dy = ev.clientY - y0;
       if (side === 'e' || side === 'w') {
         const w = Math.max(24, Math.round(r0.width + (side === 'e' ? dx : -dx)));
         const edge = !ev.altKey && (Math.abs(side === 'e' ? r0.left + w - p.r : r0.right - w - p.l) <= 10 || (side === 'e' ? r0.left + w > p.r : r0.right - w < p.l));
         last = { sw: edge ? 'fill' : w }; node.style.width = last.sw === 'fill' ? '100%' : `${w}px`; node.style.flex = last.sw === 'fill' ? '' : '0 0 auto';
+      } else if (ar) {
+        const h = Math.max(24, r0.height + (side === 's' ? dy : -dy)); const w = Math.max(24, Math.round(h * ar));
+        last = { sw: w }; node.style.width = `${w}px`; node.style.flex = '0 0 auto';
       } else {
         const h = Math.max(24, Math.round(r0.height + (side === 's' ? dy : -dy)));
         // Height snaps to Fill only at the edge; dragged further, the frame grows and its parent with it
@@ -1131,7 +1150,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         </div></div> : null}
         {picker && ch ? ('convert' in picker
           ? <LayoutPicker title="Change the layout" current={layoutOf(ch.blocks.find((x) => x.id === picker.convert)!)} onPick={(l) => changeLayout(picker.convert, l)} onClose={() => setPicker(null)} />
-          : <LayoutPicker onPick={(l) => insertLayout(picker.at, l)} onPickKind={(k) => insertAt(picker.at, k)} onClose={() => setPicker(null)} />) : null}
+          : <LayoutPicker onPick={(l) => insertLayout(picker.at, l)} onPickKind={(k) => insertAt(picker.at, k)} onClose={() => setPicker(null)} figma={figmaPick} />) : null}
         {ch ? <AddBar onReview={() => setReviewOpen((o) => !o)} reviewOpen={reviewOpen} reviewCount={reviewCount} ch={ch} sel={sel?.block === CHAPTER ? null : sel} tool={tool} onTool={(w) => { setTool(w); setSpot(null); }} onSection={() => { const at = sel && sel.block !== CHAPTER ? ch.blocks.findIndex((x) => x.id === sel.block) + 1 : ch.blocks.length; setPicker({ at: at > 0 ? at : ch.blocks.length }); }} /> : null}
         {moving ? <><div className="ve-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }} aria-hidden>{moving.label}</div>{moving.line ? <div className={'ve-spot ' + (moving.kind === 'box' ? 'vline' : 'line')} style={{ top: moving.line.top, left: moving.line.left, width: moving.line.width, height: moving.line.height }} aria-hidden /> : null}</> : null}
         {tool && spot ? <div className={'ve-spot ' + spot.mode} style={{ top: spot.line.top, left: spot.line.left, width: spot.line.width, height: spot.line.height }} aria-hidden><span>{spot.label}</span></div> : null}

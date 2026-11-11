@@ -64,22 +64,65 @@ export function convertSection(b: Block, to: SectionLayout): Partial<Block> {
 const OTHER: BlockKind[] = ['text', 'divider', 'swatches', 'media', 'spacer'];
 
 /** The layout picker: the seven section layouts as slide thumbnails, and the other kinds of section below */
-export function LayoutPicker({ title = 'Add a section', current, onPick, onPickKind, onClose }: { title?: string; current?: SectionLayout | null; onPick: (l: SectionLayout) => void; onPickKind?: (k: BlockKind) => void; onClose: () => void }) {
+export type FigmaPick = { load: () => Promise<{ file: string; layouts: { id: string; name: string; chapter: string; thumb?: string }[] }>; pick: (id: string) => Promise<void> };
+
+export function LayoutPicker({ title = 'Add a section', current, onPick, onPickKind, onClose, figma }: { title?: string; current?: SectionLayout | null; onPick: (l: SectionLayout) => void; onPickKind?: (k: BlockKind) => void; onClose: () => void;
+  /** Add from Figma: the layouts in the project's Figma guidelines, to import one as the new section */ figma?: FigmaPick }) {
   const [focus, setFocus] = useState(0);
+  const [tab, setTab] = useState<'layouts' | 'figma'>('layouts');
+  const [fig, setFig] = useState<{ file: string; layouts: { id: string; name: string; chapter: string; thumb?: string }[] } | null>(null);
+  const [err, setErr] = useState(''), [busy, setBusy] = useState<string | null>(null), [q, setQ] = useState('');
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }; window.addEventListener('keydown', k, true); return () => window.removeEventListener('keydown', k, true); }, [onClose]);
-  return <div className="cf-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+  function openFigma() {
+    setTab('figma');
+    if (fig || !figma) return;
+    setErr(''); figma.load().then(setFig).catch((e) => setErr(e instanceof Error ? e.message : 'Couldn’t read the Figma file.'));
+  }
+  async function choose(id: string) {
+    if (!figma || busy) return;
+    setBusy(id); setErr('');
+    try { await figma.pick(id); } catch (e) { setErr(e instanceof Error ? e.message : 'Couldn’t import that layout.'); setBusy(null); }
+  }
+  const shown = (fig?.layouts || []).filter((l) => !q.trim() || `${l.name} ${l.chapter}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const chapters = [...new Set(shown.map((l) => l.chapter))];
+  return <div className="cf-back" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
     <div className="cf lp-pick" role="dialog" aria-modal="true" aria-labelledby="lp-t">
-      <h2 id="lp-t" className="cf-t">{title}</h2>
-      <p className="cf-b">Every section starts with a headline and an introduction. Pick what comes after.</p>
-      <div className="lp-grid" role="listbox" aria-label="Layouts">
-        {LAYOUTS.map((l, i) => <button key={l.id} role="option" aria-selected={current === l.id} autoFocus={i === 0} className={'lp-opt' + (current === l.id ? ' on' : '')} onClick={() => onPick(l.id)} onFocus={() => setFocus(i)}>
-          <svg viewBox="0 0 120 72" aria-hidden>{l.art}</svg>
-          <b>{l.label}</b><span>{l.help}</span>
-        </button>)}
+      <div className="lp-top">
+        <h2 id="lp-t" className="cf-t">{title}</h2>
+        {figma ? <div className="lp-tabs" role="tablist" aria-label="Where the section comes from">
+          <button type="button" role="tab" aria-selected={tab === 'layouts'} className={tab === 'layouts' ? 'on' : ''} onClick={() => setTab('layouts')}>Layouts</button>
+          <button type="button" role="tab" aria-selected={tab === 'figma'} className={tab === 'figma' ? 'on' : ''} onClick={openFigma}>From Figma</button>
+        </div> : null}
       </div>
-      {onPickKind ? <><p className="lp-h">Other sections</p><div className="lp-other">{OTHER.map((k) => <button key={k} className="lp-kind" onClick={() => onPickKind(k)}><KindIcon k={k} />{KINDS.find(([x]) => x === k)?.[1]}</button>)}</div></> : null}
-      <span className="sr" aria-live="polite">{LAYOUTS[focus]?.label}</span>
-      <div className="cf-row"><button className="btn" onClick={onClose}>Cancel</button></div>
+      {tab === 'layouts' ? <>
+        <p className="cf-b">Every section starts with a headline and an introduction. Pick what comes after.</p>
+        <div className="lp-grid" role="listbox" aria-label="Layouts">
+          {LAYOUTS.map((l, i) => <button key={l.id} role="option" aria-selected={current === l.id} autoFocus={i === 0} className={'lp-opt' + (current === l.id ? ' on' : '')} onClick={() => onPick(l.id)} onFocus={() => setFocus(i)}>
+            <svg viewBox="0 0 120 72" aria-hidden>{l.art}</svg>
+            <b>{l.label}</b><span>{l.help}</span>
+          </button>)}
+        </div>
+        {onPickKind ? <><p className="lp-h">Other sections</p><div className="lp-other">{OTHER.map((k) => <button key={k} className="lp-kind" onClick={() => onPickKind(k)}><KindIcon k={k} />{KINDS.find(([x]) => x === k)?.[1]}</button>)}</div></> : null}
+        <span className="sr" aria-live="polite">{LAYOUTS[focus]?.label}</span>
+      </> : <div className="lp-fig">
+        <div className="lp-fig-bar">
+          <p className="cf-b">{fig ? <>Layouts in <b>{fig.file}</b>. Pick one to add it here, with its pictures and words.</> : err ? null : 'Reading the Figma file…'}</p>
+          {fig && fig.layouts.length > 8 ? <input className="lp-q" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search layouts" aria-label="Search layouts" /> : null}
+        </div>
+        {err ? <p className="lp-err" role="alert">{err}</p> : null}
+        {!fig && !err ? <div className="lp-fgrid" aria-busy>{Array.from({ length: 6 }, (_, i) => <div key={i} className="lp-fopt sk"><span className="lp-fimg" /></div>)}</div> : null}
+        {fig && !fig.layouts.length ? <p className="cf-b">No layouts found. Frames on the Guidelines page are named for their layout (Cards, Columns, Split and so on).</p> : null}
+        {chapters.map((c) => <section key={c} aria-label={c}>
+          <p className="lp-h">{c}</p>
+          <div className="lp-fgrid" role="listbox" aria-label={`Layouts in ${c}`}>
+            {shown.filter((l) => l.chapter === c).map((l) => <button key={l.id} type="button" role="option" aria-selected={busy === l.id} className={'lp-fopt' + (busy === l.id ? ' on' : '')} disabled={!!busy && busy !== l.id} onClick={() => choose(l.id)}>
+              <span className="lp-fimg">{l.thumb ? <img src={l.thumb} alt="" loading="lazy" /> : null}{busy === l.id ? <i className="lp-fbusy">Importing…</i> : null}</span>
+              <b>{l.name}</b>
+            </button>)}
+          </div>
+        </section>)}
+      </div>}
+      <div className="cf-row"><button className="btn" onClick={onClose} disabled={!!busy}>Cancel</button></div>
     </div>
   </div>;
 }

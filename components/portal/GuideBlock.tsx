@@ -108,7 +108,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
       : (sw === 'hug' ? { flex: '0 0 auto', width: 'auto' } : typeof sw === 'number' ? { flex: `0 0 ${sw}px`, maxWidth: '100%' } : {})),
       ...(sh === 'hug' ? { alignSelf: 'flex-start' } : typeof sh === 'number' ? (it.look?.clip ? { height: sh, alignSelf: 'flex-start' } : { minHeight: sh, height: 'auto', alignSelf: 'flex-start', aspectRatio: 'auto' }) : sh === 'fill' && !col ? { alignSelf: 'stretch' } : {}) };
   };
-  const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return { ...(g !== undefined ? { ['--egap' as string]: `${g}px` } : {}), ...(it.pad !== undefined ? { padding: it.pad } : {}), ...lookVars(it.look), ...(it.look?.ratio && b.kind !== 'grid' ? { aspectRatio: it.look.ratio.replace(':', ' / ') } : {}) }; };
+  const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return { ...(g !== undefined ? { ['--egap' as string]: `${g}px` } : {}), ...(it.pad !== undefined ? { padding: it.pad } : {}), ...lookVars(it.look), ...(it.look?.ratio && it.look.ratio !== 'auto' && b.kind !== 'grid' && typeof it.look.sh !== 'number' ? { aspectRatio: it.look.ratio.replace(':', ' / '), ...(b.kind === 'columns' ? { alignSelf: 'flex-start', height: 'auto' } : {}) } : {}) }; };
   // Per-text styling from the editor: size, weight, colour
   const st = (key: string) => textProps(b.styles?.[key]);
   const txt = (field: TextField, value: string | undefined, tag: El['tag'], className0: string, placeholder: string, multiline = false) => {
