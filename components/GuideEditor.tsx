@@ -1,5 +1,5 @@
 'use client';
-import { createElement, useEffect, useRef, useState, useMemo } from 'react';
+import { createElement, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Block, BlockKind, BlockMedia, Guide, GuideChapter } from '@/lib/portal/guide';
 import { blockText, itemEls, itemWords, ratioOf, unifyImages, type BlockItem, type BoxStyle, type FrameLook, type ItemEl, type TextStyle } from '@/lib/figma/blocks';
@@ -394,6 +394,15 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     commit({ ...g0, chapters: g0.chapters.map((c) => (c.id === c0.id ? next! : c)) });
     return true;
   };
+  // Each section is shown at the portal's real width (1120px with its margins, so 1024px of content), zoomed out
+  // as a whole when the editor is narrower, so what you see is what the client sees, just smaller
+  const fitObs = useRef<ResizeObserver | null>(null);
+  const fitPage = useCallback((el: HTMLDivElement | null) => {
+    fitObs.current?.disconnect(); fitObs.current = null;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const fit = () => { const w = el.clientWidth; el.style.setProperty('--ve-z', String(w ? Math.min(1, w / PAGE_W) : 1)); };
+    fitObs.current = new ResizeObserver(fit); fitObs.current.observe(el); fit();
+  }, []);
   const ch = g?.chapters.find((c) => c.id === chId);
   // Working together: who's here, where, their cursors, and their edits as they make them
   const collab = useCollab({ projectId, me, ch: chId, sel, onPatch: onRemote, onReload: () => router.refresh(), onResync: resync });
@@ -541,6 +550,8 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   function sizeFrame(e: React.PointerEvent, side: 'n' | 's' | 'e' | 'w', node: HTMLElement, parent: HTMLElement, apply: (p: { sw?: 'fill' | number; sh?: 'fill' | number }) => void) {
     e.preventDefault(); e.stopPropagation();
     const r0 = node.getBoundingClientRect(); const x0 = e.clientX, y0 = e.clientY; let last: { sw?: 'fill' | number; sh?: 'fill' | number } = {};
+    // The canvas may be zoomed out to show the page at its real width: measure on screen, store real pixels
+    const z = zoomOf(node); const css = (v: number) => Math.round(v / z);
     const pr = () => { const r = parent.getBoundingClientRect(); const cs = getComputedStyle(parent); return { l: r.left + parseFloat(cs.paddingLeft), r: r.right - parseFloat(cs.paddingRight), t: r.top + parseFloat(cs.paddingTop), b: r.bottom - parseFloat(cs.paddingBottom) }; };
     document.body.classList.add('ve-sizing');
     // The parent's edges as they were when you started: a parent that hugs grows with the frame, so measuring it live
@@ -553,15 +564,15 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       if (side === 'e' || side === 'w') {
         const w = Math.max(24, Math.round(r0.width + (side === 'e' ? dx : -dx)));
         const edge = !ev.altKey && (Math.abs(side === 'e' ? r0.left + w - p.r : r0.right - w - p.l) <= 10 || (side === 'e' ? r0.left + w > p.r : r0.right - w < p.l));
-        last = { sw: edge ? 'fill' : w }; node.style.width = last.sw === 'fill' ? '100%' : `${w}px`; node.style.flex = last.sw === 'fill' ? '' : '0 0 auto';
+        last = { sw: edge ? 'fill' : css(w) }; node.style.width = last.sw === 'fill' ? '100%' : `${css(w)}px`; node.style.flex = last.sw === 'fill' ? '' : '0 0 auto';
       } else if (ar) {
         const h = Math.max(24, r0.height + (side === 's' ? dy : -dy)); const w = Math.max(24, Math.round(h * ar));
-        last = { sw: w }; node.style.width = `${w}px`; node.style.flex = '0 0 auto';
+        last = { sw: css(w) }; node.style.width = `${css(w)}px`; node.style.flex = '0 0 auto';
       } else {
         const h = Math.max(24, Math.round(r0.height + (side === 's' ? dy : -dy)));
         // Height snaps to Fill only at the edge; dragged further, the frame grows and its parent with it
         const edge = !ev.altKey && Math.abs(side === 's' ? r0.top + h - p0.b : r0.bottom - h - p0.t) <= 6;
-        last = { sh: edge ? 'fill' : h }; node.style.height = `${h}px`; node.style.aspectRatio = 'auto';
+        last = { sh: edge ? 'fill' : css(h) }; node.style.height = `${css(h)}px`; node.style.aspectRatio = 'auto';
       }
       node.dataset.size = last.sw !== undefined ? (last.sw === 'fill' ? 'Fill' : `W ${last.sw}`) : last.sh === 'fill' ? 'Fill' : `H ${last.sh}`;
     };
@@ -985,9 +996,10 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const cs = getComputedStyle(box); const rect = box.getBoundingClientRect();
     const grid = b.kind === 'grid';
     const n = grid ? b.gridCols || 6 : Math.max(1, Math.min(6, b.cols || (b.items || []).length || 2));
-    const gap = parseFloat(cs.columnGap) || 0, rgap = parseFloat(cs.rowGap) || 0;
+    const zz = zoomOf(box);
+    const gap = (parseFloat(cs.columnGap) || 0) * zz, rgap = (parseFloat(cs.rowGap) || 0) * zz;
     const colW = (rect.width - gap * (n - 1)) / n;
-    const rowH = grid ? parseFloat(cs.gridAutoRows.split(' ').pop() || '64') || 64 : 0;
+    const rowH = grid ? (parseFloat(cs.gridAutoRows.split(' ').pop() || '64') || 64) * zz : 0;
     const items = b.items || []; const it = items[i];
     const w0 = Math.min(n, it.w || (grid ? 2 : 1)), h0 = it.h || 2;
     const x0 = e.clientX, y0 = e.clientY; let last = `${w0}x${h0}`;
@@ -1110,7 +1122,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
               {ch.hidden ? <p className="tag">This chapter is hidden from the client</p> : null}
             </header>
 
-            <div className="pt-blocks ve-blocks">
+            <div className="pt-blocks ve-blocks" ref={fitPage}>
               <SlideGap onAdd={() => setPicker({ at: 0 })} />
               {ch.blocks.map((b, i) => (b.hidden && !showHidden ? null : (
                 <div key={b.id}>
@@ -1205,6 +1217,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
 }
 
 /** Between two slides: a line with an add button, to put a new section exactly there */
+/** The portal's page: 1024px of content inside 48px margins */
+const PAGE_W = 1120;
+/** How much the canvas is zoomed out to fit the editor (1 when the page fits at its real width) */
+const zoomOf = (el: Element) => { const w = (el as HTMLElement).offsetWidth; return w ? el.getBoundingClientRect().width / w || 1 : 1; };
+
 function SlideGap({ onAdd }: { onAdd: () => void }) {
   return <div className="ve-gap"><button className="ve-gap-btn" onClick={onAdd} aria-label="Add a section here" data-tip="Add a section here"><Plus size={14} strokeWidth={2} aria-hidden /></button></div>;
 }

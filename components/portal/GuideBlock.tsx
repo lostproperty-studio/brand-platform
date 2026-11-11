@@ -74,7 +74,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     const cls = (k === push && pushOk ? 'gi-push ' : '') + 'gi-el';
     if (e.kind === 'spacer') return <div key={e.id} data-el={e.id} data-spacer="" className={'gi-el gi-spacer' + (edit ? ' ed-spacer' : '')} style={{ height: e.size ?? 32 }}>{edit?.grip ? edit.grip(i, e.id) : null}{edit ? <span>Spacer · {e.size ?? 32}px</span> : null}</div>;
     if (e.kind === 'icon') { const key = `${it.id}.${e.id}`; const sz = e.size ?? 32; return <div key={e.id} data-el={e.id} className={cls + ' gi-icon-el'}>{edit?.grip ? edit.grip(i, e.id) : null}<span className={'gi-icon' + (edit?.isSel?.(key) ? ' on' : '')} style={{ width: sz, height: sz, color: e.colour }} role="img" aria-label={e.icon?.name || 'Icon'} onMouseDown={edit?.selectEl ? (ev) => { ev.stopPropagation(); edit.selectEl!(i, key); } : undefined} dangerouslySetInnerHTML={{ __html: e.icon?.svg || '' }} /></div>; }
-    if (e.kind === 'frame' || (e.kind === 'image' && e.look)) { const key = `${it.id}.${e.id}`; return <div key={e.id} data-el={e.id} className={cls + ' gi-frame-el' + (e.look?.sh === 'fill' ? ' grow' : '') + (e.look?.swPct ? ' pct' : e.look?.sw === 'hug' || typeof e.look?.sw === 'number' ? ' hug' : '')}>{edit?.grip ? edit.grip(i, e.id) : null}<Frame look={e.look} media={e.kind === 'image' ? e.media : undefined} urls={urls} on={edit?.isSel?.(key)} onPick={edit?.selectEl ? () => edit.selectEl!(i, key) : undefined} empty={!!edit} onSize={edit?.sizeEl ? (side, ev) => edit.sizeEl!(i, e.id, side, ev) : undefined} /></div>; }
+    if (e.kind === 'frame' || (e.kind === 'image' && e.look)) { const key = `${it.id}.${e.id}`; return <div key={e.id} data-el={e.id} className={cls + ' gi-frame-el' + (e.look?.sh === 'fill' && !(e.look.ratio && e.look.ratio !== 'auto') ? ' grow' : ' locked') + (e.look?.swPct ? ' pct' : e.look?.sw === 'hug' || typeof e.look?.sw === 'number' ? ' hug' : '')}>{edit?.grip ? edit.grip(i, e.id) : null}<Frame look={e.look} media={e.kind === 'image' ? e.media : undefined} urls={urls} on={edit?.isSel?.(key)} onPick={edit?.selectEl ? () => edit.selectEl!(i, key) : undefined} empty={!!edit} onSize={edit?.sizeEl ? (side, ev) => edit.sizeEl!(i, e.id, side, ev) : undefined} /></div>; }
     if (e.kind === 'image') { const mm = e.media && urls[e.media.path] ? e.media : undefined; const img = mm ? <img src={urls[mm.path]} alt="" loading="lazy" /> : null; return <div key={e.id} data-el={e.id} className={cls + ' gi-media'}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElImage ? edit.itemElImage(i, e, img) : img}</div>; }
     const key = `${it.id}.${e.id}`; const tp = st(key); const el: El = { tag: e.kind === 'text' ? 'div' : 'p', className: (card ? CARD_CLS[e.kind] : CLS[e.kind]) + (tp.className ? ' ' + tp.className : ''), placeholder: e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text', multiline: e.kind === 'text', style: tp.style, key };
     return <div key={e.id} data-el={e.id} className={cls}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;
@@ -103,12 +103,12 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   /** A frame's sizing in an auto layout: fill the space, hug its content, or a fixed size */
   const sizeOf = (it: BlockItem): React.CSSProperties => {
     if (b.kind !== 'columns') return {};
-    const sw = it.look?.sw, sh = it.look?.sh, col = b.flow?.dir === 'col';
+    const sw = it.look?.sw, sh = it.look?.ratio && it.look.ratio !== 'auto' ? undefined : it.look?.sh, col = b.flow?.dir === 'col';
     return { ...(col ? (sw === 'hug' ? { width: 'fit-content', alignSelf: 'flex-start' } : typeof sw === 'number' ? { width: sw, maxWidth: '100%', alignSelf: 'flex-start' } : {})
       : (sw === 'hug' ? { flex: '0 0 auto', width: 'auto' } : typeof sw === 'number' ? { flex: `0 0 ${sw}px`, maxWidth: '100%' } : {})),
       ...(sh === 'hug' ? { alignSelf: 'flex-start' } : typeof sh === 'number' ? (it.look?.clip ? { height: sh, alignSelf: 'flex-start' } : { minHeight: sh, height: 'auto', alignSelf: 'flex-start', aspectRatio: 'auto' }) : sh === 'fill' && !col ? { alignSelf: 'stretch' } : {}) };
   };
-  const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return { ...(g !== undefined ? { ['--egap' as string]: `${g}px` } : {}), ...(it.pad !== undefined ? { padding: it.pad } : {}), ...lookVars(it.look), ...(it.look?.ratio && it.look.ratio !== 'auto' && b.kind !== 'grid' && typeof it.look.sh !== 'number' ? { aspectRatio: it.look.ratio.replace(':', ' / '), ...(b.kind === 'columns' ? { alignSelf: 'flex-start', height: 'auto' } : {}) } : {}) }; };
+  const gapVar = (it: BlockItem): React.CSSProperties => { const g = it.gap ?? b.boxGap; return { ...(g !== undefined ? { ['--egap' as string]: `${g}px` } : {}), ...(it.pad !== undefined ? { padding: it.pad } : {}), ...lookVars(it.look), ...(it.look?.ratio && it.look.ratio !== 'auto' && b.kind !== 'grid' ? { aspectRatio: it.look.ratio.replace(':', ' / '), ...(b.kind === 'columns' ? { alignSelf: 'flex-start', height: 'auto' } : {}) } : {}) }; };
   // Per-text styling from the editor: size, weight, colour
   const st = (key: string) => textProps(b.styles?.[key]);
   const txt = (field: TextField, value: string | undefined, tag: El['tag'], className0: string, placeholder: string, multiline = false) => {
@@ -144,7 +144,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   // A statement: a large headline and a line under it, on the page, a colour or an image; it can run edge to edge
   // in a locked shape, like a slide
   if (b.kind === 'statement') return (
-    <section className={'gb gb-stmt' + (bg || back ? ' pad' : '') + (back ? ' has-back' : '') + (darkBack ? ' on-dark' : '') + (b.full ? ' gb-bleed' : '') + (b.ratio ? ' gb-ratio' : '') + ' ' + tone} style={{ ...(bg || back ? style : ink ? { color: ink } : {}), ...(b.ratio ? { aspectRatio: b.ratio.replace(':', ' / ') } : {}) }}>
+    <section className={'gb gb-stmt' + (bg || back ? ' pad' : '') + (back ? ' has-back' : '') + (darkBack ? ' on-dark' : '') + ((bg || back) && !b.ratio ? ' gb-slice' : b.full ? ' gb-bleed' : '') + (b.ratio ? ' gb-ratio' : '') + ' ' + tone} style={{ ...(bg || back ? style : ink ? { color: ink } : {}), ...(b.ratio ? { aspectRatio: b.ratio.replace(':', ' / ') } : {}) }}>
       {backEl}
       <div className="gb-in">{parts(['head', 'body'], { head: <>{eyebrow()}{txt('heading', b.heading, 'p', 'gb-stmt-h', 'A statement')}</>, body: edit || b.body ? body('gb-body gb-stmt-sub') : null })}</div>
     </section>
@@ -278,10 +278,11 @@ export function FrameMedia({ look, media: m0, urls, className = 'fr-m' }: { look
 /** A frame inside a frame: filled with a colour, an image or a video, with its own stroke, radius, padding and shape */
 function Frame({ look, media, urls, on, onPick, empty, onSize }: { look?: FrameLook; media?: BlockMedia; urls: Record<string, string>; on?: boolean; onPick?: () => void; empty?: boolean; onSize?: (side: 'n' | 's' | 'e' | 'w', e: React.PointerEvent) => void }) {
   const m = fillMedia(look) || media;
-  const ratio = look?.ratio && look.ratio !== 'auto' ? look.ratio.replace(':', ' / ') : m && (look?.fit || 'fill') !== 'fit' ? undefined : undefined;
-  const sw = look?.sw, sh = look?.sh;
+  // Locked proportions win: the frame keeps its shape at every width, whatever its height setting says
+  const ratio = look?.ratio && look.ratio !== 'auto' ? look.ratio.replace(':', ' / ') : undefined;
+  const sw = look?.sw, sh = ratio ? undefined : look?.sh;
   const fixed = !!ratio || sh === 'fill' || typeof sh === 'number';
-  const style: React.CSSProperties = { ...lookVars(look), ...(ratio && sh === undefined ? { aspectRatio: ratio } : {}), ...(look?.pad && look.padX === undefined && look.padY === undefined ? { padding: look.pad } : {}),
+  const style: React.CSSProperties = { ...lookVars(look), ...(ratio ? { aspectRatio: ratio } : {}), ...(look?.pad && look.padX === undefined && look.padY === undefined ? { padding: look.pad } : {}),
     ...(look?.swPct ? { width: `${look.swPct}%`, maxWidth: '100%' } : typeof sw === 'number' ? { width: sw, maxWidth: '100%' } : sw === 'hug' ? { width: 'fit-content', maxWidth: '100%' } : {}), ...(typeof sh === 'number' ? { height: sh } : sh === 'fill' ? { flex: '1 1 auto', minHeight: 80 } : {}) };
   const has = !!look?.fill || !!m;
   return <div className={'fr' + (fixed ? ' fixed' : '') + (on ? ' on' : '') + (!has && empty ? ' fr-empty' : '')} style={style} onMouseDown={onPick ? (e) => { e.stopPropagation(); onPick(); } : undefined}>

@@ -1778,7 +1778,7 @@ p.as-wipe { margin-top: -6px; }
 .ve-canvas { background: #F0F0F0; box-shadow: none; }
 .ve-page { padding: 28px clamp(14px, 3vw, 40px) 140px; }
 .ve-page .ve-chhead { background: #fff; border-radius: 14px; padding: clamp(28px, 4vw, 56px); box-shadow: 0 0 0 1px var(--line); margin-bottom: 0; }
-.ve-slide { background: #fff; border-radius: 14px; padding: clamp(24px, 4vw, 56px); box-shadow: 0 0 0 1px var(--line), 0 1px 3px rgba(0,0,0,.04); outline: none !important; transition: box-shadow .15s; }
+.ve-slide { --ve-pad: 48px; box-sizing: border-box; width: 1120px; max-width: none; margin-inline: auto; zoom: var(--ve-z, 1); background: #fff; border-radius: 14px; padding: var(--ve-pad); box-shadow: 0 0 0 1px var(--line), 0 1px 3px rgba(0,0,0,.04); outline: none !important; transition: box-shadow .15s; }
 .ve-slide:hover { box-shadow: 0 0 0 1px #d9d9d9, 0 1px 3px rgba(0,0,0,.05); }
 .ve-block.sel.ve-slide { box-shadow: 0 0 0 2px var(--sel), 0 6px 24px rgba(0,0,0,.06); }
 .ve-block.over.ve-slide { box-shadow: 0 0 0 2px #000; }
@@ -1883,6 +1883,11 @@ body.ve-tool .ve-pgap { pointer-events: none; }
 .pt-main { overflow-x: clip; }
 .gb-bleed { margin-left: calc(-1 * var(--pt-px)); width: calc(100vw - var(--pt-sidew)); max-width: none; border-radius: 0; }
 .ve-slide .gb-bleed, .ve-page .gb-bleed { margin-left: 0; width: auto; }
+/* A statement with a background: a slice across the page. The fill runs edge to edge; the words sit on the same
+   edges as everything else on the page. */
+.gb-stmt.gb-slice { --bl: calc(var(--pt-px, 48px) + max(0px, (100vw - var(--pt-sidew, 0px) - var(--pt-max, 1120px)) / 2)); box-sizing: border-box; margin-left: calc(-1 * var(--bl)); width: calc(100vw - var(--pt-sidew, 0px)); max-width: none; padding: clamp(56px, 8vw, 120px) var(--bl); border-radius: 0; }
+.ve-slide:has(> .gb-slice) { padding: 0; overflow: hidden; }
+.ve-slide > .gb-stmt.gb-slice { margin: 0; width: auto; padding: 104px var(--ve-pad); }
 @media (max-width: 760px) { .pt { --pt-sidew: 0px; } .pt-page { --pt-px: 16px; } }
 
 /* Side panels stay tidy: one line per chapter, long titles cut short */
@@ -2304,6 +2309,8 @@ body.ve-sizing, body.ve-sizing * { user-select: none; }
 .gi > .gi-frame-el.grow > .fr { flex: 1 1 auto; height: auto; }
 .gi[style*="flex-direction: row"] > .gi-frame-el:not(.hug) { flex: 1 1 0; min-width: 0; }
 .gi[style*="flex-direction: row"] > .gi-frame-el.grow { align-self: stretch; }
+/* Side by side, a picture that follows text sits at the same height in every column, however long the text above it */
+.gb-columns:not(.fl-col) > .gi:not(.ga) > [data-el]:not(.gi-frame-el) ~ .gi-frame-el:not(.gi-frame-el ~ .gi-frame-el) { margin-top: auto; }
 
 /* ---------- Fill picker, like Figma's */
 .fp-swbtn { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 30px 1fr 52px; align-items: center; height: 32px; border-radius: 8px; background: var(--fill); font-size: 12px; position: relative; }
