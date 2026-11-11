@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireStaff } from '@/lib/supabase/server';
 import { buildGuide, normaliseGuide, type BuildMode, type Guide } from '@/lib/portal/guide';
 import { adminClient } from '@/lib/supabase/server';
-import { draftGaps } from '@/lib/portal/drafts';
+import { draftGaps, tidyDraftChapters } from '@/lib/portal/drafts';
 import { readDesignProfile } from '@/lib/designProfile';
 
 export const maxDuration = 300;
@@ -28,6 +28,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const added = { chapters: guide.chapters.filter((c) => !had.has(c.id)).length, sections: guide.chapters.filter((c) => had.has(c.id)).flatMap((c) => c.blocks).filter((b) => !had.has(b.id)).length };
     // The design system reads the guidelines too: its profile is refreshed after every guidelines import (locked settings stay)
     const profile = await readDesignProfile(id).then(() => 'updated', (e) => String((e as Error).message || e).slice(0, 200));
+    // Rebuilding chosen chapters touches only those chapters: no tier check, no drafting anywhere else
+    if (chapters?.length) { const tidy = await tidyDraftChapters(id).catch(() => ({ moved: 0 })); return NextResponse.json({ ok: true, mode, profile, added, only: chapters.length, suggested: tidy.moved, chapters: guide.chapters.length, frames: guide.chapters.reduce((n, c) => n + c.blocks.filter((b) => b.source).length, 0), colours: guide.colours.length }); }
     const gaps = await draftGaps(id).catch((e) => ({ tier: null, drafts: 0, missing: 0, error: String((e as Error).message || e).slice(0, 200) }));
     return NextResponse.json({ ok: true, mode, profile, added, chapters: guide.chapters.length, frames: guide.chapters.reduce((n, c) => n + c.blocks.filter((b) => b.source).length, 0), colours: guide.colours.length, gaps });
   } catch (e) {

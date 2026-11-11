@@ -29,6 +29,8 @@ import { apply, compose, diff, isEmpty, type GuidePatch } from '@/lib/guidePatch
 import { History } from 'lucide-react';
 import { LayersPanel, type LayerAt, type LayerDrop } from '@/components/LayersPanel';
 import { nodeFor } from '@/components/Collab';
+import type { ChapterSuggestion } from '@/lib/portal/drafts';
+import { Lightbulb, X } from 'lucide-react';
 
 export const KINDS: [BlockKind, string][] = [['divider', 'Subsection headline'], ['text', 'Text'], ['columns', 'Auto layout'], ['grid', 'Grid'], ['statement', 'Statement'], ['split', 'Text + image'], ['image', 'Full-width image'], ['media', 'Images'], ['carousel', 'Carousel'], ['swatches', 'Colour swatches'], ['spacer', 'Spacer']];
 export const BOXES: [BoxStyle, string][] = [['none', 'None'], ['corners', 'Corner marks'], ['outline', 'Outline'], ['fill', 'Fill']];
@@ -129,10 +131,12 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       : mode === 'add' ? (j.added?.chapters || j.added?.sections ? `Added ${n(j.added.chapters, 'new chapter')} and ${n(j.added.sections, 'new section')} from Figma. Everything else is as you left it.` : 'Nothing new in Figma. Everything is as you left it.')
       : mode === 'fresh' ? `Started over: ${n(j.chapters, 'chapter')} built fresh from Figma.` : `Updated ${n(j.chapters, 'chapter')} from Figma. Your edits were kept.`;
     if (r.ok) collabRef.current?.reloadOthers();
+    j0.current = j;
     setMsg(r.ok ? done + gapText(j.gaps) : 'The rebuild didn’t finish: ' + (j.error || r.status) + (/token|can’t find/i.test(j.error || '') ? '' : ' Try again in a minute; Figma is sometimes busy.'));
     router.refresh();
   }
-  const gapText = (x?: { tier: string | null; drafts: number; missing: number; error?: string }) => !x ? '' : x.error ? ' The tier check didn’t run: ' + x.error : !x.tier ? ' Set a tier on the Overview to have gaps drafted.' : ` ${x.drafts} draft section${x.drafts === 1 ? '' : 's'} and ${x.missing} missing item${x.missing === 1 ? '' : 's'} for the ${tierLabel(x.tier as Tier)} tier.`;
+  const gapText = (x?: { tier: string | null; drafts: number; missing: number; error?: string }) => !x ? (j0.current?.suggested ? ` ${j0.current.suggested} chapter${j0.current.suggested === 1 ? '' : 's'} added by an earlier version became suggestions.` : '') : x.error ? ' The tier check didn’t run: ' + x.error : !x.tier ? ' Set a tier on the Overview to have gaps drafted.' : ` ${x.drafts} draft section${x.drafts === 1 ? '' : 's'} and ${x.missing} missing item${x.missing === 1 ? '' : 's'} for the ${tierLabel(x.tier as Tier)} tier.`;
+  const j0 = useRef<{ suggested?: number } | null>(null);
   async function checkGaps() {
     setBusy(true); setMsg('Checking against the tier and drafting the gaps…');
     const r = await fetch(`/api/projects/${projectId}/guide/drafts`, { method: 'POST' });
@@ -373,6 +377,15 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const collab = useCollab({ projectId, me, ch: chId, sel, onPatch: onRemote, onReload: () => router.refresh(), onResync: resync });
   collabRef.current = collab;
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Chapters the tier calls for that aren't in the guidelines: suggestions only, added when the studio says so
+  const [suggs, setSuggs] = useState<ChapterSuggestion[]>(((content as { chapterSuggestions?: ChapterSuggestion[] } | undefined)?.chapterSuggestions) || []);
+  useEffect(() => { setSuggs(((content as { chapterSuggestions?: ChapterSuggestion[] } | undefined)?.chapterSuggestions) || []); }, [content]);
+  async function settleSuggestion(sg: ChapterSuggestion, take: boolean) {
+    const rest = suggs.filter((x) => x.slot !== sg.slot); setSuggs(rest);
+    if (take && g) { const c: GuideChapter = { id: `draft-${sg.slot}`, key: null, slot: sg.slot, title: sg.title, kicker: '', lede: '', blocks: sg.blocks, rules: [], edited: true }; setChapters([...g.chapters.filter((x) => x.id !== c.id), c]); setChId(c.id); setSel(null); }
+    const dismissed = ((content as { dismissedSlots?: string[] } | undefined)?.dismissedSlots) || [];
+    await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { chapterSuggestions: rest, ...(take ? {} : { dismissedSlots: [...new Set([...dismissed, sg.slot])] }) } }) }).catch(() => {});
+  }
   // Panel number fields select their value when you click in, so typing replaces it straight away, as in Figma
   useEffect(() => {
     const pick = (e: FocusEvent) => { const t = e.target as HTMLInputElement; if (t?.matches?.(':is(.dp, .sw, .fk) input:is([type=number], [type=text], :not([type]))')) requestAnimationFrame(() => { try { t.select(); } catch { /* not selectable */ } }); };
@@ -1001,6 +1014,14 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
             return c.id !== chId ? [row] : [row, <ol key={c.id + '-s'} className="ve-secs" aria-label={`Sections in ${c.title}`}>{c.blocks.map((b, k) => (b.hidden && !showHidden ? null : <li key={b.id} draggable onDragStart={() => setDrag({ kind: 'block', id: b.id })} onDragOver={(e) => { if (drag?.kind === 'block') { e.preventDefault(); setOver(b.id); } }} onDrop={() => { if (drag?.kind === 'block') moveBlock(drag.id, b.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }} className={(sel?.block === b.id ? 'on' : '') + (over === b.id && drag?.kind === 'block' ? ' over' : '') + (b.hidden ? ' off' : '')}>
               <button onClick={() => { setSel({ block: b.id }); document.querySelector(`[data-block="${b.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}><span className="n">{String(k + 1).padStart(2, '0')}</span><span className="t">{(b.heading || b.eyebrow || layoutLabel(b)).replace(/\s+/g, ' ').slice(0, 48)}</span></button>
             </li>))}<li className="ve-secs-add"><button onClick={() => setPicker({ at: c.blocks.length })}><Plus size={12} strokeWidth={2} aria-hidden />Section</button></li></ol>]; })}
+          {suggs.length ? <div className="ve-suggs" aria-label="Suggested chapters">
+            <p className="ve-label"><Lightbulb size={11} strokeWidth={2} aria-hidden /> Suggested for the tier</p>
+            {suggs.map((sg) => <div key={sg.slot} className="ve-sugg" title={sg.note || undefined}>
+              <span className="ve-sugg-t">{sg.title}</span>
+              <button className="ve-linkbtn" onClick={() => settleSuggestion(sg, true)} aria-label={`Add ${sg.title} as a chapter`}>Add</button>
+              <button className="ve-eye" onClick={() => settleSuggestion(sg, false)} aria-label={`Dismiss ${sg.title}`} data-tip="Dismiss"><X size={13} strokeWidth={1.75} aria-hidden /></button>
+            </div>)}
+          </div> : null}
           {g.chapters.some((c) => c.removed) ? <div className="ve-removed"><button className="ve-linkbtn" onClick={() => setShowRemoved(!showRemoved)} aria-expanded={showRemoved}>Deleted chapters ({g.chapters.filter((c) => c.removed).length})</button>
             {showRemoved ? g.chapters.filter((c) => c.removed).map((c) => <div key={c.id} className="ve-removed-row"><span>{c.title}</span><button className="ve-linkbtn" onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, removed: false } : x)))}>Restore</button></div>) : null}</div> : null}
           <button className="btn ic" style={{ marginTop: 8 }} onClick={() => { const c: GuideChapter = { id: 'custom-' + uid(), key: null, title: 'New chapter', kicker: '', lede: '', edited: true, blocks: [], rules: [] }; setChapters([...g.chapters, c]); setChId(c.id); setSel(null); }}><Plus size={15} strokeWidth={1.75} aria-hidden />Chapter</button>

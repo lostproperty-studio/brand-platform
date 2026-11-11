@@ -16,6 +16,22 @@ type Draft = { slot: string; chapterId?: string | null; afterBlockId?: string | 
 type Missing = { slot: string; chapterId?: string | null; title: string; note: string };
 
 /** Removes earlier drafts and missing notes the studio hasn't accepted, so a re-check starts clean. */
+/** A chapter the tier calls for that the guidelines don't have: offered to the studio, never added by itself */
+export type ChapterSuggestion = { slot: string; title: string; note?: string; blocks: Block[] };
+export const readSuggestions = (content: unknown): ChapterSuggestion[] => ((content as { chapterSuggestions?: ChapterSuggestion[] } | null)?.chapterSuggestions) || [];
+
+/** Chapters drafted by an earlier version (draft-…) that nobody has kept anything in: taken out of the guide and
+ *  offered as suggestions instead. Chapters with anything accepted in them stay. */
+export function draftChaptersToSuggestions(g: Guide): { guide: Guide; suggestions: ChapterSuggestion[] } {
+  const suggestions: ChapterSuggestion[] = [];
+  const chapters = g.chapters.filter((c) => {
+    if (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft) || c.edited) return true;
+    suggestions.push({ slot: c.slot || c.id.slice(6), title: c.title, note: c.blocks.find((b) => b.draftNote)?.draftNote, blocks: c.blocks });
+    return false;
+  });
+  return { guide: { ...g, chapters }, suggestions };
+}
+
 export function stripDrafts(g: Guide): Guide {
   return { ...g, chapters: g.chapters.map((c) => ({ ...c, blocks: c.blocks.filter((b) => !b.draft) })).filter((c) => !c.id.startsWith('draft-') || c.blocks.length) };
 }
@@ -101,7 +117,8 @@ export async function draftGaps(projectId: string) {
   if (!tier) return { tier: null, drafts: 0, missing: 0 };
   const playbook = await getPlaybook();
   const dismissed = new Set(content.dismissedSlots || []);
-  let guide = stripDrafts(g0);
+  const moved = draftChaptersToSuggestions(g0);
+  let guide = stripDrafts(moved.guide);
 
   const needed = playbook.slots.filter((s) => s.need[tier] === 'fixed' && !dismissed.has(s.id) && !covered(playbook, guide, s));
   const callOut = needed.filter((s) => s.strategy || s.needsArtwork);
@@ -121,18 +138,16 @@ export async function draftGaps(projectId: string) {
   missing = missing.filter((m) => !dismissed.has(m.slot));
 
   let chapters = [...guide.chapters];
-  const newChapter = (slotId: string) => {
-    const id = `draft-${slotId}`;
-    let c = chapters.find((x) => x.id === id);
-    if (!c) { c = { id, key: null, slot: slotId, title: slotById.get(slotId)?.title || 'New chapter', kicker: '', lede: '', blocks: [], rules: [] }; chapters.splice(placeFor(playbook, chapters, slotId), 0, c); }
-    return c;
-  };
+  // Gaps that need a chapter the guidelines don't have become suggestions; chapters are never added here
+  const sugg = new Map<string, ChapterSuggestion>();
+  const suggest = (slotId: string, blocks: Block[], note?: string) => { const x = sugg.get(slotId) || { slot: slotId, title: slotById.get(slotId)?.title || 'New chapter', note, blocks: [] }; x.blocks.push(...blocks); if (note && !x.note) x.note = note; sugg.set(slotId, x); };
   const toBlocks = (d: Draft): Block[] => d.blocks.slice(0, 6).map((b) => ({ id: 'd-' + uid(), kind: b.kind, eyebrow: b.eyebrow || undefined, heading: b.heading, body: b.body || undefined, media: [], draft: 'draft' as const, draftNote: d.basedOn, slot: d.slot }));
   let nDrafts = 0, nMissing = 0;
   for (const d of drafts) {
     const blocks = toBlocks(d); if (!blocks.length) continue;
     const target = d.chapterId ? chapters.find((c) => c.id === d.chapterId) : undefined;
-    const c = target || newChapter(d.slot);
+    if (!target) { suggest(d.slot, blocks); continue; }
+    const c = target;
     const list = [...c.blocks];
     const at = d.afterBlockId ? list.findIndex((b) => b.id === d.afterBlockId) + 1 : list.length;
     list.splice(at > 0 ? at : list.length, 0, ...blocks);
@@ -141,14 +156,33 @@ export async function draftGaps(projectId: string) {
   }
   for (const m of missing) {
     const target = m.chapterId ? chapters.find((c) => c.id === m.chapterId) : undefined;
-    const c = target || newChapter(m.slot);
     const s = slotById.get(m.slot);
     const block: Block = { id: 'm-' + uid(), kind: 'text', heading: m.title, body: s ? s.depth[tier] : undefined, media: [], draft: 'missing', draftNote: m.note, slot: m.slot };
+    if (!target) { suggest(m.slot, [block], m.note); nMissing++; continue; }
+    const c = target;
     chapters = chapters.map((x) => (x.id === c.id ? { ...c, blocks: [...c.blocks, block] } : x));
     nMissing++;
   }
   guide = { ...guide, chapters };
-  const { error: ue } = await sb.from('projects').update({ content: { ...content, guide } }).eq('id', projectId);
+  const chapterSuggestions = [...sugg.values()].filter((x) => !dismissed.has(x.slot));
+  const { error: ue } = await sb.from('projects').update({ content: { ...content, guide, chapterSuggestions } }).eq('id', projectId);
   if (ue) throw ue;
   return { tier, drafts: nDrafts, missing: nMissing };
+}
+
+/** After rebuilding chosen chapters: nothing else is drafted or added. Chapters an earlier version drafted by
+ *  itself (with nothing kept in them) are taken out and offered as suggestions instead. */
+export async function tidyDraftChapters(projectId: string) {
+  const sb = adminClient();
+  const { data: p } = await sb.from('projects').select('content').eq('id', projectId).single();
+  const content = (p?.content || {}) as { guide?: Guide; dismissedSlots?: string[] };
+  const g = normaliseGuide(content.guide);
+  if (!g) return { moved: 0 };
+  const { guide, suggestions } = draftChaptersToSuggestions(g);
+  if (!suggestions.length) return { moved: 0 };
+  const dismissed = new Set(content.dismissedSlots || []);
+  const had = readSuggestions(content);
+  const chapterSuggestions = [...had.filter((x) => !suggestions.some((y) => y.slot === x.slot)), ...suggestions].filter((x) => !dismissed.has(x.slot));
+  await sb.from('projects').update({ content: { ...content, guide: { ...guide, _rev: ((content.guide as { _rev?: number } | undefined)?._rev || 0) + 1 }, chapterSuggestions } }).eq('id', projectId);
+  return { moved: suggestions.length };
 }

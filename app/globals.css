@@ -2592,3 +2592,10 @@ a.pt-credit { font-size: 10.5px; padding: 0 8px; column-gap: 4px; }
 .ak-clip[data-tip]:hover::after { top: auto; bottom: calc(100% + 6px); }
 .ak-pics { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 82%; }
 .ak-pics img { max-width: 200px; max-height: 160px; border-radius: 12px; display: block; box-shadow: 0 0 0 1px var(--line); }
+/* Chapters suggested for the tier: never added until the studio adds them */
+.ve-suggs { display: flex; flex-direction: column; gap: 1px; margin-top: 10px; }
+.ve-suggs .ve-label { display: flex; align-items: center; gap: 5px; }
+.ve-sugg { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border-radius: 8px; font-size: 13px; color: var(--mute); border: 1px dashed #d5d5d5; }
+.ve-sugg + .ve-sugg { margin-top: 4px; }
+.ve-sugg-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ve-sugg .ve-linkbtn { font-size: 12px; }
