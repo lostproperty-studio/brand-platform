@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { BookOpen, GalleryHorizontalEnd, LayoutDashboard, ListChecks, Package, Type, MessageSquareQuote, Users, type LucideIcon } from 'lucide-react';
 
 const ICONS: Record<string, LucideIcon> = { overview: LayoutDashboard, review: ListChecks, guidelines: BookOpen, showcase: GalleryHorizontalEnd, typefaces: Type, voice: MessageSquareQuote, resources: Package, client: Users };
@@ -11,8 +11,16 @@ const ICONS: Record<string, LucideIcon> = { overview: LayoutDashboard, review: L
 export function ProjectTabs({ id, tabs, current }: { id: string; tabs: readonly (readonly [string, string])[]; current: string }) {
   const router = useRouter();
   const refs = useRef<(HTMLAnchorElement | null)[]>([]);
-  const go = (i: number) => { const n = (i + tabs.length) % tabs.length; refs.current[n]?.focus(); router.push(`/studio/projects/${id}?tab=${tabs[n][0]}`, { scroll: false }); };
-  const at = tabs.findIndex(([k]) => k === current);
+  // The tab you pick is selected straight away and the panel fades while it loads, so switching never feels stuck
+  const [pending, start] = useTransition();
+  const [want, setWant] = useState(current);
+  useEffect(() => { setWant(current); }, [current]);
+  useEffect(() => { document.getElementById('pj-panel')?.classList.toggle('pj-loading', pending); }, [pending]);
+  // Every tab is fetched ahead, so it's ready when you click
+  useEffect(() => { const t = setTimeout(() => tabs.forEach(([k]) => { if (k !== current) router.prefetch(`/studio/projects/${id}?tab=${k}`); }), 600); return () => clearTimeout(t); }, [id, current, tabs, router]);
+  const open = (k: string) => { setWant(k); start(() => router.push(`/studio/projects/${id}?tab=${k}`, { scroll: false })); };
+  const go = (i: number) => { const n = (i + tabs.length) % tabs.length; refs.current[n]?.focus(); open(tabs[n][0]); };
+  const at = tabs.findIndex(([k]) => k === want);
   return (
     <div className="pj-tabs" role="tablist" aria-label="Project sections" onKeyDown={(e) => {
       if (e.key === 'ArrowRight') { e.preventDefault(); go(at + 1); }
@@ -20,9 +28,9 @@ export function ProjectTabs({ id, tabs, current }: { id: string; tabs: readonly 
       else if (e.key === 'Home') { e.preventDefault(); go(0); }
       else if (e.key === 'End') { e.preventDefault(); go(tabs.length - 1); }
     }}>
-      {tabs.map(([k, l], i) => { const Ic = ICONS[k]; const on = k === current; return (
+      {tabs.map(([k, l], i) => { const Ic = ICONS[k]; const on = k === want; return (
         <Link key={k} ref={(el) => { refs.current[i] = el; }} role="tab" aria-selected={on} aria-controls="pj-panel" tabIndex={on ? 0 : -1} scroll={false}
-          className={'pj-tab' + (on ? ' on' : '')} href={`/studio/projects/${id}?tab=${k}`}>
+          className={'pj-tab' + (on ? ' on' : '')} href={`/studio/projects/${id}?tab=${k}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); if (k !== want) open(k); }}>
           {Ic ? <Ic size={16} strokeWidth={1.75} aria-hidden /> : null}{l}
         </Link>); })}
     </div>

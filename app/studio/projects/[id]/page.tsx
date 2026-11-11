@@ -17,6 +17,8 @@ import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
 import { readSources, type Source } from '@/lib/figma/sources';
 import { pickLogo, sidebarChoice, withFigmaLogos } from '@/lib/portal/logo';
 import { SidebarLogoPicker } from '@/components/SidebarLogoPicker';
+import { DashCard } from '@/components/DashCard';
+import { Activity, BarChart3, Download, Inbox, LogIn, PanelLeft, Sparkles, Users } from 'lucide-react';
 import { VoiceStudio } from '@/components/VoiceStudio';
 import { readVoice, voiceReady } from '@/lib/voice';
 import { avatarUrl } from '@/lib/portal/context';
@@ -62,7 +64,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, figma_page_id, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
   // The studio team: people not on a project's team can't open it; viewers see it read-only
-  const me = await requireStaff();
+  const me = st;
   const myRole = me instanceof Response ? null : await teamRole(id, me);
   if (!myRole) return <div className="ov-denied"><h1>You’re not on the {p.client} team</h1><p className="mute">Ask the project’s lead to add you, then reload this page.</p><Link className="btn" href="/studio">← Projects</Link></div>;
 
@@ -159,7 +161,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const sc = readShowcase(p.content);
     const paths = showcasePaths(sc);
     const { data: signedSc } = paths.length ? await sb.storage.from('previews').createSignedUrls(paths, 6 * 3600) : { data: [] };
-    body = <ShowcaseEditor projectId={id} slug={p.slug} initial={sc} initialUrls={Object.fromEntries((signedSc || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]))} />;
+    body = <ShowcaseEditor colours={((p.brand as { core?: { name: string; hex: string }[] } | null)?.core || []).filter((c) => /^#[0-9A-F]{6}$/i.test(c.hex))} projectId={id} slug={p.slug} initial={sc} initialUrls={Object.fromEntries((signedSc || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]))} />;
   }
   if (tab === 'resources') {
     const { data: parts } = await sb.from('deliverable_parts').select('key, status, deliverable_files(path, format, storage_path)').eq('project_id', id).order('ord');
@@ -210,53 +212,64 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const kfiles: KitFileRow[] = withFigmaLogos((kparts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string }))), p.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
     const logoRows = kfiles.filter((f) => /^assets\/logo\/.+\.(svg|png)$/i.test(f.path) && f.storage_path);
     const signed = await Promise.all(logoRows.map(async (f) => ({ path: f.path, name: f.path.split('/').pop()!, url: (await sb.storage.from('kits').createSignedUrl(f.storage_path!, 3600)).data?.signedUrl ?? null })));
-    const snapC = await buildSnapshot(id).catch(() => null);
-    const avatar = await avatarUrl(kfiles, p.client, snapC?.colours || []).catch(() => null);
+    const core = ((p.brand as { core?: { name: string; hex: string }[] } | null)?.core || []).filter((c) => /^#[0-9A-F]{6}$/i.test(c.hex));
+    const avatar = await avatarUrl(kfiles, p.client, core).catch(() => null);
     const autoFull = signed.find((x) => x.path === pickLogo(kfiles).main?.path)?.url ?? null;
     const sideNow = sidebarChoice(p.content);
     const VERB: Record<string, string> = { visit: 'visited', download: 'downloaded', tool: 'opened', skill: 'downloaded the skill', ask: 'asked a question on', join: 'joined as', upload: 'uploaded' };
-    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 1000 }}>
-      <section className="cl-sec">
-        <h2>Portal sidebar</h2>
-        <p className="mute" style={{ marginTop: -4 }}>The logos the client sees in the portal’s sidebar. Clients can open and close the sidebar; closed, it shows the small logo and icons.</p>
-        {signed.length ? <SidebarLogoPicker projectId={id} logos={signed} full={sideNow.full} mini={sideNow.mini} avatarUrl={avatar} autoFullUrl={autoFull} /> : <p className="mute">Add logos to the kit or import them from Figma to choose them here.</p>}
-      </section>
-      <section className="cl-sec">
-        <h2>Last 30 days</h2>
-        <div className="cl-stats">
-          <div className="cl-stat"><strong>{members.length}</strong><span className="mute">people</span></div>
-          <div className="cl-stat"><strong>{activeUsers}</strong><span className="mute">active</span></div>
-          <div className="cl-stat"><strong>{count('visit')}</strong><span className="mute">visits</span></div>
-          <div className="cl-stat"><strong>{count('download') + count('skill')}</strong><span className="mute">downloads</span></div>
-          <div className="cl-stat"><strong>{count('tool')}</strong><span className="mute">tool uses</span></div>
-          <div className="cl-stat"><strong>{count('ask')}</strong><span className="mute">questions asked</span></div>
-        </div>
-      </section>
-      <section className="cl-sec">
-        <h2>AI</h2>
-        <div className="tm-row"><div style={{ flex: 1 }}><p style={{ margin: 0 }}>{p.ai_key_hint ? `Anthropic connected (key ending ${p.ai_key_hint})` : 'Not connected'}{p.mcp_token_hash ? ' · Claude connector created' : ''}</p><p className="mute" style={{ margin: 0 }}>{p.ai_key_hint ? `${(usage || []).length} AI requests and ${tokens.toLocaleString('en-GB')} tokens in the last 30 days, billed to the client’s Anthropic account (studio previews run on Lost Property’s AI and aren’t counted). ${convs || 0} conversations in total.` : 'A client admin connects their Anthropic account in Settings. Until then, clients can’t use Ask or AI in tools; the studio can, when previewing, on Lost Property’s AI.'}</p></div></div>
-      </section>
-      <section className="cl-sec">
-        <h2>Requests</h2>
-        <StudioRequests projectId={id} initial={reqs || []} />
-      </section>
-      <section className="cl-sec">
-        <h2>People</h2>
-        {members.length ? <table className="cl-table"><thead><tr><th>Person</th><th>Role</th><th>Last signed in</th><th>Visits</th><th>Downloads</th><th>Tools</th><th>Questions</th></tr></thead><tbody>{members.map((m) => <tr key={m.user_id}><td>{m.email}</td><td>{ROLE_LABEL[m.role]}</td><td>{m.last_sign_in_at ? new Date(m.last_sign_in_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Not yet'}</td><td className="n">{per(m.user_id, 'visit')}</td><td className="n">{per(m.user_id, 'download') + per(m.user_id, 'skill')}</td><td className="n">{per(m.user_id, 'tool')}</td><td className="n">{per(m.user_id, 'ask')}</td></tr>)}</tbody></table> : <p className="mute" style={{ margin: 0 }}>No one yet.</p>}
-        <details className="card"><summary>Invite and manage people</summary><div style={{ marginTop: 12 }}><TeamManager slug={p.slug} studio /></div></details>
-      </section>
-      <section className="cl-sec">
-        <h2>Most downloaded</h2>
-        {downloads.length ? <div className="tm-list">{downloads.map(([f, n]) => <div key={f} className="tm-row"><span style={{ flex: 1, overflowWrap: 'anywhere' }}>{f}</span><span className="mute">{n}×</span></div>)}</div> : <p className="mute" style={{ margin: 0 }}>Nothing downloaded yet.</p>}
-      </section>
-      <section className="cl-sec">
-        <h2>Recent activity</h2>
+    const openReqs = (reqs || []).filter((r) => !['done', 'closed', 'resolved'].includes(String(r.status))).length;
+    const shownFull = signed.find((x) => x.path === sideNow.full)?.url ?? autoFull;
+    const shownMini = signed.find((x) => x.path === sideNow.mini)?.url ?? avatar;
+    const recentList = a.filter((x) => x.kind !== 'visit');
+    body = <div className="dash">
+      <DashCard title="Last 30 days" icon={<BarChart3 size={16} strokeWidth={1.75} aria-hidden />} sheet={<>
         {a.length ? <div className="tm-list">{a.filter((x) => x.kind !== 'visit').slice(0, 25).map((x, k) => <div key={k} className="tm-row"><span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{emailOf[x.user_id || ''] || 'Someone'} {VERB[x.kind] || x.kind} {x.detail || ''}</span><span className="mute">{new Date(x.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>)}</div> : <p className="mute" style={{ margin: 0 }}>No activity yet.</p>}
-      </section>
-      <section className="cl-sec">
-        <h2>Sign-in page</h2>
-        <LoginLookEditor projectId={id} slug={p.slug} initial={look} />
-      </section>
+      </>} action="Activity" sheetTitle="Recent activity">
+        <div className="dc-stats">
+          <div><strong>{activeUsers}</strong><span>active people</span></div>
+          <div><strong>{count('visit')}</strong><span>visits</span></div>
+          <div><strong>{count('download') + count('skill')}</strong><span>downloads</span></div>
+          <div><strong>{count('tool')}</strong><span>tool uses</span></div>
+          <div><strong>{count('ask')}</strong><span>questions</span></div>
+          <div><strong>{(usage || []).length}</strong><span>AI requests</span></div>
+        </div>
+      </DashCard>
+      <DashCard title="People" icon={<Users size={16} strokeWidth={1.75} aria-hidden />} action="Manage" sheetTitle={`People on the ${p.client} portal`} sheet={<>
+        {members.length ? <table className="cl-table"><thead><tr><th>Person</th><th>Role</th><th>Last signed in</th><th>Visits</th><th>Downloads</th><th>Tools</th><th>Questions</th></tr></thead><tbody>{members.map((m) => <tr key={m.user_id}><td>{m.email}</td><td>{ROLE_LABEL[m.role]}</td><td>{m.last_sign_in_at ? new Date(m.last_sign_in_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Not yet'}</td><td className="n">{per(m.user_id, 'visit')}</td><td className="n">{per(m.user_id, 'download') + per(m.user_id, 'skill')}</td><td className="n">{per(m.user_id, 'tool')}</td><td className="n">{per(m.user_id, 'ask')}</td></tr>)}</tbody></table> : <p className="mute" style={{ margin: 0 }}>No one yet.</p>}
+        <h3 className="sh-sub">Invite and manage</h3><TeamManager slug={p.slug} studio />
+      </>}>
+        <p className="dc-big">{members.length}</p>
+        {members.length ? <div className="dc-faces" aria-hidden>{members.slice(0, 6).map((m) => <span key={m.user_id}>{(m.email || '?').slice(0, 2)}</span>)}</div> : <p className="mute">No one invited yet.</p>}
+      </DashCard>
+      <DashCard title="Requests" icon={<Inbox size={16} strokeWidth={1.75} aria-hidden />} action="See all" sheet={<StudioRequests projectId={id} initial={reqs || []} />} tone={openReqs ? 'warn' : undefined}>
+        <p className="dc-big">{openReqs}</p><p className="mute">{openReqs ? `open request${openReqs === 1 ? '' : 's'} from the client` : (reqs || []).length ? 'All requests answered' : 'No requests yet'}</p>
+      </DashCard>
+      <DashCard title="Portal sidebar" icon={<PanelLeft size={16} strokeWidth={1.75} aria-hidden />} action="Change" sheetTitle="Logos in the portal sidebar" sheet={<>
+        <p className="mute" style={{ margin: 0 }}>The full logo shows when the sidebar is open, the small one when it’s closed. Clients open and close it themselves.</p>
+        {signed.length ? <SidebarLogoPicker projectId={id} logos={signed} full={sideNow.full} mini={sideNow.mini} avatarUrl={avatar} autoFullUrl={autoFull} /> : <p className="mute">Add logos to the kit or import them from Figma to choose them here.</p>}
+      </>}>
+        <div className="dc-logos">
+          <figure><span className="art">{shownFull ? <img src={shownFull} alt="" /> : <span className="mute">None</span>}</span><figcaption>Open{sideNow.full ? '' : ' · automatic'}</figcaption></figure>
+          <figure><span className="art sm">{shownMini ? <img src={shownMini} alt="" /> : <span className="mute">–</span>}</span><figcaption>Closed{sideNow.mini ? '' : ' · avatar'}</figcaption></figure>
+        </div>
+      </DashCard>
+      <DashCard title="Sign-in page" icon={<LogIn size={16} strokeWidth={1.75} aria-hidden />} action="Edit" sheet={<LoginLookEditor projectId={id} slug={p.slug} initial={look} />}>
+        <p className="mute">What people see when they sign in to the portal.</p>
+        <a className="ve-linkbtn" href={`/p/${p.slug}`} target="_blank" rel="noopener">Open the portal</a>
+      </DashCard>
+      <DashCard title="AI" icon={<Sparkles size={16} strokeWidth={1.75} aria-hidden />} tone={p.ai_key_hint ? 'good' : undefined}>
+        <div className="tm-row"><div style={{ flex: 1 }}><p style={{ margin: 0 }}>{p.ai_key_hint ? `Anthropic connected (key ending ${p.ai_key_hint})` : 'Not connected'}{p.mcp_token_hash ? ' · Claude connector created' : ''}</p><p className="mute" style={{ margin: 0 }}>{p.ai_key_hint ? `${(usage || []).length} AI requests and ${tokens.toLocaleString('en-GB')} tokens in the last 30 days, billed to the client’s Anthropic account (studio previews run on Lost Property’s AI and aren’t counted). ${convs || 0} conversations in total.` : 'A client admin connects their Anthropic account in Settings. Until then, clients can’t use Ask or AI in tools; the studio can, when previewing, on Lost Property’s AI.'}</p></div></div>
+      </DashCard>
+      <DashCard title="Most downloaded" icon={<Download size={16} strokeWidth={1.75} aria-hidden />} action="See all" sheet={<>
+        {downloads.length ? <div className="tm-list">{downloads.map(([f, n]) => <div key={f} className="tm-row"><span style={{ flex: 1, overflowWrap: 'anywhere' }}>{f}</span><span className="mute">{n}×</span></div>)}</div> : <p className="mute" style={{ margin: 0 }}>Nothing downloaded yet.</p>}
+      </>}>
+        {downloads.length ? <ul className="dc-list">{downloads.slice(0, 3).map(([f, n]) => <li key={f}><span>{f.split('/').pop()}</span><span className="mute">{n}×</span></li>)}</ul> : <p className="mute">Nothing downloaded yet.</p>}
+      </DashCard>
+      <DashCard title="Recent activity" icon={<Activity size={16} strokeWidth={1.75} aria-hidden />} action="See all" sheet={<>
+        {a.length ? <div className="tm-list">{a.filter((x) => x.kind !== 'visit').slice(0, 25).map((x, k) => <div key={k} className="tm-row"><span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{emailOf[x.user_id || ''] || 'Someone'} {VERB[x.kind] || x.kind} {x.detail || ''}</span><span className="mute">{new Date(x.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>)}</div> : <p className="mute" style={{ margin: 0 }}>No activity yet.</p>}
+      </>}>
+        {recentList.length ? <ul className="dc-list">{recentList.slice(0, 4).map((x, k) => <li key={k}><span>{(emailOf[x.user_id || ''] || 'Someone').split('@')[0]} {VERB[x.kind] || x.kind} {x.detail || ''}</span><span className="mute">{new Date(x.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></li>)}</ul> : <p className="mute">Nothing yet.</p>}
+      </DashCard>
     </div>;
   }
   if (tab === 'voice') {
@@ -266,10 +279,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     body = <VoiceStudio liveWriter={!!pub?.voice?.writer && voiceReady(pub.voice)} published={!!pub} projectId={id} slug={p.slug} initial={readVoice(p.content)} hasGuide={!!g} hasChapter={!!g?.chapters.some((c) => c.key === 'voice' && !c.removed)} />;
   }
   if (tab === 'typefaces') {
-    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>
-      <p className="mute" style={{ margin: 0 }}>Upload trial files to design with. When the client buys the licences, use <strong style={{ color: '#000' }}>Replace with licensed files</strong>: each licensed weight replaces its trial file. Only licensed files go into the kit.</p>
-      <FontManager projectId={id} />
-    </div>;
+    body = <FontManager projectId={id} />;
   }
   return (
     <div>
