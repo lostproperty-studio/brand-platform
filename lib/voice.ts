@@ -31,10 +31,16 @@ export type VoiceProfile = {
   fields?: Record<string, string>;
   /** Turn the Writer on for the client (needs the core answers) */ writer?: boolean;
   /** The last reading of the notes: how the platform understands them, and what's still worth asking */ coach?: VoiceCoach;
+  /** Questions already asked, so a new round asks new ones */ asked?: string[];
   updatedAt?: string;
 };
 
-export type VoiceCoach = { at: string; summary: string; codified: { field: string; text: string }[]; questions: { field: string; question: string; why?: string; options: string[] }[] };
+/** A question in the reading of the notes. Each format suits a different kind of decision:
+ *  choice: which line sounds most like the brand · slider: where the voice sits between two qualities ·
+ *  pick: which of two words for the same thing · swap: words to replace with ours · never: words to ban */
+export type CoachQuestion = { field: string; type: 'choice' | 'slider' | 'pick' | 'swap' | 'never'; question: string; why?: string;
+  options?: string[]; left?: string; right?: string; a?: string; b?: string; swaps?: { from: string; to: string }[]; words?: string[] };
+export type VoiceCoach = { at: string; summary: string; codified: { field: string; text: string }[]; questions: CoachQuestion[] };
 
 export const readVoice = (content: unknown): VoiceProfile => ((content as { voice?: VoiceProfile } | null)?.voice) || {};
 export const voiceTitle = (v: VoiceProfile) => v.title?.trim() || 'Tone of voice';

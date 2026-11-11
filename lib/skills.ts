@@ -5,6 +5,7 @@ import { chapterText } from '@/lib/portal/guide';
 import { aiRulesMd, watchoutsFrom } from '@/lib/aiRules';
 import type { designSystemFiles } from '@/lib/designSystem';
 import { voiceHas, voiceMd, VOICE_GUARD } from '@/lib/voice';
+import { knowledgeMd } from '@/lib/voiceKnowledge';
 
 type DS = ReturnType<typeof designSystemFiles>;
 
@@ -145,6 +146,6 @@ export function skillFiles(id: SkillId, snap: Snapshot, fonts: ProjectFont[], fi
   const needs = (f: string) => f.startsWith('assets/logo/') || f.startsWith('tokens/') || f.startsWith('assets/fonts/') || (id === 'social' && f.startsWith('templates/')) || (id === 'presentations' && /^templates\/slide/.test(f)) || ((id === 'social' || id === 'presentations') && /^assets\/(imagery|graphics)\//.test(f));
   // The design system travels with every skill: tokens, components, the spec, and the layouts to match
   const design: Record<string, string> = ds ? { 'design/DESIGN.md': ds.files['DESIGN.md'], 'design/tokens.json': ds.files['tokens.json'], 'design/tokens.css': ds.files['tokens.css'], 'design/brand.css': ds.files['brand.css'], 'design/layouts.html': ds.files['preview.html'].replace(/(src|href)="assets\//g, '$1="../assets/') } : {};
-  const voice = snap.voice && voiceHas(snap.voice) ? `# ${client} voice\n\n${voiceMd(client, snap.voice)}\n` : `# ${client} voice\n\nNot written up yet. Use the tone of voice chapter in brand.md.\n`;
+  const voice = snap.voice && voiceHas(snap.voice) ? `# ${client} voice\n\n${voiceMd(client, snap.voice)}\n\n${knowledgeMd(client, snap.knowledge || [])}\n` : `# ${client} voice\n\nNot written up yet. Use the tone of voice chapter in brand.md.\n`;
   return { folder: name, md, reference: brandReference(snap, fonts, files, aiDonts), voice, include: id === 'writing' ? [] : files.filter(needs), design: id === 'writing' ? {} : design };
 }

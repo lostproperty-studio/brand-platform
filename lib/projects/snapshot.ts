@@ -1,4 +1,5 @@
 import { readVoice } from '@/lib/voice';
+import { readKnowledge } from '@/lib/voiceKnowledge';
 import { readProfile } from '@/lib/designProfile';
 import { SETTING_INFO, showSetting, type SettingKey } from '@/lib/designProfileInfo';
 import { readShowcase } from '@/lib/showcase';
@@ -9,8 +10,14 @@ import { chapterText, normaliseGuide, type Guide } from '@/lib/portal/guide';
 
 /** The published view of a project: what clients, the chat and the connector are allowed to see. */
 export async function publishedSnapshot(projectId: string): Promise<Snapshot | null> {
-  const { data } = await adminClient().from('project_versions').select('snapshot').eq('project_id', projectId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-  return (data?.snapshot as Snapshot) ?? null;
+  const sb = adminClient();
+  const [{ data }, { data: p }] = await Promise.all([
+    sb.from('project_versions').select('snapshot').eq('project_id', projectId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    sb.from('projects').select('content').eq('id', projectId).maybeSingle()
+  ]);
+  const s = (data?.snapshot as Snapshot) ?? null;
+  // What's worked, added by the client's team, applies straight away: it doesn't wait for a publish
+  return s ? { ...s, knowledge: readKnowledge(p?.content) } : null;
 }
 
 export async function projectBySlug(slug: string) {
@@ -61,6 +68,7 @@ export async function buildSnapshot(projectId: string): Promise<Snapshot> {
     showcase: readShowcase(p.content),
     form: readForm(p.content),
     design: designLines(p.content),
-    voice: readVoice(p.content)
+    voice: readVoice(p.content),
+    knowledge: readKnowledge(p.content)
   };
 }

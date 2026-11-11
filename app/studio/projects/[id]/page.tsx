@@ -21,6 +21,7 @@ import { DashCard } from '@/components/DashCard';
 import { Activity, BarChart3, Download, Inbox, LogIn, PanelLeft, Sparkles, Users } from 'lucide-react';
 import { VoiceStudio } from '@/components/VoiceStudio';
 import { readVoice, voiceReady } from '@/lib/voice';
+import { readKnowledge } from '@/lib/voiceKnowledge';
 import { avatarUrl } from '@/lib/portal/context';
 import { DesignProfile } from '@/components/DesignProfile';
 import { readProfile } from '@/lib/designProfile';
@@ -276,7 +277,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     // How the brand writes: the voice work and what the AI needs, for the Writer, Ask, the skill and the connector
     const g = normaliseGuide((p.content as { guide?: Guide } | null)?.guide);
     const pub = await publishedSnapshot(id).catch(() => null);
-    body = <VoiceStudio liveWriter={!!pub?.voice?.writer && voiceReady(pub.voice)} published={!!pub} projectId={id} slug={p.slug} initial={readVoice(p.content)} hasGuide={!!g} hasChapter={!!g?.chapters.some((c) => c.key === 'voice' && !c.removed)} />;
+    body = <VoiceStudio knowledge={readKnowledge(p.content)} liveWriter={!!pub?.voice?.writer && voiceReady(pub.voice)} published={!!pub} projectId={id} slug={p.slug} initial={readVoice(p.content)} hasGuide={!!g} hasChapter={!!g?.chapters.some((c) => c.key === 'voice' && !c.removed)} />;
   }
   if (tab === 'typefaces') {
     body = <FontManager projectId={id} />;

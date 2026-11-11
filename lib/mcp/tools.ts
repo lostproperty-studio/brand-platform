@@ -1,5 +1,6 @@
 import type { Snapshot } from '@/lib/ai/project';
 import { voiceHas, voiceMd, VOICE_GUARD } from '@/lib/voice';
+import { knowledgeMd } from '@/lib/voiceKnowledge';
 
 // Route 3: each kit is offered as a connector the client adds to their own Claude.
 // Tools are read-only views of the published kit.
@@ -20,7 +21,7 @@ export async function callTool(name: string, args: Record<string, unknown>, kit:
   switch (name) {
     case 'get_brand_overview':
       return JSON.stringify({ client: s.client, line: s.line, chapters: s.chapters.map((c) => c.title), voice: s.voice && voiceHas(s.voice) ? 'Call get_voice before writing any copy' : 'not set yet', colours: s.colours, fonts: s.fonts, deliverables: s.deliverables });
-    case 'get_voice': return s.voice && voiceHas(s.voice) ? `${voiceMd(s.client, s.voice)}\n\n${VOICE_GUARD(s.client)}` : 'The voice has not been written up yet. Use the tone of voice chapter (get_guideline) and say the full voice is still to come.';
+    case 'get_voice': return s.voice && voiceHas(s.voice) ? `${voiceMd(s.client, s.voice)}\n\n${knowledgeMd(s.client, s.knowledge || [])}\n\n${VOICE_GUARD(s.client)}` : 'The voice has not been written up yet. Use the tone of voice chapter (get_guideline) and say the full voice is still to come.';
     case 'get_tokens': return JSON.stringify(kit.tokens);
     case 'get_guideline': {
       const q = String(args.chapter || '').toLowerCase();
