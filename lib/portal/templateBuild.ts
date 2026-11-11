@@ -63,8 +63,10 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const inChosen = new Set<string>(); const walkIds = (n: { id: string; children?: unknown[] }) => { inChosen.add(n.id); for (const c of (n.children || []) as { id: string; children?: unknown[] }[]) walkIds(c); };
   t.chapters.forEach((c) => c.frames.forEach((f) => walkIds(f as { id: string; children?: unknown[] })));
   t.imageNodes = t.imageNodes.filter((id) => inChosen.has(id));
-  const pngIds = [...new Set([...t.imageNodes, ...t.chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...t.showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...t.assets.map((a) => a.nodeId)])];
-  const svgIds = t.assets.filter((a) => a.format === 'svg').map((a) => a.nodeId);
+  const pngIds = [...new Set([...t.imageNodes.filter((id) => !vec.has(id)), ...t.chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...t.showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...t.assets.map((a) => a.nodeId)])];
+  // Artwork in picture slots with no photo in it (logos, type, shapes) goes out as SVG so it stays crisp; text is outlined
+  const vec = new Set((t.vectorNodes || []).filter((id) => t.imageNodes.includes(id)));
+  const svgIds = [...t.assets.filter((a) => a.format === 'svg').map((a) => a.nodeId), ...vec];
   const [png, svg] = await Promise.all([pngIds.length ? exportNodes(key, pngIds, 'png', 2) : {}, svgIds.length ? exportNodes(key, svgIds, 'svg') : {}]);
   const stamp = Date.now().toString(36);
   const assetById = new Map(t.assets.map((a) => [a.nodeId, a]));
@@ -73,7 +75,7 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   type Job = { id: string; url: string; bucket: 'previews' | 'kits'; path: string; type: string; ext?: string };
   const jobs: Job[] = [];
   for (const [id, url] of Object.entries(png as Record<string, string | null>)) if (url) { const a = assetById.get(id); jobs.push(a ? { id: id + '|png', url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/png', ext: 'png' } : { id, url, bucket: 'previews', path: showIds.has(id) ? `${projectId}/showcase/figma-${safe(id)}.png` : `${projectId}/guide/${stamp}/${safe(id)}.png`, type: 'image/png' }); }
-  for (const [id, url] of Object.entries(svg as Record<string, string | null>)) if (url) { const a = assetById.get(id)!; jobs.push({ id: id + '|svg', url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/svg+xml', ext: 'svg' }); }
+  for (const [id, url] of Object.entries(svg as Record<string, string | null>)) if (url) { const a = assetById.get(id); if (!a) { jobs.push({ id, url, bucket: 'previews', path: `${projectId}/guide/${stamp}/${safe(id)}.svg`, type: 'image/svg+xml' }); continue; } jobs.push({ id: id + '|svg', url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/svg+xml', ext: 'svg' }); }
   const stored: Record<string, { path: string; bytes: number; hash: string }> = {};
   const queue = [...jobs];
   await Promise.all(Array.from({ length: 8 }, async () => {
@@ -88,7 +90,7 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
       } catch { /* a failed export leaves that picture out */ }
     }
   }));
-  const media = (id: string): BlockMedia | undefined => stored[id] && !assetById.has(id) ? { path: stored[id].path, w: t.sizes[id]?.w || 1200, h: t.sizes[id]?.h || 800, kind: 'photo', nodeId: id } : undefined;
+  const media = (id: string): BlockMedia | undefined => stored[id] && !assetById.has(id) ? { path: stored[id].path, w: t.sizes[id]?.w || 1200, h: t.sizes[id]?.h || 800, kind: vec.has(id) ? 'graphic' : 'photo', nodeId: id } : undefined;
 
   // 2. Chapters and their sections, merged with the studio's earlier work
   const previous = normaliseGuide(content.guide);

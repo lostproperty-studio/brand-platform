@@ -2356,3 +2356,7 @@ body.ve-sizing, body.ve-sizing * { user-select: none; }
 .tx-size .tx-in:focus, .tx-size .tx-in:focus-within { box-shadow: none; }
 input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+/* A frame sized as a share of its card (artwork from Figma): the wrapper spans the card, the frame keeps its share */
+.gi > .gi-frame-el.pct { align-self: stretch; align-items: flex-start; }
+.ga-x-center > .gi-frame-el.pct { align-items: center; }
+.ga-x-end > .gi-frame-el.pct { align-items: flex-end; }

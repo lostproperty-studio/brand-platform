@@ -51,7 +51,7 @@ export function FramePanel({ look = {}, set, palette, upload, layout, sizing = t
       {layout ? <><div className="tx-lab">Flow</div>
         <div className="fp-row"><Seg value={look.flow || 'col'} set={(v) => p({ flow: v === 'col' ? undefined : v })} label="Flow" opts={[['col', 'Vertical', <ArrowDown key="v" {...I} />], ['row', 'Horizontal', <ArrowRight key="h" {...I} />], ['wrap', 'Wrap', <CornerDownLeft key="w" {...I} />]]} /></div></> : null}
       {sizing ? <><div className="tx-lab">Resizing</div>
-        <div className="tx-2"><SizeField axis="W" value={look.sw} fallback="fill" set={(v) => p({ sw: v }, 'sw')} /><SizeField axis="H" value={look.sh} fallback="hug" set={(v) => p({ sh: v }, 'sh')} /></div></> : null}
+        <div className="tx-2"><SizeField axis="W" value={look.sw} fallback="fill" set={(v) => p({ sw: v, swPct: undefined }, 'sw')} /><SizeField axis="H" value={look.sh} fallback="hug" set={(v) => p({ sh: v }, 'sh')} /></div></> : null}
       {layout ? <div className="fp-ag">
         <div><div className="tx-lab">Alignment</div>{layout.alignGrid}</div>
         <div><div className="tx-lab">Gap</div><ScaleSelect value={layout.gap} auto={layout.gapRule} set={layout.setGap} label="Gap between items" /></div>

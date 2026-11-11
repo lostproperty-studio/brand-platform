@@ -1,12 +1,13 @@
 import { answer, FORM_KEYS, type BrandForm, type FormKey } from '@/lib/brandForm';
 import { figma } from '@/lib/figma/scan';
-import type { Block, BlockItem, BlockKind, BlockMedia, BoxStyle, FNode } from '@/lib/figma/blocks';
+import type { Block, BlockItem, BlockKind, BlockMedia, BoxAlign, BoxStyle, FNode, FrameLook, ItemEl } from '@/lib/figma/blocks';
+import { SPACE_STEPS } from '@/lib/guideSystem';
 
 // Reads a Figma file made from the Lost Property guidelines template (Cover · Read me · Assets · Guidelines ·
 // Components). Nothing is guessed: everything is found by its layer name, as the template's Read me lists them.
 // Layers named "note", and sections or page-level layers whose names start with "_", are instructions and ignored.
 
-type N = FNode & { fills?: { type: string; visible?: boolean; opacity?: number; color?: { r: number; g: number; b: number }; imageRef?: string }[]; style?: FNode['style'] & { lineHeightPx?: number; letterSpacing?: number; lineHeightPercentFontSize?: number } };
+type N = FNode & { layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL'; primaryAxisAlignItems?: string; counterAxisAlignItems?: string; layoutSizingVertical?: string; itemSpacing?: number; paddingLeft?: number; paddingRight?: number; paddingTop?: number; paddingBottom?: number; cornerRadius?: number; fills?: { type: string; visible?: boolean; opacity?: number; color?: { r: number; g: number; b: number }; imageRef?: string }[]; style?: FNode['style'] & { lineHeightPx?: number; letterSpacing?: number; lineHeightPercentFontSize?: number } };
 export type TemplatePages = { assets: string; guidelines: string };
 
 /** The template's page ids, or null when the file isn't made from the template. */
@@ -53,12 +54,23 @@ function hasVisual(n: N): boolean {
 /** A picture slot: a layer named "image" with a photo fill, or with artwork inside it (a logo, a group, a placed photo).
  *  A slot that only wraps another slot (with its caption) gives way to the inner one; an empty template slot is skipped. */
 const isImageName = (x: N) => x.name.trim().toLowerCase() === 'image';
+/** Words set as artwork (a type specimen, a headline lockup): any text in a picture slot, except a template prompt */
+const PROMPT = /^(image|photo|picture|artwork|graphic|placeholder|(drop|place|add|insert|replace)\b.*)$/i;
+function hasWords(n: N): boolean {
+  if (!visible(n) || isNote(n)) return false;
+  if (n.type === 'TEXT') { const t = (n.characters || '').trim(); return !!t && !PROMPT.test(t); }
+  return (n.children || []).some(hasWords);
+}
+/** Artwork in a slot: drawn shapes, photos, or type */
+const holdsArt = (x: N) => hasImage(x) || (x.children || []).some((c) => hasVisual(c) || hasWords(c));
 function isPicSlot(x: N): boolean {
   if (!isImageName(x) || !visible(x)) return false;
   const inner: N[] = []; const look = (n: N) => { for (const c of n.children || []) { if (isImageName(c)) inner.push(c); else look(c); } }; look(x);
-  if (inner.some((c) => hasImage(c) || (c.children || []).some(hasVisual))) return false;
-  return hasImage(x) || (x.children || []).some(hasVisual);
+  if (inner.some(holdsArt)) return false;
+  return holdsArt(x);
 }
+/** A photo anywhere inside: such a slot is exported as a picture; artwork without photos goes out as SVG, crisp at any size */
+const hasPhoto = (n: N): boolean => visible(n) && (hasImage(n) || (n.children || []).some(hasPhoto));
 const box = (n: N) => n.absoluteBoundingBox || { x: 0, y: 0, width: 0, height: 0 };
 const byPos = (a: N, b: N) => box(a).y - box(b).y || box(a).x - box(b).x;
 const slug = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -89,6 +101,8 @@ export type TemplateRead = {
   chapters: { title: string; number?: string; intro?: string; thumbNode?: string; frames: N[] }[];
   showcase: { layout: 'full' | 'half'; frames: { nodeId: string; caption?: string }[] }[];
   imageNodes: string[];
+  /** Picture slots holding only drawn artwork and type: exported as SVG */
+  vectorNodes: string[];
   /** Size of every node that gets exported, for image proportions */
   sizes: Record<string, { w: number; h: number }>;
 };
@@ -221,11 +235,74 @@ export async function readTemplate(fileKey: string, pages: TemplatePages): Promi
   }
 
   // Pictures inside guideline frames that need exporting
-  const imageNodes = chapters.flatMap((c) => c.frames.flatMap((f) => [...findAll(f, isPicSlot), ...findAll(f, (x) => x.name.trim().toLowerCase() === 'item' && hasImage(x))].map((x) => x.id)));
+  const slotNodes = chapters.flatMap((c) => c.frames.flatMap((f) => [...findAll(f, isPicSlot), ...findAll(f, (x) => x.name.trim().toLowerCase() === 'item' && hasImage(x))]));
+  const imageNodes = slotNodes.map((x) => x.id);
+  const vectorNodes = slotNodes.filter((x) => !hasPhoto(x)).map((x) => x.id);
   const want = new Set([...imageNodes, ...chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...assets.map((a) => a.nodeId)]);
   const sizes: TemplateRead['sizes'] = {};
   for (const p of [assetsPage, guidePage]) walk(p, (x) => { if (want.has(x.id)) { const bb = box(x); sizes[x.id] = { w: Math.round(bb.width), h: Math.round(bb.height) }; } });
-  return { brand, form, colours, fonts, styles, assets, assetSkips, chapters, showcase, imageNodes, sizes };
+  return { brand, form, colours, fonts, styles, assets, assetSkips, chapters, showcase, imageNodes, vectorNodes, sizes };
+}
+
+// ── A card as it's set up in Figma: its fill, stroke, corners, padding, spacing and alignment, and its contents in
+// order as frames and text. Artwork keeps its size relative to the card. Spacing snaps to the guide's spacing scale.
+// Guideline frames are drawn at about 1440 wide; the platform's sections are narrower, so spacing scales down with them.
+const SCALE = 0.75;
+const snap = (px: number) => SPACE_STEPS.reduce((b, s) => (Math.abs(s.px - px * SCALE) < Math.abs(b - px * SCALE) ? s.px : b), SPACE_STEPS[0].px);
+const ALIGN: Record<string, 'start' | 'center' | 'end' | 'between'> = { MIN: 'start', CENTER: 'center', MAX: 'end', SPACE_BETWEEN: 'between' };
+function cardLayout(it: N, media: (img: N) => BlockMedia | undefined): Pick<BlockItem, 'els' | 'look' | 'align' | 'gap'> | null {
+  const ib = box(it);
+  if (!ib.width || !ib.height) return null;
+  const parts: { n: N; kind: ItemEl['kind'] }[] = [];
+  const TEXTS: Record<string, ItemEl['kind']> = { label: 'label', headline: 'heading', body: 'text', caption: 'text' };
+  walk(it, (x) => {
+    const name = x.name.trim().toLowerCase();
+    if (isPicSlot(x)) parts.push({ n: x, kind: 'frame' });
+    else if (x.type === 'TEXT' && TEXTS[name] && text(x)) parts.push({ n: x, kind: TEXTS[name] });
+  }, (x) => isPicSlot(x) || x.name.trim().toLowerCase() === 'item');
+  if (!parts.length) return null;
+  parts.sort((a, b) => byPos(a.n, b.n));
+  // Padding: the card's auto layout padding, or how far in its contents start
+  const auto = it.layoutMode === 'VERTICAL' || it.layoutMode === 'HORIZONTAL';
+  const bbs = parts.map((p) => box(p.n));
+  // Without auto layout, the inset on the left is taken for both sides (small artwork leaves a big gap on the right)
+  const padL = auto ? it.paddingLeft ?? 0 : Math.max(0, Math.min(...bbs.map((b) => b.x - ib.x)));
+  const padR = auto ? it.paddingRight ?? 0 : padL;
+  const padT = auto ? it.paddingTop ?? 0 : Math.max(0, Math.min(...bbs.map((b) => b.y - ib.y)));
+  const padB = auto ? it.paddingBottom ?? 0 : Math.max(0, Math.min(...bbs.map((b) => ib.y + ib.height - (b.y + b.height))));
+  const inner = Math.max(1, ib.width - padL - padR);
+  // Space between: auto layout spacing, or the usual gap between its contents
+  const gaps = bbs.slice(1).map((b, i) => b.y - (bbs[i].y + bbs[i].height)).filter((g) => g >= 0).sort((a, b) => a - b);
+  const small = gaps.filter((g) => g < ib.height * 0.2);
+  const usual = auto ? it.itemSpacing ?? 0 : small.length ? small[Math.floor((small.length - 1) / 2)] : 12;
+  // Alignment: from auto layout, or contents pinned top and bottom with a big gap between them
+  let y: BoxAlign['y'] = auto && it.layoutMode === 'VERTICAL' ? ALIGN[it.primaryAxisAlignItems || 'MIN'] : undefined;
+  let x: BoxAlign['x'] = auto && it.layoutMode === 'VERTICAL' ? (ALIGN[it.counterAxisAlignItems || 'MIN'] as BoxAlign['x']) : undefined;
+  // Something pinned to the bottom, well away from what's above it: spread top to bottom
+  const spread = !auto && gaps.length > 0 && Math.max(...gaps) > ib.height * 0.2 && padB <= padT * 1.5 + 4;
+  if (spread) y = 'between';
+  if (!auto && bbs.every((b) => Math.abs(b.x + b.width / 2 - (ib.x + ib.width / 2)) < 4) && bbs.some((b) => b.width < inner - 8)) x = 'center';
+  const els: ItemEl[] = [];
+  for (const p of parts) {
+    if (p.kind === 'frame') {
+      const m = media(p.n); if (!m) continue;
+      const bb = box(p.n);
+      const full = bb.width >= inner - 4;
+      els.push({ id: 'f' + p.n.id.replace(/[^0-9a-z]/gi, ''), kind: 'frame', look: { fill: { type: 'image', media: m }, fit: 'fit', ratio: `${Math.round(bb.width)}:${Math.round(bb.height)}`, ...(full ? {} : { swPct: Math.round((bb.width / inner) * 1000) / 10 }) } });
+    } else els.push({ id: 't' + p.n.id.replace(/[^0-9a-z]/gi, ''), kind: p.kind, text: text(p.n) });
+  }
+  if (!els.length) return null;
+  const fill = solid(it);
+  const st = (it.strokes || []).find((s) => s.visible !== false && s.color);
+  const look: FrameLook = {
+    ...(fill && fill !== '#FFFFFF' ? { fill: { type: 'colour', colour: fill } } : {}),
+    ...(st && (it.strokeWeight ?? 1) > 0 ? { stroke: { colour: hexOf(st.color!), width: Math.max(1, Math.round(it.strokeWeight ?? 1)) } } : {}),
+    ...(it.cornerRadius ? { radius: Math.round(it.cornerRadius * SCALE) } : {}),
+    padX: snap((padL + padR) / 2), padY: snap(auto ? (padT + padB) / 2 : Math.min(padT, padB)),
+    // A card with a set shape in Figma keeps it; a card that hugs its content doesn't
+    ...(!auto || it.layoutSizingVertical === 'FIXED' ? { ratio: `${Math.round(ib.width)}:${Math.round(ib.height)}` } : {})
+  };
+  return { els, look, gap: snap(usual), align: x || y ? { x, y } : undefined };
 }
 
 // ── Guideline frames to blocks, by layout name
@@ -241,6 +318,13 @@ export function frameToTemplateBlock(f: N, media: (nodeId: string) => BlockMedia
   const picOf = (it: N) => pics(it, false)[0] || (hasImage(it) ? it : undefined);
   const caption = (img: N) => { const parent = findAll(f, (x) => (x.children || []).some((c) => c.id === img.id))[0] || f; return text(find(parent, 'caption')); };
   const toMedia = (img: N) => { const m = media(img.id); return m ? { ...m, caption: caption(img) || m.caption } : undefined; };
+  // Each card as a frame: a card whose own fill is the photo becomes a frame filled with it; otherwise its contents,
+  // pictures included, become frames and text laid out as in Figma. The plain fields stay as a fallback.
+  const asFrames = (it: N, pic: N | undefined): Partial<BlockItem> => {
+    if (pic && pic.id === it.id) { const m = toMedia(it); const bb = box(it); return m ? { media: undefined, els: [], look: { fill: { type: 'image', media: m }, fit: 'fill', ratio: `${Math.round(bb.width)}:${Math.round(bb.height)}` } } : {}; }
+    const l = cardLayout(it, toMedia);
+    return l ? { ...l, media: undefined } : {};
+  };
   const b: Block = { id: f.id, source: f.id, kind, eyebrow: named(f, 'label', true), heading: named(f, 'headline', true), body: named(f, 'body', true), media: [] };
   if (kind === 'divider') return { id: f.id, source: f.id, kind, heading: b.heading || b.eyebrow };
   if (kind === 'statement') { const bg = solid(f); return { ...b, bg: bg && bg !== '#FFFFFF' ? bg : undefined }; }
@@ -248,7 +332,7 @@ export function frameToTemplateBlock(f: N, media: (nodeId: string) => BlockMedia
     const items = findAll(f, (x) => x.name.trim().toLowerCase() === 'item', true).sort(byPos);
     const imgs = /images?/.test(style || '') || !items.length;
     if (imgs) { const ms = pics(f, true).map(toMedia).filter(Boolean) as BlockMedia[]; return ms.length ? { ...b, variant: 'images', media: ms } : null; }
-    const cards: BlockItem[] = items.map((it) => { const pic = picOf(it); return { id: it.id, label: named(it, 'label'), heading: named(it, 'headline'), body: named(it, 'body'), media: pic ? toMedia(pic) : undefined }; }).filter((i) => i.label || i.heading || i.body || i.media);
+    const cards: BlockItem[] = items.map((it) => { const pic = picOf(it); return { id: it.id, label: named(it, 'label'), heading: named(it, 'headline'), body: named(it, 'body'), media: pic ? toMedia(pic) : undefined, ...asFrames(it, pic) }; }).filter((i) => i.label || i.heading || i.body || i.media || i.els?.length);
     return cards.length ? { ...b, variant: 'cards', items: cards, box: /corners?|outline|none/.test(style || '') ? boxStyle : 'fill' } : null;
   }
   if (kind === 'columns' || kind === 'grid') {
@@ -257,9 +341,9 @@ export function frameToTemplateBlock(f: N, media: (nodeId: string) => BlockMedia
     const unit = (box(f).width || 1440) / 16;
     const out: BlockItem[] = items.map((it) => {
       const pic = picOf(it); const bb = box(it);
-      return { id: it.id, label: named(it, 'label'), heading: named(it, 'headline'), body: named(it, 'body'), media: pic ? toMedia(pic) : undefined,
+      return { id: it.id, label: named(it, 'label'), heading: named(it, 'headline'), body: named(it, 'body'), media: pic ? toMedia(pic) : undefined, ...asFrames(it, pic),
         ...(kind === 'grid' ? { w: Math.max(1, Math.min(6, Math.round((bb.width / Math.max(1, all.r - all.x)) * 6))), h: Math.max(1, Math.min(8, Math.round(bb.height / unit))) } : {}) };
-    }).filter((i) => i.label || i.heading || i.body || i.media);
+    }).filter((i) => i.label || i.heading || i.body || i.media || i.els?.length);
     const n = layoutName.match(/(\d)/)?.[1];
     return { ...b, items: out, box: boxStyle, cols: kind === 'columns' ? Math.max(2, Math.min(4, Number(n) || out.length || 3)) : undefined };
   }

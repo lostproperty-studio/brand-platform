@@ -35,6 +35,7 @@ export type FrameLook = {
   stroke?: { colour: string; width: number }; radius?: number; pad?: number; ratio?: string;
   /** Sizing, as in Figma: fill the space, hug the content, or a fixed size in pixels */
   sw?: 'fill' | 'hug' | number; sh?: 'fill' | 'hug' | number;
+  /** Width as a share of the parent frame, in % (artwork brought in from Figma keeps its size relative to its card) */ swPct?: number;
   /** Auto layout of the frame's contents: vertical (default), horizontal, or horizontal wrapping */ flow?: 'col' | 'row' | 'wrap';
   /** Padding across and down, in pixels (overrides pad) */ padX?: number; padY?: number;
   /** Clip content to the frame (default on for frames inside frames) */ clip?: boolean;
