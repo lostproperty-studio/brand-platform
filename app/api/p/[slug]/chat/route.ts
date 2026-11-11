@@ -12,7 +12,9 @@ export const maxDuration = 60;
 const Body = z.object({
   messages: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(8000) })).min(1).max(40),
   path: z.string().max(300).optional(),
-  conversationId: z.string().uuid().optional()
+  conversationId: z.string().uuid().optional(),
+  /** Pictures with the latest question (a design, a post, a page), for feedback against the guidelines */
+  images: z.array(z.object({ type: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']), data: z.string().max(2_400_000) })).max(4).optional()
 });
 
 // Ask: brand chat that knows which page the person is on, streamed as plain text on the client's own key.
@@ -36,14 +38,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   let convId = body.data.conversationId;
   if (convId) { const { data: own } = await sb.from('conversations').select('id').eq('id', convId).eq('user_id', acc.user.id).maybeSingle(); if (!own) convId = undefined; }
   if (!convId) { const { data: c } = await sb.from('conversations').insert({ project_id: p.id, user_id: acc.user.id, title: question.slice(0, 80), context: here?.label ?? null }).select('id').single(); convId = c!.id; }
-  await sb.from('messages').insert({ conversation_id: convId, role: 'user', content: question, context: here?.label ?? null });
+  const pics = body.data.images || [];
+  await sb.from('messages').insert({ conversation_id: convId, role: 'user', content: question + (pics.length ? `\n\n[${pics.length} image${pics.length > 1 ? 's' : ''} attached]` : ''), context: here?.label ?? null });
   if (!acc.staff) await logActivity(p.id, acc.user.id, 'ask', here?.label);
 
   // The cards Ask can show (colours, logos, downloads, pages, typefaces), from the same portal the person sees
   const pc = await portalContext(slug);
   const catalog = pc?.snap ? await askCatalog(pc, slug).catch(() => null) : null;
   const system = brandSystemPrompt(snap) + (catalog ? `\n\n${catalogPrompt(catalog)}` : '') + (here ? `\n\nWHAT THEY'RE LOOKING AT\n${here.text}\nIf they say "this", "here" or "on this page", they mean this. Keep answers short and practical.` : '');
-  const stream = ai.messages.stream({ model: 'claude-sonnet-5-5', max_tokens: 1200, system, messages: body.data.messages });
+  // The latest question carries any pictures they added
+  const msgs = body.data.messages.map((m, i, all) => (i === all.length - 1 && m.role === 'user' && pics.length
+    ? { role: 'user' as const, content: [...pics.map((x) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: x.type, data: x.data } })), { type: 'text' as const, text: m.content + '\n\n(Give feedback on the attached image against the guidelines: what follows them, what doesn’t and which rule, and a concrete fix for each. Check any words in it against the voice.)' }] }
+    : m));
+  const stream = ai.messages.stream({ model: 'claude-sonnet-5-5', max_tokens: pics.length ? 1800 : 1200, system, messages: msgs });
   const enc = new TextEncoder();
   return new Response(new ReadableStream({
     async start(controller) {

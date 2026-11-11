@@ -1,3 +1,4 @@
+import { readVoice } from '@/lib/voice';
 import { readProfile } from '@/lib/designProfile';
 import { SETTING_INFO, showSetting, type SettingKey } from '@/lib/designProfileInfo';
 import { readShowcase } from '@/lib/showcase';
@@ -59,6 +60,7 @@ export async function buildSnapshot(projectId: string): Promise<Snapshot> {
     guide: guide ? { ...guide, colours } : undefined,
     showcase: readShowcase(p.content),
     form: readForm(p.content),
-    design: designLines(p.content)
+    design: designLines(p.content),
+    voice: readVoice(p.content)
   };
 }

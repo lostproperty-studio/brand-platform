@@ -35,7 +35,9 @@ export async function verifyAnthropicKey(apiKey: string) {
   }
 }
 
-export type Snapshot = { client: string; line: string; chapters: { id: string; title: string; rules: { title: string; text: string }[] }[]; colours: { name: string; hex: string; role: string }[]; fonts: { role: string; name: string; usage: string }[]; deliverables: { title: string; status: string }[]; guide?: Guide; showcase?: Showcase; form?: BrandForm; /** The design qualities read from the guidelines, one line each */ design?: string[] };
+export type Snapshot = { client: string; line: string; chapters: { id: string; title: string; rules: { title: string; text: string }[] }[]; colours: { name: string; hex: string; role: string }[]; fonts: { role: string; name: string; usage: string }[]; deliverables: { title: string; status: string }[]; guide?: Guide; showcase?: Showcase; form?: BrandForm; /** The design qualities read from the guidelines, one line each */ design?: string[] ; /** How the brand writes, set by Lost Property */ voice?: import('@/lib/voice').VoiceProfile };
+
+import { voiceHas, voiceMd, VOICE_GUARD } from '@/lib/voice';
 
 export function brandSystemPrompt(s: Snapshot) {
   return `You are the brand assistant for ${s.client}, inside their brand portal. ${s.line}
@@ -43,7 +45,7 @@ Answer only from the guidelines below. Quote exact values (hex, sizes, ratios). 
 
 COLOURS: ${s.colours.map((c) => `${c.name} ${c.hex} (${c.role})`).join('; ')}
 TYPE: ${s.fonts.map((f) => `${f.role}: ${f.name}, ${f.usage}`).join('; ')}
-${s.form ? '\n' + aboutMd(s.form) : ''}${s.design?.length ? `\nDESIGN QUALITIES (from the guidelines; follow them in anything visual):\n${s.design.map((d) => `- ${d}`).join('\n')}\n` : ''}${s.chapters.map((c) => `\n## ${c.title}\n${c.rules.map((r) => `- ${r.title}: ${r.text}`).join('\n')}`).join('\n')}
+${s.form ? '\n' + aboutMd(s.form) : ''}${s.design?.length ? `\nDESIGN QUALITIES (from the guidelines; follow them in anything visual):\n${s.design.map((d) => `- ${d}`).join('\n')}\n` : ''}${s.chapters.map((c) => `\n## ${c.title}\n${c.rules.map((r) => `- ${r.title}: ${r.text}`).join('\n')}`).join('\n')}${s.voice && voiceHas(s.voice) ? `\n\n${voiceMd(s.client, s.voice)}\n\n${VOICE_GUARD(s.client)}\n\nWRITING HELP: when asked to write, choose between or review headlines and copy, work in the voice above. Give options as a short list, say which principle each follows, and keep to any length asked. When reviewing someone's copy or an image they've made, say what's on brand, what isn't (name the rule), and give a concrete fix.` : ''}
 \nDELIVERABLES: ${s.deliverables.map((d) => `${d.title} (${d.status})`).join('; ')}
 
 WHEN YOU MAKE OR ADVISE ON ANYTHING VISUAL
@@ -52,6 +54,6 @@ WHEN YOU MAKE OR ADVISE ON ANYTHING VISUAL
 - Never redraw or recolour the logo, invent colours or effects, substitute fonts, or make new versions of the brand's artwork.`;
 }
 
-export async function logUsage(projectId: string, userId: string | null, feature: 'chat' | 'canvas', usage?: { input_tokens?: number; output_tokens?: number }) {
+export async function logUsage(projectId: string, userId: string | null, feature: 'chat' | 'canvas' | 'writer', usage?: { input_tokens?: number; output_tokens?: number }) {
   await adminClient().from('ai_usage').insert({ project_id: projectId, user_id: userId, feature, input_tokens: usage?.input_tokens ?? null, output_tokens: usage?.output_tokens ?? null });
 }

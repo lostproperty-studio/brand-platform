@@ -16,6 +16,7 @@ export const ICONS: Record<string, string[]> = {
   motion: ['M5 4l14 8-14 8z'],
   badge: ['M12 3l2.5 2 3.2-.3.6 3.1 2.7 1.7-1.3 3 1.3 3-2.7 1.7-.6 3.1-3.2-.3L12 21l-2.5-2-3.2.3-.6-3.1L3 14.5l1.3-3L3 8.5l2.7-1.7.6-3.1 3.2.3z'],
   map: ['M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z', 'M9 3v15', 'M15 6v15'],
+  pen: ['M4 20h4L19 9l-4-4L4 16z', 'M13.5 6.5l4 4', 'M13 20h7'],
 };
 export const ICON_NAMES = Object.keys(ICONS);
 

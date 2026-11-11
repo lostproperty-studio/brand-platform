@@ -20,7 +20,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string; ski
   for (const p of [...storage.keys()]) if (/LICENCE|manifest/.test(p)) storage.delete(p);
   const ds = designSystemFiles(input);
   const s = skillFiles(skill as SkillId, pc.snap, pc.fonts, [...storage.keys()], input.aiDonts, ds);
-  const tree: Record<string, Uint8Array> = { [`${s.folder}/SKILL.md`]: strToU8(s.md), [`${s.folder}/reference/brand.md`]: strToU8(s.reference) };
+  const tree: Record<string, Uint8Array> = { [`${s.folder}/SKILL.md`]: strToU8(s.md), [`${s.folder}/reference/brand.md`]: strToU8(s.reference), [`${s.folder}/reference/voice.md`]: strToU8(s.voice) };
   for (const [k, v] of Object.entries(s.design)) tree[`${s.folder}/${k}`] = strToU8(v);
   const sb = adminClient();
   await Promise.all(s.include.map(async (p) => {

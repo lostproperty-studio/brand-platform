@@ -4,6 +4,7 @@ import type { ProjectFont } from '@/lib/fonts';
 import { chapterText } from '@/lib/portal/guide';
 import { aiRulesMd, watchoutsFrom } from '@/lib/aiRules';
 import type { designSystemFiles } from '@/lib/designSystem';
+import { voiceHas, voiceMd, VOICE_GUARD } from '@/lib/voice';
 
 type DS = ReturnType<typeof designSystemFiles>;
 
@@ -14,7 +15,8 @@ export const SKILLS = [
   { id: 'brand', icon: 'badge', title: 'Brand guidelines', blurb: 'The core skill: rules, colours, type, logos and tone of voice for anything on-brand.' },
   { id: 'presentations', icon: 'slides', title: 'Presentations', blurb: 'Builds slide decks (PowerPoint or HTML) with the brand’s layouts, type and logo rules.' },
   { id: 'documents', icon: 'doc', title: 'Documents', blurb: 'Reports, letters and one-pagers as Word or PDF, set in the brand typefaces.' },
-  { id: 'social', icon: 'social', title: 'Social posts', blurb: 'Posts and stories at the right sizes, from the kit’s templates, in the brand voice.' }
+  { id: 'social', icon: 'social', title: 'Social posts', blurb: 'Posts and stories at the right sizes, from the kit’s templates, in the brand voice.' },
+  { id: 'writing', icon: 'pen', title: 'Writing', blurb: 'Headlines, body copy, captions and calls to action in the brand voice, and reviews of copy against it.' }
 ] as const;
 export type SkillId = (typeof SKILLS)[number]['id'];
 
@@ -48,7 +50,7 @@ ${chapters.map((c) => {
     return `## ${c.title}\n${rules ? `\n### Rules\n${rules}\n` : ''}${text ? `\n### Guidance\n${text}\n` : ''}`;
   }).join('\n')}
 
-${aiRulesMd({ client: snap.client, files, watchouts: watchoutsFrom(chapters.flatMap(chapterText)), donts: aiDonts, form: snap.form })}
+${snap.voice && voiceHas(snap.voice) ? voiceMd(snap.client, snap.voice) + '\n\n' : ''}${aiRulesMd({ client: snap.client, files, watchouts: watchoutsFrom(chapters.flatMap(chapterText)), donts: aiDonts, form: snap.form })}
 `;
 }
 
@@ -64,6 +66,24 @@ Hard rules:
 - If a request would break a rule, follow the rule and say briefly which rule you followed.
 - When you finish, list the rules you applied in one or two lines so the user can check.`;
 
+const WRITING = (client: string, has: boolean) => `# ${client} writing
+
+Before writing anything, read \`reference/voice.md\`. It's the ${client} voice, set by Lost Property with ${client}, and the only source for how ${client} writes. \`reference/brand.md\` has the rest of the guidelines.
+${has ? '' : '\nThe voice hasn\'t been written up yet. Follow the tone of voice chapter in the brand reference, and say that the full voice is still to come.\n'}
+${VOICE_GUARD(client)}
+
+## How to write
+1. Work out the conditions, asking only if they really aren't clear: what it's for (web page, social post, email, ad, sign…), who it's for (use the audiences in the voice), how functional or expressive, how long, any character or word limit, and which parts are needed: headline, subheading, body, caption, call to action.
+2. Unless asked for one, give three options that are genuinely different: different angles or structures, each on brand. Up to 20 if asked.
+3. Label each part (Headline, Subheading, Body, Caption, Call to action) and make the parts work together as one piece. If only one part is asked for, write only that.
+4. Keep to any limit exactly; count characters or words before you answer.
+5. After each option, one short line on which principle or trait of the voice it leans on.
+
+## How to review copy
+- Say what's on brand and what isn't. For each thing that isn't, quote the exact words, name the rule from the voice, and give a fix in the voice.
+- Check house style point by point: spelling, case, punctuation, numbers, banned words, the brand name.
+- For an image or design with words on it, review the words against the voice and anything visual against the brand reference.`;
+
 /** How this brand looks, from the design profile and the design system, written for one kind of skill */
 function designNotes(ds: DS, id: SkillId) {
   const s = ds.spec;
@@ -74,6 +94,7 @@ function designNotes(ds: DS, id: SkillId) {
   const qualities = s.provenance.filter((x) => !['dos', 'donts', 'devices'].includes(x.key)).map((x) => `- **${x.label}:** ${x.value} (${src(x)})`).join('\n');
   const scale = (k: number) => Math.round(s.roleStyle('display').size * k);
   const specific: Record<SkillId, string> = {
+    writing: `Setting copy in a layout? Use the type styles above: headlines in the headline style, body in the body style.`,
     brand: `Building a web page, app screen or anything in code? Link \`design/tokens.css\` and \`design/brand.css\`, use the \`ds-\` classes, and start from the nearest layout in \`design/layouts.html\`. \`design/DESIGN.md\` is the full design spec.`,
     presentations: `## Slide layouts (from the design system)
 Open \`design/layouts.html\` and match its two slides.
@@ -110,17 +131,20 @@ export function skillFiles(id: SkillId, snap: Snapshot, fonts: ProjectFont[], fi
     brand: `${client} brand guidelines: colours, typefaces, logo files and rules, and tone of voice. Use whenever making anything for ${client}: designs, copy, documents, slides, social posts or code.`,
     presentations: `Make ${client} slide decks (PowerPoint .pptx or HTML) that follow the brand guidelines: logo placement, colours, typefaces and layout. Use when asked for a ${client} presentation, pitch, deck or slides.`,
     documents: `Make ${client} documents (Word .docx or PDF): reports, letters, proposals and one-pagers set in the brand typefaces and colours. Use when asked for a ${client} document.`,
-    social: `Make ${client} social posts and stories at the correct sizes from the brand templates, with copy in the brand voice. Use when asked for ${client} social media content.`
+    social: `Make ${client} social posts and stories at the correct sizes from the brand templates, with copy in the brand voice. Use when asked for ${client} social media content.`,
+    writing: `Write and review ${client} copy in the brand voice: headlines, subheadings, body, captions, calls to action, posts, emails and web pages. Use whenever writing anything for ${client} or checking copy is on brand.`
   };
   const body: Record<SkillId, string> = {
     brand: `# ${client} brand\n\n${COMMON(client)}\n\nFor slides, documents or social posts, if the matching ${client} skill is installed, use it as well.`,
     presentations: `# ${client} presentations\n\n${COMMON(client)}\n\n## How to build a deck\n1. Ask what the deck is for and who it's for if that isn't clear. Plan the slides as a short outline first.\n2. Use 16:9 (13.333 × 7.5 in for PowerPoint). Set up a master with the brand typefaces and the brand background colour; take type sizes and spacing from \`tokens/\` where given.\n3. Title slide: the logo from \`assets/logo/\`, placed and sized per "Logo in use" in the reference.\n4. Content slides: one idea per slide, a short headline, generous margins, text in colours that pass the contrast rules.\n5. Don't place the logo on every slide unless the guidelines say to; a closing slide with the logo is enough.\n6. Build PowerPoint files with python-pptx (embed the logo as SVG or high-resolution PNG), or an HTML deck if asked.\n7. Check every slide against the rules before you hand it over.`,
     documents: `# ${client} documents\n\n${COMMON(client)}\n\n## How to build a document\n1. Use the brand body typeface for text and the display typeface for headings, at sizes from \`tokens/\` where given.\n2. Put the logo on the first page only, per the logo rules, unless the guidelines say otherwise.\n3. Keep line length comfortable (about 60 to 75 characters), and use the brand colours only for headings, rules and highlights that pass contrast.\n4. Make Word files with python-docx or PDFs with a layout library; embed fonts where the licence allows.\n5. Check the finished document against the rules.`,
-    social: `# ${client} social posts\n\n${COMMON(client)}\n\n## Sizes\n- Instagram post 4:5: 1080 × 1350 px\n- Instagram/TikTok story 9:16: 1080 × 1920 px\n- LinkedIn/X post: 1200 × 628 px\n\n## How to make a post\n1. Start from a template in \`templates/\` when one fits. Only change elements marked \`data-slot\`; never move or resize the logo.\n2. Keep headlines short and in the brand voice. Offer two or three copy options when the brief is open.\n3. Render to PNG at the exact size (for example with a headless browser), and write the caption separately.\n4. Check the result against the rules.`
+    social: `# ${client} social posts\n\n${COMMON(client)}\n\n## Sizes\n- Instagram post 4:5: 1080 × 1350 px\n- Instagram/TikTok story 9:16: 1080 × 1920 px\n- LinkedIn/X post: 1200 × 628 px\n\n## How to make a post\n1. Start from a template in \`templates/\` when one fits. Only change elements marked \`data-slot\`; never move or resize the logo.\n2. Keep headlines short and in the brand voice. Offer two or three copy options when the brief is open.\n3. Render to PNG at the exact size (for example with a headless browser), and write the caption separately.\n4. Check the result against the rules.`,
+    writing: WRITING(client, !!(snap.voice && voiceHas(snap.voice)))
   };
   const md = `---\nname: ${name}\ndescription: ${desc[id]}\n---\n\n${body[id]}\n${ds ? `\n${designNotes(ds, id)}\n` : ''}`;
   const needs = (f: string) => f.startsWith('assets/logo/') || f.startsWith('tokens/') || f.startsWith('assets/fonts/') || (id === 'social' && f.startsWith('templates/')) || (id === 'presentations' && /^templates\/slide/.test(f)) || ((id === 'social' || id === 'presentations') && /^assets\/(imagery|graphics)\//.test(f));
   // The design system travels with every skill: tokens, components, the spec, and the layouts to match
   const design: Record<string, string> = ds ? { 'design/DESIGN.md': ds.files['DESIGN.md'], 'design/tokens.json': ds.files['tokens.json'], 'design/tokens.css': ds.files['tokens.css'], 'design/brand.css': ds.files['brand.css'], 'design/layouts.html': ds.files['preview.html'].replace(/(src|href)="assets\//g, '$1="../assets/') } : {};
-  return { folder: name, md, reference: brandReference(snap, fonts, files, aiDonts), include: files.filter(needs), design };
+  const voice = snap.voice && voiceHas(snap.voice) ? `# ${client} voice\n\n${voiceMd(client, snap.voice)}\n` : `# ${client} voice\n\nNot written up yet. Use the tone of voice chapter in brand.md.\n`;
+  return { folder: name, md, reference: brandReference(snap, fonts, files, aiDonts), voice, include: id === 'writing' ? [] : files.filter(needs), design: id === 'writing' ? {} : design };
 }

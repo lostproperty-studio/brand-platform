@@ -16,6 +16,8 @@ import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
 import { readSources, type Source } from '@/lib/figma/sources';
 import { pickLogo, sidebarChoice, withFigmaLogos } from '@/lib/portal/logo';
 import { SidebarLogoPicker } from '@/components/SidebarLogoPicker';
+import { VoiceStudio } from '@/components/VoiceStudio';
+import { readVoice } from '@/lib/voice';
 import { avatarUrl } from '@/lib/portal/context';
 import { DesignProfile } from '@/components/DesignProfile';
 import { readProfile } from '@/lib/designProfile';
@@ -43,7 +45,7 @@ import { PortalAddress } from '@/components/PortalAddress';
 import { env } from '@/lib/env';
 import { teamGate, teamRole } from '@/lib/studioTeam';
 
-const TABS = [['overview', 'Overview'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['resources', 'Resources'], ['client', 'Client']] as const;
+const TABS = [['overview', 'Overview'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -255,6 +257,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <LoginLookEditor projectId={id} slug={p.slug} initial={look} />
       </section>
     </div>;
+  }
+  if (tab === 'voice') {
+    // How the brand writes: the voice work and what the AI needs, for the Writer, Ask, the skill and the connector
+    const g = normaliseGuide((p.content as { guide?: Guide } | null)?.guide);
+    body = <VoiceStudio projectId={id} slug={p.slug} initial={readVoice(p.content)} hasGuide={!!g} hasChapter={!!g?.chapters.some((c) => c.key === 'voice' && !c.removed)} />;
   }
   if (tab === 'typefaces') {
     body = <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 }}>
