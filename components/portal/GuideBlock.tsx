@@ -120,10 +120,11 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const body = (cls = 'gb-body') => txt('body', b.body, 'div', cls, 'Write something…', true);
   const head = edit || b.eyebrow || b.heading ? <div className="gb-head">{eyebrow()}{heading('gb-h' + (b.kind === 'cover' ? ' xl' : ''))}</div> : null;
 
-  const media = (b.media || []).map((m, i) => ({ m, i })).filter(({ m }) => urls[m.path]);
+  // A picture whose image was taken out stays in the editor as an empty frame, ready for a new one; clients never see it
+  const media = (b.media || []).map((m, i) => ({ m, i })).filter(({ m }) => urls[m.path] || (edit && !m.path));
   const img = (m: BlockMedia, i: number | 'backdrop', el: React.ReactNode) => (edit ? edit.image(i, m, el) : el);
   const mediaEl = media.length || (edit && ['split', 'media', 'image'].includes(b.kind)) ? <div className="gb-media" style={{ ['--cols' as string]: String(Math.max(1, Math.min(b.kind === 'split' || b.kind === 'image' ? 1 : b.cols || Math.min(media.length, 3), media.length || 1))) }}>
-    {media.map(({ m, i }) => <figure key={m.path} className={'gb-fig ' + m.kind}>{img(m, i, (() => { const l = m.look || {}; return <div className="fr fixed gb-fimg" style={{ aspectRatio: (l.ratio || `${m.w}:${m.h}`).replace(':', ' / '), ...lookVars(l) }}><FrameMedia look={{ ...l, fill: { type: m.video ? 'video' : 'image', media: m }, fit: l.fit || (m.kind === 'graphic' ? 'fit' : 'fill') }} media={m} urls={urls} /></div>; })())}{edit ? edit.caption(i, m.caption) : m.caption ? <figcaption>{m.caption}</figcaption> : null}</figure>)}
+    {media.map(({ m, i }) => <figure key={m.path || 'empty-' + i} className={'gb-fig ' + m.kind}>{img(m, i, (() => { const l = m.look || {}; if (!m.path) return <div className="fr fixed gb-fimg fr-empty" style={{ aspectRatio: (l.ratio && l.ratio !== 'auto' ? l.ratio : `${m.w}:${m.h}`).replace(':', ' / ') }}><span className="fr-ph">Drop an image here, or choose Replace</span></div>; return <div className="fr fixed gb-fimg" style={{ aspectRatio: (l.ratio || `${m.w}:${m.h}`).replace(':', ' / '), ...lookVars(l) }}><FrameMedia look={{ ...l, fill: { type: m.video ? 'video' : 'image', media: m }, fit: l.fit || (m.kind === 'graphic' ? 'fit' : 'fill') }} media={m} urls={urls} /></div>; })())}{edit ? edit.caption(i, m.caption) : m.caption ? <figcaption>{m.caption}</figcaption> : null}</figure>)}
     {edit && (b.kind === 'media' || !media.length) ? edit.addImage() : null}
   </div> : null;
   const backEl = back && b.backdrop ? img(b.backdrop, 'backdrop', <img className="gb-back" src={back} alt="" />) : null;

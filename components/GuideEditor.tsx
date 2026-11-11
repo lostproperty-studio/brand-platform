@@ -903,13 +903,44 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const isVideo = file.type.startsWith('video/');
     const dims = isVideo ? await new Promise<{ w: number; h: number }>((ok) => { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => ok({ w: v.videoWidth || 1920, h: v.videoHeight || 1080 }); v.onerror = () => ok({ w: 1920, h: 1080 }); v.src = URL.createObjectURL(file); })
       : await new Promise<{ w: number; h: number }>((ok) => { const im = new Image(); im.onload = () => ok({ w: im.naturalWidth || 1200, h: im.naturalHeight || 800 }); im.onerror = () => ok({ w: 1200, h: 800 }); im.src = URL.createObjectURL(file); });
-    const fd = new FormData(); fd.set('file', file); setMsg('Uploading…');
+    if (isVideo && file.size > 40 * 1024 * 1024) { setMsg('Videos must be under 40 MB. Export a shorter or smaller loop.'); return null; }
+    setMsg('Uploading…');
+    // Big photos are made smaller here first (up to 3200px on the long side), so they're never refused for size
+    if (!isVideo && /^image\/(png|jpeg|webp)$/.test(file.type) && (file.size > 3.5 * 1024 * 1024 || Math.max(dims.w, dims.h) > 4000)) {
+      const small = await shrink(file, dims).catch(() => null);
+      if (small) { file = small.file; dims.w = small.w; dims.h = small.h; }
+    }
+    if (!isVideo && file.size > 4 * 1024 * 1024) { setMsg('That image is over 4 MB and couldn’t be made smaller. Try a JPG or a smaller export.'); return null; }
+    const fd = new FormData(); fd.set('file', file);
     const r = await fetch(`/api/projects/${projectId}/guide/upload`, { method: 'POST', body: fd });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setMsg(j.error || 'Upload failed.'); return null; }
+    if (!r.ok) { setMsg(j.error || 'The upload didn’t go through. Try again.'); return null; }
     setUrls((u) => ({ ...u, [j.path]: j.url })); setMsg('');
     return { path: j.path, w: dims.w, h: dims.h, kind: file.type === 'image/svg+xml' ? 'graphic' : 'photo', ...(isVideo ? { video: true } : {}) };
   }
+  useEffect(() => { if (!msg || msg === 'Uploading…' || /couldn|didn|must|over \d|failed|Drop an|Try again|error/i.test(msg)) return; const t = setTimeout(() => setMsg(''), 2600); return () => clearTimeout(t); }, [msg]);
+  /** Where a file dropped on the page goes: the picture, frame or box under the pointer */
+  function dropTarget(el: HTMLElement | null): { block: string; target: number | string; node: HTMLElement } | null {
+    const blockEl = el?.closest('[data-block]') as HTMLElement | null; if (!el || !blockEl?.dataset.block) return null;
+    const pic = el.closest('[data-drop]') as HTMLElement | null;
+    if (pic) { const v = pic.dataset.drop!; return { block: blockEl.dataset.block, target: /^\d+$/.test(v) ? Number(v) : v, node: pic }; }
+    const box = el.closest('[data-item]') as HTMLElement | null; if (!box) return null;
+    const fr = el.closest('.gi-frame-el[data-el]') as HTMLElement | null;
+    if (fr && box.contains(fr)) return { block: blockEl.dataset.block, target: `look:${box.dataset.item}:${fr.dataset.el}`, node: fr };
+    return { block: blockEl.dataset.block, target: `ilook:${box.dataset.item}`, node: box };
+  }
+  const dropOn = useRef<HTMLElement | null>(null);
+  const markDrop = (n: HTMLElement | null) => { if (dropOn.current === n) return; dropOn.current?.classList.remove('ve-dropon'); n?.classList.add('ve-dropon'); dropOn.current = n; };
+  const fileDrag = {
+    onDragOver: (e: React.DragEvent) => { if (!e.dataTransfer.types.includes('Files')) return; const t = dropTarget(e.target as HTMLElement); markDrop(t?.node || null); if (t) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } },
+    onDragLeave: (e: React.DragEvent) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) markDrop(null); },
+    onDrop: async (e: React.DragEvent) => {
+      const f = e.dataTransfer.files?.[0]; const t = dropTarget(e.target as HTMLElement); markDrop(null);
+      if (!f || !t) return; e.preventDefault();
+      if (!/^(image|video)\//.test(f.type)) { setMsg('Drop an image (PNG, JPG, WebP, SVG or GIF) or a video (MP4 or WebM).'); return; }
+      const up = await upload(f); if (up) putMedia({ block: t.block, target: t.target }, up);
+    }
+  };
   function pickImage(block: string, target: number | 'backdrop' | 'new' | 'thumb' | string) { fileFor.current = { block, target }; fileInput.current?.click(); }
   async function onFile(f?: File) {
     const t = fileFor.current; if (!f || !t || !ch) return;
@@ -946,7 +977,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
 
   const kitFor = (b: Block): EditKit => ({
     text: (field: TextField, value, el) => (!value ? null : <Editable key={field} value={value} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === field} onFocus={() => setSel({ block: b.id, el: field })} onSave={(v) => editBlock(b.id, { [field]: v || undefined } as Partial<Block>)} />),
-    image: (target, _m, imgEl) => <span className={'ve-img' + (sel?.block === b.id && sel.el === `img:${target}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `img:${target}` }); }}>{imgEl}</span>,
+    image: (target, _m, imgEl) => <span data-drop={String(target)} className={'ve-img' + (sel?.block === b.id && sel.el === `img:${target}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `img:${target}` }); }}>{imgEl}</span>,
     caption: (i, value) => (value === undefined ? null : <Editable value={value} tag="p" className="gb-cap" placeholder="Caption" onSave={(v) => editBlock(b.id, { media: (b.media || []).map((x, k) => (k === i ? { ...x, caption: v || undefined } : x)) })} />),
     swatch: (i, s) => { const set = (p: Partial<typeof s>) => editBlock(b.id, { swatches: (b.swatches || []).map((x, k) => (k === i ? { ...x, ...p } : x)) }); return (
       <div key={i} className="gb-swc ve-sw" style={{ background: s.hex, color: textOn(s.hex) }}>
@@ -1042,6 +1073,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   return (
     <div className="ve">
       <style>{fontCss}</style>{liveFontCss ? <style>{liveFontCss}</style> : null}
+      {msg ? <div className={'ve-toast' + (/couldn|didn|must|over \d|failed|Drop an|Try again|error/i.test(msg) ? ' warn' : '')} role="status">{msg === 'Uploading…' ? <span className="ve-toast-spin" aria-hidden /> : null}{msg}{msg !== 'Uploading…' ? <button type="button" onClick={() => setMsg('')} aria-label="Dismiss">×</button> : null}</div> : null}
       <input ref={fileInput} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" hidden onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
       <div className="ve-top">
         <button className="btn solid ic" disabled={busy} onClick={() => setRebuildOpen(true)} aria-haspopup="dialog"><RefreshCw size={15} strokeWidth={1.75} aria-hidden />Import from Figma</button>
@@ -1049,7 +1081,6 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         <button className={'btn ic' + (showHidden ? ' solid' : '')} aria-pressed={showHidden} onClick={() => setShowHidden(!showHidden)}>{showHidden ? <Eye size={15} strokeWidth={1.75} aria-hidden /> : <EyeOff size={15} strokeWidth={1.75} aria-hidden />}{showHidden ? 'Showing hidden' : 'Show hidden'}{hiddenCount ? ` (${hiddenCount})` : ''}</button>
         <span className="ve-tier">{tier ? `${tierLabel(tier)} tier` : 'No tier set'}{nDraft || nMissing ? ` · ${[nDraft ? `${nDraft} draft${nDraft === 1 ? '' : 's'} to check` : '', nMissing ? `${nMissing} missing` : ''].filter(Boolean).join(' · ')}` : ''}</span>
         {tier ? <button className="btn ic" disabled={busy} onClick={checkGaps}><ScanSearch size={15} strokeWidth={1.75} aria-hidden />Check for gaps</button> : <a className="btn" href="?tab=overview">Set a tier</a>}
-        <span className="mute" role="status">{msg}</span>
         <div className="ve-who">
           <button type="button" className="btn ic" onClick={() => setHistoryOpen(!historyOpen)} aria-pressed={historyOpen}><History size={15} strokeWidth={1.75} aria-hidden />History</button>
           <span className={'ve-live ' + collab.status} data-tip={collab.status === 'live' ? 'Live: you see everyone’s edits as they happen' : collab.status === 'off' ? 'Not live right now. Your edits still save, and you’ll catch up when it reconnects.' : 'Connecting…'} />
@@ -1122,7 +1153,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
               {ch.hidden ? <p className="tag">This chapter is hidden from the client</p> : null}
             </header>
 
-            <div className="pt-blocks ve-blocks" ref={fitPage}>
+            <div className="pt-blocks ve-blocks" ref={fitPage} {...fileDrag}>
               <SlideGap onAdd={() => setPicker({ at: 0 })} />
               {ch.blocks.map((b, i) => (b.hidden && !showHidden ? null : (
                 <div key={b.id}>
@@ -1217,6 +1248,17 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
 }
 
 /** Between two slides: a line with an add button, to put a new section exactly there */
+/** A big photo made smaller in the browser: at most 3200px on its long side, as WebP (keeps transparency) */
+async function shrink(file: File, d: { w: number; h: number }): Promise<{ file: File; w: number; h: number } | null> {
+  const k = Math.min(1, 3200 / Math.max(d.w, d.h)); const w = Math.round(d.w * k), h = Math.round(d.h * k);
+  const bmp = await createImageBitmap(file); const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const cx = c.getContext('2d'); if (!cx) return null; cx.drawImage(bmp, 0, 0, w, h); bmp.close?.();
+  for (const q of [0.9, 0.82, 0.72]) {
+    const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, 'image/webp', q));
+    if (blob && blob.size <= 3.8 * 1024 * 1024) return { file: new File([blob], file.name.replace(/\.\w+$/, '') + '.webp', { type: 'image/webp' }), w, h };
+  }
+  return null;
+}
 /** The portal's page: 1024px of content inside 48px margins */
 const PAGE_W = 1120;
 /** How much the canvas is zoomed out to fit the editor (1 when the page fits at its real width) */

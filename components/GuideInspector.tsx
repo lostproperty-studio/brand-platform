@@ -222,8 +222,11 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
     const k = el.startsWith('img:') ? Number(el.slice(4)) : undefined;
     const m = k !== undefined ? (b.media || [])[k] : undefined;
     // A picture in a section is a frame like any other: the same fill, fit, crop, adjustments, corners and stroke
-    const look: FrameLook | undefined = m ? { ...(m.look || {}), fill: { type: m.video ? 'video' : 'image', media: m }, fit: m.look?.fit || (m.kind === 'graphic' ? 'fit' : 'fill'), ratio: m.look?.ratio || ratioOf(m.w, m.h) } : undefined;
-    const setMediaLook = (l: FrameLook) => { if (k === undefined || !m) return; const fm = l.fill && (l.fill.type === 'image' || l.fill.type === 'video') ? l.fill.media : undefined; const { fill: _f, ...rest } = l;
+    const look: FrameLook | undefined = m && !m.path ? { ...(m.look || {}) } : m ? { ...(m.look || {}), fill: { type: m.video ? 'video' : 'image', media: m }, fit: m.look?.fit || (m.kind === 'graphic' ? 'fit' : 'fill'), ratio: m.look?.ratio || ratioOf(m.w, m.h) } : undefined;
+    const setMediaLook = (l: FrameLook) => { if (k === undefined || !m) return;
+      // Removing the fill takes the picture out and leaves an empty frame of the same shape, for a new one
+      if (!l.fill) { const { fill: _x, ...rest0 } = l; set({ media: (b.media || []).map((x, n) => (n === k ? { ...x, path: '', video: undefined, look: { ...rest0, ratio: rest0.ratio || ratioOf(x.w, x.h) } } : x)) }, 'mlook'); return; }
+      const fm = l.fill && (l.fill.type === 'image' || l.fill.type === 'video') ? l.fill.media : undefined; const { fill: _f, ...rest } = l;
       set({ media: (b.media || []).map((x, n) => (n === k ? { ...x, ...(fm ? { path: fm.path, w: fm.w, h: fm.h, video: fm.video } : {}), look: rest } : x)) }, 'mlook'); };
     return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>
       <Sec title="Image" icon={<ImagePlus {...I} />}>
