@@ -63,9 +63,9 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const inChosen = new Set<string>(); const walkIds = (n: { id: string; children?: unknown[] }) => { inChosen.add(n.id); for (const c of (n.children || []) as { id: string; children?: unknown[] }[]) walkIds(c); };
   t.chapters.forEach((c) => c.frames.forEach((f) => walkIds(f as { id: string; children?: unknown[] })));
   t.imageNodes = t.imageNodes.filter((id) => inChosen.has(id));
-  const pngIds = [...new Set([...t.imageNodes.filter((id) => !vec.has(id)), ...t.chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...t.showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...t.assets.map((a) => a.nodeId)])];
   // Artwork in picture slots with no photo in it (logos, type, shapes) goes out as SVG so it stays crisp; text is outlined
   const vec = new Set((t.vectorNodes || []).filter((id) => t.imageNodes.includes(id)));
+  const pngIds = [...new Set([...t.imageNodes.filter((id) => !vec.has(id)), ...t.chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...t.showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...t.assets.map((a) => a.nodeId)])];
   const svgIds = [...t.assets.filter((a) => a.format === 'svg').map((a) => a.nodeId), ...vec];
   const [png, svg] = await Promise.all([pngIds.length ? exportNodes(key, pngIds, 'png', 2) : {}, svgIds.length ? exportNodes(key, svgIds, 'svg') : {}]);
   const stamp = Date.now().toString(36);
