@@ -7,6 +7,7 @@ import { ProjectActions } from '@/components/ProjectActions';
 import { FontManager } from '@/components/FontManager';
 import { DeleteProjectButton } from '@/components/DeleteProject';
 import { GuideEditor } from '@/components/GuideEditor';
+import { nameOf } from '@/lib/guideVersions';
 import { TeamManager } from '@/components/TeamManager';
 import { ToolManager } from '@/components/ToolManager';
 import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
@@ -147,7 +148,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { data: logoRows } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%');
     const logoRow = pickLogo(withFigmaLogos((logoRows || []).map((l) => ({ path: l.path, storage_path: l.storage_path })), p.content, {})).main;
     const logoUrl = logoRow?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoRow.storage_path, 3600)).data?.signedUrl ?? null : null;
-    body = <GuideEditor projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} fonts={fonts} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} home={{ client: p.client, line: p.line || '', title: (content as { homeTitle?: string }).homeTitle || undefined, styles: (content as { homeStyles?: Record<string, never> }).homeStyles || undefined, intro: (content as { homeIntro?: string }).homeIntro || '', fallback: defaultIntro(p.client), version: homeVer?.version }} />;
+    body = <GuideEditor me={me instanceof Response ? null : { id: me.user.id, name: nameOf(me.user), avatar: ((me.user.user_metadata || {}) as { avatar_url?: string }).avatar_url || null }} projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} fonts={fonts} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} home={{ client: p.client, line: p.line || '', title: (content as { homeTitle?: string }).homeTitle || undefined, styles: (content as { homeStyles?: Record<string, never> }).homeStyles || undefined, intro: (content as { homeIntro?: string }).homeIntro || '', fallback: defaultIntro(p.client), version: homeVer?.version }} />;
   }
   if (tab === 'showcase') {
     const sc = readShowcase(p.content);

@@ -30,7 +30,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   // Content is merged key by key, so saving the guide never wipes the tier or other settings
   if (content || tier) {
     const { data: cur } = await adminClient().from('projects').select('content').eq('id', id).maybeSingle();
-    update.content = { ...((cur?.content as Record<string, unknown>) || {}), ...(content || {}), ...(tier ? { tier } : {}) };
+    const was = (cur?.content as Record<string, unknown>) || {};
+    update.content = { ...was, ...(content || {}), ...(tier ? { tier } : {}) };
+    // A whole guide saved this way still moves the revision on, so live editors' saves notice it
+    if (content?.guide && typeof content.guide === 'object') (update.content as { guide: { _rev?: number } }).guide = { ...(content.guide as object), _rev: (((was.guide as { _rev?: number }) || {})._rev || 0) + 1 };
   }
   // The two Figma links: brand assets, and guidelines. The guidelines link is also the project's main Figma file.
   const changed: Record<string, { otherFile: boolean; file?: string; page?: string }> = {};

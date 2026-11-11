@@ -24,6 +24,9 @@ import { TimedProgress } from '@/components/Progress';
 import { tierLabel, type Tier } from '@/lib/playbook';
 import { ChapterCover } from '@/components/portal/ChapterCover';
 import { coverKind } from '@/lib/portal/covers';
+import { HistoryPanel, PeerLayer, Roundels, useCollab, type Incoming, type Me } from '@/components/Collab';
+import { apply, compose, diff, isEmpty, type GuidePatch } from '@/lib/guidePatch';
+import { History } from 'lucide-react';
 
 export const KINDS: [BlockKind, string][] = [['divider', 'Subsection headline'], ['text', 'Text'], ['columns', 'Auto layout'], ['grid', 'Grid'], ['statement', 'Statement'], ['split', 'Text + image'], ['image', 'Full-width image'], ['media', 'Images'], ['carousel', 'Carousel'], ['swatches', 'Colour swatches'], ['spacer', 'Spacer']];
 export const BOXES: [BoxStyle, string][] = [['none', 'None'], ['corners', 'Corner marks'], ['outline', 'Outline'], ['fill', 'Fill']];
@@ -67,7 +70,7 @@ function Editable({ value, onSave, tag, className, placeholder, multiline, style
 // The studio's guidelines editor: the client's view, editable in place.
 const toolbarFonts = (fs: ProjectFont[]): ToolbarFont[] => fs.filter((f) => f.files.length).map((f) => ({ role: f.role, label: f.label, name: f.name, weights: [...new Set(f.files.map((x) => x.weight))].sort((a, b) => a - b) }));
 
-export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, fonts: initialFonts = [], tier, colours = [], logoUrl = null, home }: { home?: HomeData; projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; fonts?: ProjectFont[]; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
+export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, fontCss, fonts: initialFonts = [], tier, colours = [], logoUrl = null, home, me = null }: { me?: Me | null; home?: HomeData; projectId: string; slug: string; guide: Guide | null; content: Record<string, unknown>; thumbs: Record<string, string>; fontCss: string; fonts?: ProjectFont[]; tier?: Tier; colours?: { name: string; hex: string }[]; logoUrl?: string | null }) {
   // Typefaces: only those uploaded to the project. A new one uploaded from the toolbar is loaded straight away.
   const [fonts, setFonts] = useState(initialFonts);
   const [liveFontCss, setLiveFontCss] = useState('');
@@ -100,7 +103,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     return () => cancelAnimationFrame(t);
   }, [sel]);
   const fileInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { setGuide(initial); latest.current = initial; setUrls(thumbs); past.current = []; future.current = []; setHist(0); }, [initial, thumbs]);
+  useEffect(() => { const next = apply(initial, pending.current) || initial; setGuide(next); latest.current = next; setUrls((u) => ({ ...u, ...thumbs })); past.current = []; future.current = []; setHist(0); }, [initial, thumbs]);
 
   // Undo and redo: every change to the guidelines is a step. Quick repeats of the same control (typing a size,
   // stepping it up) count as one step. Inside a text field, ⌘Z undoes typing as usual.
@@ -123,6 +126,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const done = some ? (mode === 'fresh' ? `Replaced ${some} with what’s in Figma.` : mode === 'add' ? `Brought in ${some}; anything already here was left as it was.` : `Imported ${some} from Figma. Your edits were kept.`) + ' The other chapters weren’t touched.'
       : mode === 'add' ? (j.added?.chapters || j.added?.sections ? `Added ${n(j.added.chapters, 'new chapter')} and ${n(j.added.sections, 'new section')} from Figma. Everything else is as you left it.` : 'Nothing new in Figma. Everything is as you left it.')
       : mode === 'fresh' ? `Started over: ${n(j.chapters, 'chapter')} built fresh from Figma.` : `Updated ${n(j.chapters, 'chapter')} from Figma. Your edits were kept.`;
+    if (r.ok) collabRef.current?.reloadOthers();
     setMsg(r.ok ? done + gapText(j.gaps) : 'The rebuild didn’t finish: ' + (j.error || r.status) + (/token|can’t find/i.test(j.error || '') ? '' : ' Try again in a minute; Figma is sometimes busy.'));
     router.refresh();
   }
@@ -152,14 +156,56 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     }
     save(next);
   }
+  // Saving: only what you changed is sent, and it's applied to the latest saved guide, so two people editing at once
+  // never overwrite each other. Your changes also go straight to everyone else editing, live.
+  const pending = useRef<GuidePatch | null>(null);
+  const collabRef = useRef<ReturnType<typeof useCollab> | null>(null);
+  const inflight = useRef(false);
+  const urlsRef = useRef(urls); urlsRef.current = urls;
+  const urlsFor = (p: GuidePatch) => { const s = JSON.stringify(p); return Object.fromEntries(Object.entries(urlsRef.current).filter(([k]) => s.includes(k))); };
   function save(next: Guide) {
-    setGuide(next); latest.current = next; setMsg('Saving…');
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      const r = await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { guide: latest.current } }) });
-      setMsg(r.ok ? 'Saved · publish to show the client' : 'Couldn’t save. Check your connection.');
-    }, 600);
+    const patch = diff(latest.current, next);
+    setGuide(next); latest.current = next;
+    if (isEmpty(patch)) return;
+    pending.current = compose(pending.current, patch);
+    collabRef.current?.sendPatch(patch, urlsFor(patch));
+    setMsg('Saving…'); later(600);
   }
+  function later(ms: number) { if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(flush, ms); }
+  async function flush() {
+    if (inflight.current) { later(300); return; }
+    const p = pending.current; if (isEmpty(p)) return;
+    pending.current = null; inflight.current = true;
+    const r = await fetch(`/api/projects/${projectId}/guide/patch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patch: p }) }).catch(() => null);
+    inflight.current = false;
+    if (r?.ok) { setMsg(pending.current ? 'Saving…' : 'Saved · publish to show the client'); collabRef.current?.saved(); }
+    else { pending.current = compose(p, pending.current); setMsg(r && r.status === 403 ? 'You can view these guidelines but not change them.' : 'Couldn’t save yet. Trying again…'); if (!r || r.status >= 409) later(3000); }
+  }
+  // Someone else's change: applied under yours, so anything you haven't saved yet stays as you left it.
+  // Undo only ever undoes your own changes, so their change goes into your history too.
+  function onRemote(x: Incoming) {
+    if (x.urls && Object.keys(x.urls).length) setUrls((u) => ({ ...u, ...x.urls }));
+    const next = apply(apply(latest.current, x.patch), pending.current);
+    if (!next) return;
+    latest.current = next; setGuide(next);
+    past.current = past.current.map((g) => apply(g, x.patch) || g); future.current = future.current.map((g) => apply(g, x.patch) || g);
+  }
+  async function resync() {
+    const r = await fetch(`/api/projects/${projectId}/guide/patch`).catch(() => null);
+    const j = r?.ok ? await r.json().catch(() => null) : null;
+    if (!j?.guide) return;
+    const next = apply(j.guide, pending.current) || j.guide;
+    latest.current = next; setGuide(next); past.current = []; future.current = []; setHist((n) => n + 1);
+    router.refresh();
+  }
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => { if (!isEmpty(pending.current) || inflight.current) { e.preventDefault(); e.returnValue = ''; } };
+    const hide = () => { if (!isEmpty(pending.current) && !inflight.current) fetch(`/api/projects/${projectId}/guide/patch`, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patch: pending.current }) }).then((r) => { if (r.ok) pending.current = null; }).catch(() => {}); };
+    let away = 0;
+    const vis = () => { if (document.visibilityState === 'hidden') { away = Date.now(); hide(); } else if (away && Date.now() - away > 30_000) resync(); };
+    window.addEventListener('beforeunload', warn); window.addEventListener('pagehide', hide); document.addEventListener('visibilitychange', vis);
+    return () => { window.removeEventListener('beforeunload', warn); window.removeEventListener('pagehide', hide); document.removeEventListener('visibilitychange', vis); };
+  });
   function step(dir: 'undo' | 'redo') {
     // Finish any text being typed first, so it becomes its own step
     const a = document.activeElement as HTMLElement | null; if (a?.isContentEditable) a.blur();
@@ -321,6 +367,20 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     return true;
   };
   const ch = g?.chapters.find((c) => c.id === chId);
+  // Working together: who's here, where, their cursors, and their edits as they make them
+  const collab = useCollab({ projectId, me, ch: chId, sel, onPatch: onRemote, onReload: () => router.refresh(), onResync: resync });
+  collabRef.current = collab;
+  const [historyOpen, setHistoryOpen] = useState(false);
+  useEffect(() => {
+    const move = (e: MouseEvent) => { if ((e.target as HTMLElement).closest?.('.ve-main')) collab.moveCursor(e); };
+    const out = (e: MouseEvent) => { if (!(e.relatedTarget as HTMLElement | null)?.closest?.('.ve-main') && (e.target as HTMLElement).closest?.('.ve-main')) collab.moveCursor(null); };
+    document.addEventListener('mousemove', move); document.addEventListener('mouseout', out);
+    return () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseout', out); };
+  }, [collab.moveCursor]);
+  function goTo(p: { ch?: string; sel?: Sel | null }) {
+    if (p.ch) { setChId(p.ch); setSel(null); }
+    setTimeout(() => { const n = p.sel ? document.querySelector(`.ve-blocks [data-block="${p.sel.block}"]`) : null; n?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 120);
+  }
   const setChapters = (chapters: GuideChapter[], key?: string) => g && commit({ ...g, chapters }, key);
   const setCh = (patch: Partial<GuideChapter>, key?: string) => g && setChapters(g.chapters.map((c) => (c.id === chId ? { ...c, ...patch } : c)), key);
   const setBlocks = (blocks: Block[], key?: string) => setCh({ blocks }, key);
@@ -856,7 +916,14 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         <span className="ve-tier">{tier ? `${tierLabel(tier)} tier` : 'No tier set'}{nDraft || nMissing ? ` · ${[nDraft ? `${nDraft} draft${nDraft === 1 ? '' : 's'} to check` : '', nMissing ? `${nMissing} missing` : ''].filter(Boolean).join(' · ')}` : ''}</span>
         {tier ? <button className="btn ic" disabled={busy} onClick={checkGaps}><ScanSearch size={15} strokeWidth={1.75} aria-hidden />Check for gaps</button> : <a className="btn" href="?tab=overview">Set a tier</a>}
         <span className="mute" role="status">{msg}</span>
+        <div className="ve-who">
+          <button type="button" className="btn ic" onClick={() => setHistoryOpen(!historyOpen)} aria-pressed={historyOpen}><History size={15} strokeWidth={1.75} aria-hidden />History</button>
+          <span className={'ve-live ' + collab.status} data-tip={collab.status === 'live' ? 'Live: you see everyone’s edits as they happen' : collab.status === 'off' ? 'Not live right now. Your edits still save, and you’ll catch up when it reconnects.' : 'Connecting…'} />
+          <Roundels me={me} peers={collab.peers} chapters={g.chapters} go={goTo} />
+        </div>
       </div>
+      <PeerLayer peers={collab.peers} cursors={collab.cursors} ch={chId} />
+      {historyOpen ? <HistoryPanel projectId={projectId} onClose={() => setHistoryOpen(false)} onRestored={(gd) => { const next = gd as Guide; pending.current = null; latest.current = next; setGuide(next); past.current = []; future.current = []; setHist((n) => n + 1); setMsg('Restored. Everyone editing now sees this version.'); collab.reloadOthers(); router.refresh(); }} /> : null}
       {(g.version || 1) < 2 ? <div className="card" role="status" style={{ borderColor: '#000' }}><p style={{ margin: 0 }}>These guidelines were built with an older version, so some pages may still show slide images.</p><p className="mute" style={{ margin: '4px 0 8px' }}>Rebuild to get live text, colour swatches you can click to copy, and subsections. Your edits are kept.</p><button className="btn solid" disabled={busy} onClick={() => setRebuildOpen(true)}>Rebuild now</button></div> : null}
       <TimedProgress label="Reading Figma and rebuilding every slide" expected={Math.max(45, g.chapters.reduce((n, c) => n + c.blocks.length, 0) * 2)} running={busy} />
 
@@ -867,7 +934,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           {g.chapters.filter((c) => !c.removed).map((c, i) => <div key={c.id} draggable onDragStart={() => setDrag({ kind: 'chapter', id: c.id })} onDragOver={(e) => { if (drag?.kind === 'chapter') { e.preventDefault(); setOver(c.id); } }} onDrop={() => { if (drag?.kind === 'chapter') moveChapter(drag.id, c.id); setDrag(null); setOver(null); }} onDragEnd={() => { setDrag(null); setOver(null); }}
             className={'ve-ch' + (c.id === chId ? ' on' : '') + (c.hidden ? ' off' : '') + (over === c.id && drag?.kind === 'chapter' ? ' over' : '')}>
             <span className="ve-grip" aria-hidden><GripVertical size={14} strokeWidth={1.75} /></span>
-            <button onClick={() => { setChId(c.id); setSel(null); }}><span className="pt-n">{String(i + 1).padStart(2, '0')}</span><span className="ve-ch-t" title={c.title}>{c.title}</span>{chDrafts(c) ? <span className="ve-dcount" title="Drafts and missing items to check">{chDrafts(c)}</span> : null}</button>
+            <button onClick={() => { setChId(c.id); setSel(null); }}><span className="pt-n">{String(i + 1).padStart(2, '0')}</span><span className="ve-ch-t" title={c.title}>{c.title}</span>{[...new Map(collab.peers.filter((p) => p.ch === c.id && p.id !== me?.id).map((p) => [p.id, p])).values()].map((p) => <span key={p.id} className="ve-ch-who" style={{ background: p.color }} title={`${p.name} is here`} />)}{chDrafts(c) ? <span className="ve-dcount" title="Drafts and missing items to check">{chDrafts(c)}</span> : null}</button>
             <button className={'ve-eye' + (c.hidden ? ' on' : '')} onClick={() => setChapters(g.chapters.map((x) => (x.id === c.id ? { ...x, hidden: !x.hidden } : x)))} aria-label={c.hidden ? `Show ${c.title} to the client` : `Hide ${c.title} from the client`} data-tip={c.hidden ? 'Hidden. Show it' : 'Hide from the client'}>{c.hidden ? <EyeOff size={14} strokeWidth={1.75} aria-hidden /> : <Eye size={14} strokeWidth={1.75} aria-hidden />}</button>
             <button className="ve-eye ve-del" onClick={() => deleteChapter(c)} aria-label={`Delete ${c.title}`} data-tip="Delete chapter"><Trash2 size={14} strokeWidth={1.75} aria-hidden /></button>
           </div>).flatMap((row, i) => { const c = g.chapters.filter((x) => !x.removed)[i];
