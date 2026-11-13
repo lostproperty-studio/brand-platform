@@ -40,6 +40,7 @@ import { defaultIntro } from '@/lib/portal/home';
 import { readShowcase, showcasePaths } from '@/lib/showcase';
 import { packageSettings, resolvePackages } from '@/lib/portal/packages';
 import { PdfStudio } from '@/components/PdfStudio';
+import { hasShowcase } from '@/lib/showcase';
 import { GithubPanel } from '@/components/GithubPanel';
 import { systemCss, systemFor } from '@/lib/guideSystem';
 import { roles as dsRoles } from '@/lib/designSystem';
@@ -136,7 +137,30 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       sources: (() => { const s = readSources(p.content, p as { figma_key?: string | null }); const row = (x?: Source) => (x ? { url: x.url, file: x.file || (x === s.guidelines ? shot.figma?.name : undefined), pageName: x.pageName, importedAt: x.importedAt } : null); return { assets: row(s.assets), guidelines: row(s.guidelines), report: ((p.content as { assetsReport?: AssetsReport } | null)?.assetsReport) || null }; })(),
       repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null, aiRejected: !!(p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt,
       chapters: guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length : 0,
-      checks
+      checks,
+      delivery: {
+        projectId: id, slug: p.slug, client: p.client, portalUrl: await portalUrl(p.slug), status: p.status as 'draft' | 'live' | 'archived',
+        published: ver ? { at: ver.created_at, version: ver.version } : null,
+        changedSince: !!ver && !!editAt && new Date(editAt) > new Date(ver.created_at),
+        checks, people: members.length,
+        gets: await (async () => {
+          // What the client will find, in a line each, so nothing's a surprise after the email goes
+          const chapters = guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && c.blocks.some((b) => !b.draft)).length : 0;
+          const [{ count: apps }, { count: logos }] = await Promise.all([
+            sb.from('tools').select('id', { count: 'exact', head: true }).eq('project_id', id).eq('visible', true),
+            sb.from('deliverable_files').select('id, deliverable_parts!inner(project_id)', { count: 'exact', head: true }).eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%')
+          ]);
+          const v = readVoice(content);
+          return [
+            { ok: chapters > 0, text: chapters ? `Guidelines: ${chapters} chapter${chapters === 1 ? '' : 's'}` : 'No guidelines yet' },
+            { ok: (logos || 0) > 0, text: logos ? `Downloads: ${logos} logo files, colours, fonts${fonts.some((f) => fontsNeedingLicence([f]).length) ? ' (once licensed)' : ''} and the rest of Resources` : 'Downloads: no logo files yet; build the kit' },
+            { ok: hasShowcase(readShowcase(content)), text: hasShowcase(readShowcase(content)) ? 'Showcase: the brand at work' : 'No showcase (the page is hidden until it has pictures)' },
+            { ok: !!v.writer && voiceReady(v), text: v.writer && voiceReady(v) ? 'Writer: copy in the brand voice' : 'Writer is off' },
+            { ok: (apps || 0) > 0, text: apps ? `${apps} app${apps === 1 ? '' : 's'} in Resources` : 'No apps' },
+            { ok: !!p.ai_key_hint, text: p.ai_key_hint ? 'AI (Ask, Writer and apps): connected with their key' : 'AI needs the client’s own key: their admin adds it after joining, until then Ask and the Writer are off' }
+          ];
+        })()
+      }
     };
     body = <div className="ov-wrap">
       <Overview d={data} created={!!sp.created} skipped={!!sp.skipped} />

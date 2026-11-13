@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { cookies } from 'next/headers';
 import { signMany, signOne } from '@/lib/storage/signed';
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
@@ -17,7 +18,9 @@ export const portalContext = cache(async (slug: string) => {
   if (!p) return null;
   const acc = await requireProjectAccess(p.id);
   if (acc instanceof Response) return null;
-  const preview = acc.staff;
+  // Studio staff can switch to seeing it exactly as a client does: the published version, with clients' rules
+  const asClient = acc.staff && (await cookies()).get('lp-as-client')?.value === p.slug;
+  const preview = acc.staff && !asClient;
   const snap: Snapshot | null = preview ? await buildSnapshot(p.id) : await publishedSnapshot(p.id);
   const { fonts } = await readFonts(p.id);
   const fontCss = fontFaceCss(fonts, await signFontUrls(fonts, 6 * 3600));
@@ -35,7 +38,7 @@ export const portalContext = cache(async (slug: string) => {
   const fullUrl = (await sign(byPath(pickd.full))) || logoUrl;
   let miniUrl = await sign(byPath(pickd.mini));
   if (!miniUrl) miniUrl = await avatarUrl(files, p.client, snap?.colours || []).catch(() => null);
-  return { project: p, access: acc, preview, snap, fonts: fonts as ProjectFont[], fontCss, files, logoUrl, sidebar: { full: fullUrl, mini: miniUrl } };
+  return { project: p, access: acc, preview, asClient, snap, fonts: fonts as ProjectFont[], fontCss, files, logoUrl, sidebar: { full: fullUrl, mini: miniUrl } };
 });
 
 export type PortalCtx = NonNullable<Awaited<ReturnType<typeof portalContext>>>;

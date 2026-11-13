@@ -32,7 +32,6 @@ export function ProjectActions({ id, status, hasRepo }: { id: string; status: st
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div className="row">
         <button className="btn solid" onClick={() => run('Building the kit…', `/api/projects/${id}/kit`)}>{hasRepo ? 'Rebuild kit' : 'Build kit'}</button>
-        <button className="btn" onClick={() => publish()}>{status === 'live' ? 'Publish changes' : 'Publish to client'}</button>
         <button className="btn" onClick={() => run('Saving…', `/api/projects/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: status === 'archived' ? 'draft' : 'archived' }) })}>{status === 'archived' ? 'Restore project' : 'Archive project'}</button>
         <span className="mute" role="status">{msg}</span>
       </div>
