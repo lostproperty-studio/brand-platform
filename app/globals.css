@@ -3224,3 +3224,18 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .gi-btn.on { box-shadow: 0 0 0 2px var(--sel); }
 .dp-in { width: 100%; box-sizing: border-box; height: 30px; border: 0; border-radius: 8px; background: var(--fill); padding: 0 8px; font: inherit; }
 .dp-tip.warn { color: #a5640a; }
+
+.rm2-addwrap { position: relative; display: flex; }
+.rm2-addwrap > .rm2-add { flex: 1; }
+.rm2-menu { position: absolute; z-index: 5; top: 8px; left: 8px; right: -40px; min-width: 260px; display: flex; flex-direction: column; padding: 6px; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 12px 32px rgba(0,0,0,.14); }
+.rm2-menu button { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+.rm2-menu button:hover, .rm2-menu button:focus-visible { background: var(--fill); }
+.rm2-menu b { font-weight: 500; }
+.rm2-menu span { color: var(--mute); font-size: 12px; }
+
+.tl-pv { display: grid; place-items: center; background: #f4f4f2; }
+.tl-pv-ic { width: 72px; height: 72px; border-radius: 20px; background: #fff; display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 20px rgba(0,0,0,.06); }
+.rm2-pane-pv .tl-pv-ic { width: 96px; height: 96px; border-radius: 26px; }
+.rm2-help { font-size: 13px; max-width: 80ch; }
+.rm2-help summary { cursor: pointer; color: var(--mute); }
+.rm2-help p { margin: 8px 0 0; }

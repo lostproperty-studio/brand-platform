@@ -14,6 +14,10 @@ const ago = (iso?: string) => {
   if (!iso) return ''; const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
 };
+/** In every portal */
+const ALWAYS = ['logos', 'colours', 'fonts'];
+/** Added when the brand has them */
+const OPTIONAL = ['avatars', 'icons', 'images', 'graphics'];
 const FOLDERS = ['logos', 'icons', 'images', 'graphics', 'avatars', 'custom', 'fonts'];
 /** What each kind of package fills from, in a line */
 const SOURCE: Record<string, string> = {
@@ -37,6 +41,7 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
   const [stamps, setStamps] = useState<Record<string, Stamp>>(() => ({ ...ai, ...Object.fromEntries(packages.map((p) => [p.id, { refreshedAt: p.refreshedAt, refreshedRev: p.refreshedRev }])) }));
   const [report, setReport] = useState<(RefreshReport & { pkg: string; last?: string; at: string }) | null>(null);
   const [adding, setAdding] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [newTitle, setNewTitle] = useState(''), [newPurpose, setNewPurpose] = useState('');
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(null); setReport(null); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
 
@@ -72,7 +77,7 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
 
   /** Caught up with the guidelines? */
   const fresh = (id: string) => { const st = stamps[id]; return !st?.refreshedAt ? 'never' : (st.refreshedRev ?? 0) < guideRev ? 'behind' : 'ok'; };
-  const status = (p: Package) => !p.enabled ? { t: 'Switched off', c: 'off' } : p.hidden ? { t: 'Hidden', c: 'off' } : p.empty ? { t: 'Empty, so not shown', c: 'off' } : !p.ready ? { t: 'Waiting on the kit', c: 'warn' } : { t: 'Shown to the client', c: 'live' };
+  const status = (p: Package) => !p.enabled ? { t: 'Not added', c: 'off' } : p.hidden ? { t: 'Hidden', c: 'off' } : p.empty ? { t: 'Empty, so not shown', c: 'off' } : !p.ready ? { t: 'Waiting on the kit', c: 'warn' } : { t: 'Shown to the client', c: 'live' };
   const freshLine = (id: string) => { const f = fresh(id); return <span className={'rm2-fresh ' + f}>{busy === id ? 'Refreshing…' : f === 'never' ? 'Not refreshed yet' : f === 'behind' ? 'Guidelines changed since the last refresh' : `Up to date · ${ago(stamps[id]?.refreshedAt)}`}</span>; };
   const refreshBtn = (id: string, label = 'Refresh') => <button type="button" className="rm2-ic" onClick={(e) => { e.stopPropagation(); refresh(id); }} disabled={!!busy} aria-label={`${label}: bring it up to date with the guidelines`} data-tip="Refresh from the guidelines">{busy === id ? <Loader2 {...I} className="spin" /> : <RotateCw {...I} />}</button>;
 
@@ -100,6 +105,7 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
   );
 
   const cur = packages.find((p) => p.id === open);
+  const isOn = (p: Package) => ALWAYS.includes(p.kind) || (p.custom ? true : p.drafted ? p.enabled : OPTIONAL.includes(p.kind) ? !p.hidden : false);
   const group = (title: string, blurb: string, list: Package[], extra?: React.ReactNode) => list.length || extra ? <section className="rm2-sec">
     <div className="rm2-sec-h"><h2>{title}</h2><p className="mute">{blurb}</p></div>
     <div className="rm2-grid">{list.map(card)}{extra}</div>
@@ -113,7 +119,23 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
       </div>
       {msg ? <p className="rm2-msg" role="status">{msg}<button type="button" onClick={() => setMsg('')} aria-label="Dismiss"><X {...I} /></button></p> : null}
 
-      {group('Brand assets', 'In every portal. They fill from Figma, the kit and the guidelines.', packages.filter((p) => p.core))}
+      <section className="rm2-sec">
+        <div className="rm2-sec-h"><h2>Brand assets</h2><p className="mute">Logo, colour and type are in every portal. Add the others when the brand has them; remove any it doesn’t need.</p></div>
+        <div className="rm2-grid">
+          {packages.filter(isOn).map(card)}
+          {adding ? <form className="rm2-card rm2-new" onSubmit={(e) => { e.preventDefault(); if (!newTitle.trim()) return; act({ action: 'custom', title: newTitle.trim(), purpose: newPurpose.trim() }, 'Package added. Open it to upload its files.'); setNewTitle(''); setNewPurpose(''); setAdding(false); }}>
+            <input className="in" autoFocus placeholder="Name, e.g. Textures" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} aria-label="Package name" />
+            <input className="in" placeholder="What it’s for" value={newPurpose} onChange={(e) => setNewPurpose(e.target.value)} aria-label="What it’s for" />
+            <div className="row"><button className="btn solid" disabled={!newTitle.trim()}>Add</button><button type="button" className="btn" onClick={() => setAdding(false)}>Cancel</button></div>
+          </form> : <div className="rm2-addwrap">
+            <button type="button" className="rm2-card rm2-add" onClick={() => setPicking(!picking)} aria-expanded={picking}><Plus size={18} strokeWidth={1.75} aria-hidden />Add a package</button>
+            {picking ? <div className="rm2-menu" role="menu">
+              {packages.filter((p) => OPTIONAL.includes(p.kind) && !isOn(p)).map((p) => <button key={p.id} type="button" role="menuitem" onClick={() => { setPicking(false); act(p.drafted ? { action: 'patch', pkg: p.id, enabled: true } : { action: 'patch', pkg: p.id, hidden: false }, `${p.title} added. Open it to add its files.`); }}><b>{p.title}</b><span>{p.purpose}</span></button>)}
+              <button type="button" role="menuitem" onClick={() => { setPicking(false); setAdding(true); }}><b>Something else</b><span>A package of your own, e.g. textures or motion files</span></button>
+            </div> : null}
+          </div>}
+        </div>
+      </section>
       <section className="rm2-sec">
         <div className="rm2-sec-h"><h2>For AI</h2><p className="mute">The brand for Claude. Refresh after the guidelines change so it’s read them again.</p></div>
         <div className="rm2-grid">
@@ -121,12 +143,6 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
           {aiCard('skills', 'Claude skills', 'Written from the published guidelines', `/p/${slug}/resources#ai`)}
         </div>
       </section>
-      {group('Brand elements', 'Spaces for brands that have them. Upload to one to switch it on.', packages.filter((p) => p.drafted || p.custom),
-        adding ? <form className="rm2-card rm2-new" onSubmit={(e) => { e.preventDefault(); if (!newTitle.trim()) return; act({ action: 'custom', title: newTitle.trim(), purpose: newPurpose.trim() }, 'Package added. Open it to upload its files.'); setNewTitle(''); setNewPurpose(''); setAdding(false); }}>
-          <input className="in" autoFocus placeholder="Name, e.g. Textures" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} aria-label="Package name" />
-          <input className="in" placeholder="What it’s for" value={newPurpose} onChange={(e) => setNewPurpose(e.target.value)} aria-label="What it’s for" />
-          <div className="row"><button className="btn solid" disabled={!newTitle.trim()}>Add</button><button type="button" className="btn" onClick={() => setAdding(false)}>Cancel</button></div>
-        </form> : <button type="button" className="rm2-card rm2-add" onClick={() => setAdding(true)}><Plus size={18} strokeWidth={1.75} aria-hidden />New package</button>)}
       {group('For developers', 'Built from the kit and the guidelines.', packages.filter((p) => ['tokens', 'guidelines', 'templates'].includes(p.kind)))}
 
       {report ? <div className="rm2-back rm2-center" onMouseDown={(e) => { if (e.target === e.currentTarget) setReport(null); }}>
@@ -151,7 +167,7 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
             <div className="rm2-pane-pv"><PackagePreview p={cur} colours={colours} logoUrl={logoUrl} /></div>
             <div className="rm2-row">
               <span className={'rm2-dot ' + status(cur).c} aria-hidden /><span>{status(cur).t}</span><span style={{ flex: 1 }} />
-              {cur.drafted ? <button className="btn" onClick={() => act({ action: 'patch', pkg: cur.id, enabled: !cur.enabled })}>{cur.enabled ? 'Switch off' : 'Switch on'}</button>
+              {OPTIONAL.includes(cur.kind) ? <button className="btn" onClick={() => { act(cur.drafted ? { action: 'patch', pkg: cur.id, enabled: false } : { action: 'patch', pkg: cur.id, hidden: true }, `${cur.title} removed from the portal. Its files are kept; add it again any time.`); setOpen(null); }}><Trash2 {...I} />Remove from the portal</button>
                 : <button className="btn" onClick={() => act({ action: 'patch', pkg: cur.id, hidden: !cur.hidden })}>{cur.hidden ? <><Eye {...I} />Show to the client</> : <><EyeOff {...I} />Hide from the client</>}</button>}
             </div>
             <label className="rm2-f"><span>Name</span><input className="in" defaultValue={cur.title} key={cur.id + 't'} onBlur={(e) => e.target.value.trim() && e.target.value !== cur.title && act({ action: 'patch', pkg: cur.id, title: e.target.value.trim() })} /></label>

@@ -175,22 +175,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
     const logo = pickLogo(files).main;
     const logoUrl = logo ? (await sb.storage.from('kits').createSignedUrl(logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
-    const { data: dparts } = await sb.from('deliverable_parts').select('id, title, contains, format, status, deliverable_files(path)').eq('project_id', id).order('ord');
     body = <div className="rs-studio">
-      <nav className="rs-studio-nav" aria-label="Resources"><a href="#design-system">Design system</a><a href="#apps">Apps and tools</a><a href="#downloads">Downloads</a><a href="#deliverables">Deliverables</a></nav>
+      <nav className="rs-studio-nav" aria-label="Resources"><a href="#design-system">Design system</a><a href="#apps">Apps and tools</a><a href="#downloads">Downloads</a></nav>
       <section id="design-system" className="rs-studio-sec"><h2 className="rs-studio-h">Design system</h2><DesignProfile projectId={id} slug={p.slug} initial={readProfile(p.content)} chapters={(normaliseGuide((p.content as { guide?: Guide } | null)?.guide)?.chapters || []).filter((c) => !c.removed).length} /></section>
       <section id="apps" className="rs-studio-sec"><h2 className="rs-studio-h">Apps and tools</h2><ToolManager projectId={id} slug={p.slug} /></section>
       <section id="downloads" className="rs-studio-sec"><h2 className="rs-studio-h">Downloads</h2><ResourceManager projectId={id} slug={p.slug} client={p.client} roles={dsRoles(snap?.colours || [])} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} guideRev={((p.content as { guide?: { _rev?: number } } | null)?.guide?._rev) || 0} ai={{ 'design-system': packageSettings(p.content)['design-system'] || {}, skills: packageSettings(p.content).skills || {} }} /></section>
-      <section id="deliverables" className="rs-studio-sec"><h2 className="rs-studio-h">Deliverables</h2><p className="mute" style={{ marginTop: -4 }}>What the kit contains, and where each part is up to.</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 900 }}>
-          {(dparts || []).map((d) => <div key={d.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <p style={{ margin: 0 }}>{d.title} <span className="mute">· {d.format}</span></p>
-            <p className="mute" style={{ margin: 0 }}>{d.contains} · {(d.deliverable_files || []).length} files</p>
-            <form action={setPartStatus} className="row"><input type="hidden" name="part" value={d.id} />{Object.entries(STATUS).map(([k, label]) => <button key={k} name="status" value={k} className={'btn' + (d.status === k ? ' solid' : '')}>{label}</button>)}</form>
-          </div>)}
-          {!dparts?.length ? <p className="mute">Build the kit to create the deliverables.</p> : null}
-        </div>
-      </section>
     </div>;
   }
   if (tab === 'client') {
