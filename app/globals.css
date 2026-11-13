@@ -3195,3 +3195,18 @@ html.pc-mode .pc-ui button { cursor: pointer; }
 .pdf-ed:hover { box-shadow: 0 0 0 3px rgba(214, 75, 201, .5); }
 .pdf-ed:focus { box-shadow: 0 0 0 4px #D64BC9; }
 .pdf-print { position: fixed; left: -100000px; top: 0; }
+
+.rm2-center { justify-content: center; align-items: center; padding: 16px; }
+.rm2-rep { width: min(620px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: #fff; border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.2); display: flex; flex-direction: column; gap: 16px; padding: 20px 20px 0; }
+.rm2-rep-h { display: flex; align-items: flex-start; gap: 12px; }
+.rm2-rep-h > div { flex: 1; }
+.rm2-rep-h h2 { margin: 0; font-size: 18px; font-weight: 500; }
+.rm2-rep-h p { margin: 2px 0 0; font-size: 12px; }
+.rm2-rep-ok { width: 32px; height: 32px; border-radius: 50%; background: #e7f5ea; color: #1e6b34; display: grid; place-items: center; flex: none; }
+.rm2-rep-sum { margin: 0; font-size: 14px; line-height: 1.5; }
+.rm2-rep section { display: flex; flex-direction: column; gap: 8px; }
+.rm2-rep h3 { margin: 0; font-size: 13px; font-weight: 500; }
+.rm2-rep-ch { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+.rm2-rep-md { margin: 0; max-height: 240px; overflow: auto; padding: 12px; border-radius: 10px; background: #f6f6f4; font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+.rm2-rep-files { max-height: 220px; overflow: auto; }
+.rm2-rep .rm2-pane-f { position: sticky; bottom: 0; background: #fff; margin: 0 -20px; }

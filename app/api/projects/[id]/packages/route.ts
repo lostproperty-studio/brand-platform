@@ -6,6 +6,12 @@ import { packageSettings, type PackageMap } from '@/lib/portal/packages';
 import { readSources } from '@/lib/figma/sources';
 import { buildGuide } from '@/lib/portal/guide';
 import { readDesignProfile } from '@/lib/designProfile';
+import type { Profile } from '@/lib/designProfileInfo';
+import { portalContext } from '@/lib/portal/context';
+import { designSystemContents, fileChanges, packageContents, profileChanges, type RefreshReport } from '@/lib/portal/packageReport';
+
+/** An error in words, not an API's raw reply */
+const friendly = (e: unknown) => { const m = e instanceof Error ? e.message : String(e); return /^\d{3} \{/.test(m) || /invalid_request|rate_limit|overloaded/i.test(m) ? 'The AI couldn’t read the guidelines just now. Try again in a minute.' : m || 'The refresh didn’t finish. Try again.'; };
 
 export const maxDuration = 300;
 /** Packages whose files come from the Figma assets page */
@@ -53,16 +59,32 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ path, signedUrl: data.signedUrl });
   }
 
-  // Refresh: bring a package up to date with the guidelines as they are now, then note when
+  // Refresh: bring a package up to date with the guidelines as they are now, then report what changed and what's in it
   if (d.action === 'refresh') {
-    const { data: p0 } = await sb.from('projects').select('content, figma_key, figma_page_id').eq('id', id).single();
+    const { data: p0 } = await sb.from('projects').select('slug, content, figma_key, figma_page_id').eq('id', id).single();
     const src = readSources(p0?.content, p0 || undefined);
-    let did = '';
+    const c0 = (p0?.content || {}) as Record<string, unknown>;
+    const last = packageSettings(c0)[d.pkg]?.refreshedAt;
+    let report: RefreshReport;
     try {
-      if (d.pkg === 'design-system') { await readDesignProfile(id); did = 'Read the guidelines again and updated the design system.'; }
-      else if (FROM_FIGMA.includes(d.pkg) && src.assets) { await buildGuide(id, 'update', { part: 'assets' }); did = 'Re-imported from the Figma assets page.'; }
-      else did = REBUILT[d.pkg] || 'Checked against the guidelines.';
-    } catch (e) { return NextResponse.json({ error: (e as Error).message || 'The refresh didn’t finish. Try again.' }, { status: 500 }); }
+      if (d.pkg === 'design-system') {
+        const before = c0.dsProfile as Profile | undefined;
+        const after = await readDesignProfile(id);
+        const pc = p0?.slug ? await portalContext(p0.slug) : null;
+        const cont = pc ? await designSystemContents(pc) : { entries: [], designMd: '' };
+        const changes = profileChanges(before, after);
+        report = { title: 'Design system', summary: `Read ${after.chapters.length} chapter${after.chapters.length === 1 ? '' : 's'}${after.frames ? ` and ${after.frames} guideline pages` : ''} again. ${changes.length ? `${changes.length} setting${changes.length === 1 ? '' : 's'} changed${last ? ' since the last refresh' : ''}.` : 'The guidelines say the same as last time, so nothing needed to change.'}`, changes, contents: cont.entries, designMd: cont.designMd };
+      } else if (d.pkg === 'skills') {
+        report = { title: 'Claude skills', summary: REBUILT.skills, changes: [], contents: [] };
+      } else {
+        const before = await packageContents(id, d.pkg);
+        let did = REBUILT[d.pkg] || 'Checked against the guidelines.';
+        if (FROM_FIGMA.includes(d.pkg) && src.assets) { await buildGuide(id, 'update', { part: 'assets' }); did = 'Re-imported from the Figma assets page.'; }
+        const after = await packageContents(id, d.pkg);
+        const changes = fileChanges(before?.entries || [], after?.entries || []);
+        report = { title: after?.title || d.pkg, summary: `${did} ${changes.length ? '' : FROM_FIGMA.includes(d.pkg) && src.assets ? 'Nothing had changed in Figma.' : ''}`.trim(), changes, contents: after?.entries || [], previews: after?.previews };
+      }
+    } catch (e) { return NextResponse.json({ error: friendly(e) }, { status: 500 }); }
     // Read again: an import may have changed the packages
     const { data: p1 } = await sb.from('projects').select('content').eq('id', id).single();
     const c1 = (p1?.content || {}) as Record<string, unknown>;
@@ -70,7 +92,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const rev = ((c1.guide as { _rev?: number } | undefined)?._rev) || 0;
     all[d.pkg] = { ...(all[d.pkg] || {}), refreshedAt: new Date().toISOString(), refreshedRev: rev };
     await sb.from('projects').update({ content: { ...c1, packages: all } }).eq('id', id);
-    return NextResponse.json({ ok: true, did, refreshedAt: all[d.pkg].refreshedAt });
+    return NextResponse.json({ ok: true, did: report.summary, report: { ...report, last }, refreshedAt: all[d.pkg].refreshedAt });
   }
 
   const { data: p } = await sb.from('projects').select('content').eq('id', id).single();

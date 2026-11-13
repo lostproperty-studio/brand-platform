@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Download, Eye, EyeOff, FolderUp, ImagePlus, Loader2, Plus, RotateCw, Trash2, Upload, X } from 'lucide-react';
 import type { Package } from '@/lib/portal/packages';
+import type { RefreshReport } from '@/lib/portal/packageReport';
 import { PackagePreview, SystemPreview } from '@/components/portal/ResourceVisuals';
 
 type Colour = { name: string; hex: string; role?: string };
@@ -34,9 +35,10 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [stamps, setStamps] = useState<Record<string, Stamp>>(() => ({ ...ai, ...Object.fromEntries(packages.map((p) => [p.id, { refreshedAt: p.refreshedAt, refreshedRev: p.refreshedRev }])) }));
+  const [report, setReport] = useState<(RefreshReport & { pkg: string; last?: string; at: string }) | null>(null);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState(''), [newPurpose, setNewPurpose] = useState('');
-  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(null); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(null); setReport(null); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
 
   const call = async (body: Record<string, unknown>) => {
     const r = await fetch(`/api/projects/${projectId}/packages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -62,10 +64,10 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
     } catch (e) { setMsg((e as Error).message); }
   }
   async function refresh(pkg: string) {
-    setBusy(pkg); setMsg('');
-    try { const j = await call({ action: 'refresh', pkg }); setStamps((s) => ({ ...s, [pkg]: { refreshedAt: j.refreshedAt, refreshedRev: guideRev } })); setMsg(j.did || 'Refreshed.'); router.refresh(); }
+    setBusy(pkg); setMsg(pkg === 'design-system' ? 'Reading the guidelines again. This takes a minute or so…' : 'Refreshing…');
+    try { const j = await call({ action: 'refresh', pkg }); setStamps((s) => ({ ...s, [pkg]: { refreshedAt: j.refreshedAt, refreshedRev: guideRev } })); if (j.report) setReport({ ...j.report, pkg, at: j.refreshedAt }); else setMsg(j.did || 'Refreshed.'); router.refresh(); }
     catch (e) { setMsg((e as Error).message); }
-    setBusy(null);
+    setBusy(null); setMsg((m) => (/^Reading the guidelines|^Refreshing/.test(m) ? '' : m));
   }
 
   /** Caught up with the guidelines? */
@@ -127,6 +129,21 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
         </form> : <button type="button" className="rm2-card rm2-add" onClick={() => setAdding(true)}><Plus size={18} strokeWidth={1.75} aria-hidden />New package</button>)}
       {group('For developers', 'Built from the kit and the guidelines.', packages.filter((p) => ['tokens', 'guidelines', 'templates'].includes(p.kind)))}
 
+      {report ? <div className="rm2-back rm2-center" onMouseDown={(e) => { if (e.target === e.currentTarget) setReport(null); }}>
+        <div className="rm2-rep" role="dialog" aria-modal="true" aria-labelledby="rep-t">
+          <div className="rm2-rep-h"><span className="rm2-rep-ok"><Check size={16} strokeWidth={2.5} aria-hidden /></span><div><h2 id="rep-t">{report.title} is up to date</h2><p className="mute">Refreshed {new Date(report.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}{report.last ? ` · last time ${ago(report.last)}` : ' · first refresh'}</p></div><button type="button" className="rm2-ic" onClick={() => setReport(null)} aria-label="Close"><X {...I} /></button></div>
+          <p className="rm2-rep-sum">{report.summary}</p>
+          <section><h3>{report.last ? 'What’s changed since last time' : 'What it did'}</h3>
+            {report.changes.length ? <ul className="rm2-rep-ch">{report.changes.map((c, i) => <li key={i}>{c}</li>)}</ul> : <p className="mute">Nothing changed. What the client gets is the same as before.</p>}
+          </section>
+          {report.previews?.length ? <div className="rm2-thumbs">{report.previews.map((u) => <img key={u} src={u} alt="" />)}</div> : null}
+          {report.designMd ? <section><h3>Preview: what Claude reads</h3><pre className="rm2-rep-md">{report.designMd}</pre></section> : null}
+          {report.contents.length ? <section><h3>In the package <span className="mute">· {report.contents.length} file{report.contents.length === 1 ? '' : 's'}</span></h3>
+            <ul className="rm2-list rm2-rep-files">{report.contents.slice(0, 60).map((f) => <li key={f.name}><span>{f.name}</span><span className="mute">{f.from}{f.bytes ? ` · ${size(f.bytes)}` : ''}</span></li>)}{report.contents.length > 60 ? <li className="mute">and {report.contents.length - 60} more</li> : null}</ul>
+          </section> : null}
+          <div className="rm2-pane-f"><span style={{ flex: 1 }} /><button className="btn" onClick={() => setReport(null)}>Close</button><a className="btn solid" href={report.pkg === 'design-system' ? `/api/p/${slug}/design-system` : report.pkg === 'skills' ? `/p/${slug}/resources#ai` : `/api/p/${slug}/package/${report.pkg}`} download><Download {...I} />Download as the client gets it</a></div>
+        </div>
+      </div> : null}
       {cur ? <div className="rm2-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(null); }}>
         <aside className="rm2-pane" role="dialog" aria-modal="true" aria-label={cur.title}>
           <div className="rm2-pane-h"><strong>{cur.title}</strong><button type="button" className="rm2-ic" onClick={() => setOpen(null)} aria-label="Close"><X {...I} /></button></div>

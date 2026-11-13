@@ -11,6 +11,7 @@ import { readSources } from '@/lib/figma/sources';
 // judgement call when the guidelines don't say. The studio can correct a setting, lock it (a re-read keeps it) or
 // switch it off (the system's default is used). Nothing here is strategy or copy: only visual rules.
 
+import { callTool } from '@/lib/ai/tool';
 import { SETTING_INFO, type Profile, type Setting, type SettingKey, type Source } from '@/lib/designProfileInfo';
 export { SETTING_INFO, type Profile, type Setting, type SettingKey, type Source };
 
@@ -134,14 +135,14 @@ ${VALUE_RULES}
 ${images.length ? `\nThe ${images.length} pictures that follow are guideline pages, each labelled with its chapter.` : ''}`;
   const blocks: unknown[] = [{ type: 'text', text: user }];
   for (const im of images) { blocks.push({ type: 'text', text: `Page from “${im.chapter}”:` }); blocks.push({ type: 'image', source: { type: 'url', url: im.url } }); }
-  const res = await studioAnthropic().messages.create({
+  // Offered the tool rather than forced to it: newer models don't take a forced tool choice
+  const { input } = await callTool<Record<string, never>>(studioAnthropic(), {
     model: 'claude-sonnet-5-5', max_tokens: 4000, system,
-    tools: [{ name: 'record_profile', description: 'Record the brand’s design settings.', input_schema: SCHEMA as never }],
-    tool_choice: { type: 'tool', name: 'record_profile' },
+    tool: { name: 'record_profile', description: 'Record the brand’s design settings.', input_schema: SCHEMA as never },
     messages: [{ role: 'user', content: blocks as never }]
   });
-  const call = res.content.find((c) => c.type === 'tool_use') as { input?: Record<string, never> } | undefined;
-  if (!call?.input) throw new Error('The AI didn’t return a profile. Try again.');
+  if (!input) throw new Error('The AI didn’t return the design settings. Try again.');
+  const call = { input };
   const settings = mergeProfile(clean(call.input, palette.length ? palette : ['#000000']), content.dsProfile?.settings);
   const profile: Profile = { at: new Date().toISOString(), chapters: chapters.map((c) => c.title), frames: images.length, settings };
   const { data: cur } = await sb.from('projects').select('content').eq('id', projectId).single();

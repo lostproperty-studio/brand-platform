@@ -79,7 +79,7 @@ export function PreviewComments({ projectId }: { projectId: string }) {
     const r = await fetch(api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, ...draft, body: text.trim() }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { setErr(j.error || 'The comment didn’t save. Try again.'); return; }
-    setList((l) => [...l, j.comment]); setDraft(null); setText(''); setOn(false); setOpen(j.comment.id);
+    setList((l) => [...l, j.comment]); setDraft(null); setText(''); setOpen(null);
   }
   async function change(id: string, body: Record<string, unknown>) {
     const r = await fetch(api, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...body }) });
@@ -123,7 +123,7 @@ export function PreviewComments({ projectId }: { projectId: string }) {
     </div>; })() : null}
 
     <div className="pc-bar">
-      <button type="button" className={'pc-go' + (on ? ' on' : '')} onClick={() => { setOn(!on); setDraft(null); }} aria-pressed={on} title="Comment (C)"><MessageSquarePlus {...I} />{on ? 'Click anything to comment' : 'Comment'}</button>
+      <button type="button" className={'pc-go' + (on ? ' on' : '')} onClick={() => { setOn(!on); setDraft(null); }} aria-pressed={on} title="Comment (C)"><MessageSquarePlus {...I} />{on ? 'Commenting · click anything · Esc to stop' : 'Comment'}</button>
       {here.length ? <button type="button" className="pc-count" onClick={() => setShowDone(!showDone)} aria-pressed={showDone} title={showDone ? 'Hide resolved' : 'Show resolved'}>{openCount} open{here.length - openCount ? ` · ${showDone ? 'hide' : 'show'} ${here.length - openCount} resolved` : ''}</button> : null}
     </div>
     {err ? <p className="pc-err" role="alert">{err}<button type="button" onClick={() => setErr('')} aria-label="Dismiss">×</button></p> : null}
