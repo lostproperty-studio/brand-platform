@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, Check, CheckCircle2, Copy, Eye, Loader2, Mail, Rocket, Send, X } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Copy, Eye, Link2, Loader2, Mail, Rocket, Send, X } from 'lucide-react';
 
 export type Delivery = {
   projectId: string; slug: string; client: string; portalUrl: string; status: 'draft' | 'live' | 'archived';
@@ -38,6 +38,9 @@ export function DeliverPanel({ d, onClose }: { d: Delivery; onClose: () => void 
   const [email, setEmail] = useState(''), [role, setRole] = useState<'admin' | 'manager' | 'creator'>('admin');
   const [inv, setInv] = useState<{ busy: boolean; msg: string; bad?: boolean }>({ busy: false, msg: '' });
   const [copied, setCopied] = useState(false);
+  // An admin invite link to paste into the studio's own email: opening it makes the person the portal's admin
+  const [link, setLink] = useState<{ url: string; id?: string; until: string } | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false), [linkMsg, setLinkMsg] = useState(''), [linkCopied, setLinkCopied] = useState<'' | 'link' | 'email'>('');
   useEffect(() => { fetch(`/api/p/${d.slug}/team`).then((r) => (r.ok ? r.json() : { members: [] })).then((j) => setMembers(j.members || [])); }, [d.slug]);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
 
@@ -63,6 +66,22 @@ export function DeliverPanel({ d, onClose }: { d: Delivery; onClose: () => void 
     if (!r.ok) { setInv({ busy: false, msg: j.error || 'The invite didn’t go.', bad: true }); return; }
     setMembers(j.members || members); setInv({ busy: false, msg: j.emailed ? `Invite emailed to ${email.trim()}. It has a link to join and sign in.` : `${email.trim()} already has an account, so they’re added and will see the portal next time they sign in.` }); setEmail('');
   }
+  async function makeLink() {
+    setLinkBusy(true); setLinkMsg('');
+    const r = await fetch(`/api/p/${d.slug}/invites`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'admin', days: 14, maxUses: 1, label: 'Admin invite from delivery' }) });
+    const j = await r.json().catch(() => ({}));
+    setLinkBusy(false);
+    if (!r.ok || !j.url) { setLinkMsg(j.error || 'Couldn’t make the link.'); return; }
+    const mine = (j.links || []).filter((l: { role: string; revoked: boolean }) => l.role === 'admin' && !l.revoked).sort((a: { created_at: string }, b: { created_at: string }) => b.created_at.localeCompare(a.created_at))[0];
+    setLink({ url: j.url, id: mine?.id, until: new Date(Date.now() + 14 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) });
+  }
+  async function cancelLink() {
+    if (!link?.id) { setLink(null); return; }
+    await fetch(`/api/p/${d.slug}/invites?id=${encodeURIComponent(link.id)}`, { method: 'DELETE' });
+    setLink(null); setLinkMsg('Link cancelled. It no longer works.');
+  }
+  const emailText = (url: string, until: string) => `Your ${d.client} brand portal is ready.\n\nUse this link to join as its admin: ${url}\n\nIt works once, for you, until ${until}. As admin you can invite the rest of your team, connect your AI and see everything in the portal.`;
+  const copyText = async (t: string, k: 'link' | 'email') => { try { await navigator.clipboard.writeText(t); setLinkCopied(k); setTimeout(() => setLinkCopied(''), 1500); } catch { /* not allowed */ } };
   const copy = async () => { try { await navigator.clipboard.writeText(d.portalUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* not allowed */ } };
   const people = members || [];
 
@@ -102,6 +121,17 @@ export function DeliverPanel({ d, onClose }: { d: Delivery; onClose: () => void 
           <p className="mute dl-note">{ROLES.find((r) => r[0] === role)![2]}. They get an email with a link to join; they sign in with that email and land in the portal.</p>
           {inv.msg ? <p className={'dl-msg' + (inv.bad ? ' bad' : '')} role="status">{inv.msg}</p> : null}
           {people.length ? <ul className="dl-people">{people.map((m) => <li key={m.email || ''}><span className="pc-av">{(m.email || '?')[0].toUpperCase()}</span><span>{m.email}<span className="mute"> · {m.role}</span></span><span className={'dl-tag' + (m.last_sign_in_at ? ' ok' : '')}>{m.last_sign_in_at ? 'Signed in' : 'Invited, not signed in yet'}</span></li>)}</ul> : null}
+          <div className="dl-link">
+            <p className="dl-sub">Or send an admin invite link in your own email</p>
+            {!link ? <><p className="mute dl-note">Whoever opens it joins as the portal’s admin. It works once and lasts 14 days.</p>
+              <button type="button" className="btn" onClick={makeLink} disabled={linkBusy}>{linkBusy ? <Loader2 {...I} className="spin" /> : <Link2 {...I} />}Make an admin invite link</button></>
+              : <>
+                <div className="dl-linkrow"><input className="in" readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} aria-label="Admin invite link" /><button type="button" className="btn solid" onClick={() => copyText(link.url, 'link')}><Copy {...I} />{linkCopied === 'link' ? 'Copied' : 'Copy link'}</button></div>
+                <p className="mute dl-note">Works once, for one person, until {link.until}. Only send it to the person who should run the portal.</p>
+                <div className="row"><button type="button" className="btn" onClick={() => copyText(emailText(link.url, link.until), 'email')}><Mail {...I} />{linkCopied === 'email' ? 'Copied' : 'Copy a ready-to-send email'}</button><button type="button" className="btn" onClick={cancelLink}>Cancel this link</button></div>
+              </>}
+            {linkMsg ? <p className="mute dl-note" role="status">{linkMsg}</p> : null}
+          </div>
           <div className="row"><span className="mute">The portal’s address</span><code className="dl-url">{d.portalUrl.replace(/^https?:\/\//, '')}</code><button type="button" className="btn" onClick={copy}><Copy {...I} />{copied ? 'Copied' : 'Copy'}</button></div>
         </Step>
 

@@ -3326,3 +3326,8 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .dl-tag.ok { background: #e7f5ea; color: #1e6b34; }
 .dl-url { font-size: 12px; padding: 4px 8px; border-radius: 6px; background: var(--fill); }
 .dl-step-b > .btn, .dl-step-b > a.btn { align-self: flex-start; }
+
+.dl-link { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: #faf9f7; }
+.dl-link > .btn { align-self: flex-start; }
+.dl-linkrow { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.dl-linkrow .in { font: 12px ui-monospace, Menlo, monospace; }
