@@ -12,7 +12,7 @@ export default async function ShowcasePage({ params }: { params: Promise<{ slug:
   return (
     <div className="sc">
       <header className="sc-head">
-        <p className="mute">The brand at work</p>
+        {s?.kicker !== '' ? <p className="mute">{s?.kicker || 'The brand at work'}</p> : null}
         <h1 className="pt-display">{s?.title || 'Showcase'}</h1>
         {s?.intro ? <p className="pt-lede">{s.intro}</p> : null}
       </header>

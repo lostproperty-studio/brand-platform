@@ -21,7 +21,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   return (
     <div className="pt">
       <style>{css}</style>
-      <PortalNav slug={slug} client={project.client} logoUrl={sidebar.full} miniUrl={sidebar.mini} chapters={chapters} showSettings={access.canManage} showShowcase={preview || hasShowcase(snap?.showcase)} showWriter={preview || (!!snap?.voice && voiceReady(snap.voice) && !!snap.voice.writer)} />
+      <PortalNav showcaseName={snap?.showcase?.nav} slug={slug} client={project.client} logoUrl={sidebar.full} miniUrl={sidebar.mini} chapters={chapters} showSettings={access.canManage} showShowcase={preview || hasShowcase(snap?.showcase)} showWriter={preview || (!!snap?.voice && voiceReady(snap.voice) && !!snap.voice.writer)} />
       <div className="pt-main">
         {preview ? <div className="pt-preview" role="status">Studio preview of the working copy. {project.status === 'live' ? 'Clients see the last published version.' : 'Not published yet, so clients can’t see it.'} <a href={`/studio/projects/${project.id}`}>Back to the studio</a></div> : null}
         {preview ? <PreviewComments projectId={project.id} /> : null}

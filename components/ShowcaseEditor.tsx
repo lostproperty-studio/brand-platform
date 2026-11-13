@@ -99,7 +99,9 @@ export function ShowcaseEditor({ projectId, slug, initial, initialUrls, colours 
         <div className="sx-bar"><a className="btn ic" href={`/p/${slug}/showcase`} target="_blank" rel="noopener"><ExternalLink {...I} />Preview as client</a><span className="mute" role="status">{msg || 'Changes save as you go.'}</span></div>
         <div className="sx-page">
           <div className="sx-head">
+            <input className="sx-kicker" defaultValue={s.kicker ?? ''} placeholder="The brand at work" aria-label="Line above the title" onBlur={(e) => commit({ ...latest.current, kicker: e.target.value === '' ? undefined : e.target.value.trim() })} />
             <input className="sx-title" defaultValue={s.title || ''} placeholder="Showcase" aria-label="Title" onBlur={(e) => commit({ ...latest.current, title: e.target.value.trim() || undefined })} />
+            <label className="sx-nav"><span className="mute">Name in the menu</span><input defaultValue={s.nav || ''} placeholder="Showcase" aria-label="Name in the menu" onBlur={(e) => commit({ ...latest.current, nav: e.target.value.trim() || undefined })} /></label>
             <textarea className="sx-intro" rows={2} defaultValue={s.intro || ''} placeholder="An introduction (optional)" aria-label="Introduction" onBlur={(e) => commit({ ...latest.current, intro: e.target.value.trim() || undefined })} />
           </div>
           {rows.map((r, ri) => <div key={r.id} id={'sc-' + r.id} className={'sx-row' + (sel?.row === r.id ? ' on' : '')} onMouseDown={() => { if (sel?.row !== r.id) setSel({ row: r.id }); }}>

@@ -11,7 +11,7 @@ const ICONS = { Home: House, Guidelines: BookOpen, Showcase: GalleryHorizontalEn
 const KEY = 'pt-side-closed';
 const I = { size: 18, strokeWidth: 1.6, 'aria-hidden': true } as const;
 
-export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettings, showShowcase, showWriter }: { slug: string; client: string; logoUrl: string | null; miniUrl?: string | null; chapters: { id: string; title: string }[]; showSettings: boolean; showShowcase: boolean; showWriter?: boolean }) {
+export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettings, showShowcase, showWriter, showcaseName }: { showcaseName?: string; slug: string; client: string; logoUrl: string | null; miniUrl?: string | null; chapters: { id: string; title: string }[]; showSettings: boolean; showShowcase: boolean; showWriter?: boolean }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [closed, setClosed] = useState(false);
@@ -19,7 +19,7 @@ export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettin
   const fold = (v: boolean) => { setClosed(v); try { localStorage.setItem(KEY, v ? '1' : '0'); } catch { /* storage blocked */ } };
   const base = `/p/${slug}`;
   const items = [
-    ['Home', base], ['Guidelines', `${base}/guidelines`], ...(showShowcase ? [['Showcase', `${base}/showcase`] as const] : []), ...(showWriter ? [['Writer', `${base}/writer`] as const] : []), ['Resources', `${base}/resources`],
+    ['Home', base], ['Guidelines', `${base}/guidelines`], ...(showShowcase ? [[showcaseName || 'Showcase', `${base}/showcase`] as const] : []), ...(showWriter ? [['Writer', `${base}/writer`] as const] : []), ['Resources', `${base}/resources`],
     ...(showSettings ? [['Settings', `${base}/settings`]] : [])
   ] as const;
   const isOn = (href: string) => (href === base ? path === base : path.startsWith(href) || (href.endsWith('/resources') && path.startsWith(`${base}/tools`)));

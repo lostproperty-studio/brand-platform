@@ -3271,3 +3271,8 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .sk-md summary { cursor: pointer; font-size: 13px; font-weight: 500; }
 .sk-md pre { margin: 8px 0 0; max-height: 320px; overflow: auto; padding: 12px; border-radius: 10px; background: #f6f6f4; font: 12px/1.55 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
 .sk-md .rm2-list { margin-top: 6px; max-height: 200px; overflow: auto; }
+
+.sx-kicker { all: unset; display: block; width: 100%; font-size: 13px; color: var(--mute); margin-bottom: 6px; }
+.sx-kicker:focus, .sx-nav input:focus { box-shadow: 0 1px 0 var(--sel); }
+.sx-nav { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; }
+.sx-nav input { all: unset; min-width: 160px; border-bottom: 1px dashed var(--line); padding: 2px 0; }

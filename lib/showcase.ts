@@ -5,7 +5,9 @@
 export type FrameKind = 'empty' | 'image' | 'video' | 'code';
 export type ShowcaseFrame = { kind: FrameKind; path?: string; code?: string; caption?: string; fit?: 'cover' | 'contain'; bg?: string };
 export type ShowcaseRow = { id: string; layout: 'full' | 'half'; frames: ShowcaseFrame[]; /** Came from the Figma template; replaced on each rescan until the studio edits the showcase */ fromFigma?: boolean };
-export type Showcase = { title?: string; intro?: string; rows: ShowcaseRow[] };
+export type Showcase = { title?: string; intro?: string;
+  /** The small line above the title, and the page's name in the portal's menu */ kicker?: string; nav?: string;
+  rows: ShowcaseRow[] };
 
 export const emptyFrame = (): ShowcaseFrame => ({ kind: 'empty' });
 export const newRow = (layout: 'full' | 'half'): ShowcaseRow => ({ id: 'r-' + Math.random().toString(36).slice(2, 9), layout, frames: layout === 'full' ? [emptyFrame()] : [emptyFrame(), emptyFrame()] });
