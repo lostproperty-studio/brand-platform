@@ -85,7 +85,8 @@ export async function resolvePackages(opts: { files: KitFileRow[]; content: unkn
     const partStatus = kitFiles[0]?.partStatus;
     const ready = opts.preview || !kitFiles.length || kitFiles.every((f) => f.partStatus === 'ready');
     const formats = [...new Set([...kitFiles.map((f) => ext(f.path)), ...uploads.map((u) => ext(u.name)), ...(d.kind === 'colours' ? ['ASE', 'CSS', 'JSON'] : []), ...(d.kind === 'avatars' && generated ? ['SVG'] : [])])].filter(Boolean).slice(0, 5);
-    const enabled = d.drafted ? !!s.enabled || kitFiles.length + uploads.length > 0 : true;
+    // Taken out by the studio stays out, files or not; otherwise a package with files is on
+    const enabled = d.drafted ? (s.enabled === false ? false : !!s.enabled || kitFiles.length + uploads.length > 0) : true;
     return {
       id: d.id, kind: d.kind, section: d.section, title: s.title || d.title, purpose: s.purpose ?? d.purpose,
       kitFiles, uploads, count, formats, bytes: uploads.reduce((n, u) => n + u.bytes, 0),

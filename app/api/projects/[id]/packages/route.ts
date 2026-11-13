@@ -103,6 +103,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   let created: string | undefined;
 
   if (d.action === 'add') {
+    // Uploading to a package that was taken out puts it back
+    if (d.pkg !== 'team') { cur.enabled = true; cur.hidden = false; }
     if (!d.path.startsWith(`${id}/packages/${d.pkg}/`)) return NextResponse.json({ error: 'Bad path' }, { status: 400 });
     if (d.cover) cur.cover = d.path;
     else cur.files = [...(cur.files || []).filter((f) => f.name !== safe(d.name)), { name: safe(d.name), path: d.path, bytes: d.bytes, type: d.type }];
