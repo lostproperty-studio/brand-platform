@@ -14,7 +14,7 @@ export const newRow = (layout: 'full' | 'half'): ShowcaseRow => ({ id: 'r-' + Ma
 
 export function readShowcase(content: unknown): Showcase {
   const s = (content as { showcase?: Showcase } | null)?.showcase;
-  return { title: s?.title, intro: s?.intro, rows: Array.isArray(s?.rows) ? s!.rows : [] };
+  return { title: s?.title, intro: s?.intro, kicker: s?.kicker, nav: s?.nav, rows: Array.isArray(s?.rows) ? s!.rows : [] };
 }
 export const showcasePaths = (s: Showcase) => s.rows.flatMap((r) => r.frames.map((f) => f.path)).filter(Boolean) as string[];
 export const hasShowcase = (s?: Showcase | null) => !!s?.rows.some((r) => r.frames.some((f) => f.kind !== 'empty'));
