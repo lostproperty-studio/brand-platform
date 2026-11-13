@@ -55,6 +55,9 @@ function Paras({ text, className, style }: { text?: string; className?: string; 
   return <div className={className} style={style}>{text.split(/\n+/).filter((p) => p.trim()).map((p, i) => <p key={i}>{p}</p>)}</div>;
 }
 
+/** Black or white, whichever reads on a colour */
+const inkOn = (hex: string) => { const n = parseInt(hex.replace('#', '').slice(0, 6), 16); if (Number.isNaN(n)) return '#ffffff'; return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.6 ? '#111111' : '#ffffff'; };
+
 export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter, edit }: { b: Block; urls: Record<string, string>; headingLevel?: 2 | 3; number?: string; anchor?: string; chapter?: string; edit?: EditKit }) {
   if ((b.hidden || b.draft) && !edit) return null;
   const H = (headingLevel === 2 ? 'h2' : 'h3') as 'h2';
@@ -70,13 +73,23 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   const tone = [b.headSize ? `hs-${b.headSize}` : '', b.bodySize ? `bs-${b.bodySize}` : '', b.bodyCols && b.bodyCols > 1 ? `bc-${b.bodyCols}` : '', b.align === 'center' ? 'al-c' : ''].filter(Boolean).join(' ');
 
     // A box with its own list of elements, in the order they were placed
-  const CLS: Record<ItemEl['kind'], string> = { label: 'gi-label', heading: 'gi-h', text: 'gi-body', image: 'gi-media', spacer: '', frame: 'gi-frame', icon: 'gi-icon' };
-  const CARD_CLS: Record<ItemEl['kind'], string> = { label: 'gc-label', heading: 'gc-h', text: 'gc-body', image: 'gc-cardimg', spacer: '', frame: 'gi-frame', icon: 'gi-icon' };
+  const CLS: Record<ItemEl['kind'], string> = { label: 'gi-label', heading: 'gi-h', text: 'gi-body', image: 'gi-media', spacer: '', frame: 'gi-frame', icon: 'gi-icon', button: 'gi-btn' };
+  const CARD_CLS: Record<ItemEl['kind'], string> = { label: 'gc-label', heading: 'gc-h', text: 'gc-body', image: 'gc-cardimg', spacer: '', frame: 'gi-frame', icon: 'gi-icon', button: 'gi-btn' };
   const elsOf = (i: number, it: BlockItem, card = false) => { const els = (it.els || []).filter((e) => edit || !e.hidden); const push = els.findIndex((e) => e.kind === 'heading' || e.kind === 'text'); const pushOk = push > 0 && els.slice(0, push).every((e) => e.kind === 'label' || e.kind === 'image') && !els.some((e) => e.kind === 'spacer'); return els.map((e, k) => {
     const cls = (k === push && pushOk ? 'gi-push ' : '') + 'gi-el';
     if (e.kind === 'spacer') return <div key={e.id} data-el={e.id} data-spacer="" className={'gi-el gi-spacer' + (edit ? ' ed-spacer' : '')} style={{ height: e.size ?? 32 }}>{edit?.grip ? edit.grip(i, e.id) : null}{edit ? <span>Spacer · {e.size ?? 32}px</span> : null}</div>;
     if (e.kind === 'icon') { const key = `${it.id}.${e.id}`; const sz = e.size ?? 32; return <div key={e.id} data-el={e.id} className={cls + ' gi-icon-el'}>{edit?.grip ? edit.grip(i, e.id) : null}<span className={'gi-icon' + (edit?.isSel?.(key) ? ' on' : '')} style={{ width: sz, height: sz, color: e.colour }} role="img" aria-label={e.icon?.name || 'Icon'} onMouseDown={edit?.selectEl ? (ev) => { ev.stopPropagation(); edit.selectEl!(i, key); } : undefined} dangerouslySetInnerHTML={{ __html: e.icon?.svg || '' }} /></div>; }
     if (e.kind === 'frame' || (e.kind === 'image' && e.look)) { const key = `${it.id}.${e.id}`; return <div key={e.id} data-el={e.id} className={cls + ' gi-frame-el' + (e.look?.sh === 'fill' && !(e.look.ratio && e.look.ratio !== 'auto') ? ' grow' : ' locked') + (e.look?.swPct ? ' pct' : e.look?.sw === 'hug' || typeof e.look?.sw === 'number' ? ' hug' : '')}>{edit?.grip ? edit.grip(i, e.id) : null}<Frame look={e.look} media={e.kind === 'image' ? e.media : undefined} urls={urls} on={edit?.isSel?.(key)} onPick={edit?.selectEl ? () => edit.selectEl!(i, key) : undefined} empty={!!edit} onSize={edit?.sizeEl ? (side, ev) => edit.sizeEl!(i, e.id, side, ev) : undefined} /></div>; }
+    if (e.kind === 'button') {
+      // A button: a filled one in the chosen colour (the text picks black or white to read on it), or a text link
+      const key = `${it.id}.${e.id}`; const v = e.variant || 'primary'; const bg = e.colour || '#111111';
+      const style = v === 'primary' ? { background: bg, color: inkOn(bg) } : e.colour ? { color: e.colour } : undefined;
+      const cls2 = `gi-btn ${v}`;
+      if (edit?.itemElText) return <div key={e.id} data-el={e.id} className={cls + ' gi-btn-el'}>{edit.grip ? edit.grip(i, e.id) : null}<span className={cls2 + (edit.isSel?.(key) ? ' on' : '')} style={style}>{edit.itemElText(i, e, { tag: 'p', className: 'gi-btn-t', placeholder: 'Button', multiline: false, key })}{v === 'link' ? <span className="gi-btn-arrow" aria-hidden>{e.newTab ? '↗' : '→'}</span> : null}</span></div>;
+      if (!e.text) return null;
+      const label = <>{e.text}{v === 'link' ? <span className="gi-btn-arrow" aria-hidden>{e.newTab ? ' ↗' : ' →'}</span> : null}</>;
+      return <div key={e.id} data-el={e.id} className={cls + ' gi-btn-el'}>{e.href ? <a className={cls2} style={style} href={e.href} {...(e.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{label}{e.newTab ? <span className="sr">(opens in a new tab)</span> : null}</a> : <span className={cls2} style={style}>{label}</span>}</div>;
+    }
     if (e.kind === 'image') { const mm = e.media && urls[e.media.path] ? e.media : undefined; const img = mm ? <img src={urls[mm.path]} alt="" loading="lazy" /> : null; return <div key={e.id} data-el={e.id} className={cls + ' gi-media'}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElImage ? edit.itemElImage(i, e, img) : img}</div>; }
     const key = `${it.id}.${e.id}`; const tp = st(key); const el: El = { tag: e.kind === 'text' ? 'div' : 'p', className: (card ? CARD_CLS[e.kind] : CLS[e.kind]) + (tp.className ? ' ' + tp.className : ''), placeholder: e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text', multiline: e.kind === 'text', style: tp.style, key };
     return <div key={e.id} data-el={e.id} className={cls}>{edit?.grip ? edit.grip(i, e.id) : null}{edit?.itemElText ? edit.itemElText(i, e, el) : !e.text ? null : el.multiline ? <Paras text={e.text} className={el.className} style={el.style} /> : <p className={el.className} style={el.style}>{e.text}</p>}</div>;

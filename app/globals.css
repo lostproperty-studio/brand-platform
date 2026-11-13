@@ -3210,3 +3210,17 @@ html.pc-mode .pc-ui button { cursor: pointer; }
 .rm2-rep-md { margin: 0; max-height: 240px; overflow: auto; padding: 12px; border-radius: 10px; background: #f6f6f4; font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
 .rm2-rep-files { max-height: 220px; overflow: auto; }
 .rm2-rep .rm2-pane-f { position: sticky; bottom: 0; background: #fff; margin: 0 -20px; }
+
+/* Buttons in frames: a filled button, or a text link */
+.gi-btn-el { display: flex; }
+.gi .gi-btn, .gi-btn { display: inline-flex; align-items: center; gap: .4em; font: 500 15px/1.2 var(--pt-body, var(--font)); text-decoration: none; cursor: pointer; }
+.gi-btn.primary { min-height: 44px; padding: 0 22px; border-radius: 999px; }
+.gi-btn.link { color: inherit; text-decoration: underline; text-underline-offset: .2em; text-decoration-thickness: 1px; }
+.gi-btn.link .gi-btn-arrow { text-decoration: none; display: inline-block; }
+a.gi-btn.primary:hover { filter: brightness(1.12); }
+a.gi-btn.link:hover { text-decoration-thickness: 2px; }
+a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.gi-btn .gi-btn-t { margin: 0; outline: none; min-width: 2ch; }
+.gi-btn.on { box-shadow: 0 0 0 2px var(--sel); }
+.dp-in { width: 100%; box-sizing: border-box; height: 30px; border: 0; border-radius: 8px; background: var(--fill); padding: 0 8px; font: inherit; }
+.dp-tip.warn { color: #a5640a; }

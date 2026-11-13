@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Columns3, Eye, EyeOff, Frame, GalleryHorizontal, Heading, Image as ImageIcon, LayoutGrid, LayoutPanelTop, MoveVertical, Rows3, Shapes, Tag, Type } from 'lucide-react';
+import { ChevronRight, RectangleHorizontal, Columns3, Eye, EyeOff, Frame, GalleryHorizontal, Heading, Image as ImageIcon, LayoutGrid, LayoutPanelTop, MoveVertical, Rows3, Shapes, Tag, Type } from 'lucide-react';
 import { itemEls, type BlockItem, type ItemEl } from '@/lib/figma/blocks';
 import type { Block } from '@/lib/portal/guide';
 import { CHAPTER, type Sel } from '@/components/GuideDock';
@@ -16,9 +16,9 @@ const I = { size: 14, strokeWidth: 1.75, 'aria-hidden': true } as const;
 
 const clip = (s: string, n = 32) => { const t = s.replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
 export const elName = (e: ItemEl) => e.name || (e.kind === 'frame' ? (e.look?.fill?.type === 'image' ? (e.look.fill.media?.video ? 'Video' : 'Image') : 'Frame')
-  : e.kind === 'image' ? 'Image' : e.kind === 'icon' ? (e.icon?.name || 'Icon').replace(/-/g, ' ') : e.kind === 'spacer' ? `Spacer · ${e.size ?? 32}px` : clip(e.text || (e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text')));
+  : e.kind === 'image' ? 'Image' : e.kind === 'icon' ? (e.icon?.name || 'Icon').replace(/-/g, ' ') : e.kind === 'spacer' ? `Spacer · ${e.size ?? 32}px` : e.kind === 'button' ? `Button · ${clip(e.text || '')}` : clip(e.text || (e.kind === 'label' ? 'Label' : e.kind === 'heading' ? 'Headline' : 'Text')));
 export const itemName = (it: BlockItem, i: number) => it.name || clip(it.label || it.heading || itemEls(it).find((e) => (e.kind === 'label' || e.kind === 'heading') && e.text)?.text || '', 28) || `Frame ${i + 1}`;
-const elIcon = (e: ItemEl) => e.kind === 'frame' ? (e.look?.fill?.type === 'image' ? <ImageIcon {...I} /> : <Frame {...I} />) : e.kind === 'image' ? <ImageIcon {...I} /> : e.kind === 'icon' ? <Shapes {...I} /> : e.kind === 'spacer' ? <MoveVertical {...I} /> : e.kind === 'label' ? <Tag {...I} /> : e.kind === 'heading' ? <Heading {...I} /> : <Type {...I} />;
+const elIcon = (e: ItemEl) => e.kind === 'button' ? <RectangleHorizontal {...I} /> : e.kind === 'frame' ? (e.look?.fill?.type === 'image' ? <ImageIcon {...I} /> : <Frame {...I} />) : e.kind === 'image' ? <ImageIcon {...I} /> : e.kind === 'icon' ? <Shapes {...I} /> : e.kind === 'spacer' ? <MoveVertical {...I} /> : e.kind === 'label' ? <Tag {...I} /> : e.kind === 'heading' ? <Heading {...I} /> : <Type {...I} />;
 const key = (s: Sel) => `${s.block}|${s.item ?? ''}|${s.el ?? ''}`;
 
 export function LayersPanel({ block, title, sel, multi, select, hide, rename, move }: {

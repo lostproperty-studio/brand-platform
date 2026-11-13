@@ -43,8 +43,9 @@ export type FrameLook = {
   /** Stroke opacity and position */ strokeAlpha?: number; strokePos?: 'inside' | 'center' | 'outside';
 };
 /** One element inside a frame, in order: a label, a headline, text, an image, a spacer, or a frame inside the frame */
-export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer' | 'frame' | 'icon'; text?: string; media?: BlockMedia; /** spacer height, or icon size, in pixels */ size?: number; look?: FrameLook;
+export type ItemEl = { id: string; kind: 'label' | 'heading' | 'text' | 'image' | 'spacer' | 'frame' | 'icon' | 'button'; text?: string; media?: BlockMedia; /** spacer height, or icon size, in pixels */ size?: number; look?: FrameLook;
   /** An icon from a library (Lucide by default), kept as its SVG so it renders anywhere */ icon?: { set: string; name: string; svg: string }; colour?: string;
+  /** A button: where it goes, whether it opens a new tab, and its style (a filled button or a text link) */ href?: string; newTab?: boolean; variant?: 'primary' | 'link';
   /** Its name in the layers panel, and hidden from the client (still shown, faded, in the editor) */ name?: string; hidden?: boolean };
 export type BlockItem = { id: string; label?: string; heading?: string; body?: string; media?: BlockMedia; w?: number; h?: number;
   /** When set, the box's content as a free list of elements (added with the adding bar), instead of the fixed fields */

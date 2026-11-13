@@ -697,8 +697,16 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     setSel({ block: tb.id, item: d.target.item, el: `${tIt2.id}.${el.id}` });
   }
   /** Adds a label, headline, text or spacer to a box from the design panel, in its natural place */
-  function addToBox(blockId: string, item: number, what: 'label' | 'headline' | 'text' | 'spacer') {
+  function addToBox(blockId: string, item: number, what: 'label' | 'headline' | 'text' | 'spacer' | 'button') {
     const c = latest.current?.chapters.find((x) => x.id === chId); const b = c?.blocks.find((x) => x.id === blockId); const it = b?.items?.[item]; if (!b || !it) return;
+    if (what === 'button') {
+      // A button goes at the end of the frame, ready to name; its link is set in the panel
+      const items = b.items || []; const { els, styles } = materialise(it, b.styles || {});
+      const ne: ItemEl = { id: 'e-' + uid(), kind: 'button', text: 'Find out more', variant: 'primary' };
+      els.push(ne);
+      editBlock(b.id, { items: items.map((x, n) => (n === item ? { ...x, els, label: undefined, heading: undefined, body: undefined, media: undefined } : x)), styles });
+      setSel({ block: b.id, item, el: `${it.id}.${ne.id}` }); focusNext.current = true; return;
+    }
     const els = itemEls(it);
     const last = (k: string[]) => { let n = -1; els.forEach((e, i) => { if (k.includes(e.kind)) n = i; }); return n; };
     const index = what === 'label' ? 0 : what === 'headline' ? last(['label', 'image']) + 1 : what === 'text' ? Math.max(last(['heading']), last(['text'])) + 1 || els.length : els.length;
@@ -756,9 +764,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       if (sel.el.includes('.') && sel.item !== undefined) {
         const field = sel.el.split('.')[1]; const it = items[sel.item]; if (!it) return;
         const els = itemEls(it); const target = els.find((e) => e.id === field);
-        if (target?.kind === 'spacer' || target?.kind === 'frame' || target?.kind === 'icon') return;
+        if (target?.kind === 'spacer' || target?.kind === 'frame' || target?.kind === 'icon' || target?.kind === 'button') return;
         kind = target ? (target.kind === 'image' ? 'text' : target.kind) : KIND[field] || 'text'; current = target?.text || '';
-        box = els.filter((e) => e.kind !== 'image' && e.kind !== 'spacer' && e.kind !== 'frame' && e.kind !== 'icon').map((e) => ({ kind: e.kind, text: e.text || '', target: e.id === field }));
+        box = els.filter((e) => e.kind !== 'image' && e.kind !== 'spacer' && e.kind !== 'frame' && e.kind !== 'icon' && e.kind !== 'button').map((e) => ({ kind: e.kind, text: e.text || '', target: e.id === field }));
         others = items.filter((_, n) => n !== sel.item).map((x) => itemWords(x).join(' · ')).filter(Boolean).slice(0, 8);
         const n = sel.item;
         apply = (t) => writeBlock(b.id, (x) => ({ ...x, items: (x.items || []).map((y, k) => (k !== n ? y : y.els ? { ...y, els: y.els.map((e) => (e.id === field ? { ...e, text: t } : e)) } : { ...y, [field]: t })) }));

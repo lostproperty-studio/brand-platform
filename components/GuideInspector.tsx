@@ -82,7 +82,7 @@ const partOf = (el: string) => (el === 'heading' || el === 'eyebrow' ? 'head' : 
 const ruleOf = (block: string, part: string) => (typeof document === 'undefined' ? undefined : (document.querySelector(`[data-block="${block}"] [data-part="${part}"]`) as HTMLElement | null)?.dataset.rule as SpaceRule | undefined);
 
 export type InspectorProps = {
-  onAddToBox?: (block: string, item: number, what: 'label' | 'headline' | 'text' | 'spacer') => void;
+  onAddToBox?: (block: string, item: number, what: 'label' | 'headline' | 'text' | 'spacer' | 'button') => void;
   sel: Sel | null; setSel: (s: Sel | null) => void; ch: GuideChapter; colours: { name: string; hex: string }[];
   editBlock: (id: string, p: Partial<Block>, key?: string) => void; pickImage: (block: string, target: number | 'new' | string) => void;
   sys: GuideSystem; setSys: (s: GuideSystem, key?: string) => void; openStyles: (focus?: TypeId) => void;
@@ -136,7 +136,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   const itemElKind = itemElId ? it?.els?.find((e) => e.id === itemElId)?.kind ?? (itemElId === 'media' ? 'image' : itemElId) : undefined;
   const isImg = !!el && (el.startsWith('img:') || el.startsWith('itemimg:') || itemElKind === 'image');
   const spacerEl = itemElKind === 'spacer' && it ? it.els?.find((e) => e.id === itemElId) : undefined;
-  const isText = !!el && el !== 'items' && !isImg && !spacerEl && itemElKind !== 'frame' && itemElKind !== 'icon';
+  const isText = !!el && el !== 'items' && !isImg && !spacerEl && itemElKind !== 'frame' && itemElKind !== 'icon' && itemElKind !== 'button';
   const span = b.kind === 'grid' ? Math.min(gcols, it?.w || 2) : Math.min(cols, it?.w || 1);
   const kindLabel = b.kind === 'columns' ? 'Auto layout' : KINDS.find(([k]) => k === b.kind)?.[1] || 'Section';
 
@@ -159,7 +159,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
     {b.variant !== 'images' ? <Row label="Style" hint="This frame's own style. Same as the set unless you change it."><Seg value={it.box || b.box || (b.kind === 'carousel' ? 'fill' : 'none')} opts={FRAME_STYLES} set={(v) => setItem({ box: v === (b.box || (b.kind === 'carousel' ? 'fill' : 'none')) ? undefined : v })} label="Frame style" /></Row> : null}
     {full && b.kind === 'grid' ? <Row label="Width" hint="Columns this frame spans, or drag its edge"><Step value={span} min={1} max={b.kind === 'grid' ? gcols : cols} set={(n) => setItem({ w: n }, 'w')} label="Columns spanned" suffix={` / ${b.kind === 'grid' ? gcols : cols}`} /><button type="button" className={'dp-pill' + (span === (b.kind === 'grid' ? gcols : cols) ? ' on' : '')} onClick={() => setItem({ w: b.kind === 'grid' ? gcols : cols })}>Fill</button></Row> : null}
     {full && b.kind === 'grid' ? <Row label="Height" hint="Rows this frame spans, or drag its bottom edge"><Step value={it.h || 2} min={1} max={8} set={(n) => setItem({ h: n }, 'h')} label="Rows spanned" /></Row> : null}
-      {onAddToBox && b.variant !== 'images' ? <Row label="Add" hint="Add inside this frame"><div className="dp-addrow">{([['text', 'Text', Type], ['spacer', 'Spacer', UnfoldVertical]] as const).map(([w, l, Ic]) => <button type="button" key={w} onClick={() => onAddToBox(b.id, i!, w)} aria-label={`Add ${l.toLowerCase()} to this frame`} data-tip={l}><Ic {...I} /></button>)}<button type="button" onClick={() => nest(false)} aria-label="Add a frame inside this frame" data-tip="Frame F"><Square {...I} /></button><button type="button" onClick={() => nest(true)} aria-label="Add an image frame" data-tip="Image ⇧⌘K"><ImagePlus {...I} /></button><button type="button" onClick={() => onIcon?.(b.id, i!)} aria-label="Add an icon" data-tip="Icon"><Shapes {...I} /></button></div></Row> : null}
+      {onAddToBox && b.variant !== 'images' ? <Row label="Add" hint="Add inside this frame"><div className="dp-addrow">{([['text', 'Text', Type], ['button', 'Button', RectangleHorizontal], ['spacer', 'Spacer', UnfoldVertical]] as const).map(([w, l, Ic]) => <button type="button" key={w} onClick={() => onAddToBox(b.id, i!, w)} aria-label={`Add ${l.toLowerCase()} to this frame`} data-tip={l}><Ic {...I} /></button>)}<button type="button" onClick={() => nest(false)} aria-label="Add a frame inside this frame" data-tip="Frame F"><Square {...I} /></button><button type="button" onClick={() => nest(true)} aria-label="Add an image frame" data-tip="Image ⇧⌘K"><ImagePlus {...I} /></button><button type="button" onClick={() => onIcon?.(b.id, i!)} aria-label="Add an icon" data-tip="Icon"><Shapes {...I} /></button></div></Row> : null}
       <Row label="Order" hint="⌘[ and ⌘]"><div className="dp-btns"><button type="button" onClick={() => moveItem(-1)} disabled={i === 0} aria-label="Move earlier" data-tip="Earlier ⌘["><ArrowLeft {...I} /></button><button type="button" onClick={() => moveItem(1)} disabled={i === items.length - 1} aria-label="Move later" data-tip="Later ⌘]"><ArrowRight {...I} /></button></div></Row>
       <div className="dp-foot">
         <button type="button" className="dp-act" onClick={() => { set({ items: [...items.slice(0, i! + 1), { ...it, id: iid() }, ...items.slice(i! + 1)] }); setSel({ block: b.id, item: i! + 1 }); }}><Copy {...I} />Duplicate <kbd>⌘D</kbd></button>
@@ -195,6 +195,24 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   }
 
   const iconEl = it && itemElId ? it.els?.find((e) => e.id === itemElId && e.kind === 'icon') : undefined;
+  const buttonEl = it && itemElId ? it.els?.find((e) => e.id === itemElId && e.kind === 'button') : undefined;
+  if (buttonEl && it && i !== undefined) {
+    const setBtn = (p: Partial<ItemEl>, key?: string) => setItem({ els: (it.els || []).map((e) => (e.id === buttonEl.id ? { ...e, ...p } : e)) }, key && 'bt-' + key);
+    const href = buttonEl.href || '';
+    const bad = href && !/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(href);
+    return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>
+      <Sec title="Button" icon={<RectangleHorizontal {...I} />}>
+        <Row label="Style"><Seg value={buttonEl.variant || 'primary'} opts={[['primary', 'Button'], ['link', 'Link']]} set={(v) => setBtn({ variant: v })} label="Button style" /></Row>
+        <Row label="Link" hint="Where it goes: a web address, an email (mailto:) or a page in the portal (/resources)"><input className="dp-in" type="url" inputMode="url" value={href} placeholder="https://" onChange={(e) => setBtn({ href: e.target.value.trim() || undefined }, 'href')} onBlur={(e) => { const v = e.target.value.trim(); if (v && !/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(v) && /\./.test(v)) setBtn({ href: 'https://' + v }); }} aria-label="Link" /></Row>
+        {bad ? <p className="dp-tip warn" style={{ padding: 0 }}>Start with https:// so it opens the right page.</p> : null}
+        <Row label="New tab"><label className="fp-check"><input type="checkbox" checked={!!buttonEl.newTab} onChange={(e) => setBtn({ newTab: e.target.checked || undefined })} />Open in a new tab</label></Row>
+        <Row label={buttonEl.variant === 'link' ? 'Colour' : 'Fill'}><Chips palette={palette} value={buttonEl.colour} set={(c) => setBtn({ colour: c })} none={buttonEl.variant === 'link' ? 'Text colour' : 'Black'} /></Row>
+        {!href ? <p className="dp-tip" style={{ padding: 0 }}>Without a link it shows, but doesn’t go anywhere.</p> : <p className="dp-tip" style={{ padding: 0 }}><a href={href} target="_blank" rel="noopener noreferrer">Test the link ↗</a></p>}
+        <div className="dp-foot"><button type="button" className="dp-act danger" onClick={onDelete}><Trash2 {...I} />Delete <kbd>⌫</kbd></button></div>
+      </Sec>
+      {frameSec(false)}
+    </aside>;
+  }
   if (iconEl && it && i !== undefined) {
     const setIcon = (p: Partial<ItemEl>, key?: string) => setItem({ els: (it.els || []).map((e) => (e.id === iconEl.id ? { ...e, ...p } : e)) }, key && 'ic-' + key);
     return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>
