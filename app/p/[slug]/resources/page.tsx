@@ -91,7 +91,7 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
 
       {sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => (
         <section key={s.id} id={s.id} className="rs-sec" aria-labelledby={`h-${s.id}`}>
-          <div className="rs-sec-head"><h2 id={`h-${s.id}`} className="pt-h2">{s.title}</h2><p className="mute">{s.blurb}{s.id === 'builders' && ctx.project.repo_full_name ? <> Also on <a href={`https://github.com/${ctx.project.repo_full_name}`}>GitHub</a>.</> : null}</p></div>
+          <div className="rs-sec-head"><h2 id={`h-${s.id}`} className="pt-h2">{s.title}</h2><p className="mute">{s.blurb}{s.id === 'builders' && ctx.project.repo_full_name ? ((ctx.project.content as { repoShared?: boolean } | null)?.repoShared || ctx.preview ? <> Also on <a href={`https://github.com/${ctx.project.repo_full_name}`} target="_blank" rel="noopener">GitHub</a>{ctx.preview && !(ctx.project.content as { repoShared?: boolean } | null)?.repoShared ? <span className="tag">Studio only: clients don’t see this link</span> : null}.</> : <> Your developers can also work from the kit on GitHub: ask Lost Property for access.</>) : null}</p></div>
           {s.id === 'team' && ctx.access.canManage ? <TeamFileUpload slug={slug} /> : null}
           <div className="rs-grid">{s.items.map(card)}</div>
         </section>

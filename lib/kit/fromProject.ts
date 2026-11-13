@@ -48,14 +48,17 @@ export async function kitInputFor(projectId: string): Promise<{ input: KitInput;
 }
 
 const KIT_FOLDER: Record<string, string> = { logos: 'logo', avatars: 'avatars', icons: 'icons', images: 'imagery', graphics: 'graphics' };
-/** The files in each download that came from the Figma assets page, with their bytes, at their place in the kit */
+/** The files in each download, from Figma or uploaded, with their bytes, at their place in the kit */
 async function figmaPackageAssets(projectId: string, content: unknown): Promise<AssetFile[]> {
   const sb = adminClient();
-  const pkgs = ((content as { packages?: Record<string, { title?: string; files?: { name: string; path: string; fromFigma?: boolean }[] }> } | null)?.packages) || {};
+  const pkgs = ((content as { packages?: Record<string, { title?: string; enabled?: boolean; hidden?: boolean; files?: { name: string; path: string; fromFigma?: boolean }[] }> } | null)?.packages) || {};
   const out: AssetFile[] = [];
   for (const [key, s] of Object.entries(pkgs)) {
     const folder = KIT_FOLDER[key] || (key.startsWith('custom-') ? key.slice(7) : null); if (!folder) continue;
-    for (const f of (s.files || []).filter((x) => x.fromFigma)) {
+    // A package the studio took out of the portal stays out of the kit too
+    if (s.enabled === false || s.hidden) continue;
+    // Every file in the package, from Figma or uploaded (files taken out aren't in the list)
+    for (const f of (s.files || []).filter((x) => x.name && x.path && !x.name.startsWith('.'))) {
       const { data } = await sb.storage.from('kits').download(f.path); if (!data) continue;
       out.push({ path: `assets/${folder}/${f.name}`, nodeId: '', format: f.name.endsWith('.svg') ? 'svg' : 'png', description: `${s.title || key}: ${f.name.replace(/\.[a-z]+$/, '').replace(/-/g, ' ')}`, bytes: new Uint8Array(await data.arrayBuffer()) });
     }

@@ -40,6 +40,7 @@ import { defaultIntro } from '@/lib/portal/home';
 import { readShowcase, showcasePaths } from '@/lib/showcase';
 import { packageSettings, resolvePackages } from '@/lib/portal/packages';
 import { PdfStudio } from '@/components/PdfStudio';
+import { GithubPanel } from '@/components/GithubPanel';
 import { systemCss, systemFor } from '@/lib/guideSystem';
 import { roles as dsRoles } from '@/lib/designSystem';
 import { buildSnapshot } from '@/lib/projects/snapshot';
@@ -181,6 +182,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <section id="design-system" className="rs-studio-sec"><h2 className="rs-studio-h">Design system</h2><DesignProfile projectId={id} slug={p.slug} initial={readProfile(p.content)} chapters={(normaliseGuide((p.content as { guide?: Guide } | null)?.guide)?.chapters || []).filter((c) => !c.removed).length} /></section>
       <section id="apps" className="rs-studio-sec"><h2 className="rs-studio-h">Apps and tools</h2><ToolManager projectId={id} slug={p.slug} /></section>
       <section id="downloads" className="rs-studio-sec"><h2 className="rs-studio-h">Downloads</h2><ResourceManager projectId={id} slug={p.slug} client={p.client} roles={dsRoles(snap?.colours || [])} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} guideRev={((p.content as { guide?: { _rev?: number } } | null)?.guide?._rev) || 0} ai={{ 'design-system': packageSettings(p.content)['design-system'] || {}, skills: packageSettings(p.content).skills || {} }} /></section>
+        <GithubPanel projectId={id} repo={p.repo_full_name} sync={(content as { kitSync?: never }).kitSync} shared={!!(content as { repoShared?: boolean }).repoShared} />
     </div>;
   }
   if (tab === 'client') {

@@ -20,12 +20,12 @@ export function ProjectActions({ id, status, hasRepo }: { id: string; status: st
     return { ok: r.ok, j };
   };
   async function publish(allowTrialFonts = false) {
-    setMsg('Publishing…');
+    setMsg('Publishing, and updating the kit on GitHub…');
     const r = await fetch(`/api/projects/${id}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allowTrialFonts }) });
     const j = await r.json().catch(() => ({}));
     if (r.status === 409 && j.code === 'trial_fonts') { setPending(j.fonts); setMsg(''); return; }
     setPending(null);
-    setMsg(r.ok ? (j.trialFonts ? 'Published with trial fonts. Swap in licensed files before final delivery.' : 'Published.') : 'Failed: ' + (j.error || r.status));
+    setMsg(r.ok ? `${j.trialFonts ? 'Published with trial fonts. Swap in licensed files before final delivery.' : 'Published.'}${j.kit ? (j.kit.ok ? ' The kit on GitHub is updated too.' : ` The kit on GitHub didn’t update (${j.kit.error}); try Sync now in Resources.`) : ''}` : 'Failed: ' + (j.error || r.status));
     router.refresh();
   }
   return (
