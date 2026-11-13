@@ -69,7 +69,7 @@ export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter, li
     setBusy('chapter');
     if (timer.current) { clearTimeout(timer.current); await fetch(`/api/projects/${projectId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: { voice: latest.current } }) }); }
     const r = await fetch(`/api/projects/${projectId}/voice/chapter`, { method: 'POST' }); const j = await r.json().catch(() => ({}));
-    setBusy(null); setMsg(r.ok ? (j.added ? `Added “${voiceTitle(latest.current)}” to the guidelines. Edit it like any chapter.` : `Updated “${voiceTitle(latest.current)}” in the guidelines.`) : j.error || 'Couldn’t add the chapter.');
+    setBusy(null); setMsg(r.ok ? (j.added ? `Added a draft of “${voiceTitle(latest.current)}” to the guidelines. It’s yours now: edit it for the client like any chapter, and the Voice tab won’t change it.` : j.sections ? `Added ${j.sections} new section${j.sections === 1 ? '' : 's'} to the end of the chapter, as drafts for you to check. Nothing already there changed.` : j.note || 'Nothing to add.') : j.error || 'Couldn’t add the chapter.');
     if (r.ok) router.refresh();
   }
 
@@ -184,8 +184,8 @@ export function VoiceStudio({ projectId, slug, initial, hasGuide, hasChapter, li
         </details>
 
         <div className="vs-actions">
-          <button type="button" className="btn ic" onClick={chapter} disabled={!!busy || !hasGuide} title={hasGuide ? undefined : 'Build the guidelines first'}>{busy === 'chapter' ? 'Working…' : hasChapter ? `Update “${voiceTitle(v)}” in the guidelines` : `Add “${voiceTitle(v)}” to the guidelines`}</button>
-          <p className="vs-help mute">Clients see changes to the voice once you publish.</p>
+          <button type="button" className="btn ic" onClick={chapter} disabled={!!busy || !hasGuide} title={hasGuide ? undefined : 'Build the guidelines first'}>{busy === 'chapter' ? 'Working…' : hasChapter ? 'Add new sections to the chapter' : `Add a draft of “${voiceTitle(v)}” to the guidelines`}</button>
+          <p className="vs-help mute">{hasChapter ? `What you write here steers the AI (Ask, the Writer, the skills and the connector) once you publish. The “${voiceTitle(v)}” chapter clients read is yours to edit in the guidelines; nothing here changes it.` : `What you write here steers the AI once you publish. Add a draft chapter for clients when you’re ready; after that it’s edited in the guidelines, and nothing here changes it.`}</p>
         </div>
       </aside>
     </div>

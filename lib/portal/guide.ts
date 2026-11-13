@@ -208,7 +208,7 @@ export async function buildGuide(projectId: string, mode: BuildMode = 'update', 
     if (rules.length) chapters.push({ id: `rules-${key}`, key, title: prev?.title || CHAPTER_NAMES[key], kicker: 'Rules', lede: prev?.lede || '', hidden: prev?.hidden, edited: prev?.edited, blocks: prev?.blocks || [], rules });
   }
   // Chapters the studio added by hand, and chapters drafted for the tier, survive a rebuild
-  for (const c of mode === 'fresh' ? [] : previous?.chapters || []) if (c.id.startsWith('custom-') || c.id.startsWith('draft-')) chapters.push(c);
+  for (const c of mode === 'fresh' ? [] : previous?.chapters || []) if (c.id.startsWith('custom-') || c.id.startsWith('draft-') || c.id === 'voice' || (c as { voiceMade?: string[] }).voiceMade) chapters.push(c);
 
   if (opts.chapters && previous) {
     const now = new Date().toISOString();

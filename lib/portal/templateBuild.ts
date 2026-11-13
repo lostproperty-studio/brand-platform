@@ -127,7 +127,8 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
     for (const b of builtChapters) if (!chapters.some((c) => c.id === b.id)) chapters.splice(chapters.filter((c) => !c.id.startsWith('custom-') && !c.id.startsWith('draft-')).length, 0, b);
   } else {
     chapters = [...builtChapters];
-    for (const c of previous?.chapters || []) if (c.id.startsWith('custom-') || c.id.startsWith('draft-') || (opts.chapters && !chapters.some((x) => x.id === c.id))) chapters.push(c);
+    // The studio's own chapters stay: added in the editor, drafted for a tier, or the voice chapter from the Voice tab
+    for (const c of previous?.chapters || []) if (c.id.startsWith('custom-') || c.id.startsWith('draft-') || c.id === 'voice' || (c as { voiceMade?: string[] }).voiceMade || (opts.chapters && !chapters.some((x) => x.id === c.id))) chapters.push(c);
   }
   const colours = t.colours.length ? t.colours : previous?.colours || [];
   const built: Guide = { version: GUIDE_VERSION, generatedAt: now, file: doGuide ? pages.file : previous?.file || pages.file, page: doGuide ? 'Guidelines (template)' : previous?.page || 'Guidelines', chapters, colours };
