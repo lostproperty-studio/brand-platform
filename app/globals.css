@@ -292,7 +292,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .gb-eb { margin: 0; font-size: 12px; letter-spacing: .04em; opacity: .7; }
 .gb-h { font-family: var(--pt-display); font-weight: 400; font-size: clamp(26px, 3.6vw, 44px); line-height: 1.02; letter-spacing: -.015em; margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
 .gb-h.xl { font-size: clamp(44px, 8vw, 112px); line-height: .92; }
-.gb-body { display: flex; flex-direction: column; gap: 10px; max-width: 68ch; font-size: 15px; line-height: 1.5; }
+.gb-body { display: flex; flex-direction: column; gap: var(--para, .8em); max-width: 68ch; font-size: 15px; line-height: 1.5; }
 .gb-body p { margin: 0; }
 .gb-body.lg { font-size: clamp(16px, 1.6vw, 20px); }
 .gb-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 32px; align-items: start; }
@@ -304,6 +304,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .has-back:not(.on-dark) .gb-in::before { display: none; }
 .gb-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: clamp(20px, 3vw, 40px); align-items: center; }
 .gb-split.left > .gb-media { order: -1; }
+.gb-split.ta-top { align-items: start; } .gb-split.ta-bottom { align-items: end; }
+/* Sticky: the text holds at the top of the window while the image beside it scrolls by */
+.gb-split.sticky { align-items: start; }
+.gb-split.sticky > .gb-txt { position: sticky; top: calc(var(--pt-sticky-top, 24px)); align-self: start; }
+.gb-split.sticky.ta-center > .gb-txt { top: max(24px, calc(50vh - 120px)); }
+.gb-split.sticky.ta-bottom > .gb-txt { align-self: end; position: sticky; bottom: 24px; top: auto; }
 .gb-txt { display: flex; flex-direction: column; gap: 14px; }
 .gb-media { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 12px; }
 .gb-fig { margin: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -320,6 +326,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 760px) {
   .gb-two, .gb-split { grid-template-columns: 1fr; }
   .gb-split.left > .gb-media { order: 0; }
+  .gb-split.sticky > .gb-txt { position: static; }
   .gb-media { grid-template-columns: repeat(min(var(--cols, 2), 2), minmax(0, 1fr)); }
 }
 /* guideline editor */
@@ -738,7 +745,7 @@ p.ed:empty, span.ed:empty { display: inline-block; }
 .rs-colours span { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; }
 .rs-colours em { font-style: normal; font-size: 10px; writing-mode: vertical-rl; transform: rotate(180deg); opacity: .8; }
 .rs-fonts { flex-direction: column; gap: 6px; }
-.rs-fonts span:first-child { font-size: 88px; line-height: 1; }
+.rs-fonts span:first-child { font-size: clamp(44px, 7vw, 76px); line-height: 1; letter-spacing: -0.02em; white-space: nowrap; }
 .rs-fonts-b { font-size: 15px; color: #555; }
 .rs-avatars { gap: 10px; }
 .rs-av { width: 26%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
@@ -807,7 +814,7 @@ p.ed:empty, span.ed:empty { display: inline-block; }
 .rm-row.off .rm-pv { opacity: .45; }
 @media (max-width: 640px) { .rm-row { grid-template-columns: 1fr; } }
 .rm-pv .rs-pv { border-radius: 8px; }
-.rm-pv .rs-fonts span:first-child { font-size: 48px; }
+.rm-pv .rs-fonts span:first-child { font-size: 40px; }
 .rm-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .rm-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .rm-title { flex: 1; min-width: 160px; font-size: 15px; }
@@ -974,7 +981,7 @@ p.ed:empty, span.ed:empty { display: inline-block; }
 .gi-main { display: flex; flex-direction: column; gap: 10px; }
 .gi-label { margin: 0; font-family: var(--pt-display, var(--font)); font-size: 18px; line-height: 1.2; font-weight: 600; }
 .gi-h { margin: 0; font-family: var(--pt-display, var(--font)); font-size: clamp(24px, 2.8vw, 44px); line-height: 1.05; }
-.gi-body p { margin: 0 0 .8em; font-size: 15px; line-height: 1.5; }
+.gi-body p { margin: 0 0 var(--para, .8em); font-size: 15px; line-height: 1.5; }
 .gi-body p:last-child { margin-bottom: 0; }
 .gi-media img { display: block; width: 100%; height: auto; border-radius: 2px; }
 .gi.gi-img .gi-media, .gi.gi-img .gi-media img { height: 100%; object-fit: cover; }
@@ -1159,7 +1166,8 @@ p.tc-sentence, div.tc-sentence, h1.tc-sentence, h2.tc-sentence, h3.tc-sentence {
 .gc-label { margin: 0; font-size: 12px; letter-spacing: .02em; opacity: .6; }
 .gc-h { margin: auto 0 0; font-family: var(--pt-display, inherit); font-size: clamp(26px, 3.4vw, 48px); line-height: 1.05; letter-spacing: -.01em; max-width: 18ch; }
 .gc-body { max-width: 52ch; font-size: 15px; line-height: 1.5; }
-.gc-body p { margin: 0 0 .6em; }
+.gc-body p { margin: 0 0 var(--para, .8em); }
+.gc-body p:last-child { margin-bottom: 0; }
 .gc-cardimg img { display: block; width: 100%; height: auto; border-radius: 2px; }
 .gc-fig { margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .gc-fig img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 3px; }
@@ -1888,6 +1896,10 @@ body.ve-tool .ve-pgap { pointer-events: none; }
 .gb-stmt.gb-slice { --bl: calc(var(--pt-px, 48px) + max(0px, (100vw - var(--pt-sidew, 0px) - var(--pt-max, 1120px)) / 2)); box-sizing: border-box; margin-left: calc(-1 * var(--bl)); width: calc(100vw - var(--pt-sidew, 0px)); max-width: none; padding: clamp(56px, 8vw, 120px) var(--bl); border-radius: 0; }
 .ve-slide:has(> .gb-slice) { padding: 0; overflow: hidden; }
 .ve-slide > .gb-stmt.gb-slice { margin: 0; width: auto; padding: 104px var(--ve-pad); }
+/* Full width with no fill: nothing to show edge to edge, so just the page's edges for the words */
+.gb-stmt.gb-slice.nofill { padding-block: 0; }
+.ve-slide:has(> .gb-slice.nofill) { padding: var(--ve-pad); }
+.ve-slide > .gb-stmt.gb-slice.nofill { padding: 0; }
 @media (max-width: 760px) { .pt { --pt-sidew: 0px; } .pt-page { --pt-px: 16px; } }
 
 /* Side panels stay tidy: one line per chapter, long titles cut short */

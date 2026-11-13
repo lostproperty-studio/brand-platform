@@ -267,6 +267,10 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
         {b.kind === 'spacer' ? <Row label="Height"><ScaleSelect value={b.size ?? 64} set={(n) => set({ size: n }, 'size')} label="Spacer height" /></Row> : null}
         {b.kind === 'media' ? <Row label="Per row"><Step value={b.cols || 2} min={1} max={4} set={(n) => set({ cols: n })} label="Images per row" /></Row> : null}
         {b.kind === 'split' ? <Row label="Image"><Seg value={b.side || 'right'} opts={[['left', 'Image left', PanelLeft], ['right', 'Image right', PanelRight]]} set={(v) => set({ side: v })} label="Image side" /></Row> : null}
+        {b.kind === 'split' ? <>
+          <Row label="Text"><Seg value={b.textAlign || 'center'} opts={[['top', 'Top', AlignStartHorizontal], ['center', 'Centre', AlignCenterHorizontal], ['bottom', 'Bottom', AlignEndHorizontal]]} set={(v) => set({ textAlign: v })} label="Where the text sits beside the image" /></Row>
+          <Row label="Sticky" hint="The text stays at the top of the window while a tall image scrolls past"><label className="fp-check"><input type="checkbox" checked={!!b.sticky} onChange={(e) => set({ sticky: e.target.checked || undefined, ...(e.target.checked ? { textAlign: 'top' as const } : {}) })} />Keep the text in view</label></Row>
+        </> : null}
         {b.kind === 'statement' ? <>
           <Row label="Width" hint="Full width runs edge to edge in the client portal"><Seg value={b.full ? 'full' : 'page'} opts={[['page', 'Page'], ['full', 'Full width']]} set={(v) => set({ full: v === 'full' })} label="Width" /></Row>
           <Row label="Shape" hint="Locks the slide to a shape so it doesn’t stretch with the screen. Text scales with it."><select className="dp-select" value={b.ratio || 'auto'} onChange={(e) => set({ ratio: e.target.value === 'auto' ? undefined : (e.target.value as Block['ratio']) })} aria-label="Shape">{[['auto', 'Auto: hugs the text'], ['16:9', '16:9 Widescreen'], ['21:9', '21:9 Cinema'], ['3:2', '3:2'], ['4:3', '4:3'], ['1:1', '1:1 Square']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Row>

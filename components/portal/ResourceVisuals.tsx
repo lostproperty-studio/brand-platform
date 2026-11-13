@@ -61,7 +61,7 @@ export function PackagePreview({ p, colours, logoUrl }: { p: Package; colours: C
     case 'colours':
       return <div className="rs-pv rs-colours">{colours.slice(0, 8).map((c) => <span key={c.hex + c.name} style={{ background: c.hex, color: lum(c.hex) > 0.6 ? '#000' : '#fff' }}><em>{c.hex}</em></span>)}</div>;
     case 'fonts':
-      return <div className="rs-pv rs-fonts"><span style={{ fontFamily: 'var(--pt-display)' }}>Aa</span><span className="rs-fonts-b" style={{ fontFamily: 'var(--pt-body)' }}>Bb Cc 123</span></div>;
+      return <div className="rs-pv rs-fonts"><span style={{ fontFamily: 'var(--pt-display)' }}>AaBbCc</span></div>;
     case 'avatars':
       return <div className="rs-pv rs-avatars">{(imgs.length ? imgs.slice(0, 3).map((im) => <span key={im.url} className="rs-av"><img src={im.url} alt="" className="full" /></span>) : [...colours].sort((a, b) => Math.abs(lum(a.hex) - 0.5) - Math.abs(lum(b.hex) - 0.5)).slice(0, 3).map((c) => <span key={c.hex} className="rs-av" style={{ background: c.hex }}>{logoUrl ? <img src={logoUrl} alt="" style={lum(c.hex) < 0.5 ? { filter: 'brightness(0) invert(1)' } : undefined} /> : null}</span>))}</div>;
     case 'tokens':

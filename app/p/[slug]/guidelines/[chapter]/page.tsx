@@ -1,9 +1,9 @@
 import { textProps } from '@/lib/textStyle';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { chapterNum, chapterSlug, downloadUrl, portalContext, signFrames } from '@/lib/portal/context';
-import { TypeTester } from '@/components/portal/Interactive';
-import { fontState } from '@/lib/fonts';
+import { chapterNum, chapterSlug, portalContext, signFrames } from '@/lib/portal/context';
+import { portalPackages, visibleToClient } from '@/lib/portal/packages';
+import { PackageCard } from '@/components/portal/PackageCard';
 import { GuideBlock } from '@/components/portal/GuideBlock';
 import { SubNav } from '@/components/portal/SubNav';
 import { Swatch } from '@/components/portal/Swatch';
@@ -12,9 +12,9 @@ import { blockPaths } from '@/lib/figma/blocks';
 
 const textOn = (hex: string) => { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#000' : '#fff'; };
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB ${n >> 16} ${(n >> 8) & 255} ${n & 255}`; };
-const DOWNLOADS: Record<string, [RegExp, string]> = { logo: [/^assets\/logo\//, 'Logo files'], colour: [/^tokens\//, 'Colour and design tokens'], type: [/^assets\/fonts\//, 'Font files'], imagery: [/^assets\/(imagery|patterns?)\//, 'Imagery'], layout: [/^templates\//, 'Templates'] };
+const PACKS: Record<string, string[]> = { logo: ['logos'], colour: ['colours'], type: ['fonts'], imagery: ['images', 'graphics'], layout: ['templates'], iconography: ['icons'], icons: ['icons'] };
 
-// One chapter of the guidelines: the Figma frames as designed, then the exact rules, then the files.
+// One chapter of the guidelines: the Figma frames as designed, then the exact rules, then its resources.
 export default async function Chapter({ params }: { params: Promise<{ slug: string; chapter: string }> }) {
   const { slug, chapter } = await params;
   const ctx = (await portalContext(slug))!;
@@ -26,8 +26,9 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   const hasCover = c.blocks[0]?.kind === 'cover' && !c.blocks[0].hidden;
   // Subsections: each divider slide starts one (e.g. Wordmark, Symbol, How to use)
   const subs = c.blocks.filter((b) => b.kind === 'divider' && !b.hidden && b.heading).map((b) => ({ id: 's-' + b.id.replace(/[^a-z0-9]/gi, '-'), title: b.heading!.replace(/\n/g, ' '), block: b.id }));
-  const dl = c.key && DOWNLOADS[c.key] ? ctx.files.filter((f) => DOWNLOADS[c.key!][0].test(f.path) && !/LICENCE|manifest/.test(f.path)) : [];
-  const dlLinks = await Promise.all(dl.slice(0, 24).map(async (f) => ({ ...f, href: await downloadUrl(f, ctx.preview, slug) })));
+  // The packages this chapter is about, as in Resources: one card each, one download
+  const kinds = c.key ? PACKS[c.key] || [] : [];
+  const packs = kinds.length ? (await portalPackages(ctx)).filter((p) => kinds.includes(p.kind) && (visibleToClient(p) || (ctx.preview && !p.hidden && p.enabled && p.core))) : [];
   const prev = chapters[idx - 1], next = chapters[idx + 1];
   // The guide's text styles and spacing
   const pc = (ctx.project.content || {}) as { typeScale?: never; dsProfile?: never };
@@ -51,11 +52,6 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
         <div className="pt-cc">{ctx.snap.colours.map((col) => <Swatch key={col.hex} className="pt-ccc" name={col.name} hex={col.hex} note={[col.role, rgb(col.hex)].filter(Boolean).join(' · ')} ink={textOn(col.hex)} />)}</div>
       </section> : null}
 
-      {c.key === 'type' && ctx.fonts.some((f) => f.name) ? <section className="pt-blk" aria-labelledby="h-t">
-        <h2 id="h-t" className="pt-h2">The typefaces</h2>
-        <TypeTester fonts={ctx.fonts.filter((f) => f.name).map((f) => ({ role: f.role, label: f.label, name: f.name, hasFiles: f.files.length > 0, licensed: fontState(f) === 'licensed', weights: [...new Set(f.files.map((x) => x.weight))].sort() }))} />
-      </section> : null}
-
       {subs.length > 1 ? <SubNav items={subs} /> : null}
       <div className="pt-blocks">{c.blocks.map((b, k) => { const si = subs.findIndex((x) => x.block === b.id); return <GuideBlock key={b.id} b={b} urls={urls} headingLevel={k === 0 && hasCover ? 2 : 3} anchor={si >= 0 ? subs[si].id : undefined} number={si >= 0 ? String(si + 1).padStart(2, '0') : undefined} chapter={c.title} />; })}</div>
 
@@ -65,10 +61,10 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
         <div className="pt-rules">{c.rules.map((r, k) => <div key={k} className="pt-rule"><span className="pt-n">{chapterNum(k)}</span><p className="pt-rule-h">{r.title}</p><p>{r.text}</p></div>)}</div>
       </section> : null}
 
-      {dlLinks.length ? <section className="pt-blk" aria-labelledby="h-d">
-        <h2 id="h-d" className="pt-h2">{DOWNLOADS[c.key!][1]}</h2>
-        <div className="pt-files">{dlLinks.map((f) => <div key={f.path} className="pt-file"><span>{f.path.split('/').pop()}</span><span className="mute">{f.format}</span>{f.href ? <a className="btn" href={f.href}>Download</a> : <span className="mute">Coming soon</span>}</div>)}</div>
-        <Link href={`/p/${slug}/downloads`} className="mute">Everything in the kit →</Link>
+      {packs.length ? <section className="pt-blk" aria-labelledby="h-d">
+        <h2 id="h-d" className="pt-h2">Resources</h2>
+        <div className="rs-grid">{packs.map((p) => <PackageCard key={p.id} p={p} slug={slug} colours={ctx.snap?.colours || []} logoUrl={ctx.logoUrl} preview={ctx.preview} fonts={ctx.fonts} />)}</div>
+        <Link href={`/p/${slug}/resources`} className="mute">Everything in the kit →</Link>
       </section> : null}
 
       <nav className="pt-pn" aria-label="Chapters">

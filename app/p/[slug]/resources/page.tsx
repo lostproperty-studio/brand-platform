@@ -5,12 +5,11 @@ import { Icon } from '@/lib/icons';
 import { SKILLS } from '@/lib/skills';
 import { portalPackages, SECTIONS, visibleToClient, type Package } from '@/lib/portal/packages';
 import { roles } from '@/lib/designSystem';
-import { AppTile, PackagePreview, SystemPreview } from '@/components/portal/ResourceVisuals';
+import { AppTile, SystemPreview } from '@/components/portal/ResourceVisuals';
+import { PackageCard } from '@/components/portal/PackageCard';
 import { JumpNav } from '@/components/portal/JumpNav';
-import { TeamFileRemove, TeamFileUpload } from '@/components/portal/TeamFiles';
+import { TeamFileUpload } from '@/components/portal/TeamFiles';
 
-const STATUS: Record<string, string> = { in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
-const size = (b: number) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : b > 1e3 ? `${Math.round(b / 1e3)} KB` : '');
 
 // Resources: the apps tray at the top, then everything to take away, as packages in a long scroll with a jump bar.
 // Only what this client has is shown, so a simple brand stays simple.
@@ -27,28 +26,7 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
   const sections = SECTIONS.map((s) => ({ ...s, items: shown.filter((p) => p.section === s.id) })).filter((s) => s.items.length || (s.id === 'team' && ctx.access.canManage));
   const jump = [{ id: 'apps', label: 'Apps' }, ...sections.filter((s) => s.id === 'brand' || s.id === 'elements').map((s) => ({ id: s.id, label: s.title })), { id: 'ai', label: 'For AI' }, ...sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => ({ id: s.id, label: s.id === 'builders' ? 'For developers' : 'Team files' }))];
 
-  const card = (p: Package) => {
-    const href = `/api/p/${slug}/package/${p.id}`;
-    const meta = [p.count ? `${p.count} file${p.count === 1 ? '' : 's'}` : '', p.formats.join(', '), size(p.bytes)].filter(Boolean).join(' · ');
-    return (
-      <article key={p.id} className={'rs-card' + (p.empty ? ' is-empty' : '')}>
-        <PackagePreview p={p} colours={snap.colours} logoUrl={ctx.logoUrl} />
-        <div className="rs-card-txt">
-          <h3>{p.title}</h3>
-          {p.purpose ? <p className="mute">{p.purpose}</p> : null}
-          {p.kind === 'fonts' ? <p className="rs-fontnames">{ctx.fonts.filter((f) => f.name).map((f) => `${f.name} (${f.label})`).join(' · ')}</p> : null}
-          <div className="rs-card-foot">
-            {p.empty ? <span className="mute">{ctx.preview ? 'Not added yet. Add it in the studio’s Resources tab.' : 'Coming soon'}</span>
-              : !p.ready ? <span className="tag">{STATUS[p.status || ''] || 'Coming soon'}</span>
-              : p.kitFiles.length + p.uploads.length === 0 && p.kind === 'fonts' ? <span className="mute">Licensed files not included. Install from the foundry.</span>
-              : <a className="btn solid" href={href} download>Download</a>}
-            {meta && !p.empty ? <span className="mute rs-meta">{meta}</span> : null}
-          </div>
-          {p.kind === 'team' ? <div className="rs-team">{p.kitFiles.map((f) => <div key={f.path} className="pt-file"><span>{f.path.replace(/^team\//, '')}</span><a className="btn" href={`${href}?file=${encodeURIComponent(f.path)}`}>Download</a>{ctx.access.canManage ? <TeamFileRemove slug={slug} path={f.path} /> : null}</div>)}</div> : null}
-        </div>
-      </article>
-    );
-  };
+  const card = (p: Package) => <PackageCard key={p.id} p={p} slug={slug} colours={snap.colours} logoUrl={ctx.logoUrl} preview={ctx.preview} fonts={ctx.fonts} canManage={ctx.access.canManage} />;
 
   return (
     <div className="pt-page rs">

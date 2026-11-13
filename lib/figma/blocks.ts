@@ -76,6 +76,8 @@ export type Block = {
   bg?: string; ink?: string;
   eyebrow?: string; heading?: string; body?: string;
   media?: BlockMedia[]; side?: 'left' | 'right'; cols?: number;
+  /** Text and image: where the text sits beside the image, and whether it stays in view while the image scrolls past */
+  textAlign?: 'top' | 'center' | 'bottom'; sticky?: boolean;
   backdrop?: BlockMedia; // full-bleed image behind the text (chapter dividers, hero slides)
   swatches?: BlockSwatch[];
   items?: BlockItem[]; box?: BoxStyle;

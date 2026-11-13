@@ -52,9 +52,9 @@ export function convert(b: Block, kind: BlockKind): Partial<Block> {
 }
 const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const toHtml = (v: string | undefined, multiline: boolean) => (!v ? '' : multiline ? v.split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('') : esc(v).replace(/\n/g, '<br>'));
+const toHtml = (v: string | undefined, multiline: boolean) => (!v ? '' : multiline ? v.split(/\n+/).filter((p) => p.trim()).map((p) => `<p>${esc(p)}</p>`).join('') : esc(v).replace(/\n/g, '<br>'));
 // innerText follows CSS case changes, so read it with them switched off; otherwise UPPERCASE styling would be saved into the words
-const fromEl = (el: HTMLElement) => { el.classList.add('ed-raw'); const t = el.innerText; el.classList.remove('ed-raw'); return tidy(t); };
+const fromEl = (el: HTMLElement, multiline = false) => { el.classList.add('ed-raw'); const t = el.innerText; el.classList.remove('ed-raw'); return multiline ? t.split(/\n+/).map((x) => x.replace(/ /g, ' ').trim()).filter(Boolean).join('\n\n') : tidy(t); };
 const tidy = (t: string) => t.replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 
 // Text you edit in place, in the brand's own type. Enter ends a headline; in body text, Enter starts a new paragraph.
@@ -63,8 +63,13 @@ function Editable({ value, onSave, tag, className, placeholder, multiline, style
   useEffect(() => { const el = ref.current; if (el && document.activeElement !== el) el.innerHTML = toHtml(value, !!multiline); }, [value, multiline]);
   return createElement(tag, {
     ref, className: className + ' ed' + (on ? ' ed-on' : ''), style, onFocus, contentEditable: true, suppressContentEditableWarning: true, 'data-ph': placeholder, spellCheck: false, role: 'textbox', 'aria-label': placeholder, 'aria-multiline': multiline || undefined,
-    onBlur: () => { const el = ref.current; if (!el) return; const v = fromEl(el); if (v !== (value || '').trim()) onSave(v); if (!v) el.innerHTML = ''; },
-    onPaste: (e: React.ClipboardEvent) => { e.preventDefault(); document.execCommand('insertText', false, e.clipboardData.getData('text/plain')); },
+    onBlur: () => { const el = ref.current; if (!el) return; const v = fromEl(el, !!multiline); if (v !== (value || '').trim()) onSave(v); if (!v) el.innerHTML = ''; },
+    onPaste: (e: React.ClipboardEvent) => {
+      e.preventDefault(); const t = e.clipboardData.getData('text/plain');
+      // Pasted lines arrive as paragraphs in body text, so they get the same spacing as typed ones
+      if (multiline && /\n/.test(t)) document.execCommand('insertHTML', false, t.split(/\r?\n+/).map((x) => x.trim()).filter(Boolean).map((x) => `<p>${esc(x)}</p>`).join(''));
+      else document.execCommand('insertText', false, t);
+    },
     onKeyDown: (e: React.KeyboardEvent) => {
       if (e.key === 'Escape') { (e.target as HTMLElement).innerHTML = toHtml(value, !!multiline); (e.target as HTMLElement).blur(); }
       if (e.key === 'Enter' && !multiline && !e.shiftKey) { e.preventDefault(); (e.target as HTMLElement).blur(); }

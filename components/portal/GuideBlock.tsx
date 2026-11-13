@@ -50,7 +50,9 @@ export type EditKit = {
 
 function Paras({ text, className, style }: { text?: string; className?: string; style?: React.CSSProperties }) {
   if (!text) return null;
-  return <div className={className} style={style}>{text.split(/\n{2,}/).map((p, i) => <p key={i}>{p.split('\n').map((l, j, a) => <span key={j}>{l}{j < a.length - 1 ? <br /> : null}</span>)}</p>)}</div>;
+  // Every line is its own paragraph, with paragraph spacing between: text typed, pasted and imported from Figma all
+  // separate paragraphs differently, and they should all look the same
+  return <div className={className} style={style}>{text.split(/\n+/).filter((p) => p.trim()).map((p, i) => <p key={i}>{p}</p>)}</div>;
 }
 
 export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter, edit }: { b: Block; urls: Record<string, string>; headingLevel?: 2 | 3; number?: string; anchor?: string; chapter?: string; edit?: EditKit }) {
@@ -145,7 +147,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
   // A statement: a large headline and a line under it, on the page, a colour or an image; it can run edge to edge
   // in a locked shape, like a slide
   if (b.kind === 'statement') return (
-    <section className={'gb gb-stmt' + (bg || back ? ' pad' : '') + (back ? ' has-back' : '') + (darkBack ? ' on-dark' : '') + ((bg || back) && !b.ratio ? ' gb-slice' : b.full ? ' gb-bleed' : '') + (b.ratio ? ' gb-ratio' : '') + ' ' + tone} style={{ ...(bg || back ? style : ink ? { color: ink } : {}), ...(b.ratio ? { aspectRatio: b.ratio.replace(':', ' / ') } : {}) }}>
+    <section className={'gb gb-stmt' + (bg || back ? ' pad' : '') + (back ? ' has-back' : '') + (darkBack ? ' on-dark' : '') + ((bg || back || b.full) && !b.ratio ? ' gb-slice' + (bg || back ? '' : ' nofill') : b.full ? ' gb-bleed' : '') + (b.ratio ? ' gb-ratio' : '') + ' ' + tone} style={{ ...(bg || back ? style : ink ? { color: ink } : {}), ...(b.ratio ? { aspectRatio: b.ratio.replace(':', ' / ') } : {}) }}>
       {backEl}
       <div className="gb-in">{parts(['head', 'body'], { head: <>{eyebrow()}{txt('heading', b.heading, 'p', 'gb-stmt-h', 'A statement')}</>, body: edit || b.body ? body('gb-body gb-stmt-sub') : null })}</div>
     </section>
@@ -228,7 +230,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     </section>
   );
   if (b.kind === 'split') return (
-    <section className={'gb gb-split' + (b.side === 'left' ? ' left' : '') + ' ' + tone}>
+    <section className={'gb gb-split' + (b.side === 'left' ? ' left' : '') + ` ta-${b.textAlign || 'center'}` + (b.sticky ? ' sticky' : '') + ' ' + tone}>
       <div className="gb-txt">{parts(['head', 'body'], { head, body: body() })}</div>
       {mediaEl}
     </section>
