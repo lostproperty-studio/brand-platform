@@ -5,6 +5,7 @@ import { AskDock } from '@/components/portal/AskDock';
 import { logVisit } from '@/lib/activity';
 import { hasShowcase } from '@/lib/showcase';
 import { voiceReady } from '@/lib/voice';
+import { PreviewComments } from '@/components/portal/PreviewComments';
 
 // The client portal: an online version of the brand guidelines, with the kit, Canvas and Ask alongside.
 export default async function PortalLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
@@ -23,6 +24,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
       <PortalNav slug={slug} client={project.client} logoUrl={sidebar.full} miniUrl={sidebar.mini} chapters={chapters} showSettings={access.canManage} showShowcase={preview || hasShowcase(snap?.showcase)} showWriter={preview || (!!snap?.voice && voiceReady(snap.voice) && !!snap.voice.writer)} />
       <div className="pt-main">
         {preview ? <div className="pt-preview" role="status">Studio preview of the working copy. {project.status === 'live' ? 'Clients see the last published version.' : 'Not published yet, so clients can’t see it.'} <a href={`/studio/projects/${project.id}`}>Back to the studio</a></div> : null}
+        {preview ? <PreviewComments projectId={project.id} /> : null}
         {snap ? <AskDock slug={slug} client={project.client} aiConnected={!!project.ai_key_hint || preview} studioAi={preview} canConnect={access.clientAdmin} /> : null}
         {!snap ? <div className="pt-empty"><h1>Coming soon</h1><p className="mute">Lost Property is preparing your brand guidelines. You’ll get an email when they’re ready.</p></div> : children}
       </div>

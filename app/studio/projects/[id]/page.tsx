@@ -37,7 +37,10 @@ import { ShowcaseEditor } from '@/components/ShowcaseEditor';
 import { HomeIntro } from '@/components/HomeIntro';
 import { defaultIntro } from '@/lib/portal/home';
 import { readShowcase, showcasePaths } from '@/lib/showcase';
-import { resolvePackages } from '@/lib/portal/packages';
+import { packageSettings, resolvePackages } from '@/lib/portal/packages';
+import { PdfStudio } from '@/components/PdfStudio';
+import { systemCss, systemFor } from '@/lib/guideSystem';
+import { roles as dsRoles } from '@/lib/designSystem';
 import { buildSnapshot } from '@/lib/projects/snapshot';
 import type { KitFileRow } from '@/lib/portal/context';
 import { tierLabel, tierOf } from '@/lib/playbook';
@@ -49,7 +52,7 @@ import { PortalAddress } from '@/components/PortalAddress';
 import { env } from '@/lib/env';
 import { teamGate, teamRole } from '@/lib/studioTeam';
 
-const TABS = [['overview', 'Overview'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['client', 'Client']] as const;
+const TABS = [['overview', 'Overview'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['pdf', 'PDF'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -177,7 +180,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <nav className="rs-studio-nav" aria-label="Resources"><a href="#design-system">Design system</a><a href="#apps">Apps and tools</a><a href="#downloads">Downloads</a><a href="#deliverables">Deliverables</a></nav>
       <section id="design-system" className="rs-studio-sec"><h2 className="rs-studio-h">Design system</h2><DesignProfile projectId={id} slug={p.slug} initial={readProfile(p.content)} chapters={(normaliseGuide((p.content as { guide?: Guide } | null)?.guide)?.chapters || []).filter((c) => !c.removed).length} /></section>
       <section id="apps" className="rs-studio-sec"><h2 className="rs-studio-h">Apps and tools</h2><ToolManager projectId={id} slug={p.slug} /></section>
-      <section id="downloads" className="rs-studio-sec"><h2 className="rs-studio-h">Downloads</h2><ResourceManager projectId={id} slug={p.slug} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} /></section>
+      <section id="downloads" className="rs-studio-sec"><h2 className="rs-studio-h">Downloads</h2><ResourceManager projectId={id} slug={p.slug} client={p.client} roles={dsRoles(snap?.colours || [])} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} guideRev={((p.content as { guide?: { _rev?: number } } | null)?.guide?._rev) || 0} ai={{ 'design-system': packageSettings(p.content)['design-system'] || {}, skills: packageSettings(p.content).skills || {} }} /></section>
       <section id="deliverables" className="rs-studio-sec"><h2 className="rs-studio-h">Deliverables</h2><p className="mute" style={{ marginTop: -4 }}>What the kit contains, and where each part is up to.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 900 }}>
           {(dparts || []).map((d) => <div key={d.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -278,6 +281,23 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const g = normaliseGuide((p.content as { guide?: Guide } | null)?.guide);
     const pub = await publishedSnapshot(id).catch(() => null);
     body = <VoiceStudio knowledge={readKnowledge(p.content)} liveWriter={!!pub?.voice?.writer && voiceReady(pub.voice)} published={!!pub} projectId={id} slug={p.slug} initial={readVoice(p.content)} hasGuide={!!g} hasChapter={!!g?.chapters.some((c) => c.key === 'voice' && !c.removed)} />;
+  }
+  if (tab === 'pdf') {
+    // The guidelines as 16:9 slides, from templates the studio sets, exported to PDF
+    const pdfImg = (content as { pdf?: { title?: { image?: string } } }).pdf?.title?.image;
+    const paths = [...(guide ? guidePaths(guide) : []), ...(pdfImg ? [pdfImg] : [])];
+    const { data: signed } = paths.length ? await sb.storage.from('previews').createSignedUrls(paths, 6 * 3600) : { data: [] };
+    const urls = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
+    const { fonts } = await readFonts(id);
+    const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
+    const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.pdf-root.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
+    const snapP = await buildSnapshot(id).catch(() => null);
+    const pc = content as { typeScale?: never; dsProfile?: never };
+    const sysCss = systemCss(systemFor(guide?.system, { typeScale: pc.typeScale, profile: pc.dsProfile, fonts: fonts.filter((f) => f.files.length) }));
+    const { data: logoRows } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%');
+    const logoRow = pickLogo(withFigmaLogos((logoRows || []).map((l) => ({ path: l.path, storage_path: l.storage_path })), p.content, {})).main;
+    const logoUrl = logoRow?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoRow.storage_path, 6 * 3600)).data?.signedUrl ?? null : null;
+    body = <PdfStudio projectId={id} client={p.client} guide={guide} urls={urls} logoUrl={logoUrl} colours={snapP?.colours || []} content={content} sysCss={sysCss} fontCss={fontCss} />;
   }
   if (tab === 'typefaces') {
     body = <FontManager projectId={id} />;

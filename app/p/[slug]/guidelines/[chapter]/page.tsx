@@ -2,7 +2,9 @@ import { textProps } from '@/lib/textStyle';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { chapterNum, chapterSlug, portalContext, signFrames } from '@/lib/portal/context';
-import { portalPackages, visibleToClient } from '@/lib/portal/packages';
+import { chapterKind, libraryImages, portalPackages, visibleToClient } from '@/lib/portal/packages';
+import { ImageLibrary, ImageNotice, ProtectImages } from '@/components/portal/ImageRights';
+import { adminClient } from '@/lib/supabase/server';
 import { PackageCard } from '@/components/portal/PackageCard';
 import { GuideBlock } from '@/components/portal/GuideBlock';
 import { SubNav } from '@/components/portal/SubNav';
@@ -12,7 +14,7 @@ import { blockPaths } from '@/lib/figma/blocks';
 
 const textOn = (hex: string) => { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#000' : '#fff'; };
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB ${n >> 16} ${(n >> 8) & 255} ${n & 255}`; };
-const PACKS: Record<string, string[]> = { logo: ['logos'], colour: ['colours'], type: ['fonts'], imagery: ['images', 'graphics'], layout: ['templates'], iconography: ['icons'], icons: ['icons'] };
+const PACKS: Record<string, string[]> = { logo: ['logos'], colour: ['colours'], type: ['fonts'], imagery: ['images'], layout: ['templates'], iconography: ['icons'], icons: ['icons'], graphics: ['graphics'] };
 
 // One chapter of the guidelines: the Figma frames as designed, then the exact rules, then its resources.
 export default async function Chapter({ params }: { params: Promise<{ slug: string; chapter: string }> }) {
@@ -27,8 +29,16 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   // Subsections: each divider slide starts one (e.g. Wordmark, Symbol, How to use)
   const subs = c.blocks.filter((b) => b.kind === 'divider' && !b.hidden && b.heading).map((b) => ({ id: 's-' + b.id.replace(/[^a-z0-9]/gi, '-'), title: b.heading!.replace(/\n/g, ' '), block: b.id }));
   // The packages this chapter is about, as in Resources: one card each, one download
-  const kinds = c.key ? PACKS[c.key] || [] : [];
-  const packs = kinds.length ? (await portalPackages(ctx)).filter((p) => kinds.includes(p.kind) && (visibleToClient(p) || (ctx.preview && !p.hidden && p.enabled && p.core))) : [];
+  const kind = chapterKind(c);
+  const kinds = kind ? PACKS[kind] || [] : [];
+  const all = kinds.length ? await portalPackages(ctx) : [];
+  const packs = all.filter((p) => kinds.includes(p.kind) && (visibleToClient(p) || (ctx.preview && !p.hidden && p.enabled && p.core)));
+  // Imagery: the pictures here are references, so they're protected; the approved library sits at the top
+  const imagery = kind === 'imagery';
+  const lib = imagery ? all.find((p) => p.kind === 'images' && visibleToClient(p)) : undefined;
+  const libFiles = libraryImages(lib).slice(0, 60);
+  const libUrls = libFiles.length ? Object.fromEntries(((await adminClient().storage.from('kits').createSignedUrls(libFiles.map((f) => f.path), 6 * 3600)).data || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl])) : {};
+  const library = libFiles.filter((f) => libUrls[f.path]).map((f) => ({ url: libUrls[f.path], name: f.name }));
   const prev = chapters[idx - 1], next = chapters[idx + 1];
   // The guide's text styles and spacing
   const pc = (ctx.project.content || {}) as { typeScale?: never; dsProfile?: never };
@@ -38,7 +48,7 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   const cls = (k: string, base0 = '') => { const t = textProps(c.styles?.[k]); return { style: t.style, className: [base0, t.className].filter(Boolean).join(' ') }; };
 
   return (
-    <article className="pt-page gsys">
+    <article className="pt-page gsys" data-chapter={c.id}>
       <style dangerouslySetInnerHTML={{ __html: sysCss }} />
       <header className="pt-chhead">
         <p className="mute"><span className="pt-n">{chapterNum(idx)}</span><span {...cls('kicker')}>{c.kicker || 'Chapter'}</span></p>
@@ -52,8 +62,10 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
         <div className="pt-cc">{ctx.snap.colours.map((col) => <Swatch key={col.hex} className="pt-ccc" name={col.name} hex={col.hex} note={[col.role, rgb(col.hex)].filter(Boolean).join(' · ')} ink={textOn(col.hex)} />)}</div>
       </section> : null}
 
+      {imagery ? <ImageNotice client={ctx.project.client} note={lib?.note} owner={lib?.owner} hasLibrary={library.length > 0} /> : null}
+      {library.length ? <ImageLibrary images={library} owner={lib?.owner} count={libraryImages(lib).length} download={lib ? `/api/p/${slug}/package/${lib.id}` : undefined} /> : null}
       {subs.length > 1 ? <SubNav items={subs} /> : null}
-      <div className="pt-blocks">{c.blocks.map((b, k) => { const si = subs.findIndex((x) => x.block === b.id); return <GuideBlock key={b.id} b={b} urls={urls} headingLevel={k === 0 && hasCover ? 2 : 3} anchor={si >= 0 ? subs[si].id : undefined} number={si >= 0 ? String(si + 1).padStart(2, '0') : undefined} chapter={c.title} />; })}</div>
+      {(() => { const blocks = <div className="pt-blocks">{c.blocks.map((b, k) => { const si = subs.findIndex((x) => x.block === b.id); return <div key={b.id} data-b={b.id} className="pt-bwrap"><GuideBlock b={b} urls={urls} headingLevel={k === 0 && hasCover ? 2 : 3} anchor={si >= 0 ? subs[si].id : undefined} number={si >= 0 ? String(si + 1).padStart(2, '0') : undefined} chapter={c.title} /></div>; })}</div>; return imagery ? <ProtectImages>{blocks}</ProtectImages> : blocks; })()}
 
       {c.rules.length ? <section className="pt-blk" aria-labelledby="h-r">
         <h2 id="h-r" className="pt-h2">The rules</h2>

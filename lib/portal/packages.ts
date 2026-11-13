@@ -10,7 +10,10 @@ import type { ProjectFont } from '@/lib/fonts';
 
 export type PackageKind = 'logos' | 'colours' | 'fonts' | 'avatars' | 'icons' | 'images' | 'graphics' | 'custom' | 'tokens' | 'guidelines' | 'templates' | 'team';
 export type PkgFile = { name: string; path: string; bytes: number; type: string; /** Came from the Figma template; replaced on each rescan */ fromFigma?: boolean; /** Short content hash, to tell changed files from unchanged ones */ hash?: string };
-export type PackageSettings = { title?: string; purpose?: string; hidden?: boolean; enabled?: boolean; files?: PkgFile[]; cover?: string };
+export type PackageSettings = { title?: string; purpose?: string; hidden?: boolean; enabled?: boolean; files?: PkgFile[]; cover?: string;
+  /** Who owns the files and how they may be used (the approved image library) */ owner?: string;
+  /** A note shown with the files, e.g. the imagery disclaimer */ note?: string;
+  /** When the studio last refreshed the package from the guidelines, and the guidelines' revision then */ refreshedAt?: string; refreshedRev?: number };
 export type PackageMap = Record<string, PackageSettings>;
 export type Section = 'brand' | 'elements' | 'builders' | 'team';
 
@@ -45,6 +48,7 @@ export type Package = {
   ready: boolean; status?: string;
   empty: boolean; hidden: boolean; core: boolean; drafted: boolean; custom: boolean; enabled: boolean;
   images: PreviewImage[]; cover?: string;
+  owner?: string; note?: string; refreshedAt?: string; refreshedRev?: number;
 };
 
 const IMG = /\.(svg|png|jpe?g|webp|gif)$/i;
@@ -83,7 +87,7 @@ export async function resolvePackages(opts: { files: KitFileRow[]; content: unkn
       kitFiles, uploads, count, formats, bytes: uploads.reduce((n, u) => n + u.bytes, 0),
       ready, status: ready ? undefined : partStatus,
       empty: count === 0 && !fontsNamed, hidden: !!s.hidden, core: !!d.core, drafted: !!d.drafted, custom: d.kind === 'custom', enabled,
-      images: [], cover: s.cover
+      images: [], cover: s.cover, owner: s.owner, note: s.note, refreshedAt: s.refreshedAt, refreshedRev: s.refreshedRev
     };
   });
   // Preview images: a few files from each visual package
@@ -105,3 +109,18 @@ export const visibleToClient = (p: Package) => !p.hidden && !p.empty && p.enable
 export async function portalPackages(ctx: { files: KitFileRow[]; project: { content?: unknown }; snap: { colours: { hex: string }[] } | null; fonts: ProjectFont[]; preview: boolean }) {
   return resolvePackages({ files: ctx.files, content: ctx.project.content, colours: ctx.snap?.colours || [], fonts: ctx.fonts, preview: ctx.preview, hasLogo: ctx.files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
 }
+
+/** What a chapter is about, from its key or, for chapters built from a template, its title */
+export function chapterKind(c: { key: string | null; title: string }): string | null {
+  if (c.key) return c.key;
+  const t = c.title.toLowerCase();
+  if (/logo|wordmark|symbol|marque/.test(t)) return 'logo';
+  if (/colou?r|palette/.test(t)) return 'colour';
+  if (/typ(e|ography)|font/.test(t)) return 'type';
+  if (/imag|photo|art direction|picture/.test(t)) return 'imagery';
+  if (/icon/.test(t)) return 'icons';
+  if (/layout|grid|template/.test(t)) return 'layout';
+  return null;
+}
+/** The approved image library: the Images package's pictures */
+export const libraryImages = (p?: Package) => (p ? p.uploads.filter((u) => /\.(png|jpe?g|webp|gif|avif)$/i.test(u.name)) : []);

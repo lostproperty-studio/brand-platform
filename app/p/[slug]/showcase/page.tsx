@@ -1,3 +1,4 @@
+import { ProtectImages } from '@/components/portal/ImageRights';
 import { portalContext, signFrames } from '@/lib/portal/context';
 import { hasShowcase, showcasePaths } from '@/lib/showcase';
 import { ShowcaseMedia } from '@/components/portal/ShowcaseFrame';
@@ -16,7 +17,7 @@ export default async function ShowcasePage({ params }: { params: Promise<{ slug:
         {s?.intro ? <p className="pt-lede">{s.intro}</p> : null}
       </header>
       {!hasShowcase(s) ? <p className="mute sc-empty">{ctx.preview ? 'Nothing here yet. Build the showcase in the studio’s Showcase tab.' : 'Coming soon.'}</p> : null}
-      <div className="sc-rows">
+      <ProtectImages className="sc-rows">
         {(s?.rows || []).filter((r) => r.frames.some((f) => f.kind !== 'empty')).map((r) => (
           <div key={r.id} className={'sc-row ' + r.layout}>
             {r.frames.map((f, i) => (
@@ -27,7 +28,7 @@ export default async function ShowcasePage({ params }: { params: Promise<{ slug:
             ))}
           </div>
         ))}
-      </div>
+      </ProtectImages>
     </div>
   );
 }

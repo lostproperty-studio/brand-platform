@@ -16,6 +16,8 @@ import { MultiPanel, type MultiItem } from '@/components/MultiPanel';
 import { autoType } from '@/components/GuideInspector';
 import { MakeDialog } from '@/components/MakeDialog';
 import { guideMap, readSessions, type Ref as ReviewRef } from '@/lib/review/director';
+import { CommentsPanel, useComments } from '@/components/CommentsPanel';
+import type { PortalComment } from '@/lib/comments';
 import { defaultSystem, spaceName, systemCss, systemFor, type GuideSystem, type TypeId } from '@/lib/guideSystem';
 import { textProps } from '@/lib/textStyle';
 import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
@@ -26,7 +28,7 @@ import { ChapterCover } from '@/components/portal/ChapterCover';
 import { coverKind } from '@/lib/portal/covers';
 import { HistoryPanel, PeerLayer, Roundels, useCollab, type Incoming, type Me } from '@/components/Collab';
 import { apply, compose, diff, isEmpty, type GuidePatch } from '@/lib/guidePatch';
-import { History } from 'lucide-react';
+import { History, MessageSquare } from 'lucide-react';
 import { LayersPanel, type LayerAt, type LayerDrop } from '@/components/LayersPanel';
 import { nodeFor } from '@/components/Collab';
 import { useSpellCheck } from '@/components/SpellCheck';
@@ -413,6 +415,9 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const collab = useCollab({ projectId, me, ch: chId, sel, onPatch: onRemote, onReload: () => router.refresh(), onResync: resync });
   collabRef.current = collab;
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Comments the studio left on the portal preview
+  const comments = useComments(projectId);
+  const [commentsOpen, setCommentsOpen] = useState<false | { only: string | null }>(false);
   // Live spell check (British English). The brand's own words count as spelt right: its name, typefaces, colours,
   // its vocabulary from the voice, and anything added to the guide's dictionary.
   const known = useMemo(() => [slug, ...(g?.dictionary || []), ...fonts.map((f) => f.name || ''), ...colours.map((c) => c.name),
@@ -980,6 +985,16 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     </div>
   );
 
+  const openComments = comments.list.filter((c) => !c.resolved_at).length;
+  const commentWhere = (c: PortalComment) => {
+    const chc = g.chapters.find((x) => x.id === c.chapter); const blk = chc?.blocks.find((x) => x.id === c.block);
+    if (!chc) return c.path === '/' ? 'Portal home' : c.path.replace(/^\//, '').replace(/\//g, ' › ').replace(/-/g, ' ');
+    return [chc.title, blk ? (blk.heading || blk.eyebrow || layoutLabel(blk)).replace(/\s+/g, ' ').slice(0, 40) : null].filter(Boolean).join(' › ');
+  };
+  const jumpToComment = (c: PortalComment) => {
+    if (c.chapter && g.chapters.some((x) => x.id === c.chapter) && c.chapter !== chId) setChId(c.chapter);
+    if (c.block) { setSel({ block: c.block }); setTimeout(() => document.querySelector(`.ve-blocks [data-block="${CSS.escape(c.block!)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80); }
+  };
   const kitFor = (b: Block): EditKit => ({
     text: (field: TextField, value, el) => (!value ? null : <Editable key={field} value={value} tag={el.tag} className={el.className} placeholder={el.placeholder} multiline={el.multiline} style={el.style} on={sel?.block === b.id && sel.el === field} onFocus={() => setSel({ block: b.id, el: field })} onSave={(v) => editBlock(b.id, { [field]: v || undefined } as Partial<Block>)} />),
     image: (target, _m, imgEl) => <span data-drop={String(target)} className={'ve-img' + (sel?.block === b.id && sel.el === `img:${target}` ? ' on' : '')} onMouseDown={(e) => { e.stopPropagation(); setSel({ block: b.id, el: `img:${target}` }); }}>{imgEl}</span>,
@@ -1087,13 +1102,15 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
         <span className="ve-tier">{tier ? `${tierLabel(tier)} tier` : 'No tier set'}{nDraft || nMissing ? ` · ${[nDraft ? `${nDraft} draft${nDraft === 1 ? '' : 's'} to check` : '', nMissing ? `${nMissing} missing` : ''].filter(Boolean).join(' · ')}` : ''}</span>
         {tier ? <button className="btn ic" disabled={busy} onClick={checkGaps}><ScanSearch size={15} strokeWidth={1.75} aria-hidden />Check for gaps</button> : <a className="btn" href="?tab=overview">Set a tier</a>}
         <div className="ve-who">
-          <button type="button" className="btn ic" onClick={() => setHistoryOpen(!historyOpen)} aria-pressed={historyOpen}><History size={15} strokeWidth={1.75} aria-hidden />History</button>
+          <button type="button" className="btn ic" onClick={() => { setCommentsOpen(commentsOpen ? false : { only: null }); setHistoryOpen(false); }} aria-pressed={!!commentsOpen}><MessageSquare size={15} strokeWidth={1.75} aria-hidden />Comments{openComments ? <i className="cm-n">{openComments}</i> : null}</button>
+          <button type="button" className="btn ic" onClick={() => { setHistoryOpen(!historyOpen); setCommentsOpen(false); }} aria-pressed={historyOpen}><History size={15} strokeWidth={1.75} aria-hidden />History</button>
           <span className={'ve-live ' + collab.status} data-tip={collab.status === 'live' ? 'Live: you see everyone’s edits as they happen' : collab.status === 'off' ? 'Not live right now. Your edits still save, and you’ll catch up when it reconnects.' : 'Connecting…'} />
           <Roundels me={me} peers={collab.peers} chapters={g.chapters} go={goTo} />
         </div>
       </div>
       <PeerLayer peers={collab.peers} cursors={collab.cursors} ch={chId} />
       {spell.menu}
+      {commentsOpen ? <CommentsPanel comments={comments} slug={slug} only={commentsOpen.only} onClose={() => setCommentsOpen(false)} where={commentWhere} onJump={jumpToComment} /> : null}
       {historyOpen ? <HistoryPanel projectId={projectId} onClose={() => setHistoryOpen(false)} onRestored={(gd) => { const next = gd as Guide; pending.current = null; latest.current = next; setGuide(next); past.current = []; future.current = []; setHist((n) => n + 1); setMsg('Restored. Everyone editing now sees this version.'); collab.reloadOthers(); router.refresh(); }} /> : null}
       {(g.version || 1) < 2 ? <div className="card" role="status" style={{ borderColor: '#000' }}><p style={{ margin: 0 }}>These guidelines were built with an older version, so some pages may still show slide images.</p><p className="mute" style={{ margin: '4px 0 8px' }}>Rebuild to get live text, colour swatches you can click to copy, and subsections. Your edits are kept.</p><button className="btn solid" disabled={busy} onClick={() => setRebuildOpen(true)}>Rebuild now</button></div> : null}
       <TimedProgress label="Reading Figma and rebuilding every slide" expected={Math.max(45, g.chapters.reduce((n, c) => n + c.blocks.length, 0) * 2)} running={busy} />
@@ -1173,6 +1190,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
                     <span className="n">{secNo(ch.blocks, b)}</span>
                     {layoutOf(b) ? <button className="ve-slide-lay" onClick={() => { setSel({ block: b.id }); setPicker({ convert: b.id }); }} aria-label={`Layout: ${layoutLabel(b)}. Change layout`}>{layoutLabel(b)}<ChevronDown size={12} strokeWidth={2} aria-hidden /></button> : <span>{layoutLabel(b)}</span>}
                     {b.hidden ? <span className="ve-slide-hid">Hidden</span> : null}
+                    {(() => { const n = comments.list.filter((c) => c.block === b.id && !c.resolved_at).length; return n ? <button type="button" className="ve-slide-cm" onClick={() => { setCommentsOpen({ only: b.id }); setHistoryOpen(false); }} aria-label={`${n} comment${n === 1 ? '' : 's'} on this section`}><MessageSquare size={12} strokeWidth={2} aria-hidden />{n}</button> : null; })()}
                   </div>
                   <div onPointerDown={(e) => armMove(e, b)} onMouseDown={(e) => {
                     // A click on a box (not its text or image) selects the box; anywhere else selects the section
