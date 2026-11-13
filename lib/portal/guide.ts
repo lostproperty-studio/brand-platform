@@ -162,7 +162,7 @@ export async function buildGuide(projectId: string, mode: BuildMode = 'update', 
     for (let j = queue.shift(); j; j = queue.shift()) {
       try {
         const bytes = new Uint8Array(await (await fetch(j.url)).arrayBuffer());
-        const { error: e } = await sb.storage.from('previews').upload(j.path, bytes, { contentType: j.type, upsert: true });
+        const { error: e } = await sb.storage.from('previews').upload(j.path, bytes, { contentType: j.type, upsert: true, cacheControl: '31536000' });
         if (!e) stored[j.key] = j.path;
       } catch { /* a failed image leaves that slot empty; the slide image is still there */ }
     }

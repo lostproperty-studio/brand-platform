@@ -57,7 +57,7 @@ export async function importFigmaLayout(projectId: string, frameId: string): Pro
       const res = await fetch(j.url!); if (!res.ok) return;
       const bytes = new Uint8Array(await res.arrayBuffer()); if (!bytes.byteLength) return;
       const path = `${projectId}/guide/${stamp}/${safe(j.id)}.${j.ext}`;
-      const { error } = await sb.storage.from('previews').upload(path, bytes, { contentType: j.type, upsert: true, cacheControl: '60' });
+      const { error } = await sb.storage.from('previews').upload(path, bytes, { contentType: j.type, upsert: true, cacheControl: '31536000' });
       if (!error) stored[j.id] = path;
     } catch { /* a picture that fails to export is left as an empty frame */ }
   }));

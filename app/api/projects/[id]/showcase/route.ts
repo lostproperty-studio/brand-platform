@@ -1,4 +1,5 @@
 import { teamGate } from '@/lib/studioTeam';
+import { signMany, signOne } from '@/lib/storage/signed';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
@@ -27,6 +28,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   const paths = b.data.paths.filter((p) => p.startsWith(`${id}/showcase/`));
   if (!paths.length) return NextResponse.json({ urls: {} });
-  const { data } = await sb.storage.from('previews').createSignedUrls(paths, 6 * 3600);
+  const { data } = await signMany('previews', paths, 6 * 3600);
   return NextResponse.json({ urls: Object.fromEntries((data || []).filter((d) => d.signedUrl && d.path).map((d) => [d.path!, d.signedUrl])) });
 }

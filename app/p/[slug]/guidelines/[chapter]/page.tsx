@@ -1,4 +1,5 @@
 import { textProps } from '@/lib/textStyle';
+import { signMany, signOne } from '@/lib/storage/signed';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { chapterNum, chapterSlug, portalContext, signFrames } from '@/lib/portal/context';
@@ -37,7 +38,7 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
   const imagery = kind === 'imagery';
   const lib = imagery ? all.find((p) => p.kind === 'images' && visibleToClient(p)) : undefined;
   const libFiles = libraryImages(lib).slice(0, 60);
-  const libUrls = libFiles.length ? Object.fromEntries(((await adminClient().storage.from('kits').createSignedUrls(libFiles.map((f) => f.path), 6 * 3600)).data || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl])) : {};
+  const libUrls = libFiles.length ? Object.fromEntries(((await signMany('kits', libFiles.map((f) => f.path), 6 * 3600)).data || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl])) : {};
   const library = libFiles.filter((f) => libUrls[f.path]).map((f) => ({ url: libUrls[f.path], name: f.name }));
   const prev = chapters[idx - 1], next = chapters[idx + 1];
   // The guide's text styles and spacing

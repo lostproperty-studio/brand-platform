@@ -1,4 +1,5 @@
 import { adminClient } from '@/lib/supabase/server';
+import { signMany, signOne } from '@/lib/storage/signed';
 import { portalContext } from '@/lib/portal/context';
 import { buildSpec, componentsCss, tokensCss } from '@/lib/designSystem';
 import { previewHtml } from '@/lib/designSystemPreview';
@@ -15,7 +16,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
   const { input, storage } = await dsSource(pc);
   const spec = buildSpec(input);
   const want = [...new Set([...spec.logo.all, ...spec.images, ...spec.graphics])].filter((p) => storage.has(p));
-  const { data } = want.length ? await adminClient().storage.from('kits').createSignedUrls(want.map((p) => storage.get(p)!), 6 * 3600) : { data: [] };
+  const { data } = want.length ? await signMany('kits', want.map((p) => storage.get(p)!), 6 * 3600) : { data: [] };
   const signed = new Map((data || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
   const url = (p: string) => signed.get(storage.get(p) || '') || p;
   const html = previewHtml(spec, { css: tokensCss(spec, ' ') + componentsCss(spec), url, fontCss: pc.fontCss, notes: pc.preview });

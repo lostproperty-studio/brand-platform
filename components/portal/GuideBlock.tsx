@@ -142,7 +142,7 @@ export function GuideBlock({ b, urls, headingLevel = 2, number, anchor, chapter,
     {media.map(({ m, i }) => <figure key={m.path || 'empty-' + i} className={'gb-fig ' + m.kind}>{img(m, i, (() => { const l = m.look || {}; if (!m.path) return <div className="fr fixed gb-fimg fr-empty" style={{ aspectRatio: (l.ratio && l.ratio !== 'auto' ? l.ratio : `${m.w}:${m.h}`).replace(':', ' / ') }}><span className="fr-ph">Drop an image here, or choose Replace</span></div>; return <div className="fr fixed gb-fimg" style={{ aspectRatio: (l.ratio || `${m.w}:${m.h}`).replace(':', ' / '), ...lookVars(l) }}><FrameMedia look={{ ...l, fill: { type: m.video ? 'video' : 'image', media: m }, fit: l.fit || (m.kind === 'graphic' ? 'fit' : 'fill') }} media={m} urls={urls} /></div>; })())}{edit ? edit.caption(i, m.caption) : m.caption ? <figcaption>{m.caption}</figcaption> : null}</figure>)}
     {edit && (b.kind === 'media' || !media.length) ? edit.addImage() : null}
   </div> : null;
-  const backEl = back && b.backdrop ? img(b.backdrop, 'backdrop', <img className="gb-back" src={back} alt="" />) : null;
+  const backEl = back && b.backdrop ? img(b.backdrop, 'backdrop', <img className="gb-back" src={back} alt="" loading="lazy" decoding="async" />) : null;
 
   if (b.kind === 'cover') return (
     <section className={'gb gb-cover pad' + (back ? ' has-back' : '') + (darkBack ? ' on-dark' : '') + ' ' + tone} style={style}>

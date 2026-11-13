@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { signMany, signOne } from '@/lib/storage/signed';
 import { notFound } from 'next/navigation';
 import { adminClient } from '@/lib/supabase/server';
 import { portalContext } from '@/lib/portal/context';
@@ -21,7 +22,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
 
   // Brand files the tool can use (logos, tokens, imagery), as signed links in window.LP_BRAND.assets
   const used = ctx.files.filter((f) => f.storage_path && /^(tokens|assets\/(logo|imagery|patterns?|icons?))\//.test(f.path));
-  const { data } = used.length ? await adminClient().storage.from('kits').createSignedUrls(used.map((f) => f.storage_path!), 6 * 3600) : { data: [] };
+  const { data } = used.length ? await signMany('kits', used.map((f) => f.storage_path!), 6 * 3600) : { data: [] };
   const byStorage = Object.fromEntries((data || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
   const assets = Object.fromEntries(used.filter((f) => byStorage[f.storage_path!]).map((f) => [f.path, byStorage[f.storage_path!]]));
   const { data: pr } = await adminClient().from('projects').select('content').eq('id', ctx.project.id).single();

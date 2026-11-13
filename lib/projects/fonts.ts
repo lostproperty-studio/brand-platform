@@ -1,4 +1,5 @@
 import { adminClient } from '@/lib/supabase/server';
+import { signMany, signOne } from '@/lib/storage/signed';
 import type { ProjectFont } from '@/lib/fonts';
 
 export const FONT_BUCKET = 'uploads';
@@ -24,6 +25,6 @@ export async function writeFonts(projectId: string, brand: Record<string, unknow
 export async function signFontUrls(fonts: ProjectFont[], seconds = 3600) {
   const paths = fonts.flatMap((f) => f.files.map((x) => x.path));
   if (!paths.length) return {} as Record<string, string>;
-  const { data } = await adminClient().storage.from(FONT_BUCKET).createSignedUrls(paths, seconds);
+  const { data } = await signMany(FONT_BUCKET, paths, seconds);
   return Object.fromEntries((data || []).filter((d) => d.signedUrl && d.path).map((d) => [d.path!, d.signedUrl]));
 }

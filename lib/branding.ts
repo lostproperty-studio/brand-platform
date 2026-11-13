@@ -1,4 +1,5 @@
 import { adminClient } from '@/lib/supabase/server';
+import { signMany, signOne } from '@/lib/storage/signed';
 import { readFonts, signFontUrls } from '@/lib/projects/fonts';
 import { fontFaceCss } from '@/lib/fonts';
 import { normaliseGuide, type Guide } from '@/lib/portal/guide';
@@ -19,7 +20,7 @@ export async function projectBranding(slug: string) {
   const { data: logos } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', p.id).like('path', 'assets/logo/%.svg');
   // Logos imported from the Figma assets page win over the kit's
   const { main: pick, light } = pickLogo(withFigmaLogos((logos || []).map((l) => ({ path: l.path, storage_path: l.storage_path })), content, {}));
-  const sign = async (x?: { storage_path: string | null } | null) => (x?.storage_path ? (await sb.storage.from('kits').createSignedUrl(x.storage_path, 6 * 3600)).data?.signedUrl ?? null : null);
+  const sign = async (x?: { storage_path: string | null } | null) => (x?.storage_path ? (await signOne('kits', x.storage_path, 6 * 3600)).data?.signedUrl ?? null : null);
   const { fonts } = await readFonts(p.id);
   const display = fonts.find((f) => f.role === 'display' && f.files.length) || fonts.find((f) => f.files.length);
   return { id: p.id as string, client: p.client as string, slug: p.slug as string, look, colours, logoUrl: await sign(pick), logoLightUrl: await sign(light), fontCss: fontFaceCss(fonts, await signFontUrls(fonts, 6 * 3600)), displayFont: display ? `var(--font-${display.role})` : null };

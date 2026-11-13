@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { signMany, signOne } from '@/lib/storage/signed';
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { buildSnapshot, projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
 import { readFonts, signFontUrls } from '@/lib/projects/fonts';
@@ -26,7 +27,7 @@ export const portalContext = cache(async (slug: string) => {
   // Logos imported from Figma replace the kit's
   const files = withFigmaLogos(kit, p.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
   const logoFile = pickLogo(files).main;
-  const sign = async (f?: { storage_path: string | null }) => (f?.storage_path ? (await sb.storage.from('kits').createSignedUrl(f.storage_path, 6 * 3600)).data?.signedUrl ?? null : null);
+  const sign = async (f?: { storage_path: string | null }) => (f?.storage_path ? (await signOne('kits', f.storage_path, 6 * 3600)).data?.signedUrl ?? null : null);
   const logoUrl = await sign(logoFile);
   // The sidebar: the studio's chosen full and small logos; the small one falls back to the social avatar
   const pickd = sidebarChoice(p.content);
@@ -42,7 +43,7 @@ export type PortalCtx = NonNullable<Awaited<ReturnType<typeof portalContext>>>;
 /** Signed URLs for guideline frame images (private bucket), in one request. */
 export async function signFrames(paths: string[], seconds = 6 * 3600) {
   if (!paths.length) return {} as Record<string, string>;
-  const { data } = await adminClient().storage.from('previews').createSignedUrls(paths, seconds);
+  const { data } = await signMany('previews', paths, seconds);
   return Object.fromEntries((data || []).filter((d) => d.signedUrl && d.path).map((d) => [d.path!, d.signedUrl]));
 }
 

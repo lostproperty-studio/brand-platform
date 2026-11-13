@@ -19,7 +19,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (file.size > (video ? 40 : 4) * 1024 * 1024) return NextResponse.json({ error: video ? 'Videos must be under 40 MB. Export a shorter or smaller loop.' : 'Images must be under 4 MB.' }, { status: 400 });
   const path = `${id}/guide/uploads/${randomUUID()}.${ext}`;
   const sb = adminClient();
-  const { error } = await sb.storage.from('previews').upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: file.type });
+  const { error } = await sb.storage.from('previews').upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: file.type, cacheControl: '31536000' });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const { data } = await sb.storage.from('previews').createSignedUrl(path, 6 * 3600);
   return NextResponse.json({ path, url: data?.signedUrl });

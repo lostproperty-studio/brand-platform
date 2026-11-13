@@ -1,4 +1,5 @@
 import { adminClient } from '@/lib/supabase/server';
+import { signMany, signOne } from '@/lib/storage/signed';
 
 // A project's picture, made from its logo: the logo on the brand's primary colour, using the version made for that
 // background (white or reversed on dark, black or positive on light). Used on the Overview and on the Projects page.
@@ -50,7 +51,7 @@ export async function logoThumbs(projects: P[]): Promise<Record<string, LogoThum
     chosen[p.id] = { bg, storage: choice && files ? files.get(choice.path)! : null };
   }
   const paths = Object.values(chosen).map((c) => c.storage).filter(Boolean) as string[];
-  const { data: signed } = paths.length ? await sb.storage.from('kits').createSignedUrls(paths, 6 * 3600) : { data: [] };
+  const { data: signed } = paths.length ? await signMany('kits', paths, 6 * 3600) : { data: [] };
   const url = new Map((signed || []).filter((s) => s.path && s.signedUrl).map((s) => [s.path!, s.signedUrl]));
   return Object.fromEntries(projects.map((p) => [p.id, { bg: chosen[p.id].bg, logo: chosen[p.id].storage ? url.get(chosen[p.id].storage!) || null : null, client: p.client }]));
 }

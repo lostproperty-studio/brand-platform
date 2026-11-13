@@ -1,4 +1,5 @@
 import { adminClient } from '@/lib/supabase/server';
+import { signMany, signOne } from '@/lib/storage/signed';
 import type { KitFileRow } from '@/lib/portal/context';
 import type { ProjectFont } from '@/lib/fonts';
 
@@ -57,7 +58,7 @@ const ext = (n: string) => (n.split('.').pop() || '').toUpperCase();
 /** Signed links for preview images in the kits bucket. */
 async function sign(paths: string[]) {
   if (!paths.length) return {} as Record<string, string>;
-  const { data } = await adminClient().storage.from('kits').createSignedUrls([...new Set(paths)], 6 * 3600);
+  const { data } = await signMany('kits', [...new Set(paths)], 6 * 3600);
   return Object.fromEntries((data || []).filter((d) => d.signedUrl && d.path).map((d) => [d.path!, d.signedUrl]));
 }
 

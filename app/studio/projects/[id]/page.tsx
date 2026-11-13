@@ -1,4 +1,5 @@
 import { publishedSnapshot } from '@/lib/projects/snapshot';
+import { signMany, signOne } from '@/lib/storage/signed';
 import { ProjectTabs } from '@/components/ProjectTabs';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -149,7 +150,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   }
   if (tab === 'guidelines') {
     const paths = guide ? guidePaths(guide) : [];
-    const { data: signed } = paths.length ? await sb.storage.from('previews').createSignedUrls(paths, 3600) : { data: [] };
+    const { data: signed } = paths.length ? await signMany('previews', paths, 3600) : { data: [] };
     const thumbs = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
     const { fonts } = await readFonts(id);
     const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
@@ -158,13 +159,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { data: homeVer } = await sb.from('project_versions').select('version').eq('project_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle();
     const { data: logoRows } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%');
     const logoRow = pickLogo(withFigmaLogos((logoRows || []).map((l) => ({ path: l.path, storage_path: l.storage_path })), p.content, {})).main;
-    const logoUrl = logoRow?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoRow.storage_path, 3600)).data?.signedUrl ?? null : null;
+    const logoUrl = logoRow?.storage_path ? (await signOne('kits', logoRow.storage_path, 3600)).data?.signedUrl ?? null : null;
     body = <GuideEditor me={me instanceof Response ? null : { id: me.user.id, name: nameOf(me.user), avatar: ((me.user.user_metadata || {}) as { avatar_url?: string }).avatar_url || null }} projectId={id} slug={p.slug} guide={guide} content={content as Record<string, unknown>} thumbs={thumbs} fontCss={fontCss} fonts={fonts} tier={tier} colours={snapG?.colours || []} logoUrl={logoUrl} home={{ client: p.client, line: p.line || '', title: (content as { homeTitle?: string }).homeTitle || undefined, styles: (content as { homeStyles?: Record<string, never> }).homeStyles || undefined, intro: (content as { homeIntro?: string }).homeIntro || '', fallback: defaultIntro(p.client), version: homeVer?.version }} />;
   }
   if (tab === 'showcase') {
     const sc = readShowcase(p.content);
     const paths = showcasePaths(sc);
-    const { data: signedSc } = paths.length ? await sb.storage.from('previews').createSignedUrls(paths, 6 * 3600) : { data: [] };
+    const { data: signedSc } = paths.length ? await signMany('previews', paths, 6 * 3600) : { data: [] };
     body = <ShowcaseEditor colours={((p.brand as { core?: { name: string; hex: string }[] } | null)?.core || []).filter((c) => /^#[0-9A-F]{6}$/i.test(c.hex))} projectId={id} slug={p.slug} initial={sc} initialUrls={Object.fromEntries((signedSc || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]))} />;
   }
   if (tab === 'resources') {
@@ -174,7 +175,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { fonts } = await readFonts(id);
     const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
     const logo = pickLogo(files).main;
-    const logoUrl = logo ? (await sb.storage.from('kits').createSignedUrl(logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
+    const logoUrl = logo ? (await signOne('kits', logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
     body = <div className="rs-studio">
       <nav className="rs-studio-nav" aria-label="Resources"><a href="#design-system">Design system</a><a href="#apps">Apps and tools</a><a href="#downloads">Downloads</a></nav>
       <section id="design-system" className="rs-studio-sec"><h2 className="rs-studio-h">Design system</h2><DesignProfile projectId={id} slug={p.slug} initial={readProfile(p.content)} chapters={(normaliseGuide((p.content as { guide?: Guide } | null)?.guide)?.chapters || []).filter((c) => !c.removed).length} /></section>
@@ -204,7 +205,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { data: kparts } = await sb.from('deliverable_parts').select('key, status, deliverable_files(path, format, storage_path)').eq('project_id', id).order('ord');
     const kfiles: KitFileRow[] = withFigmaLogos((kparts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string }))), p.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
     const logoRows = kfiles.filter((f) => /^assets\/logo\/.+\.(svg|png)$/i.test(f.path) && f.storage_path);
-    const signed = await Promise.all(logoRows.map(async (f) => ({ path: f.path, name: f.path.split('/').pop()!, url: (await sb.storage.from('kits').createSignedUrl(f.storage_path!, 3600)).data?.signedUrl ?? null })));
+    const signed = await Promise.all(logoRows.map(async (f) => ({ path: f.path, name: f.path.split('/').pop()!, url: (await signOne('kits', f.storage_path!, 3600)).data?.signedUrl ?? null })));
     const core = ((p.brand as { core?: { name: string; hex: string }[] } | null)?.core || []).filter((c) => /^#[0-9A-F]{6}$/i.test(c.hex));
     const avatar = await avatarUrl(kfiles, p.client, core).catch(() => null);
     const autoFull = signed.find((x) => x.path === pickLogo(kfiles).main?.path)?.url ?? null;
@@ -275,7 +276,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     // The guidelines as 16:9 slides, from templates the studio sets, exported to PDF
     const pdfImg = (content as { pdf?: { title?: { image?: string } } }).pdf?.title?.image;
     const paths = [...(guide ? guidePaths(guide) : []), ...(pdfImg ? [pdfImg] : [])];
-    const { data: signed } = paths.length ? await sb.storage.from('previews').createSignedUrls(paths, 6 * 3600) : { data: [] };
+    const { data: signed } = paths.length ? await signMany('previews', paths, 6 * 3600) : { data: [] };
     const urls = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
     const { fonts } = await readFonts(id);
     const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
@@ -285,7 +286,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const sysCss = systemCss(systemFor(guide?.system, { typeScale: pc.typeScale, profile: pc.dsProfile, fonts: fonts.filter((f) => f.files.length) }));
     const { data: logoRows } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%');
     const logoRow = pickLogo(withFigmaLogos((logoRows || []).map((l) => ({ path: l.path, storage_path: l.storage_path })), p.content, {})).main;
-    const logoUrl = logoRow?.storage_path ? (await sb.storage.from('kits').createSignedUrl(logoRow.storage_path, 6 * 3600)).data?.signedUrl ?? null : null;
+    const logoUrl = logoRow?.storage_path ? (await signOne('kits', logoRow.storage_path, 6 * 3600)).data?.signedUrl ?? null : null;
     body = <PdfStudio projectId={id} client={p.client} guide={guide} urls={urls} logoUrl={logoUrl} colours={snapP?.colours || []} content={content} sysCss={sysCss} fontCss={fontCss} />;
   }
   if (tab === 'typefaces') {

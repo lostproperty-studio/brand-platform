@@ -1,4 +1,5 @@
 import { adminClient } from '@/lib/supabase/server';
+import { signMany, signOne } from '@/lib/storage/signed';
 import { chapterSlug, type PortalCtx } from '@/lib/portal/context';
 import { portalPackages, visibleToClient } from '@/lib/portal/packages';
 import { lum } from '@/lib/portal/generated';
@@ -29,7 +30,7 @@ export async function askCatalog(pc: PortalCtx, slug: string): Promise<AskCatalo
   const files = pc.files.filter((f) => /^assets\/logo\/.+\.(svg|png)$/i.test(f.path) && f.storage_path && (pc.preview || f.partStatus === 'ready'));
   const names = new Set(files.map((f) => f.path));
   const logoFiles = files.filter((f) => f.path.endsWith('.svg') || !names.has(f.path.replace(/\.png$/i, '.svg'))).slice(0, 24);
-  const { data: signed } = logoFiles.length ? await adminClient().storage.from('kits').createSignedUrls(logoFiles.map((f) => f.storage_path!), 6 * 3600) : { data: [] };
+  const { data: signed } = logoFiles.length ? await signMany('kits', logoFiles.map((f) => f.storage_path!), 6 * 3600) : { data: [] };
   const url = new Map((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
   const logos = logoFiles.filter((f) => url.has(f.storage_path!)).map((f) => {
     const name = f.path.split('/').pop()!;

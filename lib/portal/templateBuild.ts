@@ -67,14 +67,18 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
   const vec = new Set((t.vectorNodes || []).filter((id) => t.imageNodes.includes(id)));
   const pngIds = [...new Set([...t.imageNodes.filter((id) => !vec.has(id)), ...t.chapters.map((c) => c.thumbNode).filter(Boolean) as string[], ...t.showcase.flatMap((r) => r.frames.map((f) => f.nodeId)), ...t.assets.map((a) => a.nodeId)])];
   const svgIds = [...t.assets.filter((a) => a.format === 'svg').map((a) => a.nodeId), ...vec];
-  const [png, svg] = await Promise.all([pngIds.length ? exportNodes(key, pngIds, 'png', 2) : {}, svgIds.length ? exportNodes(key, svgIds, 'svg') : {}]);
+  // Photos and page pictures as JPEG (a fraction of a PNG's size); the kit's own files stay PNG
+  const assetPng = pngIds.filter((id) => t.assets.some((a) => a.nodeId === id)), photoIds = pngIds.filter((id) => !t.assets.some((a) => a.nodeId === id));
+  const [pngA, jpg, svg] = await Promise.all([assetPng.length ? exportNodes(key, assetPng, 'png', 2) : {}, photoIds.length ? exportNodes(key, photoIds, 'jpg', 2) : {}, svgIds.length ? exportNodes(key, svgIds, 'svg') : {}]);
+  const png = { ...(pngA as Record<string, string | null>), ...(jpg as Record<string, string | null>) };
+  const isJpg = new Set(Object.keys(jpg as Record<string, string | null>));
   const stamp = Date.now().toString(36);
   const assetById = new Map(t.assets.map((a) => [a.nodeId, a]));
   const showIds = new Set(t.showcase.flatMap((r) => r.frames.map((f) => f.nodeId)));
   // Asset files get their content hash in the path, so a changed logo is a new file and never a stale cached copy
   type Job = { id: string; url: string; bucket: 'previews' | 'kits'; path: string; type: string; ext?: string };
   const jobs: Job[] = [];
-  for (const [id, url] of Object.entries(png as Record<string, string | null>)) if (url) { const a = assetById.get(id); jobs.push(a ? { id: id + '|png', url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/png', ext: 'png' } : { id, url, bucket: 'previews', path: showIds.has(id) ? `${projectId}/showcase/figma-${safe(id)}.png` : `${projectId}/guide/${stamp}/${safe(id)}.png`, type: 'image/png' }); }
+  for (const [id, url] of Object.entries(png as Record<string, string | null>)) if (url) { const a = assetById.get(id); jobs.push(a ? { id: id + '|png', url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/png', ext: 'png' } : { id, url, bucket: 'previews', path: showIds.has(id) ? `${projectId}/showcase/figma-${safe(id)}-${stamp}.${isJpg.has(id) ? 'jpg' : 'png'}` : `${projectId}/guide/${stamp}/${safe(id)}.${isJpg.has(id) ? 'jpg' : 'png'}`, type: isJpg.has(id) ? 'image/jpeg' : 'image/png' }); }
   for (const [id, url] of Object.entries(svg as Record<string, string | null>)) if (url) { const a = assetById.get(id); if (!a) { jobs.push({ id, url, bucket: 'previews', path: `${projectId}/guide/${stamp}/${safe(id)}.svg`, type: 'image/svg+xml' }); continue; } jobs.push({ id: id + '|svg', url, bucket: 'kits', path: `${projectId}/packages/${a.pkg}/figma-${slug(a.name)}`, type: 'image/svg+xml', ext: 'svg' }); }
   const stored: Record<string, { path: string; bytes: number; hash: string }> = {};
   const queue = [...jobs];
@@ -85,7 +89,7 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
         const bytes = new Uint8Array(await res.arrayBuffer()); if (!bytes.byteLength) continue;
         const hash = createHash('sha1').update(bytes).digest('hex').slice(0, 16);
         const path = j.ext ? `${j.path}-${hash.slice(0, 8)}.${j.ext}` : j.path;
-        const { error } = await sb.storage.from(j.bucket).upload(path, bytes, { contentType: j.type, upsert: true, cacheControl: '60' });
+        const { error } = await sb.storage.from(j.bucket).upload(path, bytes, { contentType: j.type, upsert: true, cacheControl: '31536000' });
         if (!error) stored[j.id] = { path, bytes: bytes.byteLength, hash };
       } catch { /* a failed export leaves that picture out */ }
     }
