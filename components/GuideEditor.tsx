@@ -489,7 +489,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
   const [tool, setTool] = useState<AddWhat | null>(null);
   const [spot, setSpot] = useState<Spot | null>(null);
   useEffect(() => { document.body.classList.toggle('ve-tool', !!tool); return () => document.body.classList.remove('ve-tool'); }, [tool]);
-  const WHAT: Record<AddWhat, string> = { headline: 'Headline', text: 'Text', label: 'Label', image: 'Image', box: 'Frame', swatch: 'Colour', spacer: 'Spacer', icon: 'Icon' };
+  const WHAT: Record<AddWhat, string> = { headline: 'Headline', text: 'Text', label: 'Label', image: 'Image', box: 'Frame', swatch: 'Colour', spacer: 'Spacer', icon: 'Icon', button: 'Button' };
   function findSpot(e: React.MouseEvent): Spot | null {
     if (!tool || !ch) return null;
     const t = e.target as HTMLElement;
@@ -730,12 +730,13 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const items = b.items || []; const it = items[sp.item]; if (!it) return;
     const { els, styles } = materialise(it, b.styles || {});
     // Figma's way: a frame (F) or an image dropped into a frame becomes a frame inside it; an image is a frame filled with it
-    const kind: ItemEl['kind'] = what === 'headline' ? 'heading' : what === 'text' ? 'text' : what === 'label' ? 'label' : what === 'spacer' ? 'spacer' : 'frame';
-    const ne: ItemEl = { id: 'e-' + uid(), kind, ...(kind === 'frame' ? { look: what === 'image' ? { ratio: '4:3' } : { ratio: '16:9', fill: { type: 'colour' as const, colour: '#EEEEEE' } } } : kind === 'spacer' ? { size: 32 } : { text: kind === 'heading' ? 'Headline' : kind === 'label' ? 'Label' : 'Write something…' }) };
+    const kind: ItemEl['kind'] = what === 'headline' ? 'heading' : what === 'text' ? 'text' : what === 'label' ? 'label' : what === 'spacer' ? 'spacer' : what === 'button' ? 'button' : 'frame';
+    const ne: ItemEl = kind === 'button' ? { id: 'e-' + uid(), kind, text: 'Find out more', variant: 'primary' } : { id: 'e-' + uid(), kind, ...(kind === 'frame' ? { look: what === 'image' ? { ratio: '4:3' } : { ratio: '16:9', fill: { type: 'colour' as const, colour: '#EEEEEE' } } } : kind === 'spacer' ? { size: 32 } : { text: kind === 'heading' ? 'Headline' : kind === 'label' ? 'Label' : 'Write something…' }) };
     els.splice(Math.min(sp.index ?? els.length, els.length), 0, ne);
     editBlock(b.id, { items: items.map((x, n) => (n === sp.item ? { ...x, els, label: undefined, heading: undefined, body: undefined, media: undefined } : x)), styles });
     if (kind === 'frame') { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); if (what === 'image') pickImage(b.id, `look:${sp.item}:${ne.id}`); }
     else if (kind === 'spacer') setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` });
+    else if (kind === 'button') { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); focusNext.current = true; }
     else { setSel({ block: b.id, item: sp.item, el: `${it.id}.${ne.id}` }); focusNext.current = true; }
   }
   // ---------- Fill with AI: a first draft of the selected text, from what's around it
@@ -887,6 +888,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const items = b?.items || [];
     const newBox = (p: Partial<BlockItem>) => { if (!b) return; const i = sel?.item !== undefined ? sel.item + 1 : items.length; const it = { id: iid(), w: b.kind === 'grid' ? 2 : 1, h: 2, ...p }; editBlock(b.id, { items: [...items.slice(0, i), it, ...items.slice(i)] }); return { i, it }; };
     const afterSection = (kind: BlockKind, then?: (nb: Block) => void) => { const nb = addSection(kind, sel); if (nb && then) then(nb); };
+    if (what === 'button') {
+      if (!b || !itemish) { afterSection('columns', (nb) => { editBlock(nb.id, { items: [{ id: iid(), w: 1, h: 2, els: [{ id: 'e-' + uid(), kind: 'button', text: 'Find out more', variant: 'primary' }] }] }); setSel({ block: nb.id, item: 0 }); }); return; }
+      if (sel?.item !== undefined && items[sel.item]) { addToBox(b.id, sel.item, 'button'); return; }
+      const r = newBox({ els: [] }); if (r) setTimeout(() => addToBox(b.id, r.i, 'button'), 0); return;
+    }
     if (!b && what === 'icon') { afterSection('columns', (nb) => setIconAt({ block: nb.id, item: 0 })); return; }
     if (!b) { // nothing selected: a new section at the end
       const kind: BlockKind = what === 'headline' ? 'divider' : what === 'image' ? 'image' : what === 'box' ? 'columns' : what === 'swatch' ? 'swatches' : what === 'spacer' ? 'spacer' : 'text';
