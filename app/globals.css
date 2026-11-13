@@ -3247,3 +3247,26 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 @media (hover: none) { .rm2-th-x { opacity: 1; } }
 .rm2-undo { margin: 0; display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px; background: #111; color: #fff; font-size: 13px; }
 .rm2-undo button { all: unset; cursor: pointer; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; margin-left: auto; }
+
+.rm2-card.ai.click { cursor: pointer; }
+.rm2-card.ai.click:hover { background: var(--fill); }
+.sk { width: min(620px, 100vw); }
+.sk-what { margin: 0; font-size: 13px; line-height: 1.55; padding: 12px 14px; border-radius: 10px; background: #f6f5f2; }
+.sk-card { border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+.sk-card.dim .sk-head b { opacity: .5; }
+.sk-head { all: unset; cursor: pointer; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.sk-head > span:first-child { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.sk-head b { font-weight: 500; font-size: 14px; }
+.sk-head .mute { font-size: 12px; }
+.sk-score { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; background: #fdf1de; color: #8a5a0b; font-size: 11px; white-space: nowrap; }
+.sk-score.ok { background: #e7f5ea; color: #1e6b34; }
+.sk-chev { transition: transform .15s; color: var(--mute); }
+.sk-card.on .sk-chev { transform: rotate(180deg); }
+.sk-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+.sk-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.sk-checks li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.4; }
+.sk-checks li svg { flex: none; margin-top: 2px; }
+.sk-checks li.ok svg { color: #1e6b34; } .sk-checks li.gap { color: #6b4a10; } .sk-checks li.gap svg { color: #c27d0e; }
+.sk-md summary { cursor: pointer; font-size: 13px; font-weight: 500; }
+.sk-md pre { margin: 8px 0 0; max-height: 320px; overflow: auto; padding: 12px; border-radius: 10px; background: #f6f6f4; font: 12px/1.55 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+.sk-md .rm2-list { margin-top: 6px; max-height: 200px; overflow: auto; }

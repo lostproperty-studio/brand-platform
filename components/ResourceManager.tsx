@@ -5,6 +5,7 @@ import { Check, Download, Eye, EyeOff, FolderUp, ImagePlus, Loader2, Plus, Rotat
 import type { Package } from '@/lib/portal/packages';
 import type { RefreshReport } from '@/lib/portal/packageReport';
 import { PackagePreview, SystemPreview } from '@/components/portal/ResourceVisuals';
+import { SkillsPreview } from '@/components/SkillsPreview';
 
 type Colour = { name: string; hex: string; role?: string };
 type Stamp = { refreshedAt?: string; refreshedRev?: number };
@@ -40,6 +41,7 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
   const [busy, setBusy] = useState<string | null>(null);
   const [stamps, setStamps] = useState<Record<string, Stamp>>(() => ({ ...ai, ...Object.fromEntries(packages.map((p) => [p.id, { refreshedAt: p.refreshedAt, refreshedRev: p.refreshedRev }])) }));
   const [sure, setSure] = useState<string | null>(null);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [undo, setUndo] = useState<{ pkg: string; name?: string; path?: string; label: string } | null>(null);
   const [report, setReport] = useState<(RefreshReport & { pkg: string; last?: string; at: string }) | null>(null);
   const [adding, setAdding] = useState(false);
@@ -103,7 +105,7 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
   ); };
 
   const aiCard = (id: 'design-system' | 'skills', title: string, sub: string, href: string) => (
-    <article key={id} className="rm2-card ai">
+    <article key={id} className={'rm2-card ai' + (id === 'skills' ? ' click' : '')} {...(id === 'skills' ? { role: 'button', tabIndex: 0, 'aria-label': 'Claude skills: preview', onClick: () => setSkillsOpen(true), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter') setSkillsOpen(true); } } : {})}>
       <div className="rm2-pv">{id === 'design-system' ? <div className="rs-pv rs-dspv"><SystemPreview colours={colours} logoUrl={logoUrl} client={client} roles={roles} /></div> : <div className="rs-pv rm2-skills"><span>Claude</span><b>skills</b></div>}</div>
       <div className="rm2-txt">
         <div className="rm2-top"><h3>{title}</h3>{refreshBtn(id, title)}</div>
@@ -150,11 +152,12 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
         <div className="rm2-sec-h"><h2>For AI</h2><p className="mute">The brand for Claude. Refresh after the guidelines change so it’s read them again.</p></div>
         <div className="rm2-grid">
           {aiCard('design-system', 'Design system', 'Read from the guidelines by AI', `/api/p/${slug}/design-system`)}
-          {aiCard('skills', 'Claude skills', 'Written from the published guidelines', `/p/${slug}/resources#ai`)}
+          {aiCard('skills', 'Claude skills', 'Click to preview and check them', `/p/${slug}/resources#ai`)}
         </div>
       </section>
       {group('For developers', 'Built from the kit and the guidelines.', packages.filter((p) => ['tokens', 'guidelines', 'templates'].includes(p.kind)))}
 
+      {skillsOpen ? <SkillsPreview projectId={projectId} slug={slug} onClose={() => setSkillsOpen(false)} /> : null}
       {report ? <div className="rm2-back rm2-center" onMouseDown={(e) => { if (e.target === e.currentTarget) setReport(null); }}>
         <div className="rm2-rep" role="dialog" aria-modal="true" aria-labelledby="rep-t">
           <div className="rm2-rep-h"><span className="rm2-rep-ok"><Check size={16} strokeWidth={2.5} aria-hidden /></span><div><h2 id="rep-t">{report.title} is up to date</h2><p className="mute">Refreshed {new Date(report.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}{report.last ? ` · last time ${ago(report.last)}` : ' · first refresh'}</p></div><button type="button" className="rm2-ic" onClick={() => setReport(null)} aria-label="Close"><X {...I} /></button></div>

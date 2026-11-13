@@ -149,3 +149,33 @@ export function skillFiles(id: SkillId, snap: Snapshot, fonts: ProjectFont[], fi
   const voice = snap.voice && voiceHas(snap.voice) ? `# ${client} voice\n\n${voiceMd(client, snap.voice)}\n\n${knowledgeMd(client, snap.knowledge || [])}\n` : `# ${client} voice\n\nNot written up yet. Use the tone of voice chapter in brand.md.\n`;
   return { folder: name, md, reference: brandReference(snap, fonts, files, aiDonts), voice, include: id === 'writing' ? [] : files.filter(needs), design: id === 'writing' ? {} : design };
 }
+
+/** Skills the studio has chosen to show clients */
+export type SkillSettings = { hidden?: boolean; off?: string[] };
+export const readSkillSettings = (content: unknown): SkillSettings => ((content as { skills?: SkillSettings } | null)?.skills) || {};
+export const skillShown = (st: SkillSettings, id: string) => !st.hidden && !(st.off || []).includes(id);
+
+/** Whether a skill has what it needs to be any good, in plain checks */
+export type SkillCheck = { ok: boolean; text: string };
+export function skillChecks(id: SkillId, snap: Snapshot, fonts: ProjectFont[], files: string[], voice: string): SkillCheck[] {
+  const named = fonts.filter((f) => f.name), licensed = named.filter((f) => f.files.some((x) => x.licence === 'licensed'));
+  const logos = files.filter((f) => f.startsWith('assets/logo/')).length;
+  const chapters = (snap.guide?.chapters || []).filter((c) => !c.removed && !c.hidden).length;
+  const templates = files.filter((f) => f.startsWith('templates/'));
+  const voiceOk = voice.trim().length > 400;
+  const c = (ok: boolean, yes: string, no: string): SkillCheck => ({ ok, text: ok ? yes : no });
+  const base = [
+    c(snap.colours.length > 0, `${snap.colours.length} brand colours, with their uses`, 'No colours yet: it can’t keep to the palette'),
+    c(chapters > 0, `The rules from ${chapters} chapter${chapters === 1 ? '' : 's'} of the guidelines`, 'No guidelines yet: it only knows the basics')
+  ];
+  if (id === 'writing') return [c(voiceOk, 'The tone of voice, with its rules and examples', 'Little or no tone of voice yet: set it in the Voice tab, or it’ll write generically'), base[1]];
+  const visual = [
+    ...base,
+    c(logos > 0, `${logos} logo file${logos === 1 ? '' : 's'} to place`, 'No logo files: it can describe the logo but not place it'),
+    c(named.length > 0 && licensed.length === named.length, `Brand fonts included (${named.map((f) => f.name).join(', ')})`, named.length ? `Fonts not included until licensed (${named.filter((f) => !licensed.includes(f)).map((f) => f.name).join(', ')}): it falls back to a close system font and says so` : 'No typefaces named yet'),
+    c(voiceOk, 'The tone of voice, for any words it writes', 'No tone of voice yet: words it writes won’t sound like the brand')
+  ];
+  if (id === 'presentations') visual.push(c(templates.some((f) => /^templates\/slide/.test(f)), 'Slide templates from the kit', 'No slide templates in the kit: it builds slides from the rules instead'));
+  if (id === 'social') visual.push(c(templates.some((f) => /social|post|story/i.test(f)), 'Social templates from the kit', 'No social templates in the kit: it builds posts from the rules instead'));
+  return visual;
+}

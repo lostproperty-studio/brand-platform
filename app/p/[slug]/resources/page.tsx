@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { portalContext } from '@/lib/portal/context';
 import { listTools } from '@/lib/tools';
 import { Icon } from '@/lib/icons';
-import { SKILLS } from '@/lib/skills';
+import { SKILLS, readSkillSettings, skillShown } from '@/lib/skills';
 import { portalPackages, SECTIONS, visibleToClient, type Package } from '@/lib/portal/packages';
 import { roles } from '@/lib/designSystem';
 import { AppTile, SystemPreview } from '@/components/portal/ResourceVisuals';
@@ -23,6 +23,8 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
   const shown = all.filter((p) => visibleToClient(p) || (ctx.preview && !p.hidden && p.enabled && p.core));
   const r = roles(snap.colours);
   const base = `/p/${slug}`;
+  const skillSet = readSkillSettings(ctx.project.content);
+  const skillsShown = SKILLS.filter((s) => skillShown(skillSet, s.id));
   // One Brand assets section, as in the studio: logo, colour and type, then the extras this brand has
   const sec = (p: Package) => (p.section === 'elements' ? 'brand' : p.section);
   const sections = SECTIONS.filter((s) => s.id !== 'elements').map((s) => ({ ...s, items: shown.filter((p) => sec(p) === s.id) })).filter((s) => s.items.length || (s.id === 'team' && ctx.access.canManage));
@@ -74,16 +76,16 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
             </div>
           </article>
         </div>
-        <div className="rs-skills">
-          <div className="rs-skills-head"><h3>Claude skills</h3><p className="mute">Smaller, focused instructions for Claude, one per kind of work.</p></div>
-          {SKILLS.map((s) => (
+        {skillsShown.length ? <div className="rs-skills">
+          <div className="rs-skills-head"><h3>Claude skills</h3><p className="mute">A skill teaches Claude how to do one kind of work for {ctx.project.client}: slides, documents, social posts or writing. Add one to Claude and it follows the brand whenever you ask for that kind of thing.</p></div>
+          {skillsShown.map((s) => (
             <div key={s.id} className="rs-skillrow">
               <span className="rs-skillicon"><Icon name={s.icon} size={18} /></span>
               <div className="rs-skilltxt"><p>{s.title}</p><p className="mute">{s.blurb}</p></div>
               <a className="btn" href={`/api/p/${slug}/skills/${s.id}`} download>Download</a>
             </div>
           ))}
-        </div>
+        </div> : null}
         <p className="mute rs-note">To add a skill or the design system: in Claude, open <strong>Settings → Capabilities → Skills</strong> and upload the .zip. Download again after a new version of the guidelines.</p>
       </section>
 
