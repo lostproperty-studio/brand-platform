@@ -14,7 +14,9 @@ export type PkgFile = { name: string; path: string; bytes: number; type: string;
 export type PackageSettings = { title?: string; purpose?: string; hidden?: boolean; enabled?: boolean; files?: PkgFile[]; cover?: string;
   /** Who owns the files and how they may be used (the approved image library) */ owner?: string;
   /** A note shown with the files, e.g. the imagery disclaimer */ note?: string;
-  /** When the studio last refreshed the package from the guidelines, and the guidelines' revision then */ refreshedAt?: string; refreshedRev?: number };
+  /** When the studio last refreshed the package from the guidelines, and the guidelines' revision then */ refreshedAt?: string; refreshedRev?: number;
+  /** Files the studio took out: kit paths and Figma file names, so a re-import doesn't bring them back */ excluded?: string[];
+  /** Uploads taken out, kept a while so they can be put back */ removed?: PkgFile[] };
 export type PackageMap = Record<string, PackageSettings>;
 export type Section = 'brand' | 'elements' | 'builders' | 'team';
 
@@ -39,7 +41,7 @@ export const SECTIONS: { id: Section; title: string; blurb: string }[] = [
   { id: 'team', title: 'Shared by your team', blurb: 'Files added in the portal.' }
 ];
 
-export type PreviewImage = { url: string; name: string };
+export type PreviewImage = { url: string; name: string; /** An upload's name, or a kit file's path: what to remove */ upload?: string; kit?: string };
 export type Package = {
   id: string; kind: PackageKind; section: Section; title: string; purpose: string;
   /** Kit files (served from the kit) and studio uploads */
@@ -75,7 +77,8 @@ export async function resolvePackages(opts: { files: KitFileRow[]; content: unkn
     const s = settings[d.id] || {};
     const uploads = s.files || [];
     // Files imported from the Figma assets page take over from the kit's files in that package
-    const kitFiles = d.kit && !uploads.some((u) => u.fromFigma) ? opts.files.filter((f) => d.kit!.test(f.path) && !/manifest\.json$/.test(f.path)) : [];
+    const out_ = new Set(s.excluded || []);
+    const kitFiles = d.kit && !uploads.some((u) => u.fromFigma) ? opts.files.filter((f) => d.kit!.test(f.path) && !/manifest\.json$/.test(f.path) && !out_.has(f.path)) : [];
     const generated = d.kind === 'colours' ? opts.colours.length > 0 : d.kind === 'avatars' ? opts.hasLogo && opts.colours.length > 0 && !uploads.length : false;
     const count = kitFiles.length + uploads.length + (d.kind === 'colours' && opts.colours.length ? 4 : 0) + (d.kind === 'avatars' && generated ? Math.min(3, opts.colours.length) : 0);
     const fontsNamed = d.kind === 'fonts' && opts.fonts.some((f) => f.name);
@@ -93,12 +96,12 @@ export async function resolvePackages(opts: { files: KitFileRow[]; content: unkn
   });
   // Preview images: a few files from each visual package
   const want = out.flatMap((p) => ['logos', 'icons', 'images', 'graphics', 'custom', 'avatars', 'team'].includes(p.kind)
-    ? [...p.uploads.filter((u) => IMG.test(u.name)).map((u) => ({ p, path: u.path, name: u.name })), ...p.kitFiles.filter((f) => f.storage_path && IMG.test(f.path)).map((f) => ({ p, path: f.storage_path!, name: f.path }))]
+    ? [...p.uploads.filter((u) => IMG.test(u.name)).map((u) => ({ p, path: u.path, name: u.name, upload: u.name, kit: undefined as string | undefined })), ...p.kitFiles.filter((f) => f.storage_path && IMG.test(f.path)).map((f) => ({ p, path: f.storage_path!, name: f.path, upload: undefined as string | undefined, kit: f.path }))]
       .filter((x, i, a) => !(x.name.endsWith('.png') && a.some((y) => y.name === x.name.replace(/\.png$/, '.svg')))).slice(0, p.kind === 'logos' ? 6 : 8)
     : []);
   const covers = out.filter((p) => p.cover).map((p) => p.cover!);
   const urls = await sign([...want.map((w) => w.path), ...covers]);
-  for (const w of want) if (urls[w.path]) w.p.images.push({ url: urls[w.path], name: w.name.split('/').pop()! });
+  for (const w of want) if (urls[w.path]) w.p.images.push({ url: urls[w.path], name: w.name.split('/').pop()!, upload: w.upload, kit: w.kit });
   for (const p of out) if (p.cover) p.cover = urls[p.cover];
   return out;
 }

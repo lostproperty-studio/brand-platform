@@ -23,7 +23,9 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
   const shown = all.filter((p) => visibleToClient(p) || (ctx.preview && !p.hidden && p.enabled && p.core));
   const r = roles(snap.colours);
   const base = `/p/${slug}`;
-  const sections = SECTIONS.map((s) => ({ ...s, items: shown.filter((p) => p.section === s.id) })).filter((s) => s.items.length || (s.id === 'team' && ctx.access.canManage));
+  // One Brand assets section, as in the studio: logo, colour and type, then the extras this brand has
+  const sec = (p: Package) => (p.section === 'elements' ? 'brand' : p.section);
+  const sections = SECTIONS.filter((s) => s.id !== 'elements').map((s) => ({ ...s, items: shown.filter((p) => sec(p) === s.id) })).filter((s) => s.items.length || (s.id === 'team' && ctx.access.canManage));
   const jump = [{ id: 'apps', label: 'Apps' }, ...sections.filter((s) => s.id === 'brand' || s.id === 'elements').map((s) => ({ id: s.id, label: s.title })), { id: 'ai', label: 'For AI' }, ...sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => ({ id: s.id, label: s.id === 'builders' ? 'For developers' : 'Team files' }))];
 
   const card = (p: Package) => <PackageCard key={p.id} p={p} slug={slug} colours={snap.colours} logoUrl={ctx.logoUrl} preview={ctx.preview} fonts={ctx.fonts} canManage={ctx.access.canManage} />;

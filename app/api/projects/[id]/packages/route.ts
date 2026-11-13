@@ -36,7 +36,8 @@ const Body = z.discriminatedUnion('action', [
   z.object({ action: z.literal('add'), pkg: Pkg, name: z.string().max(200), path: z.string().max(400), bytes: z.number(), type: z.string().max(100), cover: z.boolean().optional() }),
   z.object({ action: z.literal('custom'), title: z.string().min(1).max(80), purpose: z.string().max(300).optional() }),
   z.object({ action: z.literal('patch'), pkg: Pkg, title: z.string().max(80).optional(), purpose: z.string().max(300).optional(), hidden: z.boolean().optional(), enabled: z.boolean().optional(), owner: z.string().max(300).optional(), note: z.string().max(800).optional() }),
-  z.object({ action: z.literal('remove-file'), pkg: Pkg, name: z.string().max(200) }),
+  z.object({ action: z.literal('remove-file'), pkg: Pkg, name: z.string().max(200).optional(), path: z.string().max(400).optional() }),
+  z.object({ action: z.literal('restore-file'), pkg: Pkg, name: z.string().max(200).optional(), path: z.string().max(400).optional() }),
   z.object({ action: z.literal('remove-cover'), pkg: Pkg }),
   z.object({ action: z.literal('remove-package'), pkg: Pkg }),
   z.object({ action: z.literal('refresh'), pkg: Refreshable })
@@ -110,7 +111,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   if (d.action === 'custom') { created = 'custom-' + Math.random().toString(36).slice(2, 9); pkgs[created] = { title: d.title, purpose: d.purpose || '', enabled: true }; }
   if (d.action === 'patch') { for (const k of ['title', 'purpose', 'hidden', 'enabled', 'owner', 'note'] as const) if (d[k] !== undefined) (cur as Record<string, unknown>)[k] = d[k]; pkgs[d.pkg] = cur; }
-  if (d.action === 'remove-file') { const f = (cur.files || []).find((x) => x.name === d.name); if (f) await sb.storage.from('kits').remove([f.path]); cur.files = (cur.files || []).filter((x) => x.name !== d.name); pkgs[d.pkg] = cur; }
+  if (d.action === 'remove-file') {
+    // Take a file out. Its stored copy is kept for a while, so it can be put back (Undo); a kit or Figma file is
+    // remembered as taken out, so rebuilding from the kit or Figma doesn't bring it back.
+    const f = d.name ? (cur.files || []).find((x) => x.name === d.name) : undefined;
+    if (f) { cur.files = (cur.files || []).filter((x) => x.name !== d.name); cur.removed = [f, ...(cur.removed || []).filter((x) => x.name !== f.name)].slice(0, 50); if (f.fromFigma) cur.excluded = [...new Set([...(cur.excluded || []), f.name])]; }
+    if (d.path && !f) cur.excluded = [...new Set([...(cur.excluded || []), d.path])];
+    pkgs[d.pkg] = cur;
+  }
+  if (d.action === 'restore-file') {
+    const f = d.name ? (cur.removed || []).find((x) => x.name === d.name) : undefined;
+    if (f) { cur.files = [...(cur.files || []).filter((x) => x.name !== f.name), f]; cur.removed = (cur.removed || []).filter((x) => x.name !== f.name); }
+    const back = d.path || f?.name; if (back) cur.excluded = (cur.excluded || []).filter((x) => x !== back);
+    pkgs[d.pkg] = cur;
+  }
   if (d.action === 'remove-cover') { if (cur.cover) await sb.storage.from('kits').remove([cur.cover]); delete cur.cover; pkgs[d.pkg] = cur; }
   if (d.action === 'remove-package') {
     const paths = [...(cur.files || []).map((f) => f.path), ...(cur.cover ? [cur.cover] : [])];

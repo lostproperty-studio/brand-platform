@@ -3239,3 +3239,10 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .rm2-help { font-size: 13px; max-width: 80ch; }
 .rm2-help summary { cursor: pointer; color: var(--mute); }
 .rm2-help p { margin: 8px 0 0; }
+
+.rm2-th { position: relative; }
+.rm2-th-x { all: unset; cursor: pointer; position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 11px; display: grid; place-items: center; background: rgba(17,17,17,.78); color: #fff; opacity: 0; transition: opacity .12s; }
+.rm2-th:hover .rm2-th-x, .rm2-th-x:focus-visible { opacity: 1; }
+@media (hover: none) { .rm2-th-x { opacity: 1; } }
+.rm2-undo { margin: 0; display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px; background: #111; color: #fff; font-size: 13px; }
+.rm2-undo button { all: unset; cursor: pointer; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; margin-left: auto; }

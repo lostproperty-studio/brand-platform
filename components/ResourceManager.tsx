@@ -39,6 +39,8 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [stamps, setStamps] = useState<Record<string, Stamp>>(() => ({ ...ai, ...Object.fromEntries(packages.map((p) => [p.id, { refreshedAt: p.refreshedAt, refreshedRev: p.refreshedRev }])) }));
+  const [sure, setSure] = useState<string | null>(null);
+  const [undo, setUndo] = useState<{ pkg: string; name?: string; path?: string; label: string } | null>(null);
   const [report, setReport] = useState<(RefreshReport & { pkg: string; last?: string; at: string }) | null>(null);
   const [adding, setAdding] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -67,6 +69,14 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
       }
       setMsg(`Uploaded ${list.length} file${list.length === 1 ? '' : 's'}.`); router.refresh();
     } catch (e) { setMsg((e as Error).message); }
+  }
+  async function removeFile(pkg: string, f: { name?: string; path?: string; label: string }) {
+    try { await call({ action: 'remove-file', pkg, name: f.name, path: f.path }); setUndo({ pkg, ...f }); setMsg(''); router.refresh(); }
+    catch (e) { setMsg((e as Error).message); }
+  }
+  async function putBack() {
+    if (!undo) return; const u = undo; setUndo(null);
+    try { await call({ action: 'restore-file', pkg: u.pkg, name: u.name, path: u.path }); router.refresh(); } catch (e) { setMsg((e as Error).message); }
   }
   async function refresh(pkg: string) {
     setBusy(pkg); setMsg(pkg === 'design-system' ? 'Reading the guidelines again. This takes a minute or so…' : 'Refreshing…');
@@ -177,19 +187,20 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
               <label className="rm2-f"><span>Note at the top of the imagery chapter</span><textarea className="in" rows={3} defaultValue={cur.note || ''} key={cur.id + 'n'} placeholder={`The pictures in this chapter show the look and feel to aim for. Many are reference images ${client} doesn’t hold the rights to, so please don’t copy, download or reuse them.`} onBlur={(e) => e.target.value !== (cur.note || '') && act({ action: 'patch', pkg: cur.id, note: e.target.value })} /><small className="mute">Leave empty to use the wording shown.</small></label>
             </> : null}
 
+            {undo && undo.pkg === cur.id ? <p className="rm2-undo" role="status">Removed {undo.label}. <button type="button" onClick={putBack}>Undo</button></p> : null}
             <div className="rm2-files-h"><strong>Files</strong><span className="mute">{SOURCE[cur.kind] || ''}</span></div>
             {cur.kind !== 'colours' && !['tokens', 'guidelines', 'templates', 'team'].includes(cur.kind) ? <div className="rm2-drop" onDragOver={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.add('on'); }} onDragLeave={(e) => (e.currentTarget as HTMLElement).classList.remove('on')} onDrop={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.remove('on'); upload(cur.id, e.dataTransfer.files); }}>
               <span className="mute">Drop files here, or</span>
               <label className="btn"><Upload {...I} />Choose files<input type="file" multiple hidden onChange={(e) => { upload(cur.id, e.target.files); e.target.value = ''; }} /></label>
               {FOLDERS.includes(cur.kind) ? <label className="btn"><FolderUp {...I} />Upload a folder<input type="file" multiple hidden {...{ webkitdirectory: '', directory: '' }} onChange={(e) => { upload(cur.id, e.target.files); e.target.value = ''; }} /></label> : null}
             </div> : null}
-            {cur.images.length ? <div className="rm2-thumbs">{cur.images.map((im) => <img key={im.url} src={im.url} alt={im.name} title={im.name} />)}</div> : null}
+            {cur.images.length ? <div className="rm2-thumbs">{cur.images.map((im) => <div key={im.url} className="rm2-th"><img src={im.url} alt={im.name} title={im.name} />{im.upload || im.kit ? <button type="button" className="rm2-th-x" onClick={() => removeFile(cur.id, { name: im.upload, path: im.kit, label: im.name })} aria-label={`Remove ${im.name}`} title="Remove"><X size={12} strokeWidth={2.25} aria-hidden /></button> : null}</div>)}</div> : null}
             <ul className="rm2-list">
               {cur.uploads.map((u) => <li key={u.name}><span>{u.name}</span><span className="mute">{u.fromFigma ? 'Figma · ' : ''}{size(u.bytes)}</span>
                 <a className="rm2-ic" href={`/api/p/${slug}/package/${cur.id}?file=${encodeURIComponent(u.path)}`} aria-label={`Download ${u.name}`}><Download {...I} /></a>
-                <button type="button" className="rm2-ic" onClick={() => confirm(`Remove ${u.name}?`) && act({ action: 'remove-file', pkg: cur.id, name: u.name }, 'Removed.')} aria-label={`Remove ${u.name}`}><Trash2 {...I} /></button></li>)}
-              {cur.kitFiles.slice(0, 40).map((f) => <li key={f.path}><span>{f.path.split('/').pop()}</span><span className="mute">From the kit</span></li>)}
-              {cur.kitFiles.length > 40 ? <li className="mute">and {cur.kitFiles.length - 40} more from the kit</li> : null}
+                <button type="button" className="rm2-ic" onClick={() => removeFile(cur.id, { name: u.name, label: u.name })} aria-label={`Remove ${u.name}`}><Trash2 {...I} /></button></li>)}
+              {cur.kitFiles.slice(0, 60).map((f) => <li key={f.path}><span>{f.path.split('/').pop()}</span><span className="mute">From the kit</span><button type="button" className="rm2-ic" onClick={() => removeFile(cur.id, { path: f.path, label: f.path.split('/').pop()! })} aria-label={`Remove ${f.path.split('/').pop()}`}><Trash2 {...I} /></button></li>)}
+              {cur.kitFiles.length > 60 ? <li className="mute">and {cur.kitFiles.length - 60} more from the kit</li> : null}
               {cur.kind === 'colours' ? <li className="mute">{colours.length} colours as ASE, CSS, JSON and text, made when downloaded</li> : null}
               {!cur.uploads.length && !cur.kitFiles.length && cur.kind !== 'colours' ? <li className="mute">No files yet.</li> : null}
             </ul>
@@ -199,7 +210,7 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
             </div>
           </div>
           <div className="rm2-pane-f">
-            {cur.custom ? <button className="btn" onClick={() => { if (confirm(`Delete the ${cur.title} package and its files?`)) { act({ action: 'remove-package', pkg: cur.id }, 'Deleted.'); setOpen(null); } }}><Trash2 {...I} />Delete</button> : null}
+            {cur.custom ? <button className={'btn' + (sure === cur.id ? ' danger' : '')} onClick={() => { if (sure !== cur.id) { setSure(cur.id); setTimeout(() => setSure(null), 4000); return; } setSure(null); act({ action: 'remove-package', pkg: cur.id }, 'Deleted.'); setOpen(null); }}><Trash2 {...I} />{sure === cur.id ? 'Click again to delete it and its files' : 'Delete'}</button> : null}
             <span style={{ flex: 1 }} />
             <button className="btn" onClick={() => refresh(cur.id)} disabled={!!busy}>{busy === cur.id ? <Loader2 {...I} className="spin" /> : <RotateCw {...I} />}Refresh</button>
             {!cur.empty ? <a className="btn solid" href={`/api/p/${slug}/package/${cur.id}`} download><Download {...I} />Download as the client gets it</a> : <span className="btn solid" aria-disabled style={{ opacity: .4 }}><Check {...I} />Nothing to download yet</span>}

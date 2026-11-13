@@ -154,7 +154,9 @@ export async function buildGuideFromTemplate(projectId: string, p: { figma_key?:
     const cur = pkgs[key] || {};
     const prevFig = new Map((cur.files || []).filter((f) => f.fromFigma).map((f) => [f.name, f]));
     const uploads = (cur.files || []).filter((f) => !f.fromFigma);
-    const incoming = fresh.get(key) || [];
+    // Files the studio took out of the package stay out
+    const skip = new Set(cur.excluded || []);
+    const incoming = (fresh.get(key) || []).filter((f) => !skip.has(f.name));
     const keepUploads = wipe ? [] : uploads;
     if (wipe) wipedUploads.push(...uploads.map((u) => u.path));
     const files = mode === 'add' ? [...(cur.files || []), ...incoming.filter((f) => !prevFig.has(f.name))] : [...keepUploads, ...incoming];
