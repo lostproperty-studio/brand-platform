@@ -136,7 +136,7 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   const itemElKind = itemElId ? it?.els?.find((e) => e.id === itemElId)?.kind ?? (itemElId === 'media' ? 'image' : itemElId) : undefined;
   const isImg = !!el && (el.startsWith('img:') || el.startsWith('itemimg:') || itemElKind === 'image');
   const spacerEl = itemElKind === 'spacer' && it ? it.els?.find((e) => e.id === itemElId) : undefined;
-  const isText = !!el && el !== 'items' && !isImg && !spacerEl && itemElKind !== 'frame' && itemElKind !== 'icon' && itemElKind !== 'button';
+  const isText = !!el && el !== 'items' && !isImg && !spacerEl && itemElKind !== 'frame' && itemElKind !== 'icon' && itemElKind !== 'button' && !(el.startsWith('x-') && b.extras?.some((x) => 'x-' + x.id === el && x.kind === 'button'));
   const span = b.kind === 'grid' ? Math.min(gcols, it?.w || 2) : Math.min(cols, it?.w || 1);
   const kindLabel = b.kind === 'columns' ? 'Auto layout' : KINDS.find(([k]) => k === b.kind)?.[1] || 'Section';
 
@@ -195,9 +195,12 @@ export function Inspector({ onAddToBox, sel, setSel, ch, colours, editBlock, pic
   }
 
   const iconEl = it && itemElId ? it.els?.find((e) => e.id === itemElId && e.kind === 'icon') : undefined;
-  const buttonEl = it && itemElId ? it.els?.find((e) => e.id === itemElId && e.kind === 'button') : undefined;
-  if (buttonEl && it && i !== undefined) {
-    const setBtn = (p: Partial<ItemEl>, key?: string) => setItem({ els: (it.els || []).map((e) => (e.id === buttonEl.id ? { ...e, ...p } : e)) }, key && 'bt-' + key);
+  const xButton = el?.startsWith('x-') ? b.extras?.find((x) => 'x-' + x.id === el && x.kind === 'button') : undefined;
+  const buttonEl = xButton || (it && itemElId ? it.els?.find((e) => e.id === itemElId && e.kind === 'button') : undefined);
+  if (buttonEl && (xButton || (it && i !== undefined))) {
+    const setBtn = (p: Partial<ItemEl>, key?: string) => xButton
+      ? set({ extras: (b.extras || []).map((x) => (x.id === xButton.id ? { ...x, ...(p as object) } : x)) }, key && 'bt-' + key)
+      : setItem({ els: (it!.els || []).map((e) => (e.id === buttonEl.id ? { ...e, ...p } : e)) }, key && 'bt-' + key);
     const href = buttonEl.href || '';
     const bad = href && !/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(href);
     return <aside className="dp" aria-label="Design panel" onMouseDown={keep}>

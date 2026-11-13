@@ -17,7 +17,8 @@ export function addTarget(what: AddWhat, ch: GuideChapter, sel: Sel | null): str
   const it = sel?.item !== undefined && ITEMISH.includes(b.kind) ? b.items?.[sel.item] : undefined;
   const name = KINDS.find(([k]) => k === b.kind)?.[1].toLowerCase() || 'section';
   if (what === 'spacer') return 'a new spacer below';
-  if (what === 'icon' || what === 'button') return it ? 'this frame' : ITEMISH.includes(b.kind) && b.variant !== 'images' ? `a new frame in this ${name}` : 'a new frame below';
+  if (what === 'button') return it ? 'this frame' : ITEMISH.includes(b.kind) && b.variant !== 'images' ? `a new frame in this ${name}` : b.kind === 'spacer' || b.kind === 'cover' ? 'a new frame below' : `the end of this ${name}`;
+  if (what === 'icon') return it ? 'this frame' : ITEMISH.includes(b.kind) && b.variant !== 'images' ? `a new frame in this ${name}` : 'a new frame below';
   if (what === 'swatch') return b.kind === 'swatches' ? 'this palette' : 'a new colour section below';
   if (what === 'box') return ITEMISH.includes(b.kind) && b.variant !== 'images' ? `this ${name}` : 'a new auto layout below';
   if (it) {

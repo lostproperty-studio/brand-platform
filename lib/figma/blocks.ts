@@ -14,7 +14,8 @@ export type FNode = {
  *  settings are what render) */
 export type SectionLayout = 'cols2' | 'cols3' | 'cols4' | 'carousel' | 'bento' | 'image' | 'split' | 'statement';
 /** Text added anywhere in a section (not inside a box): a label, a headline or a paragraph, placed among its parts */
-export type SectionText = { id: string; kind: 'label' | 'heading' | 'text'; text: string };
+export type SectionText = { id: string; kind: 'label' | 'heading' | 'text' | 'button'; text: string;
+  /** A button in the section: where it goes, a new tab, its style and colour */ href?: string; newTab?: boolean; variant?: 'primary' | 'link'; colour?: string };
 export type BlockKind = 'cover' | 'divider' | 'text' | 'split' | 'media' | 'swatches' | 'columns' | 'grid' | 'statement' | 'image' | 'carousel' | 'spacer';
 /** How a group of text or content is held: free-standing, or in a container (corner marks as in the brand's own layouts, a fine outline, or a light fill). */
 export type BoxStyle = 'none' | 'corners' | 'outline' | 'fill';

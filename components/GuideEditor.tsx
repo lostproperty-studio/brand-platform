@@ -503,7 +503,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       return { mode: 'line', block: blockEl.dataset.block, item: Number(box.dataset.item), index, label: `${WHAT[tool]} here`, line: { top: y - 1, left: r.left + 16, width: r.width - 32, height: 2 } };
     }
     // Text anywhere in a section (not inside a box): it lands between the section's parts, on its grid
-    if (!box && blockEl && (tool === 'text' || tool === 'headline' || tool === 'label')) {
+    if (!box && blockEl && (tool === 'text' || tool === 'headline' || tool === 'label' || tool === 'button')) {
       const parts = [...blockEl.querySelectorAll('[data-part]')].filter((x) => x.closest('[data-block]') === blockEl) as HTMLElement[];
       if (parts.length) {
         const index = parts.filter((x) => { const q = x.getBoundingClientRect(); return q.top + q.height / 2 < e.clientY; }).length;
@@ -718,6 +718,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     if (!what || !ch) return;
     if (!sp?.block) { setSel(null); add(what, null); return; }
     const b = ch.blocks.find((x) => x.id === sp.block); if (!b) return;
+    if (sp.part !== undefined && sp.parts && what === 'button') {
+      const id = uid(); const order = [...sp.parts]; order.splice(sp.part, 0, 'x-' + id);
+      editBlock(b.id, { extras: [...(b.extras || []), { id, kind: 'button', text: 'Find out more', variant: 'primary' }], order });
+      setSel({ block: b.id, el: 'x-' + id }); focusNext.current = true; return;
+    }
     if (sp.part !== undefined && sp.parts && (what === 'text' || what === 'headline' || what === 'label')) {
       const id = uid(); const kind = what === 'headline' ? 'heading' : what;
       const order = [...sp.parts]; order.splice(sp.part, 0, 'x-' + id);
@@ -889,6 +894,11 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
     const newBox = (p: Partial<BlockItem>) => { if (!b) return; const i = sel?.item !== undefined ? sel.item + 1 : items.length; const it = { id: iid(), w: b.kind === 'grid' ? 2 : 1, h: 2, ...p }; editBlock(b.id, { items: [...items.slice(0, i), it, ...items.slice(i)] }); return { i, it }; };
     const afterSection = (kind: BlockKind, then?: (nb: Block) => void) => { const nb = addSection(kind, sel); if (nb && then) then(nb); };
     if (what === 'button') {
+      if (b && !itemish && b.kind !== 'spacer' && b.kind !== 'cover') {
+        const id = uid(); const ids = [...document.querySelectorAll(`.ve-blocks [data-block="${CSS.escape(b.id)}"] [data-part]`)].filter((x) => x.closest('[data-block]')?.getAttribute('data-block') === b.id).map((x) => (x as HTMLElement).dataset.part!);
+        editBlock(b.id, { extras: [...(b.extras || []), { id, kind: 'button', text: 'Find out more', variant: 'primary' }], ...(ids.length ? { order: [...ids, 'x-' + id] } : {}) });
+        setSel({ block: b.id, el: 'x-' + id }); focusNext.current = true; return;
+      }
       if (!b || !itemish) { afterSection('columns', (nb) => { editBlock(nb.id, { items: [{ id: iid(), w: 1, h: 2, els: [{ id: 'e-' + uid(), kind: 'button', text: 'Find out more', variant: 'primary' }] }] }); setSel({ block: nb.id, item: 0 }); }); return; }
       if (sel?.item !== undefined && items[sel.item]) { addToBox(b.id, sel.item, 'button'); return; }
       const r = newBox({ els: [] }); if (r) setTimeout(() => addToBox(b.id, r.i, 'button'), 0); return;
