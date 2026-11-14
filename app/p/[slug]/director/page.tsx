@@ -1,33 +1,28 @@
 import { notFound } from 'next/navigation';
 import { portalContext } from '@/lib/portal/context';
 import { canSee, projectStages, stageBadge } from '@/lib/features';
+import { signMany } from '@/lib/storage/signed';
+import { DirectorApp } from '@/components/director/DirectorApp';
+import type { BrandKit } from '@/lib/director/model';
 
-// Director: plan, shoot and generate short-form video from the creative direction Lost Property set for the brand.
-// Gated by the release stage (Admin settings → Releases); studio-only while it's a prototype.
-const STEPS = [
-  ['Brief', 'Say what the video is for, in a line.'],
-  ['Plan', 'A shot list in the brand’s world, with a mode and a prompt for every shot.'],
-  ['Keyframes', 'Stills made with the brand’s references. Approve one per shot, or drop in your own footage.'],
-  ['Motion', 'Each approved frame comes to life, at the pace and camera the direction sets.'],
-  ['Finish', 'Logo, type, end card and sound from the brand kit, never generated.'],
-  ['Review', 'Checked against the creative direction, then saved to your team’s library.']
-] as const;
-
+// Director: plan, shoot and generate short-form video in the brand's world, with its fonts, logos and colours
+// loaded. Gated by the release stage (Admin settings → Releases); studio-only while it's in Labs.
 export default async function DirectorPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const ctx = await portalContext(slug);
   if (!ctx?.snap) notFound();
   const stage = (await projectStages(ctx.project.id)).director;
   if (!canSee(stage, ctx.preview)) notFound();
-  const badge = stageBadge(stage);
-  return <div className="pt-page dr-page">
-    <header className="dr-head">
-      <h1 className="pt-display">Director{badge ? <span className={'pt-badge big ' + badge.toLowerCase()}>{badge}</span> : null}</h1>
-      <p className="mute dr-lede">Short-form video for {ctx.project.client}, made from the world and creative direction Lost Property set for the brand.</p>
-      {stage === 'studio' ? <p className="pt-preview" role="status">Labs: only the studio can see this. {ctx.project.client}’s team won’t see Director until it’s moved to Client beta in Admin settings → Releases.</p> : null}
-    </header>
-    <ol className="dr-steps">
-      {STEPS.map(([t, d], i) => <li key={t} className="dr-step"><span className="dr-n">{String(i + 1).padStart(2, '0')}</span><div><p className="dr-t">{t}</p><p className="mute">{d}</p></div></li>)}
-    </ol>
+  const logoFiles = ctx.files.filter((f) => f.path.startsWith('assets/logo/') && f.storage_path && /\.(svg|png)$/i.test(f.path));
+  const { data: signed } = await signMany('kits', logoFiles.map((f) => f.storage_path!), 6 * 3600);
+  const url = Object.fromEntries((signed || []).map((d) => [d.path, d.signedUrl]));
+  const kit: BrandKit = {
+    client: ctx.project.client,
+    colours: (ctx.snap.colours || []).map((c) => ({ name: c.name, hex: c.hex, role: c.role })),
+    fonts: ctx.fonts.filter((f) => f.files.length).map((f) => ({ role: f.role, label: f.label, name: f.name })),
+    logos: logoFiles.filter((f) => url[f.storage_path!]).map((f) => ({ name: f.path.split('/').pop()!.replace(/\.(svg|png)$/i, '').replace(/[_-]+/g, ' '), url: url[f.storage_path!], light: /white|light|reverse|negative|inverse/i.test(f.path.split('/').pop()!) }))
+  };
+  return <div className="dr-app-wrap">
+    <DirectorApp slug={slug} kit={kit} canGenerate={ctx.access.staff} badge={stageBadge(stage)} labs={stage === 'studio'} />
   </div>;
 }
