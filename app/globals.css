@@ -3332,6 +3332,21 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .dl-linkrow { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 .dl-linkrow .in { font: 12px ui-monospace, Menlo, monospace; }
 
+/* Release gate: Labs and Beta badges on gated features, the Releases panel, and the Director prototype */
+.pt-badge { margin-left: auto; align-self: center; font-size: 10px; line-height: 1; padding: 3px 6px; border-radius: 4px; letter-spacing: .02em; background: var(--fill-2); color: #555; }
+.pt-badge.labs { background: #000; color: #fff; }
+.pt-badge.beta { background: #fde3fa; color: #7a1f70; }
+.pt-badge.big { margin-left: 14px; vertical-align: middle; font-family: var(--font); font-size: 12px; padding: 4px 8px; }
+.pt-side.mini .pt-badge { display: none; }
+.adm-rel { display: flex; flex-direction: column; gap: 10px; }
+.dr-head { display: flex; flex-direction: column; gap: 14px; }
+.dr-lede { margin: 0; max-width: 56ch; font-size: 17px; }
+.dr-head .pt-preview { border-radius: 10px; margin: 0; }
+.dr-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.dr-step { display: flex; gap: 14px; padding: 18px; border-radius: 14px; background: var(--fill); }
+.dr-step p { margin: 0; }
+.dr-n { font-size: 12px; color: #999; padding-top: 3px; }
+.dr-t { font-family: var(--pt-display); font-size: 22px; line-height: 1.1; margin-bottom: 6px !important; }
 /* BETA: an app that's still a work in progress, marked by the studio */
 .beta-tag { display: inline-flex; align-items: center; flex: none; margin-left: 6px; padding: 1px 7px; border-radius: 4px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; line-height: 1.5; vertical-align: 2px; }
 .rm2-top .beta-tag { margin-left: 0; }

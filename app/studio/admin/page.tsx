@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Sparkles, ArrowLeft, Globe, Mail, Users } from 'lucide-react';
+import { Sparkles, ArrowLeft, Globe, Mail, Rocket, Users } from 'lucide-react';
 import { adminClient } from '@/lib/supabase/server';
 import { AdminEmail } from '@/components/AdminEmail';
 import { requireAdmin, listStaff } from '@/lib/admin';
@@ -7,8 +7,9 @@ import { env } from '@/lib/env';
 import { AdminTeam } from '@/components/AdminTeam';
 import { AdminDomain } from '@/components/AdminDomain';
 import { AdminKrea } from '@/components/AdminKrea';
+import { AdminReleases } from '@/components/AdminReleases';
 
-// Admin settings for the studio: who's on the platform, and its domain
+// Admin settings for the studio: who's on the platform, releases and what clients see, and the domain
 export default async function Admin() {
   const st = await requireAdmin();
   if (st instanceof Response) return <div className="ov-denied"><h1>Admin settings</h1><p className="mute">{await st.text()}</p><Link className="btn" href="/studio">← Projects</Link></div>;
@@ -25,6 +26,10 @@ export default async function Admin() {
           <h2 id="adm-team" className="ov-h"><Users size={16} strokeWidth={1.75} aria-hidden />Studio team</h2>
           <p className="mute" style={{ margin: '0 0 6px' }}>Members create projects, edit content and manage client access. Admins also manage this team and the domain. Who works on each project is set on that project’s Overview.</p>
           <AdminTeam initial={staff} me={st.user.id} />
+        </section>
+        <section className="ov-card" aria-labelledby="adm-rel">
+          <h2 id="adm-rel" className="ov-h"><Rocket size={16} strokeWidth={1.75} aria-hidden />Releases</h2>
+          <AdminReleases />
         </section>
         <section className="ov-card" aria-labelledby="adm-domain">
           <h2 id="adm-domain" className="ov-h"><Globe size={16} strokeWidth={1.75} aria-hidden />Domain</h2>

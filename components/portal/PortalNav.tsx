@@ -2,16 +2,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BookOpen, FolderDown, GalleryHorizontalEnd, House, PanelLeftClose, PanelLeftOpen, PenLine, Settings } from 'lucide-react';
+import { BookOpen, Clapperboard, FolderDown, GalleryHorizontalEnd, House, PanelLeftClose, PanelLeftOpen, PenLine, Settings } from 'lucide-react';
 
 // Portal navigation: Home, Guidelines (with its chapters), Showcase, Resources, Settings, each with an icon.
 // Open, it shows the full logo, icons and names; closed, the small logo (or the social avatar) and the icons only.
-// The choice is remembered. On phones it's a bar with a menu.
-const ICONS = { Home: House, Guidelines: BookOpen, Showcase: GalleryHorizontalEnd, Writer: PenLine, Resources: FolderDown, Settings } as const;
+// The choice is remembered. On phones it's a bar with a menu. Gated features (lib/featureStages.ts) arrive as `features`,
+// after the Writer, with a Labs or Beta badge until they're live.
+const ICONS = { Home: House, Guidelines: BookOpen, Showcase: GalleryHorizontalEnd, Writer: PenLine, Director: Clapperboard, Resources: FolderDown, Settings } as const;
 const KEY = 'pt-side-closed';
 const I = { size: 18, strokeWidth: 1.6, 'aria-hidden': true } as const;
 
-export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettings, showShowcase, showWriter, showcaseName }: { showcaseName?: string; slug: string; client: string; logoUrl: string | null; miniUrl?: string | null; chapters: { id: string; title: string }[]; showSettings: boolean; showShowcase: boolean; showWriter?: boolean }) {
+export type NavFeature = { label: keyof typeof ICONS; path: string; badge: string | null };
+
+export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettings, showShowcase, showWriter, showcaseName, features = [] }: { features?: NavFeature[]; showcaseName?: string; slug: string; client: string; logoUrl: string | null; miniUrl?: string | null; chapters: { id: string; title: string }[]; showSettings: boolean; showShowcase: boolean; showWriter?: boolean }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [closed, setClosed] = useState(false);
@@ -19,7 +22,7 @@ export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettin
   const fold = (v: boolean) => { setClosed(v); try { localStorage.setItem(KEY, v ? '1' : '0'); } catch { /* storage blocked */ } };
   const base = `/p/${slug}`;
   const items = [
-    ['Home', base], ['Guidelines', `${base}/guidelines`], ...(showShowcase ? [[showcaseName || 'Showcase', `${base}/showcase`] as const] : []), ...(showWriter ? [['Writer', `${base}/writer`] as const] : []), ['Resources', `${base}/resources`],
+    ['Home', base], ['Guidelines', `${base}/guidelines`], ...(showShowcase ? [[showcaseName || 'Showcase', `${base}/showcase`] as const] : []), ...(showWriter ? [['Writer', `${base}/writer`] as const] : []), ...features.map((f) => [f.label, `${base}/${f.path}`] as const), ['Resources', `${base}/resources`],
     ...(showSettings ? [['Settings', `${base}/settings`]] : [])
   ] as const;
   const isOn = (href: string) => (href === base ? path === base : path.startsWith(href) || (href.endsWith('/resources') && path.startsWith(`${base}/tools`)));
@@ -36,7 +39,7 @@ export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettin
       <nav id="pt-nav" className="pt-nav" aria-label="Portal">
         {items.map(([label, href]) => { const Ic = ICONS[label as keyof typeof ICONS]; return <div key={href}>
           <Link href={href} className={'pt-it' + (isOn(href) ? ' on' : '')} aria-current={isOn(href) ? 'page' : undefined} onClick={() => setOpen(false)} data-tip={closed ? label : undefined} aria-label={closed ? label : undefined}>
-            <Ic {...I} /><span className="pt-it-t">{label}</span>
+            <Ic {...I} /><span className="pt-it-t">{label}</span>{(() => { const b = features.find((f) => f.label === label)?.badge; return b ? <span className={'pt-badge ' + b.toLowerCase()}>{b}</span> : null; })()}
           </Link>
           {label === 'Guidelines' && path.startsWith(href) ? <div className="pt-sub">{chapters.map((c, k) => { const h = `${href}/${c.id.replace(/[:;]/g, '-')}`; const on = path === h; return <Link key={c.id} href={h} className={'pt-subit' + (on ? ' on' : '')} aria-current={on ? 'page' : undefined} onClick={() => setOpen(false)}><span className="pt-n">{String(k + 1).padStart(2, '0')}</span>{c.title}</Link>; })}</div> : null}
         </div>; })}

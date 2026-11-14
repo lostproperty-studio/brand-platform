@@ -6,6 +6,7 @@ import { logVisit } from '@/lib/activity';
 import { hasShowcase } from '@/lib/showcase';
 import { voiceReady } from '@/lib/voice';
 import { PreviewComments } from '@/components/portal/PreviewComments';
+import { canSee, projectStages, stageBadge } from '@/lib/features';
 
 // The client portal: an online version of the brand guidelines, with the kit, Canvas and Ask alongside.
 export default async function PortalLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
@@ -17,11 +18,14 @@ export default async function PortalLayout({ children, params }: { children: Rea
   const display = fonts.find((f) => f.role === 'display' && f.files.length) || fonts.find((f) => f.files.length);
   const body = fonts.find((f) => f.role === 'body' && f.files.length);
   const chapters = (snap?.guide?.chapters || []).map((c) => ({ id: c.id, title: c.title }));
+  // Release gate: features at 'studio' show only in the studio preview; 'beta' and 'live' show to the client too
+  const stages = await projectStages(project.id);
+  const features = canSee(stages.director, preview) ? [{ label: 'Director' as const, path: 'director', badge: stageBadge(stages.director) }] : [];
   const css = fontCss + `\n.pt { ${display ? `--pt-display: var(--font-${display.role});` : ''} ${body ? `--pt-body: var(--font-${body.role});` : ''} }`;
   return (
     <div className="pt">
       <style>{css}</style>
-      <PortalNav showcaseName={snap?.showcase?.nav} slug={slug} client={project.client} logoUrl={sidebar.full} miniUrl={sidebar.mini} chapters={chapters} showSettings={access.canManage} showShowcase={preview || hasShowcase(snap?.showcase)} showWriter={preview || (!!snap?.voice && voiceReady(snap.voice) && !!snap.voice.writer)} />
+      <PortalNav showcaseName={snap?.showcase?.nav} slug={slug} client={project.client} logoUrl={sidebar.full} miniUrl={sidebar.mini} chapters={chapters} showSettings={access.canManage} showShowcase={preview || hasShowcase(snap?.showcase)} showWriter={preview || (!!snap?.voice && voiceReady(snap.voice) && !!snap.voice.writer)} features={features} />
       <div className="pt-main">
         {preview ? <div className="pt-preview" role="status">Studio preview of the working copy. <a href={`/api/p/${slug}/view-as?mode=client`}>View as the client</a> · {project.status === 'live' ? 'Clients see the last published version.' : 'Not published yet, so clients can’t see it.'} <a href={`/studio/projects/${project.id}`}>Back to the studio</a></div> : null}
         {asClient ? <div className="pt-preview as-client" role="status">You’re seeing exactly what {project.client}’s team sees: {project.status === 'live' ? 'the published version' : 'nothing yet, because it isn’t published'}, with their downloads, apps and AI. <a href={`/api/p/${slug}/view-as?mode=studio`}>Back to the studio preview</a></div> : null}

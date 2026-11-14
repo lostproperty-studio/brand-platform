@@ -4,6 +4,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
 
+// Release gate: only production deploys (main) change the live database. Preview and staging deploys skip
+// migrations unless MIGRATE_ON_PREVIEW=1 is set for that environment, which should only be done when it points at a
+// separate staging database. See RELEASING.md.
+if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production' && process.env.MIGRATE_ON_PREVIEW !== '1') {
+  console.log(`[migrate] ${process.env.VERCEL_ENV} deploy: skipping migrations (set MIGRATE_ON_PREVIEW=1 with a staging database to apply them).`);
+  process.exit(0);
+}
 const raw = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
 if (!raw) { console.log('[migrate] No database URL; skipping.'); process.exit(0); }
 const url = new URL(raw);

@@ -14,6 +14,9 @@ export async function appOrigin(): Promise<string> {
     const host = (h.get('x-forwarded-host') || h.get('host') || '').split(',')[0].trim().toLowerCase();
     if (!host) return fallback;
     const known = new Set([new URL(fallback).host, DEFAULT_HOST, process.env.VERCEL_PROJECT_PRODUCTION_URL || '']);
+    // Staging and previews: this deployment's own Vercel addresses (set by Vercel, so they can't be forged), so
+    // signing in on a preview brings you back to the preview rather than the live site
+    if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') for (const v of [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]) if (v) known.add(v.toLowerCase());
     const { data } = await adminClient().from('studio_settings').select('value').eq('key', 'domain').maybeSingle();
     const saved = (data?.value as { host?: string } | null)?.host; if (saved) known.add(saved);
     if (!known.has(host)) return fallback;
