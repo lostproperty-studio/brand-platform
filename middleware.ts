@@ -10,6 +10,11 @@ export async function middleware(req: NextRequest) {
   const target = short ? req.nextUrl.clone() : null;
   if (target) target.pathname = '/p' + req.nextUrl.pathname;
   const res = target ? NextResponse.rewrite(target) : NextResponse.next({ request: req });
+  // A deployment without its Supabase settings (often a preview, when they're only set for Production in Vercel)
+  // says so plainly instead of failing every request
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return new NextResponse(`This ${process.env.VERCEL_ENV || ''} deployment has no Supabase settings. In Vercel → Settings → Environment Variables, make NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (and the other Supabase variables) available to Preview, then redeploy.`, { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+  }
   const sb = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: { getAll: () => req.cookies.getAll(), setAll: (list) => list.forEach(({ name, value, options }) => res.cookies.set(name, value, options)) }
   });
