@@ -3347,3 +3347,6 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .dr-step p { margin: 0; }
 .dr-n { font-size: 12px; color: #999; padding-top: 3px; }
 .dr-t { font-family: var(--pt-display); font-size: 22px; line-height: 1.1; margin-bottom: 6px !important; }
+/* BETA: an app that's still a work in progress, marked by the studio */
+.beta-tag { display: inline-flex; align-items: center; flex: none; margin-left: 6px; padding: 1px 7px; border-radius: 4px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; line-height: 1.5; vertical-align: 2px; }
+.rm2-top .beta-tag { margin-left: 0; }

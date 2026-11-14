@@ -46,7 +46,7 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
         <div className="rs-tray">
           {tools.map((t, i) => <Link key={t.id} href={`${base}/tools/${t.id}`} className={'rs-app' + (t.visible ? '' : ' off')}>
             <AppTile icon={t.icon} />
-            <span className="rs-app-name">{t.name}{t.ai_enabled ? <span className="rs-pill">AI</span> : null}{t.visible ? null : <span className="rs-pill">Hidden</span>}</span>
+            <span className="rs-app-name">{t.name}{t.beta ? <span className="beta-tag" title="A work in progress: it may change, and things may not always work as expected">Beta</span> : null}{t.ai_enabled ? <span className="rs-pill">AI</span> : null}{t.visible ? null : <span className="rs-pill">Hidden</span>}</span>
             <span className="mute rs-app-desc">{t.description}</span>
           </Link>)}
           <Link href={`${base}/resources/design-system`} className="rs-app">

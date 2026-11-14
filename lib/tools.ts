@@ -2,13 +2,19 @@ import { adminClient } from '@/lib/supabase/server';
 import type { PortalCtx } from '@/lib/portal/context';
 import { RESKIN } from '@/lib/reskin';
 
-export type Tool = { id: string; project_id: string; kind: 'html' | 'layouts'; name: string; icon: string; description: string; html_path: string | null; styling: 'full' | 'light' | 'none'; ai_enabled: boolean; visible: boolean; ord: number; updated_at: string };
+export type Tool = { id: string; project_id: string; kind: 'html' | 'layouts'; name: string; icon: string; description: string; html_path: string | null; styling: 'full' | 'light' | 'none'; ai_enabled: boolean; visible: boolean; ord: number; updated_at: string; beta?: boolean };
 export const TOOL_BUCKET = 'uploads';
 
 /** The project's tools: only the ones the studio has added. Nothing is added automatically. */
 export async function listTools(projectId: string, includeHidden: boolean) {
-  const { data } = await adminClient().from('tools').select('*').eq('project_id', projectId).order('ord').order('created_at');
-  return ((data || []) as Tool[]).filter((t) => includeHidden || t.visible);
+  const sb = adminClient();
+  const [{ data }, { data: pr }] = await Promise.all([
+    sb.from('tools').select('*').eq('project_id', projectId).order('ord').order('created_at'),
+    sb.from('projects').select('content').eq('id', projectId).single()
+  ]);
+  // BETA lives with the per-tool settings in the project's content, so no table change is needed
+  const settings = ((pr?.content as { toolSettings?: Record<string, { beta?: boolean }> } | null)?.toolSettings) || {};
+  return ((data || []) as Tool[]).filter((t) => includeHidden || t.visible).map((t) => ({ ...t, beta: !!settings[t.id]?.beta }));
 }
 
 // Runs inside the tool. Lets the platform read the tool's controls, fill them in for the AI, and save/restore a person's work.
