@@ -3331,3 +3331,7 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .dl-link > .btn { align-self: flex-start; }
 .dl-linkrow { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 .dl-linkrow .in { font: 12px ui-monospace, Menlo, monospace; }
+
+/* BETA: an app that's still a work in progress, marked by the studio */
+.beta-tag { display: inline-flex; align-items: center; flex: none; margin-left: 6px; padding: 1px 7px; border-radius: 4px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; line-height: 1.5; vertical-align: 2px; }
+.rm2-top .beta-tag { margin-left: 0; }

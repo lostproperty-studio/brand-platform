@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff, Plus, Trash2, Upload, X } from 'lucide-react';
 import { Icon, ICON_NAMES } from '@/lib/icons';
 
-type Tool = { id: string; kind: 'html' | 'layouts'; name: string; icon: string; description: string; styling: 'full' | 'light' | 'none'; ai_enabled: boolean; visible: boolean; ord: number; updated_at: string };
+type Tool = { id: string; kind: 'html' | 'layouts'; name: string; icon: string; description: string; styling: 'full' | 'light' | 'none'; ai_enabled: boolean; visible: boolean; ord: number; updated_at: string; beta?: boolean };
 const STYLING = { full: 'Platform look', light: 'Brand fonts', none: 'As uploaded' } as const;
 
 // Studio: apps for this client, as cards like the downloads. Add one by uploading a self-contained HTML tool; the
@@ -49,7 +49,7 @@ export function ToolManager({ projectId, slug }: { projectId: string; slug: stri
           <article key={t.id} className={'rm2-card' + (t.visible ? '' : ' dim')} tabIndex={0} role="button" aria-label={`${t.name}: open`} onClick={() => setOpen(t.id)} onKeyDown={(e) => { if (e.key === 'Enter') setOpen(t.id); }}>
             <div className="rm2-pv"><div className="rs-pv tl-pv"><span className="tl-pv-ic"><Icon name={t.icon} size={34} /></span></div></div>
             <div className="rm2-txt">
-              <div className="rm2-top"><h3>{t.name}</h3></div>
+              <div className="rm2-top"><h3>{t.name}</h3>{t.beta ? <span className="beta-tag">Beta</span> : null}</div>
               <p className="rm2-meta"><span className={'rm2-dot ' + (t.visible ? 'live' : 'off')} aria-hidden />{t.visible ? 'Shown to the client' : 'Hidden'}{t.kind === 'html' ? (t.ai_enabled ? ' · AI on' : '') : ' · Built in'}</p>
               {t.description ? <span className="rm2-fresh">{t.description}</span> : null}
             </div>
@@ -83,6 +83,7 @@ export function ToolManager({ projectId, slug }: { projectId: string; slug: stri
               {cur.styling === 'full' ? <ArtworkField projectId={projectId} toolId={cur.id} /> : null}
               <label className="fp-check"><input type="checkbox" checked={cur.ai_enabled} onChange={(e) => patch(cur, { ai_enabled: e.target.checked })} />Let clients drive it with AI</label>
             </> : <p className="mute">Built into the platform, so it can’t be replaced or deleted. Hide it if this client doesn’t need it.</p>}
+            <label className="fp-check"><input type="checkbox" checked={!!cur.beta} onChange={(e) => patch(cur, { beta: e.target.checked })} />Mark as BETA<small className="mute"> · the client sees a Beta tag and a note that it’s a work in progress</small></label>
             <div className="rm2-row"><span className="mute">Order</span><button className="btn" onClick={() => move(ci, -1)} disabled={ci <= 0}>← Earlier</button><button className="btn" onClick={() => move(ci, 1)} disabled={!tools || ci >= tools.length - 1}>Later →</button></div>
           </div> : null}
           <div className="rm2-pane-f">
