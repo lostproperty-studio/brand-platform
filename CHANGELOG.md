@@ -9,7 +9,7 @@ A release gate, so new work can't reach clients without approval.
 **For the studio**
 - Releases in Admin settings: the running version and environment, and a stage per feature per client (Off, Studio only, Client beta, Live).
 - Director, studio only and marked Labs: the first look at a short-form video tool built on each brand's creative direction.
-- Preview and staging deploys no longer run database migrations unless they point at a staging database.
+- Preview deploys no longer run database migrations, so only live deploys change the database.
 
 **For clients**
 - No visible changes.
