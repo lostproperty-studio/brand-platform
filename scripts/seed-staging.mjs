@@ -64,7 +64,14 @@ async function copyFile(bucket, path) {
 }
 
 const { data: project, error } = await src.from('projects').select('*').eq('slug', slug).maybeSingle();
-if (error || !project) { console.error(`No project called “${slug}” on live.`); process.exit(1); }
+if (error) { console.error(`Couldn't read live: ${error.message}. Check SOURCE_SUPABASE_URL and SOURCE_SUPABASE_SERVICE_KEY.`); process.exit(1); }
+if (!project) {
+  const { data: all } = await src.from('projects').select('slug, client, name').order('client');
+  console.error(`No project called “${slug}” on live. The projects there are:`);
+  for (const p of all || []) console.error(`  ${p.slug}   (${p.client} · ${p.name})`);
+  console.error('Run it again with the right one at the end of the line.');
+  process.exit(1);
+}
 const pid = project.id;
 console.log(`Copying ${project.client} (${slug}) to staging…`);
 
