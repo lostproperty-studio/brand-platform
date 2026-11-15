@@ -42,7 +42,9 @@ export function TypeStage({ text, P, t, font, colour, size, align = 'left', line
           const f = partAt(P, part, t); const b = geo.boxes[i];
           // The part's visible box, cut to this unit's own box
           const l = Math.max(0, f.clip[0] - b[0]), tp = Math.max(0, f.clip[1] - b[1]), r = Math.max(0, b[0] + b[2] - (f.clip[0] + f.clip[2])), bt = Math.max(0, b[1] + b[3] - (f.clip[1] + f.clip[3]));
-          style = { ...style, clipPath: P.build === 'wipe' ? `inset(${tp}px ${r}px ${bt}px ${l}px)` : undefined, opacity: f.opacity, transform: f.dx || f.dy || f.scale !== 1 ? `translate(${f.dx}px, ${f.dy}px) scale(${f.scale})` : undefined };
+          // Type has no outlines to draw, so drawn on shows as the fill coming up; blur is a share of the line's height
+          const blur = (f.blur / 100) * b[3] * 3;
+          style = { ...style, clipPath: P.build === 'wipe' ? `inset(${tp}px ${r}px ${bt}px ${l}px)` : undefined, opacity: f.opacity * (f.draw !== null ? Math.max(f.fill, f.draw * 0.25) : 1), transform: f.dx || f.dy || f.scale !== 1 ? `translate(${f.dx}px, ${f.dy}px) scale(${f.scale})` : undefined, filter: blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : undefined };
         }
       }
       return <span key={i} data-u style={style}>{u}</span>;

@@ -6,7 +6,7 @@ import { DirectorApp } from '@/components/director/DirectorApp';
 import type { BrandKit } from '@/lib/director/model';
 import { portalV2 } from '@/lib/portalVersion';
 import { DirectorProjects } from '@/components/portal/v2/DirectorProjects';
-import { readMotion } from '@/lib/motion/model';
+import { isSubmitted, readMotion } from '@/lib/motion/model';
 import { portalPackages } from '@/lib/portal/packages';
 
 // Director: plan, shoot and generate short-form video in the brand's world, with its fonts, logos and colours
@@ -36,7 +36,8 @@ export default async function DirectorPage({ params }: { params: Promise<{ slug:
     const nice = (n: string) => n.replace(/\.(svg|png)$/i, '').replace(/[_-]+/g, ' ');
     if (logos.length) kit.logos = logos.filter((f) => u2[f.path]).map((f) => ({ name: nice(f.name), url: u2[f.path], key: f.path, light: /white|light|reverse|negative|inverse/i.test(f.name) }));
     kit.icons = icons.filter((f) => u2[f.path]).map((f) => ({ name: nice(f.name), url: u2[f.path] }));
-    kit.motion = readMotion(ctx.project.content);
+    // Only motion a lead has submitted; until then Director works as before
+    if (isSubmitted(ctx.project.content)) kit.motion = readMotion(ctx.project.content);
   }
   // Portal v2 (staging): Projects first, each holding its videos
   if (portalV2()) return <div className="v2-app dr-app-wrap"><DirectorProjects slug={slug} kit={kit} canGenerate={ctx.access.staff} badge={stageBadge(stage)} labs={stage === 'studio'} /></div>;

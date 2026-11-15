@@ -5,13 +5,14 @@ import { drawFrame, loadArtwork, type Artwork } from '@/lib/motion/render';
 
 // A logo moving in the brand's motion, drawn on a canvas that fills its parent. Logos are read once per page.
 const cache = new Map<string, Promise<Artwork>>();
+/** A logo's artwork, read once per page */
+export function artworkOf(url: string) { if (!cache.has(url)) cache.set(url, fetch(url).then((r) => r.text()).then(loadArtwork)); const p = cache.get(url)!; p.catch(() => cache.delete(url)); return p; }
 export function useArtwork(url?: string) {
   const [art, setArt] = useState<Artwork | null>(null);
   useEffect(() => {
     if (!url || !/\.svg$/i.test(url.split('?')[0])) { setArt(null); return; }
     let live = true;
-    if (!cache.has(url)) cache.set(url, fetch(url).then((r) => r.text()).then(loadArtwork));
-    cache.get(url)!.then((a) => { if (live) setArt(a); }).catch(() => { cache.delete(url); if (live) setArt(null); });
+    artworkOf(url).then((a) => { if (live) setArt(a); }).catch(() => { if (live) setArt(null); });
     return () => { live = false; };
   }, [url]);
   return art;

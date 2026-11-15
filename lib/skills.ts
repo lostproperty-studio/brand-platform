@@ -6,6 +6,7 @@ import { aiRulesMd, watchoutsFrom } from '@/lib/aiRules';
 import type { designSystemFiles } from '@/lib/designSystem';
 import { voiceHas, voiceMd, VOICE_GUARD } from '@/lib/voice';
 import { knowledgeMd } from '@/lib/voiceKnowledge';
+import { motionMd } from '@/lib/motion/model';
 
 type DS = ReturnType<typeof designSystemFiles>;
 
@@ -42,7 +43,7 @@ ${fonts.filter((f) => f.name).map((f) => `- **${f.label || f.role}:** ${f.name}$
 ## Logo files
 ${logos.length ? logos.map((l) => `- \`${l}\``).join('\n') : '- Not included in this version. Ask Lost Property for the logo files.'}
 
-## Design tokens
+${snap.motion ? motionMd(snap.client, snap.motion, (r) => snap.fonts.find((f) => f.role === r)?.name || r) + '\n\n' : ''}## Design tokens
 ${files.filter((f) => f.startsWith('tokens/')).map((f) => `- \`${f}\``).join('\n') || '- Not included.'}
 
 ${chapters.map((c) => {

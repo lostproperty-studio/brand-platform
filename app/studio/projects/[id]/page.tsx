@@ -17,7 +17,7 @@ import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
 import { portalV2 } from '@/lib/portalVersion';
 import { MotionStudio } from '@/components/motion/MotionStudio';
-import { readMotion } from '@/lib/motion/model';
+import { readDraft, readMotion, isSubmitted } from '@/lib/motion/model';
 import { portalContext } from '@/lib/portal/context';
 import { portalPackages } from '@/lib/portal/packages';
 import { readSources, type Source } from '@/lib/figma/sources';
@@ -330,8 +330,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const { data: signed } = files.length ? await signMany('kits', files.map((f) => f.path), 6 * 3600) : { data: [] };
     const url = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
     const logos = files.filter((f) => url[f.path]).map((f) => ({ path: f.path, name: f.name.replace(/\.svg$/i, '').replace(/[_-]+/g, ' '), url: url[f.path] }));
-    const display = pc?.fonts.find((f) => f.role === 'display' && f.files.length) || pc?.fonts.find((f) => f.files.length);
-    body = <>{pc?.fontCss ? <style>{pc.fontCss}</style> : null}<MotionStudio projectId={id} client={p.client} logos={logos} colours={pc?.snap?.colours || []} motion={readMotion(p.content)} typeFont={display ? `var(--font-${display.role}), sans-serif` : 'inherit'} /></>;
+    // Every typeface on the project, in its own font where it's been uploaded
+    const fonts = (pc?.fonts || []).filter((f) => f.name).map((f) => ({ role: f.role, label: f.label, name: f.name, css: f.files.length ? `var(--font-${f.role}), sans-serif` : 'inherit' }));
+    const sub = isSubmitted(p.content) ? readMotion(p.content) : null;
+    body = <>{pc?.fontCss ? <style>{pc.fontCss}</style> : null}<MotionStudio key={sub?.version || 0} projectId={id} client={p.client} logos={logos} fonts={fonts} colours={pc?.snap?.colours || []} motion={readDraft(p.content)}
+      live={sub ? { version: sub.version || 1, submittedAt: sub.submittedAt, submittedBy: sub.submittedBy } : null} canSubmit={myRole === 'lead'} /></>;
   }
   if (tab === 'typefaces') {
     body = <FontManager projectId={id} />;

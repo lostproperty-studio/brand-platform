@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Sparkles } from 'lucide-react';
 import { ASPECTS, LOGO_SCALE, SIZE_SCALE, captionFrame, motionTransform, sceneAt, type BrandKit, type Caption, type Doc, type Scene } from '@/lib/director/model';
-import { presetFor } from '@/lib/motion/model';
+import { presetFor, typeFor } from '@/lib/motion/model';
 import { LogoMotion, fitLength } from '@/components/motion/LogoMotion';
 import { TypeStage } from '@/components/motion/TypeStage';
 import { Endboard } from '@/components/motion/Endboard';
@@ -56,7 +56,7 @@ function SceneFrame({ scene: s, local, kit, base, w, h, playing, selected, onPic
       const text = f.chars !== undefined ? c.text.slice(0, f.chars) : c.text;
       return <div key={c.id} className={'dr-cap' + (selected === c.id ? ' sel' : '')} style={{ ...CAP_POS[c.position], textAlign: c.align === 'centre' ? 'center' : c.align, justifyContent: c.align === 'left' ? 'flex-start' : c.align === 'right' ? 'flex-end' : 'center' }}
         onClick={(e) => { e.stopPropagation(); onPick?.({ type: 'caption', id: c.id, sceneId: s.id }); }}>
-        {c.anim === 'brand' && kit.motion ? <TypeStage text={c.text} P={fitLength({ ...kit.motion.type }, Math.max(0.3, c.end - c.start))} t={(local - c.start) * 1000} font={`var(--font-${c.font}, var(--pt-display))`} colour={c.colour} size={base * SIZE_SCALE[c.size]} align={c.align} />
+        {c.anim === 'brand' && kit.motion ? <TypeStage text={c.text} P={fitLength(typeFor(kit.motion, c.font), Math.max(0.3, c.end - c.start))} t={(local - c.start) * 1000} font={`var(--font-${c.font}, var(--pt-display))`} colour={c.colour} size={base * SIZE_SCALE[c.size]} align={c.align} />
         : <span style={{ ...f.style, fontFamily: `var(--font-${c.font}, var(--pt-display))`, fontSize: base * SIZE_SCALE[c.size], color: c.colour, background: c.box || undefined, padding: c.box ? '0.15em 0.4em' : undefined, lineHeight: 1.08, display: 'inline-block', maxWidth: '100%', whiteSpace: 'pre-wrap' }}>
           {text}{f.chars !== undefined && f.chars < c.text.length ? <span className="dr-caret">|</span> : null}
         </span>}

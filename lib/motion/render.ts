@@ -3,9 +3,12 @@
 // for the Motion tab's preview, the package and Director, so what the studio approves is what clients get.
 // Browser only (it needs the DOM and canvas).
 
-import { buildTimeline, partAt, type MotionPreset, type Rect, type Timeline, type TypePreset } from '@/lib/motion/model';
+import { buildTimeline, channels, partAt, type MotionPreset, type PartTimeline, type Rect, type Timeline, type TypePreset } from '@/lib/motion/model';
 
-export type Artwork = { svg: string; inner: string; vb: [number, number, number, number]; w: number; h: number; rects: Rect[]; img: HTMLImageElement; tone: 'dark' | 'light' };
+/** An outline of the artwork, for drawing on: points (x, y pairs, in artwork units), the length so far at each point,
+ *  its colour, and which part (index into rects) it belongs to */
+export type Line = { pts: number[]; cum: number[]; len: number; colour: string; part: number };
+export type Artwork = { svg: string; inner: string; vb: [number, number, number, number]; w: number; h: number; rects: Rect[]; img: HTMLImageElement; tone: 'dark' | 'light'; lines: Line[] };
 type P = MotionPreset | TypePreset;
 
 const DRAWABLE = new Set(['path', 'rect', 'circle', 'ellipse', 'polygon', 'polyline', 'line', 'text', 'use', 'image', 'g']);
@@ -36,6 +39,25 @@ export async function loadArtwork(svgText: string): Promise<Artwork> {
   let rects: Rect[] = level.map((c) => { const r = c.getBoundingClientRect(); return [r.left - o.left, r.top - o.top, r.width, r.height] as Rect; }).filter((r) => r[2] > 0.5 && r[3] > 0.5);
   // A dark or light logo, from the fill used most
   const fills = [...el.querySelectorAll('*')].map((c) => getComputedStyle(c).fill).filter((f) => f && f !== 'none' && f.startsWith('rgb'));
+  // Outlines, for drawing on: each shape's edge sampled along its length, split where it jumps to a new outline
+  const raw: { pts: number[]; colour: string }[] = [];
+  const step = Math.max(w, h) / 500;
+  for (const g of el.querySelectorAll('path, rect, circle, ellipse, polygon, polyline, line')) {
+    const ge = g as SVGGeometryElement; let L = 0;
+    try { L = ge.getTotalLength(); } catch { L = 0; }
+    const m = ge.getScreenCTM(); if (!L || !m) continue;
+    const k = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c)) || 1;
+    const n = Math.min(3000, Math.max(12, Math.ceil(L * k / step)));
+    const cs = getComputedStyle(g); const colour = cs.fill && cs.fill !== 'none' && !cs.fill.startsWith('url') ? cs.fill : cs.stroke && cs.stroke !== 'none' ? cs.stroke : '';
+    let cur: number[] = []; let px = NaN, py = NaN; const gap = (L * k / n) * 3 + 0.5;
+    for (let i = 0; i <= n; i++) {
+      const pt = ge.getPointAtLength(L * i / n); const q = new DOMPoint(pt.x, pt.y).matrixTransform(m);
+      const x = q.x - o.left, y = q.y - o.top;
+      if (cur.length && Math.hypot(x - px, y - py) > gap) { if (cur.length >= 4) raw.push({ pts: cur, colour }); cur = []; }
+      cur.push(x, y); px = x; py = y;
+    }
+    if (cur.length >= 4) raw.push({ pts: cur, colour });
+  }
   host.remove();
   const lum = (c: string) => { const m = c.match(/[\d.]+/g)?.map(Number) || [0, 0, 0]; return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
   const avg = fills.length ? fills.reduce((n, f) => n + lum(f), 0) / fills.length : 0;
@@ -53,7 +75,19 @@ export async function loadArtwork(svgText: string): Promise<Artwork> {
     rects = cols;
   }
   const img = await svgImage(svg, w, h);
-  return { svg, inner, vb, w, h, rects: rects.length ? rects : [[0, 0, w, h]], img, tone: avg > 0.55 ? 'light' : 'dark' };
+  if (!rects.length) rects = [[0, 0, w, h]];
+  const tone = avg > 0.55 ? 'light' : 'dark';
+  // Each outline belongs to the part its middle sits in
+  const lines: Line[] = raw.map(({ pts, colour }) => {
+    const cum = [0]; for (let i = 2; i < pts.length; i += 2) cum.push(cum[cum.length - 1] + Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]));
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) { x1 = Math.min(x1, pts[i]); x2 = Math.max(x2, pts[i]); y1 = Math.min(y1, pts[i + 1]); y2 = Math.max(y2, pts[i + 1]); }
+    const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    let part = rects.findIndex((r) => cx >= r[0] - 0.5 && cx <= r[0] + r[2] + 0.5 && cy >= r[1] - 0.5 && cy <= r[1] + r[3] + 0.5);
+    if (part < 0) part = rects.map((r, i) => [Math.hypot(r[0] + r[2] / 2 - cx, r[1] + r[3] / 2 - cy), i]).sort((a, b) => a[0] - b[0])[0][1];
+    return { pts, cum, len: cum[cum.length - 1], colour: colour || (tone === 'light' ? '#ffffff' : '#000000'), part };
+  }).filter((l) => l.len > step);
+  return { svg, inner, vb, w, h, rects, img, tone, lines };
 }
 
 /** An image of the SVG, drawn large so it stays sharp in 4K frames */
@@ -69,26 +103,62 @@ export function placement(art: { w: number; h: number }, W: number, H: number, s
   return { s, ox: (W - art.w * s) / 2, oy: (H - art.h * s) / 2 };
 }
 
+/** The outlines that belong to a part of the timeline */
+export function linesFor(art: Artwork, tl: Timeline, part: PartTimeline) {
+  if (tl.parts.length === 1 && !art.rects.includes(part.r)) return art.lines;
+  const i = art.rects.indexOf(part.r);
+  return art.lines.filter((l) => l.part === i);
+}
+/** Strokes the first share (0–1) of an outline */
+function strokePartial(c: Ctx, l: Line, share: number) {
+  if (share <= 0) return;
+  const to = l.len * Math.min(1, share), p = l.pts;
+  c.beginPath(); c.moveTo(p[0], p[1]);
+  let i = 1;
+  for (; i < l.cum.length && l.cum[i] <= to; i++) c.lineTo(p[i * 2], p[i * 2 + 1]);
+  if (i < l.cum.length && share < 1) { const f = (to - l.cum[i - 1]) / (l.cum[i] - l.cum[i - 1] || 1); c.lineTo(p[i * 2 - 2] + (p[i * 2] - p[i * 2 - 2]) * f, p[i * 2 - 1] + (p[i * 2 + 1] - p[i * 2 - 1]) * f); }
+  c.strokeStyle = l.colour; c.stroke();
+}
+type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+let scratch: { c: OffscreenCanvas | HTMLCanvasElement; x: Ctx } | null = null;
+function scratchFor(W: number, H: number) {
+  if (!scratch) { const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : document.createElement('canvas'); scratch = { c, x: c.getContext('2d') as Ctx }; }
+  if (scratch.c.width !== W || scratch.c.height !== H) { scratch.c.width = W; scratch.c.height = H; }
+  scratch.x.setTransform(1, 0, 0, 1, 0, 0); scratch.x.clearRect(0, 0, W, H); scratch.x.globalAlpha = 1;
+  return scratch;
+}
+
 /** Draws the frame at time t (ms). bg null leaves it transparent. */
-export function drawFrame(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, W: number, H: number, art: Artwork, P: P, tl: Timeline, t: number, bg: string | null, place?: { s: number; ox: number; oy: number }) {
+export function drawFrame(ctx: Ctx, W: number, H: number, art: Artwork, P: P, tl: Timeline, t: number, bg: string | null, place?: { s: number; ox: number; oy: number }) {
   ctx.save();
   ctx.clearRect(0, 0, W, H);
   if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H); }
   const { s, ox, oy } = place || placement(art, W, H, (P as MotionPreset).scale ?? 60);
-  ctx.translate(ox, oy); ctx.scale(s, s);
-  ctx.translate(tl.driftX.at(t), tl.driftY.at(t));
   const px = 1 / s;
+  const lw = (channels(P).line / 100) * Math.min(art.w, art.h);
   for (const part of tl.parts) {
     const f = partAt(P, part, t);
     if (f.opacity <= 0.001 || f.clip[2] <= px * 0.25 || f.clip[3] <= px * 0.25) continue;
+    const blur = (f.blur / 100) * art.h * s;
+    const sc = blur > 0.3 ? scratchFor(W, H) : null;
+    const c = sc ? sc.x : ctx;
     const [x, y, w, h] = part.r;
-    ctx.save();
-    ctx.globalAlpha = f.opacity;
-    if (f.dx || f.dy) ctx.translate(f.dx, f.dy);
-    if (f.scale !== 1) { ctx.translate(x + w / 2, y + h / 2); ctx.scale(f.scale, f.scale); ctx.translate(-(x + w / 2), -(y + h / 2)); }
-    ctx.beginPath(); ctx.rect(f.clip[0], f.clip[1], f.clip[2], f.clip[3]); ctx.clip();
-    ctx.drawImage(art.img, 0, 0, art.w, art.h);
-    ctx.restore();
+    c.save();
+    c.translate(ox, oy); c.scale(s, s); c.translate(tl.driftX.at(t), tl.driftY.at(t));
+    c.globalAlpha = f.opacity;
+    if (f.dx || f.dy) c.translate(f.dx, f.dy);
+    if (f.scale !== 1) { c.translate(x + w / 2, y + h / 2); c.scale(f.scale, f.scale); c.translate(-(x + w / 2), -(y + h / 2)); }
+    if (f.draw !== null) {
+      // Drawn on: the outlines draw, then the fill comes up under them
+      c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+      for (const l of linesFor(art, tl, part)) strokePartial(c, l, f.draw);
+      if (f.fill > 0.001) { c.globalAlpha = f.opacity * f.fill; c.beginPath(); c.rect(x, y, w, h); c.clip(); c.drawImage(art.img, 0, 0, art.w, art.h); }
+    } else {
+      c.beginPath(); c.rect(f.clip[0], f.clip[1], f.clip[2], f.clip[3]); c.clip();
+      c.drawImage(art.img, 0, 0, art.w, art.h);
+    }
+    c.restore();
+    if (sc) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.filter = `blur(${blur.toFixed(2)}px)`; ctx.drawImage(sc.c as CanvasImageSource, 0, 0); ctx.restore(); }
   }
   ctx.restore();
 }
@@ -199,13 +269,35 @@ export function toSVG(art: Artwork, P: P, opts: { frame: 'logo' | { W: number; H
     const tr = fr.map((f) => `${r3(f.dx + cx - cx * f.scale)} ${r3(f.dy + cy - cy * f.scale)}`), sc = fr.map((f) => r3(f.scale));
     const move = new Set(tr).size > 1 ? `<animateTransform attributeName="transform" type="translate" dur="${dur}" ${rep} calcMode="linear" keyTimes="${kt}" values="${tr.join(';')}"/>` : '';
     const scale = new Set(sc.map(String)).size > 1 ? `<animateTransform attributeName="transform" type="scale" additive="sum" dur="${dur}" ${rep} calcMode="linear" keyTimes="${kt}" values="${sc.join(';')}"/>` : '';
-    body += `<g opacity="${r3(f0.opacity)}">${anim('opacity', fr.map((f) => r3(f.opacity)))}<g>${move}${scale}<use href="#${id}-a" width="${r3(art.w)}" height="${r3(art.h)}" clip-path="url(#${id}-c${i})"/></g></g>`;
+    // Blur: a filter on the part, in artwork units
+    const bv = fr.map((f) => r3((f.blur / 100) * art.h));
+    const blurred = bv.some((v) => v > 0.01);
+    if (blurred) defs += `<filter id="${id}-b${i}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${bv[0]}">${anim('stdDeviation', bv)}</feGaussianBlur></filter>`;
+    let inner = `<use href="#${id}-a" width="${r3(art.w)}" height="${r3(art.h)}" clip-path="url(#${id}-c${i})"/>`;
+    if (f0.draw !== null) {
+      // Drawn on: each outline as a path whose dash grows, and the fill fading up under it
+      const lw = r3((channels(P).line / 100) * Math.min(art.w, art.h));
+      const dv = fr.map((f) => r3(1 - (f.draw ?? 1)));
+      const paths = linesFor(art, tl, part).map((l) => `<path d="${pathD(l)}" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="${dv[0]}" fill="none" stroke="${l.colour}" stroke-width="${lw}" stroke-linecap="round" stroke-linejoin="round">${anim('stroke-dashoffset', dv)}</path>`).join('');
+      inner = `${paths}<g opacity="${r3(fr[0].fill)}">${anim('opacity', fr.map((f) => r3(f.fill)))}${inner}</g>`;
+    }
+    body += `<g opacity="${r3(f0.opacity)}"${blurred ? ` filter="url(#${id}-b${i})"` : ''}>${anim('opacity', fr.map((f) => r3(f.opacity)))}<g>${move}${scale}${inner}</g></g>`;
   });
   const dv = ts.map((t) => `${r3(tl.driftX.at(t))} ${r3(tl.driftY.at(t))}`);
   const drift = new Set(dv).size > 1 ? `<animateTransform attributeName="transform" type="translate" dur="${dur}" ${rep} calcMode="linear" keyTimes="${kt}" values="${dv.join(';')}"/>` : '';
   const bg = opts.bg ? `<rect width="${F.W}" height="${F.H}" fill="${opts.bg}"/>` : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${F.W} ${F.H}" width="${F.W}" height="${F.H}" role="img" aria-label="${opts.title}"><title>${opts.title}</title><defs>${defs}</defs>${bg}<g transform="translate(${r3(F.ox)} ${r3(F.oy)}) scale(${r3(F.s)})"><g transform="translate(${dv[0]})">${drift}${body}</g></g></svg>`;
 }
+
+/** An outline as SVG path data, thinned to at most 400 points */
+function pathD(l: Line) {
+  const n = l.pts.length / 2, every = Math.max(1, Math.ceil(n / 400));
+  let d = `M${r3(l.pts[0])} ${r3(l.pts[1])}`;
+  for (let i = every; i < n; i += every) d += `L${r3(l.pts[i * 2])} ${r3(l.pts[i * 2 + 1])}`;
+  return d + `L${r3(l.pts[l.pts.length - 2])} ${r3(l.pts[l.pts.length - 1])}`;
+}
+const thin = (l: Line, max = 300) => { const n = l.pts.length / 2, every = Math.max(1, Math.ceil(n / max)); const out: number[][] = []; for (let i = 0; i < n; i += every) out.push([l.pts[i * 2], l.pts[i * 2 + 1]]); out.push([l.pts[l.pts.length - 2], l.pts[l.pts.length - 1]]); return out; };
+const rgbArr = (c: string) => { const m = c.match(/[\d.]+/g)?.map(Number); if (c.startsWith('#')) { const n = parseInt(c.slice(1, 7), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, 1]; } return m && m.length >= 3 ? [m[0] / 255, m[1] / 255, m[2] / 255, 1] : [0, 0, 0, 1]; };
 
 /** Lottie: the logo as one image, shown once per part through an animated mask, so any logo works */
 export function toLottie(art: Artwork, P: P, opts: { frame: 'logo' | { W: number; H: number }; bg: string | null; title: string; fps?: number }) {
@@ -222,15 +314,29 @@ export function toLottie(art: Artwork, P: P, opts: { frame: 'logo' | { W: number
   const lin = { o: { x: [0], y: [0] }, i: { x: [1], y: [1] } };
   const prop = (vals: (number | number[])[]) => { const same = vals.every((v) => JSON.stringify(v) === JSON.stringify(vals[0])); return same ? { a: 0, k: vals[0] } : { a: 1, k: vals.map((v, i) => ({ t: i, s: Array.isArray(v) ? v : [v], ...(i < vals.length - 1 ? lin : {}) })) }; };
   const shape = (r: number[]) => ({ c: true, v: [[r[0], r[1]], [r[0] + r[2], r[1]], [r[0] + r[2], r[1] + r[3]], [r[0], r[1] + r[3]]], i: [[0, 0], [0, 0], [0, 0], [0, 0]], o: [[0, 0], [0, 0], [0, 0], [0, 0]] });
-  const layers: object[] = tl.parts.map((part, i) => {
+  const layers: object[] = tl.parts.map((part, i): object[] => {
     const fr = ts.map((t) => partAt(P, part, t));
     const cx = (part.r[0] + part.r[2] / 2) * F.s, cy = (part.r[1] + part.r[3] / 2) * F.s;
     const pos = ts.map((t, j) => [r3(F.ox + tl.driftX.at(t) * F.s + fr[j].dx * F.s + cx), r3(F.oy + tl.driftY.at(t) * F.s + fr[j].dy * F.s + cy), 0]);
     const mask = { a: 1, k: fr.map((f, j) => ({ t: j, s: [shape(f.clip.map((n) => r3(n * F.s)))], ...(j < fr.length - 1 ? lin : {}) })) };
-    return { ddd: 0, ind: i + 1, ty: 2, nm: `Part ${i + 1}`, refId: 'logo', sr: 1, ao: 0, ip: 0, op, st: 0, bm: 0,
-      ks: { o: prop(fr.map((f) => r3(f.opacity * 100))), r: { a: 0, k: 0 }, p: prop(pos), a: { a: 0, k: [r3(cx), r3(cy), 0] }, s: prop(fr.map((f) => [r3(f.scale * 100), r3(f.scale * 100), 100])) },
+    const bv = fr.map((f) => r3((f.blur / 100) * art.h * F.s / 0.3));
+    const ef = bv.some((v) => v > 0.01) ? { ef: [{ ty: 29, nm: 'Gaussian Blur', np: 5, mn: 'ADBE Gaussian Blur 2', ix: 1, en: 1, ef: [{ ty: 0, nm: 'Blurriness', mn: 'ADBE Gaussian Blur 2-0001', ix: 1, v: prop(bv) }, { ty: 7, nm: 'Blur Dimensions', mn: 'ADBE Gaussian Blur 2-0002', ix: 2, v: { a: 0, k: 1 } }, { ty: 7, nm: 'Repeat Edge Pixels', mn: 'ADBE Gaussian Blur 2-0003', ix: 3, v: { a: 0, k: 0 } }] }] } : {};
+    const ks = (o: number[]) => ({ o: prop(o), r: { a: 0, k: 0 }, p: prop(pos), a: { a: 0, k: [r3(cx), r3(cy), 0] }, s: prop(fr.map((f) => [r3(f.scale * 100), r3(f.scale * 100), 100])) });
+    const drawn = fr[0].draw !== null;
+    const image = { ddd: 0, ind: 0, ty: 2, nm: `Part ${i + 1}`, refId: 'logo', sr: 1, ao: 0, ip: 0, op, st: 0, bm: 0, ...ef,
+      ks: ks(fr.map((f) => r3(f.opacity * (drawn ? f.fill : 1) * 100))),
       hasMask: true, masksProperties: [{ inv: false, mode: 'a', pt: mask, o: { a: 0, k: 100 }, x: { a: 0, k: 0 }, nm: 'Reveal' }] };
-  });
+    if (!drawn) return [image];
+    // Drawn on: the outlines as a shape layer, trimmed from 0 to 100%, over the fill
+    const lw = (channels(P).line / 100) * Math.min(art.w, art.h) * F.s;
+    const shapes = linesFor(art, tl, part).map((l, j) => { const v = thin(l).map(([x, y]) => [r3(x * F.s), r3(y * F.s)]); return { ty: 'gr', nm: `Line ${j + 1}`, it: [
+      { ty: 'sh', ks: { a: 0, k: { c: false, v, i: v.map(() => [0, 0]), o: v.map(() => [0, 0]) } } },
+      { ty: 'st', c: { a: 0, k: rgbArr(l.colour) }, o: { a: 0, k: 100 }, w: { a: 0, k: r3(lw) }, lc: 2, lj: 2 },
+      { ty: 'tr', p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 } }] }; });
+    const trim = { ty: 'tm', s: { a: 0, k: 0 }, e: prop(fr.map((f) => r3((f.draw ?? 1) * 100))), o: { a: 0, k: 0 }, m: 1 };
+    const line = { ddd: 0, ind: 0, ty: 4, nm: `Part ${i + 1} outline`, sr: 1, ao: 0, ip: 0, op, st: 0, bm: 0, ...ef, ks: ks(fr.map((f) => r3(f.opacity * 100))), shapes: [...shapes, trim] };
+    return [line, image];
+  }).flat().map((l, i) => ({ ...l, ind: i + 1 }));
   if (opts.bg) layers.push({ ddd: 0, ind: layers.length + 1, ty: 1, nm: 'Background', sr: 1, ks: { o: { a: 0, k: 100 }, r: { a: 0, k: 0 }, p: { a: 0, k: [0, 0, 0] }, a: { a: 0, k: [0, 0, 0] }, s: { a: 0, k: [100, 100, 100] } }, ao: 0, sw: F.W, sh: F.H, sc: opts.bg.toLowerCase(), ip: 0, op, st: 0, bm: 0 });
   return { v: '5.7.4', fr: fps, ip: 0, op, w: F.W, h: F.H, nm: opts.title, ddd: 0, assets: [{ id: 'logo', w: iw, h: ih, u: '', p: png, e: 1 }], layers, markers: [] };
 }

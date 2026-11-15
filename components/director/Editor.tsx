@@ -369,7 +369,7 @@ function Assets({ kit, onEndboard, onPlace, onType, canPlace }: { kit: BrandKit;
   return <div className="dr-assets">
     <p className="dr-kicker">Motion logos</p>
     <p className="mute dr-small">{describe(m.logo)}</p>
-    <div className="dr-mlogos">{kit.logos.map((l) => <LogoTile key={l.url} l={l} kit={kit} onEndboard={() => onEndboard(l)} onPlace={() => onPlace(l)} canPlace={canPlace} />)}</div>
+    <div className="dr-mlogos">{kit.logos.filter((l) => !m.assets?.logos?.length || !l.key || m.assets.logos.includes(l.key)).map((l) => <LogoTile key={l.url} l={l} kit={kit} onEndboard={() => onEndboard(l)} onPlace={() => onPlace(l)} canPlace={canPlace} />)}</div>
     {!kit.logos.length ? <p className="mute dr-small">No logos in the kit yet.</p> : null}
     <p className="dr-kicker">Type</p>
     <p className="mute dr-small">{describe(m.type)}</p>

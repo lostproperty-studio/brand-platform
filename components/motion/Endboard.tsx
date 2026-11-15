@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { buildTimeline, presetFor, type BrandMotion, type MotionPreset } from '@/lib/motion/model';
+import { buildTimeline, presetFor, typeFor, type BrandMotion, type MotionPreset } from '@/lib/motion/model';
 import { placement, type Artwork } from '@/lib/motion/render';
 import type { BrandKit, Endboard as EB, Size } from '@/lib/director/model';
 import { LogoMotion, fitLength } from '@/components/motion/LogoMotion';
@@ -21,7 +21,9 @@ export function Endboard({ eb, kit, motion, local, duration, w, h, ink }: { eb: 
   const built = useMemo(() => (art ? Math.max(...buildTimeline(P, art.rects, art.w, art.h).parts.map((p) => p.spans.in[1])) / 1000 : eb.delay + 0.8), [art, P, eb.delay]);
   const logoH = art ? art.h * placement(art, w, h, eb.scale).s : h * 0.15;
   const from = Math.min(built - 0.15, duration - 0.3);
-  const TP = useMemo(() => fitLength({ ...motion.type, out: P.out === 'none' ? 'none' as const : motion.type.out === 'none' ? 'mirror' as const : motion.type.out }, Math.max(0.4, duration - from)), [motion.type, P.out, duration, from]);
+  const role = kit.fonts.find((f) => f.role === 'display')?.role;
+  const T0 = useMemo(() => typeFor(motion, role), [motion, role]);
+  const TP = useMemo(() => fitLength({ ...T0, out: P.out === 'none' ? 'none' as const : T0.out === 'none' ? 'mirror' as const : T0.out }, Math.max(0.4, duration - from)), [T0, P.out, duration, from]);
   const slots = { above: eb.items.filter((i) => i.at === 'above'), below: eb.items.filter((i) => i.at === 'below'), top: eb.items.filter((i) => i.at === 'top'), bottom: eb.items.filter((i) => i.at === 'bottom') };
   const base_ = Math.min(w, h);
   const item = (i: EB['items'][number]) => {
