@@ -21,7 +21,7 @@ const dst = createClient(dstUrl, need('SUPABASE_SERVICE_ROLE_KEY'), { auth: { pe
 
 // People don't exist on staging, so links to them are cleared
 const PEOPLE = ['created_by', 'updated_by', 'author', 'answered_by', 'published_by', 'user_id'];
-const clean = (row) => { const r = { ...row }; for (const k of PEOPLE) if (k in r) r[k] = null; return r; };
+const clean = (row) => { const r = { ...row }; for (const k of Object.keys(r)) if (PEOPLE.includes(k) || k.endsWith('_by')) r[k] = null; return r; };
 const BUCKETS = ['kits', 'previews', 'uploads'];
 
 async function rows(table, col, ids) {
