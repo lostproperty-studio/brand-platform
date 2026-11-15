@@ -29,7 +29,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   return (
     <div className="pt">
       <style>{css}</style>
-      <PortalNav showcaseName={snap?.showcase?.nav} slug={slug} client={project.client} logoUrl={sidebar.full} miniUrl={sidebar.mini} chapters={chapters} showSettings={access.canManage} showShowcase={preview || hasShowcase(snap?.showcase)} showWriter={!v2 && (preview || (!!snap?.voice && voiceReady(snap.voice) && !!snap.voice.writer))} features={v2 ? [] : features} apps={apps} autoHide={v2} />
+      <PortalNav showcaseName={snap?.showcase?.nav} slug={slug} client={project.client} logoUrl={sidebar.full} miniUrl={sidebar.mini} chapters={chapters} showSettings={access.canManage} showShowcase={preview || hasShowcase(snap?.showcase)} showWriter={!v2 && (preview || (!!snap?.voice && voiceReady(snap.voice) && !!snap.voice.writer))} features={v2 ? [] : features} apps={apps} rail={v2} />
       <div className="pt-main">
         {preview ? <div className="pt-preview" role="status">Studio preview of the working copy. <a href={`/api/p/${slug}/view-as?mode=client`}>View as the client</a> · {project.status === 'live' ? 'Clients see the last published version.' : 'Not published yet, so clients can’t see it.'} <a href={`/studio/projects/${project.id}`}>Back to the studio</a></div> : null}
         {asClient ? <div className="pt-preview as-client" role="status">You’re seeing exactly what {project.client}’s team sees: {project.status === 'live' ? 'the published version' : 'nothing yet, because it isn’t published'}, with their downloads, apps and AI. <a href={`/api/p/${slug}/view-as?mode=studio`}>Back to the studio preview</a></div> : null}

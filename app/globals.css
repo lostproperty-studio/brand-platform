@@ -3892,11 +3892,5 @@ button.fb-card, .fb-open { all: unset; box-sizing: border-box; cursor: pointer; 
 .dp2-body:has(.dr-ed) .dp2-loose { display: none; }
 .dp2-body > .dr-ed { flex: 1; min-height: 0; }
 
-/* ---------- Portal v2: the sidebar rests as an icon rail and slides open over the page on hover (pin to keep it open) */
-@media (min-width: 761px) {
-  .pt:has(.pt-side.rail) { --pt-sidew: 72px; transition: none; }
-  .pt-side.rail { z-index: 70; width: 72px; background: #fff; transition: width .2s ease, box-shadow .2s ease; overflow-x: hidden; }
-  .pt-side.rail.peek { width: 272px; box-shadow: 12px 0 32px rgba(0, 0, 0, .08); border-right-color: transparent; overflow-y: auto; }
-  .pt-side.rail .pt-it-t, .pt-side.rail .pt-badge, .pt-side.rail .pt-credit-by, .pt-side.rail .pt-credit-lp > span { white-space: nowrap; }
-  .pt-side.rail.peek .pt-sub { display: none; }
-}
+/* ---------- Portal v2: the sidebar is always an icon rail; each icon names itself on hover */
+@media (min-width: 761px) { .pt:has(.pt-side.rail) { --pt-sidew: 72px; transition: none; } .pt-side.rail { z-index: 70; } }
