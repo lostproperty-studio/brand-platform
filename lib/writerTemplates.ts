@@ -5,7 +5,7 @@
 // specs, LinkedIn Sponsored Content specs.
 
 export type WriterPart = { key: string; label: string; limit?: number; unit?: 'chars' | 'words'; soft?: boolean; count?: number; hint?: string; body?: boolean };
-export type WriterTemplate = { id: string; label: string; group: string; parts: WriterPart[]; note?: string; length?: 'line' | 'short' | 'medium' | 'long' };
+export type WriterTemplate = { id: string; label: string; group: string; parts: WriterPart[]; note?: string; length?: 'line' | 'short' | 'medium' | 'long'; /** Only in the new portal's Writer */ v2?: boolean };
 
 export const TEMPLATE_GROUPS = ['Ads', 'Social', 'Email and messages', 'Web', 'Print and places', 'Other'] as const;
 
@@ -44,6 +44,8 @@ export const WRITER_TEMPLATES: WriterTemplate[] = [
   { id: 'x', label: 'X post', group: 'Social', parts: [{ key: 'post', label: 'Post', limit: 280 }] },
   { id: 'threads', label: 'Threads post', group: 'Social', parts: [{ key: 'post', label: 'Post', limit: 500 }] },
   { id: 'tiktok', label: 'TikTok caption', group: 'Social', parts: [{ key: 'caption', label: 'Caption', limit: 150, soft: true }, { key: 'overlay', label: 'On-screen text', limit: 60, soft: true }] },
+  { id: 'video-script', v2: true, label: 'Video script', group: 'Social', note: 'A short film, scene by scene. Opens in Director.', length: 'short', parts: [
+    { key: 'scenes', label: 'Scenes', count: 6, hint: 'Each scene: the shot, then " | ", then any voiceover (VO:) or on-screen words (On screen:), or nothing' }] },
   { id: 'youtube', label: 'YouTube video', group: 'Social', parts: [{ key: 'title', label: 'Title', limit: 70, soft: true, hint: '100 maximum; about 70 show in search' }, { key: 'description', label: 'Description', limit: 5000, body: true, hint: 'The first two lines show above the fold' }] },
 
   // Email and messages

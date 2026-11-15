@@ -163,7 +163,7 @@ export function TemplatePicker({ current, onPick, onClose }: { current: string; 
   const [q, setQ] = useState('');
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; const c = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node) && !(e.target as HTMLElement).closest('.wr-for-btn')) onClose(); }; window.addEventListener('keydown', k); window.addEventListener('mousedown', c); return () => { window.removeEventListener('keydown', k); window.removeEventListener('mousedown', c); }; }, [onClose]);
-  const list = WRITER_TEMPLATES.filter((t) => !q || (t.label + ' ' + t.group).toLowerCase().includes(q.toLowerCase()));
+  const list = WRITER_TEMPLATES.filter((t) => !t.v2 && (!q || (t.label + ' ' + t.group).toLowerCase().includes(q.toLowerCase())));
   const sum = (t: (typeof WRITER_TEMPLATES)[number]) => t.parts.length ? t.parts.map((p) => `${p.label}${p.count && p.count > 1 ? ` ×${p.count}` : ''}${p.limit ? ` ${limitLabel(p)}` : ''}`).join(' · ') : 'Choose the parts yourself';
   return <div ref={box} className="wr-pick" role="dialog" aria-label="Where it’s going">
     <label className="wr-pick-s"><Search size={14} strokeWidth={1.75} aria-hidden /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search, e.g. Google, email, poster" /></label>
@@ -220,7 +220,7 @@ function Knowledge({ slug, client, onClose, onCount, where: where0 }: { slug: st
           <textarea className="in" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste the words: a headline, a post, an email that did well…" />
           {pics.length ? <div className="ak-attach" style={{ order: 0 }}>{pics.map((p, k) => <span key={k} className="ak-thumb"><img src={p.url} alt="" /><button type="button" onClick={() => setPics((x) => x.filter((_, j) => j !== k))} aria-label="Remove picture"><X size={11} strokeWidth={2.5} aria-hidden /></button></span>)}</div> : null}
           <div className="kn-row">
-            <select className="in" value={where} onChange={(e) => setWhere(e.target.value)} aria-label="Where it was used"><option value="">Where it was used</option>{WRITER_TEMPLATES.filter((t) => t.id !== 'custom').map((t) => <option key={t.id}>{t.label}</option>)}<option>Other</option></select>
+            <select className="in" value={where} onChange={(e) => setWhere(e.target.value)} aria-label="Where it was used"><option value="">Where it was used</option>{WRITER_TEMPLATES.filter((t) => t.id !== 'custom' && !t.v2).map((t) => <option key={t.id}>{t.label}</option>)}<option>Other</option></select>
             <input className="in" value={note} onChange={(e) => setNote(e.target.value)} placeholder={kind === 'missed' ? 'Why it didn’t land (optional)' : 'Why it worked, e.g. 2× click rate (optional)'} />
           </div>
           <input ref={fileIn} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ''; }} />

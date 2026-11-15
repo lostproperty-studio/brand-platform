@@ -22,7 +22,13 @@ export default async function WriterPage({ params }: { params: Promise<{ slug: s
   // Audiences from the voice, by name ("Regulars: warm…" → "Regulars")
   const audiences = (v!.fields?.audiences || '').split(/\n+/).map((l) => l.replace(/^[-•*]\s*/, '').split(/[:–—]| - /)[0].trim()).filter((x) => x && x.length < 60).slice(0, 12);
   // Portal v2 (staging): Docs first, then a doc of pieces
-  if (portalV2()) return <div className="v2-app"><WriterApp slug={slug} client={ctx.project.client} audiences={audiences} me={nameOf(ctx.access.user)} note={ctx.preview && !(ready && v.writer) ? 'Studio test: clients can’t see the Writer until the voice is ready and switched on in the Voice tab.' : undefined} /></div>;
+  if (portalV2()) {
+    // The brand's darkest and lightest colours, for previews of where the copy is going
+    const lum = (h: string) => { const n = parseInt(h.replace('#', '').slice(0, 6).padEnd(6, '0'), 16); return 0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255); };
+    const cols = (ctx.snap.colours || []).map((c) => c.hex).filter((h) => /^#?[0-9a-f]{6}/i.test(h)).map((h) => (h.startsWith('#') ? h : `#${h}`)).sort((a, b) => lum(a) - lum(b));
+    const brand = { name: ctx.project.client, handle: ctx.project.slug.replace(/[^a-z0-9]/gi, '').toLowerCase(), dark: cols[0] || '#1a1a1a', light: cols[cols.length - 1] || '#f4f1ec', avatar: ctx.sidebar.mini };
+    return <div className="v2-app"><WriterApp brand={brand} slug={slug} client={ctx.project.client} audiences={audiences} me={nameOf(ctx.access.user)} note={ctx.preview && !(ready && v.writer) ? 'Studio test: clients can’t see the Writer until the voice is ready and switched on in the Voice tab.' : undefined} /></div>;
+  }
   const missing = voiceMissing(v).filter((f) => f.core).map((f) => f.label.toLowerCase());
   const note = v.writer && ready ? 'Studio preview: this is what clients see once you publish.'
     : `Studio test: clients can’t see the Writer yet.${missing.length ? ` The voice is still in progress (missing: ${missing.join(', ')}), so results will get better as you fill it in.` : ' Switch it on in the Voice tab and publish to give it to the client.'}`;

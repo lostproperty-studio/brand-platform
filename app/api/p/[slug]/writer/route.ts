@@ -14,7 +14,11 @@ const LENGTH = { line: 'one sentence or less', short: 'two or three sentences', 
 const Part = z.object({ key: z.string().regex(/^[a-z0-9_-]{1,24}$/), label: z.string().max(60), limit: z.number().int().min(1).max(10000).optional(), unit: z.enum(['chars', 'words']).optional(), soft: z.boolean().optional(), count: z.number().int().min(1).max(15).optional(), hint: z.string().max(120).optional(), body: z.boolean().optional() });
 
 const Body = z.object({
-  mode: z.enum(['write', 'review']),
+  mode: z.enum(['write', 'review', 'ideas']),
+  /** Ideas: the places it's going, for a one-line taste of each idea there */
+  places: z.array(z.string().max(80)).max(12).optional(),
+  /** Write: develop this chosen idea (its angle and core line) rather than starting fresh */
+  idea: z.string().max(600).optional(),
   brief: z.string().max(12000),
   /** Where it's going, e.g. "Google search ad"; its parts and limits come with it */
   template: z.string().max(80).optional(),
@@ -68,6 +72,29 @@ ${VOICE_GUARD(snap.client)}
   const partsText = q.parts.map((x) => `- ${x.label}${x.count && x.count > 1 ? `: ${x.count} different ones` : ''}${x.limit ? `, each ${limitText(x)}` : ''}${x.hint ? ` (${x.hint})` : ''}`).join('\n');
 
   try {
+    if (q.mode === 'ideas') {
+      // Ideas: distinct angles on the brief, each with its core line and a taste of how it reads in each place
+      const places = q.places?.length ? q.places : ['the piece'];
+      const res = await callTool<{ ideas?: { angle: string; line: string; why: string; tastes: { place: string; text: string }[] }[] }>(ai, {
+        model: 'claude-sonnet-5-5', max_tokens: 3000, system,
+        messages: [{ role: 'user', content: `Give ${q.count} genuinely different ideas for this piece: different angles, not rewordings. For each: a 2 to 4 word name for the angle, its core line in the voice, one short line on why it fits the voice (name the principle or trait it leans on), and a one-sentence taste of how it would read in each of these places: ${places.join('; ')}.
+
+CONDITIONS
+${conditions}
+
+THE BRIEF (or their first go)
+${q.brief}${q.like ? `
+
+MORE LIKE THIS ONE (keep its angle, find new ways in)
+${Object.entries(q.like).map(([k, t]) => `${k}: ${Array.isArray(t) ? t.join(' | ') : t}`).join('\n')}` : ''}` }],
+        tool: { name: 'ideas', description: 'The ideas', input_schema: { type: 'object', properties: { ideas: { type: 'array', items: { type: 'object', properties: {
+          angle: { type: 'string', description: '2 to 4 words naming the angle, e.g. Lead with the cold' }, line: { type: 'string', description: 'The core line, in the voice' }, why: { type: 'string', description: 'One short line: why it fits the voice' },
+          tastes: { type: 'array', items: { type: 'object', properties: { place: { type: 'string' }, text: { type: 'string' } }, required: ['place', 'text'] } } }, required: ['angle', 'line', 'why', 'tastes'] } } }, required: ['ideas'] } }
+      });
+      if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
+      if (!acc.staff) await logActivity(p.id, acc.user.id, 'tool', 'Writer · ideas');
+      return NextResponse.json({ ideas: (res.input?.ideas || []).slice(0, q.count) });
+    }
     if (q.mode === 'write') {
       const props = Object.fromEntries(q.parts.map((x) => [x.key, x.count && x.count > 1 ? { type: 'array', items: { type: 'string' }, minItems: x.count, maxItems: x.count, description: x.label } : { type: 'string', description: x.label }]));
       const res = await callTool<{ options?: Record<string, string | string[]>[] }>(ai, {
@@ -81,7 +108,7 @@ CONDITIONS
 ${conditions}
 
 THE BRIEF (or their first go)
-${q.brief}${q.like ? `\n\nMORE LIKE THIS ONE (keep its angle, vary the wording)\n${Object.entries(q.like).map(([k, t]) => `${k}: ${Array.isArray(t) ? t.join(' | ') : t}`).join('\n')}` : ''}` }],
+${q.brief}${q.idea ? `\n\nTHE CHOSEN IDEA (develop this one: keep its angle and core line, fit it to this place)\n${q.idea}` : ''}${q.like ? `\n\nMORE LIKE THIS ONE (keep its angle, vary the wording)\n${Object.entries(q.like).map(([k, t]) => `${k}: ${Array.isArray(t) ? t.join(' | ') : t}`).join('\n')}` : ''}` }],
         tool: { name: 'options', description: 'The copy options', input_schema: { type: 'object', properties: { options: { type: 'array', items: { type: 'object', properties: { ...props, why: { type: 'string', description: 'One short line: which voice principle or trait this option leans on' } }, required: [...q.parts.map((x) => x.key), 'why'] } } }, required: ['options'] } }
       });
       if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
