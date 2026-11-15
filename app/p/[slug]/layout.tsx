@@ -8,6 +8,7 @@ import { voiceReady } from '@/lib/voice';
 import { PreviewComments } from '@/components/portal/PreviewComments';
 import { canSee, projectStages, stageBadge } from '@/lib/features';
 import { APPS, portalV2 } from '@/lib/portalVersion';
+import { GuideShell } from '@/components/portal/v2/GuideShell';
 
 // The client portal: an online version of the brand guidelines, with the kit, Canvas and Ask alongside.
 export default async function PortalLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
@@ -35,7 +36,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
         {asClient ? <div className="pt-preview as-client" role="status">You’re seeing exactly what {project.client}’s team sees: {project.status === 'live' ? 'the published version' : 'nothing yet, because it isn’t published'}, with their downloads, apps and AI. <a href={`/api/p/${slug}/view-as?mode=studio`}>Back to the studio preview</a></div> : null}
         {preview ? <PreviewComments projectId={project.id} /> : null}
         {snap ? <AskDock slug={slug} client={project.client} aiConnected={!!project.ai_key_hint || preview} studioAi={preview} canConnect={access.clientAdmin} /> : null}
-        {!snap ? <div className="pt-empty"><h1>Coming soon</h1><p className="mute">Lost Property is preparing your brand guidelines. You’ll get an email when they’re ready.</p></div> : children}
+        {!snap ? <div className="pt-empty"><h1>Coming soon</h1><p className="mute">Lost Property is preparing your brand guidelines. You’ll get an email when they’re ready.</p></div> : v2 ? <GuideShell slug={slug} chapters={chapters}>{children}</GuideShell> : children}
       </div>
     </div>
   );

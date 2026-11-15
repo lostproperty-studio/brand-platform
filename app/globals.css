@@ -4012,3 +4012,16 @@ button.fb-card, .fb-open { all: unset; box-sizing: border-box; cursor: pointer; 
 .w3-text > div > span { font-size: 11px; }
 .w3-text p { margin: 2px 0 0; font-size: 13px; line-height: 1.5; }
 .w2-piece { scroll-margin-top: 72px; }
+/* ---------- Portal v2: the guidelines' own list of chapters, beside the icon rail */
+.pt-chap { display: none; }
+@media (min-width: 761px) {
+  .pt:has(.pt-chap) { --pt-sidew: 304px; grid-template-columns: 72px minmax(0, 1fr); }
+  .pt-gwrap { display: grid; grid-template-columns: 232px minmax(0, 1fr); }
+  .pt-gmain { min-width: 0; }
+  .pt-chap { position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 22px 12px 24px; border-right: 1px solid var(--line); background: #fff; }
+  .pt-chap-h { padding: 6px 10px 12px; font-weight: 500; text-decoration: none; }
+  .pt-chap-it { display: flex; gap: 10px; align-items: baseline; padding: 7px 10px; border-radius: 8px; text-decoration: none; line-height: 1.3; }
+  .pt-chap-it .pt-n { flex: none; font-size: 11px; color: var(--mute); font-variant-numeric: tabular-nums; }
+  .pt-chap-it:hover { background: var(--fill); }
+  .pt-chap-it.on { background: var(--fill-2); }
+}
