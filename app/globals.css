@@ -4201,3 +4201,19 @@ button.fb-card, .fb-open { all: unset; box-sizing: border-box; cursor: pointer; 
 @media (max-width: 1200px) { .mo { grid-template-columns: 200px minmax(0, 1fr); } .mo-panel { grid-column: 1 / -1; position: static; max-height: none; } }
 .mo-th { background: #cfcfcf; }
 .mo-claude .mo-sh { justify-content: flex-start; }
+/* ---------- Director (new portal): motion assets and the logo endboard */
+.dr-assets { display: flex; flex-direction: column; gap: 8px; }
+.dr-mlogos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dr-mlogo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dr-mlogo-f { position: relative; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); display: flex; align-items: center; justify-content: center; }
+.dr-mlogo-f > img { max-width: 70%; max-height: 50%; }
+.dr-mlogo-n { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
+.dr-mlogo-a { display: flex; gap: 4px; }
+.dr-mlogo-a .btn { flex: 1; justify-content: center; padding: 0 6px; }
+.dr-logo-b.on { box-shadow: 0 0 0 2px #000; }
+.dr-ebi { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 8px; background: var(--fill); }
+.dr-ebi-r { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.dr-in { height: 28px; border: 0; border-radius: 999px; background: #fff; padding: 0 10px; font-size: 12px; }
+.dr-mlogo-a { flex-direction: column; }
+.dr-mlogo-a .btn { min-height: 22px; width: 100%; }
+.dr-tpl-frame .mo-layer { border-radius: inherit; }

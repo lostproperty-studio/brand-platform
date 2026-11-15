@@ -1,7 +1,11 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowLeft, ArrowUp, Copy, Download, Film, LayoutTemplate, Loader2, Music, Palette, Pause, Play, Plus, SkipBack, Sparkles, Trash2, Type, Upload, Volume2, Wand2 } from 'lucide-react';
-import { ASPECTS, TEMPLATES, TEXT_ANIMS, brandPair, clamp, missing, newCaption, newScene, sceneAt, starts, total, uid, type Aspect, type BrandKit, type Caption, type FileRow, type Placement, type Scene, type Size, type Source, type Track } from '@/lib/director/model';
+import { ASPECTS, TEMPLATES, TEXT_ANIMS, brandPair, clamp, endboardScene, missing, newCaption, newScene, sceneAt, starts, total, uid, type Aspect, type BrandKit, type Caption, type Endboard, type FileRow, type Placement, type Scene, type Size, type Source, type Track } from '@/lib/director/model';
+import { Shapes } from 'lucide-react';
+import { describe, presetFor } from '@/lib/motion/model';
+import { LogoMotion, fitLength } from '@/components/motion/LogoMotion';
+import { TypeStage } from '@/components/motion/TypeStage';
 import { api, secs } from './api';
 import { SAVE_LABEL, useSave } from './useSave';
 import { Stage } from './Stage';
@@ -9,7 +13,7 @@ import { SOURCES, sourceId } from './Planner';
 
 const I = { size: 14, strokeWidth: 1.7, 'aria-hidden': true } as const;
 type Sel = { type: 'scene'; id: string } | { type: 'caption'; id: string; sceneId: string } | { type: 'track'; id: string } | null;
-type Tab = 'scenes' | 'templates' | 'text' | 'brand' | 'sound';
+type Tab = 'scenes' | 'templates' | 'assets' | 'text' | 'brand' | 'sound';
 const TABS: { id: Tab; label: string; Icon: typeof Film }[] = [
   { id: 'scenes', label: 'Scenes', Icon: Film }, { id: 'templates', label: 'Templates', Icon: LayoutTemplate }, { id: 'text', label: 'Text', Icon: Type }, { id: 'brand', label: 'Brand', Icon: Palette }, { id: 'sound', label: 'Sound', Icon: Music }
 ];
@@ -120,7 +124,7 @@ export function Editor({ slug, kit, file, setFile, onBack, canGenerate }: { slug
 
     <div className="dr-ed-main">
       <aside className="dr-left">
-        <nav className="dr-tabs">{TABS.map((x) => <button key={x.id} className={tab === x.id ? 'on' : ''} onClick={() => setTab(x.id)} title={x.label}><x.Icon size={16} strokeWidth={1.6} aria-hidden /><span>{x.label}</span></button>)}</nav>
+        <nav className="dr-tabs">{(kit.motion ? [...TABS.slice(0, 2), { id: 'assets' as Tab, label: 'Assets', Icon: Shapes as typeof Film }, ...TABS.slice(2)] : TABS).map((x) => <button key={x.id} className={tab === x.id ? 'on' : ''} onClick={() => setTab(x.id)} title={x.label}><x.Icon size={16} strokeWidth={1.6} aria-hidden /><span>{x.label}</span></button>)}</nav>
         <div className="dr-left-body">
           {tab === 'scenes' ? <>
             <ol className="dr-scenes">{d.scenes.map((s, i) => <li key={s.id} className={'dr-sc' + (selScene?.id === s.id ? ' on' : '')} onClick={() => pick({ type: 'scene', id: s.id })}>
@@ -130,13 +134,14 @@ export function Editor({ slug, kit, file, setFile, onBack, canGenerate }: { slug
             </li>)}</ol>
             <button className="btn dr-wide" onClick={() => insertScene(newScene(kit))}><Plus {...I} />Add scene</button>
           </> : null}
-          {tab === 'templates' ? <div className="dr-tpls">{TEMPLATES.map((x) => { const s = x.make(kit); return <button key={x.id} className="dr-tpl" onClick={() => insertScene(x.make(kit))}>
+          {tab === 'assets' && kit.motion ? <Assets kit={kit} onEndboard={(l) => insertScene(endboardScene(kit, l))} onPlace={(l) => selScene && setScene(selScene.id, { logo: { placement: selScene.logo?.placement || 'bottom', size: selScene.logo?.size || 'M', tone: l.light ? 'light' : 'dark' } })} onType={(over) => addCaption({ anim: 'brand', ...over })} canPlace={!!selScene && !selScene.endboard} /> : null}
+          {tab === 'templates' ? <div className="dr-tpls">{(kit.motion ? TEMPLATES.filter((x) => x.id !== 'end') : TEMPLATES).map((x) => { const s = x.make(kit); return <button key={x.id} className="dr-tpl" onClick={() => insertScene(x.make(kit))}>
             <span className="dr-tpl-frame" style={{ background: s.background }}>{s.captions[0] ? <span style={{ color: s.captions[0].colour, fontFamily: `var(--font-${s.captions[0].font}, var(--pt-display))` }}>{s.captions[0].text}</span> : s.logo && kit.logos[0] ? <img src={(kit.logos.find((l) => l.light) || kit.logos[0]).url} alt="" /> : <Film size={18} strokeWidth={1.3} aria-hidden />}</span>
             <span><strong>{x.name}</strong><span className="mute">{x.about}</span></span>
-          </button>; })}</div> : null}
+          </button>; })}{kit.motion && kit.logos.length ? <button className="dr-tpl" onClick={() => insertScene(endboardScene(kit))}><span className="dr-tpl-frame" style={{ background: brandPair(kit).dark }}><img src={(kit.logos.find((l) => l.light) || kit.logos[0]).url} alt="" /></span><span><strong>Logo endboard</strong><span className="mute">The logo in the brand’s motion, with a line or icon</span></span></button> : null}</div> : null}
           {tab === 'text' ? <div className="dr-tpls">{TEXT_PRESETS.map((x) => { const c = { ...newCaption(kit), ...x.make(kit) }; return <button key={x.name} className="dr-tpl" onClick={() => addCaption(x.make(kit))}>
             <span className="dr-tpl-frame" style={{ background: brandPair(kit).dark }}><span style={{ color: c.colour, background: c.box || undefined, fontFamily: `var(--font-${c.font}, var(--pt-display))`, fontSize: c.size === 'XL' ? 18 : c.size === 'L' ? 15 : 12 }}>{c.text}</span></span>
-            <span><strong>{x.name}</strong><span className="mute">{TEXT_ANIMS.find((a) => a.id === c.anim)?.label}, {c.position.replace('-', ' ')}</span></span>
+            <span><strong>{x.name}</strong><span className="mute">{c.anim === 'brand' ? 'Brand motion' : TEXT_ANIMS.find((a) => a.id === c.anim)?.label}, {c.position.replace('-', ' ')}</span></span>
           </button>; })}<p className="mute dr-small">Adds to the current scene at the playhead.</p></div> : null}
           {tab === 'brand' ? <div className="dr-brand">
             <p className="dr-kicker">Colours</p>
@@ -204,6 +209,7 @@ function ScenePanel({ s, kit, busy, canGenerate, set, generate, upload, pickCapt
   return <div className="dr-panel">
     <input className="dr-panel-t" value={s.title} onChange={(e) => set({ title: e.target.value })} aria-label="Scene title" />
     <Row label="Length"><input type="range" min={0.5} max={12} step={0.1} value={s.duration} onChange={(e) => set({ duration: Number(e.target.value) })} /><span className="dr-num">{secs(s.duration)}</span></Row>
+    {s.endboard ? <EndboardPanel eb={s.endboard} kit={kit} set={(x) => set({ endboard: { ...s.endboard!, ...x } })} background={s.background} setBackground={(h) => set({ background: h })} /> : <>
     <p className="dr-kicker">Picture</p>
     <div className="dr-chips tight">{SOURCES.map((x) => <button key={x.id} className={'dr-chip' + (sourceId(s.source) === x.id ? ' on' : '')} onClick={() => set({ source: x.make(s) })}><x.Icon size={12} aria-hidden />{x.label}</button>)}</div>
     {s.note ? <p className="mute dr-small">{s.note}</p> : null}
@@ -229,6 +235,7 @@ function ScenePanel({ s, kit, busy, canGenerate, set, generate, upload, pickCapt
       <Row label="Version"><Chips value={s.logo.tone} options={[{ id: 'dark', label: 'For light grounds' }, { id: 'light', label: 'For dark grounds' }]} onPick={(v) => set({ logo: { ...s.logo!, tone: v } })} /></Row>
       <button className="btn" onClick={() => set({ logo: null })}>Remove logo</button>
     </> : <button className="btn dr-wide" onClick={() => set({ logo: { placement: 'bottom', size: 'M', tone: 'light' } })} disabled={!kit.logos.length}><Plus {...I} />Add the logo</button>}
+    </>}
     <p className="dr-kicker">Captions</p>
     {s.captions.map((c) => <button key={c.id} className="dr-capitem" onClick={() => pickCaption(c.id)}><Type {...I} /><span>{c.text}</span><span className="mute">{secs(c.start)}–{secs(c.end)}</span></button>)}
     <button className="btn dr-wide" onClick={addCaption}><Plus {...I} />Add a caption</button>
@@ -251,7 +258,7 @@ function CaptionPanel({ c, scene, kit, set, remove }: { c: Caption; scene: Scene
     <Row label="Colour"><Swatches kit={kit} value={c.colour} onPick={(h) => h && set({ colour: h })} /></Row>
     <Row label="Box"><Swatches kit={kit} value={c.box} onPick={(h) => set({ box: h })} none /></Row>
     <p className="dr-kicker">Animation</p>
-    <Chips value={c.anim} options={TEXT_ANIMS.map((a) => ({ id: a.id, label: a.label }))} onPick={(v) => set({ anim: v })} />
+    <Chips value={c.anim} options={[...(kit.motion ? [{ id: 'brand' as const, label: 'Brand' }] : []), ...TEXT_ANIMS].map((a) => ({ id: a.id, label: a.label }))} onPick={(v) => set({ anim: v })} />
     <div className="dr-panel-foot"><button className="btn" onClick={remove}><Trash2 {...I} />Delete caption</button></div>
   </div>;
 }
@@ -335,4 +342,62 @@ function Timeline({ doc, t, setT, sel, pick, resize, busy }: { doc: FileRow['dat
       <div className="dr-playhead" style={{ left: t * pps }} />
     </div>
   </div>;
+}
+
+// ---------- Portal v2: the brand's motion assets, and the logo endboard's settings
+function useLoop(T: number) {
+  const [t, setT] = useState(0);
+  useEffect(() => { let raf = 0; const t0 = performance.now(); const tick = (n: number) => { setT(((n - t0) % (T + 600)) ); raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf); }, [T]);
+  return Math.min(t, T);
+}
+function LogoTile({ l, kit, onEndboard, onPlace, canPlace }: { l: BrandKit['logos'][number]; kit: BrandKit; onEndboard: () => void; onPlace: () => void; canPlace: boolean }) {
+  const P = useMemo(() => fitLength({ ...presetFor(kit.motion!, l.key), scale: 70 }, presetFor(kit.motion!, l.key).length), [kit.motion, l.key]);
+  const t = useLoop(P.length * 1000);
+  const svg = /\.svg$/i.test(l.url.split('?')[0]);
+  const p = brandPair(kit);
+  return <div className="dr-mlogo">
+    <span className="dr-mlogo-f" style={{ background: l.light ? p.dark : p.light }}>{svg ? <LogoMotion url={l.url} P={P} t={t} /> : <img src={l.url} alt="" />}</span>
+    <span className="dr-mlogo-n">{l.name}</span>
+    <span className="dr-mlogo-a"><button className="btn sm solid" onClick={onEndboard}>Endboard</button><button className="btn sm" onClick={onPlace} disabled={!canPlace} title={canPlace ? 'Place on the selected scene' : 'Select a scene first'}>On scene</button></span>
+  </div>;
+}
+function Assets({ kit, onEndboard, onPlace, onType, canPlace }: { kit: BrandKit; onEndboard: (l: BrandKit['logos'][number]) => void; onPlace: (l: BrandKit['logos'][number]) => void; onType: (c: Partial<Caption>) => void; canPlace: boolean }) {
+  const m = kit.motion!;
+  const T = useLoop(m.type.length * 1000);
+  const p = brandPair(kit);
+  const display = kit.fonts.find((f) => f.role === 'display')?.role || kit.fonts[0]?.role || 'display';
+  return <div className="dr-assets">
+    <p className="dr-kicker">Motion logos</p>
+    <p className="mute dr-small">{describe(m.logo)}</p>
+    <div className="dr-mlogos">{kit.logos.map((l) => <LogoTile key={l.url} l={l} kit={kit} onEndboard={() => onEndboard(l)} onPlace={() => onPlace(l)} canPlace={canPlace} />)}</div>
+    {!kit.logos.length ? <p className="mute dr-small">No logos in the kit yet.</p> : null}
+    <p className="dr-kicker">Type</p>
+    <p className="mute dr-small">{describe(m.type)}</p>
+    {[['Headline', 'XL', 'centre'], ['Line', 'M', 'lower-third']].map(([name, size, pos]) => <button key={name} className="dr-tpl" onClick={() => onType({ text: name === 'Headline' ? 'A headline' : 'A line about this moment', size: size as Size, position: pos as Caption['position'], font: display })}>
+      <span className="dr-tpl-frame" style={{ background: p.dark, overflow: 'hidden' }}><TypeStage text={name === 'Headline' ? 'A headline' : 'A line'} P={m.type} t={T} font={`var(--font-${display}, var(--pt-display))`} colour={p.light} size={name === 'Headline' ? 18 : 13} /></span>
+      <span><strong>{name}</strong><span className="mute">In the brand’s type motion</span></span></button>)}
+    <p className="mute dr-small">Motion set by Lost Property for {kit.client}.</p>
+  </div>;
+}
+function EndboardPanel({ eb, kit, set, background, setBackground }: { eb: Endboard; kit: BrandKit; set: (x: Partial<Endboard>) => void; background: string; setBackground: (h: string) => void }) {
+  const items = eb.items;
+  const setItem = (id: string, x: Partial<Endboard['items'][number]>) => set({ items: items.map((i) => (i.id === id ? { ...i, ...x } : i)) });
+  return <>
+    <p className="dr-kicker">Endboard</p>
+    <Row label="Logo"><div className="dr-logos">{kit.logos.map((l) => <button key={l.url} className={'dr-logo-b' + (l.light ? ' dark' : '') + (eb.logo === l.name ? ' on' : '')} title={l.name} onClick={() => { set({ logo: l.name }); const p = brandPair(kit); setBackground(l.light ? p.dark : p.light); }}><img src={l.url} alt={l.name} /></button>)}</div></Row>
+    <Row label="Size"><input type="range" min={10} max={90} step={2} value={eb.scale} onChange={(e) => set({ scale: Number(e.target.value) })} /><span className="dr-num">{eb.scale}%</span></Row>
+    <Row label="Starts"><input type="range" min={0} max={2} step={0.1} value={eb.delay} onChange={(e) => set({ delay: Number(e.target.value) })} /><span className="dr-num">{secs(eb.delay)}</span></Row>
+    <Row label="At the end"><Chips value={eb.out ? 'out' : 'stay'} options={[{ id: 'stay', label: 'Stays' }, { id: 'out', label: 'Builds out' }]} onPick={(v) => set({ out: v === 'out' })} /></Row>
+    <Row label="Ground"><Swatches kit={kit} value={background} onPick={(h) => h && setBackground(h)} /></Row>
+    <p className="dr-kicker">With it</p>
+    {items.map((i) => <div key={i.id} className="dr-ebi">
+      {i.kind === 'text' ? <input className="dr-in" value={i.text} onChange={(e) => setItem(i.id, { text: e.target.value })} placeholder="e.g. tileyard.co.uk" />
+        : <div className="dr-logos">{(kit.icons || []).slice(0, 24).map((ic) => <button key={ic.url} className={'dr-logo-b' + (i.icon === ic.name ? ' on' : '')} title={ic.name} onClick={() => setItem(i.id, { icon: ic.name })}><img src={ic.url} alt={ic.name} /></button>)}</div>}
+      <Chips value={i.at} options={[{ id: 'above', label: 'Above' }, { id: 'below', label: 'Below' }, { id: 'top', label: 'Top' }, { id: 'bottom', label: 'Bottom' }]} onPick={(v) => setItem(i.id, { at: v })} />
+      <div className="dr-ebi-r"><Chips value={i.size} options={SIZES.map((x) => ({ id: x, label: x }))} onPick={(v) => setItem(i.id, { size: v })} /><button className="btn sm" onClick={() => set({ items: items.filter((x) => x.id !== i.id) })} aria-label="Remove"><Trash2 size={12} aria-hidden /></button></div>
+    </div>)}
+    <div className="dr-chips tight"><button className="btn sm" onClick={() => set({ items: [...items, { id: uid(), kind: 'text', text: '', at: 'below', size: 'S' }] })}><Plus size={12} aria-hidden />Text</button>
+      {kit.icons?.length ? <button className="btn sm" onClick={() => set({ items: [...items, { id: uid(), kind: 'icon', text: '', icon: kit.icons![0].name, at: 'above', size: 'S' }] })}><Plus size={12} aria-hidden />Icon</button> : null}</div>
+    <p className="mute dr-small">The logo builds in the {kit.client} motion, then the rest follows in the brand’s type motion.</p>
+  </>;
 }
