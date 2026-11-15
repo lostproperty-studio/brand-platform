@@ -15,15 +15,18 @@ real client (Tileyard to start) so you can see everything working together.
 1. In Supabase, create a new project called **brand-platform-staging** (EU region, same as live).
 2. Under **Auth → URL configuration**, set the site URL to `https://staging.platform.lostproperty.studio` and add
    `https://staging.platform.lostproperty.studio/auth/callback` as a redirect URL.
-3. Under **Auth → SMTP**, use the same email settings as live, so sign-in links arrive.
+3. Leave **Auth → SMTP** alone. The platform sends its own sign-in emails using the email variables below.
 
 ### 2. A staging site on Vercel
 1. In Vercel, **Add New → Project**, and import `lostproperty-studio/brand-platform` again (a second project, called
-   **brand-platform-staging**).
-2. Under **Settings → Git**, set the production branch to `feature/portal-v2`.
-3. Under **Settings → Integrations**, connect the Supabase integration to **brand-platform-staging** (not the live
-   database). It adds the database and Supabase variables for you.
-4. Under **Settings → Environment Variables**, add:
+   **brand-platform-staging**). Add the variables in the table below before the first deploy.
+2. On the next screen, next to **Supabase**, click **Add → Link Existing Supabase Account**, and pair the Supabase
+   project **brand-platform-staging** with the Vercel project **brand-platform-staging**. It may say the repository
+   "already has an installed connection"; the variables are added anyway (check for `NEXT_PUBLIC_SUPABASE_URL` and
+   `POSTGRES_URL_NON_POOLING` under **Settings → Environment Variables**, pointing at the staging project). Never add
+   Supabase variables from the live project.
+3. Under **Settings → Git**, set the production branch to `feature/portal-v2`.
+4. The variables to add yourself:
 
 | Variable | Value |
 | --- | --- |
@@ -33,15 +36,23 @@ real client (Tileyard to start) so you can see everything working together.
 | `STUDIO_EMAIL_DOMAINS` | `lostproperty.studio` |
 | `ANTHROPIC_API_KEY` | the studio key (or a separate one, to see staging's spend apart) |
 | `FIGMA_TOKEN`, `GITHUB_*`, `EMAIL_*`/`SMTP_*` | same as live |
-| `SOURCE_SUPABASE_URL` | the **live** Supabase URL (used only to copy a client across) |
-| `SOURCE_SUPABASE_SERVICE_KEY` | the **live** service role key (read only in practice: the copy script never writes to it) |
+
+Don't put anything from the live Supabase project on the staging site.
 
 5. Under **Settings → Domains**, add `staging.platform.lostproperty.studio` and add the CNAME record it shows.
 6. Deploy. The first build sets up the staging database from `supabase/migrations`.
 
 ### 3. Copy Tileyard across
-From a computer with the repository and the staging variables (Vercel → Settings → Environment Variables → copy as
-`.env`):
+This runs once from a computer, not on the staging site. Make a file called `.env.staging` holding the staging
+project's `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, plus two lines for the **live** project, used
+only to read from it (the script never writes to live):
+
+| Variable | Where it's from |
+| --- | --- |
+| `SOURCE_SUPABASE_URL` | live Supabase → Project Settings → Data API → Project URL |
+| `SOURCE_SUPABASE_SERVICE_KEY` | live Supabase → Project Settings → API Keys → service_role |
+
+Delete the file afterwards. Then:
 
 ```bash
 npm install
