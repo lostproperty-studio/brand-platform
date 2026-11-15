@@ -17,8 +17,16 @@ export type Idea = { id: string; angle: string; line: string; why: string; taste
 export type Out = Record<string, Val>;
 type Length = 'line' | 'short' | 'medium' | 'long';
 export type Piece = { id: string; name: string; text: string; templates: string[]; status: Status; parts?: Record<string, Val>; signedBy?: string; signedAt?: string;
-  ideas?: Idea[]; idea?: string; out?: Record<string, Out>; mode?: 'ideas' | 'refine'; length?: Length; audience?: string };
-export type DocData = { intro?: string; tone?: number; pieces: Piece[] };
+  ideas?: Idea[]; idea?: string; out?: Record<string, Out>; mode?: 'ideas' | 'refine'; length?: Length; audience?: string;
+  owner?: string; reviewer?: string; due?: string; tags?: string[]; links?: Link[] };
+/** A person on the project, for owners, reviewers and hand-offs */
+export type Person = { id: string; name: string; org: string; studio: boolean };
+/** A file in another app (or another doc) that a piece is linked to */
+export type Link = { app: 'writer' | 'director' | 'designer' | 'photographer'; id: string; title: string };
+type OptProp = 'reviewers' | 'tags' | 'audience' | 'region' | 'brief';
+/** The doc's details. Campaign, owner and due date always show; the rest once they're added with + Property */
+export type DocProps = { campaign?: string; owner?: string; due?: string; reviewers?: string[]; tags?: string[]; audience?: string; region?: string; brief?: string; show?: OptProp[] };
+export type DocData = { intro?: string; tone?: number; props?: DocProps; pieces: Piece[] };
 /** The client's look, for previews of where the copy is going */
 export type BrandLook = { name: string; handle: string; dark: string; light: string; avatar: string | null };
 type FileRow = { id: string; title: string; status: Status; data: DocData; updated_at: string };
@@ -110,7 +118,7 @@ function Browser({ files, err, note, onOpen, onNew, onDelete }: { files: FileRow
             <button className="fb-open" onClick={() => onOpen(f.id)} aria-label={`Open ${f.title}`}>
               <span className="fb-th"><span className="fb-page"><span className="fb-page-k">{first?.name || 'Doc'}</span><span className="fb-page-h">{first?.text?.split('\n')[0]?.slice(0, 70) || f.title}</span><span className="fb-page-b">{f.data?.intro?.slice(0, 180)}</span></span></span>
               <span className="fb-name">{f.title}</span>
-              <span className="fb-meta"><span className={ST[f.status][1]}>{ST[f.status][0]}</span><span className="mute">{f.data?.pieces?.length || 0} piece{f.data?.pieces?.length === 1 ? '' : 's'} · {ago(f.updated_at)}</span></span>
+              <span className="fb-meta"><span className={ST[f.status][1]}>{ST[f.status][0]}</span><span className="mute">{f.data?.pieces?.length || 0} piece{f.data?.pieces?.length === 1 ? '' : 's'} · {f.data?.props?.due ? `Due ${fmtDay(f.data.props.due)}` : ago(f.updated_at)}</span></span>
             </button>
             <button className="fb-del" onClick={() => onDelete(f)} aria-label={`Delete ${f.title}`} title="Delete"><Trash2 size={14} strokeWidth={1.6} aria-hidden /></button>
           </div>;
@@ -135,6 +143,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   const [cardsW, setCardsW] = useState(380);
   const [cmd, setCmd] = useState<Cmd>({ kind: 'ideas', n: 0 });
   const [know, setKnow] = useState(false);
+  const people = usePeople(slug);
   const first = useRef(true);
   // Saves a moment after the last change
   useEffect(() => {
@@ -163,6 +172,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
       <span className={ST[docStatus(doc)][1]}>{ST[docStatus(doc)][0]}</span>
       <span className="mute w2-saved" role="status">{saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : 'Saved'}</span>
       <span className="fb-sp" />
+      <Faces people={people} ids={[doc.props?.owner, ...(doc.props?.reviewers || [])]} />
       <span className="w3-know-wrap"><button className="w2-ic" onClick={() => setKnow(!know)} aria-expanded={know} aria-label="Writer’s knowledge" title="Writer’s knowledge"><Brain {...I} /></button>
         {know ? <Knowledge slug={slug} client={client} onClose={() => setKnow(false)} /> : null}</span>
       <button className="btn" onClick={sendAll} disabled={!ready.length} title={ready.length ? `Move ${ready.length} piece${ready.length === 1 ? '' : 's'} to In review` : 'Write a piece first'}>Send for approval</button>
@@ -188,7 +198,8 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
           <p className="mute w2-kick">{client} · {doc.pieces.length} piece{doc.pieces.length === 1 ? '' : 's'}</p>
           <input className="w2-h1" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Doc name" />
           <textarea className="w2-intro" value={doc.intro || ''} onChange={(e) => setDoc((d) => ({ ...d, intro: e.target.value }))} placeholder="What’s this doc for? A line or two about the campaign or project." rows={2} />
-          {doc.pieces.map((p, i) => <PieceBlock key={p.id} n={i + 1} p={p} on={p.id === piece?.id} me={me} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} />)}
+          <DocDetails props={doc.props || {}} people={people} audiences={audiences} signed={signed} total={doc.pieces.length} set={(x) => setDoc((d) => ({ ...d, props: { ...(d.props || {}), ...x } }))} />
+          {doc.pieces.map((p, i) => <PieceBlock key={p.id} n={i + 1} p={p} on={p.id === piece?.id} me={me} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} />)}
           <button className="btn" onClick={addPiece}><Plus {...I} />New piece</button>
         </article>
         {piece && piece.status !== 'signed' ? <div className="w3-bar">
@@ -205,8 +216,12 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   </div>;
 }
 
-function PieceBlock({ n, p, on, me, onFocus, set, onDelete }: { n: number; p: Piece; on: boolean; me: string; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
+function PieceBlock({ n, p, on, me, slug, docId, people, onFocus, set, onDelete }: { n: number; p: Piece; on: boolean; me: string; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
   const [menu, setMenu] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // The ⋯ menu holds pickers, so it closes on a click elsewhere rather than when the pointer leaves it
+  useEffect(() => { if (!menu) return; const c = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.parentElement!.contains(e.target as Node)) setMenu(false); }; addEventListener('mousedown', c); return () => removeEventListener('mousedown', c); }, [menu]);
   const [copied, setCopied] = useState('');
   const copy = async (k: string, t: string) => { try { await navigator.clipboard.writeText(t); setCopied(k); setTimeout(() => setCopied(''), 1400); } catch { /* blocked */ } };
   const bits = pieceBits(p);
@@ -222,22 +237,137 @@ function PieceBlock({ n, p, on, me, onFocus, set, onDelete }: { n: number; p: Pi
       {p.status === 'signed' ? <span className="w2-lock"><Lock size={12} aria-hidden />Signed off</span> : null}
       <span className="w2-menu-wrap">
         <button className="w2-ic" onClick={(e) => { e.stopPropagation(); setMenu(!menu); }} aria-label="Piece details and actions" aria-expanded={menu}><MoreHorizontal {...I} /></button>
-        {menu ? <div className="w2-menu" role="menu" onMouseLeave={() => setMenu(false)}>
+        {menu ? <div className="w2-menu" role="menu" ref={menuRef}>
           <div className="w2-kv"><span className="mute">For</span><span>{places}</span></div>
+          <div className="w2-kv"><span className="mute">Written by</span><PersonPick people={people} value={p.owner} onPick={(id) => set({ owner: id })} placeholder="Choose" /></div>
+          <div className="w2-kv"><span className="mute">Reviewer</span><PersonPick people={people} value={p.reviewer} onPick={(id) => set({ reviewer: id })} placeholder="Choose" /></div>
+          <div className="w2-kv"><span className="mute">Due</span><input type="date" className="w3-date" value={p.due || ''} onChange={(e) => set({ due: e.target.value || undefined })} /></div>
+          <div className="w2-kv"><span className="mute">Tags</span><Tags tags={p.tags || []} set={(tags) => set({ tags })} /></div>
           {p.signedBy ? <div className="w2-kv"><span className="mute">Signed off</span><span>{p.signedBy} · {new Date(p.signedAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></div> : null}
           <hr />
           {p.status === 'review' ? <button role="menuitem" onClick={() => { set({ status: 'draft' }); setMenu(false); }}>Request changes</button> : null}
           {p.status === 'signed' ? <><button role="menuitem" onClick={() => copy('all', bits.map((b) => b.text).join('\n\n'))}>Copy all text</button><button role="menuitem" onClick={() => { set({ status: 'draft', signedBy: undefined, signedAt: undefined }); setMenu(false); }}>Reopen for edits</button></> : null}
+          <button role="menuitem" onClick={() => { setMenu(false); setLinking(true); }}>Link a file…</button>
           <button role="menuitem" className="danger" onClick={() => { setMenu(false); onDelete(); }}>Delete piece</button>
         </div> : null}
       </span>
     </div>
+    {p.links?.length || linking ? <Links slug={slug} docId={docId} links={p.links || []} adding={linking} onDone={() => setLinking(false)} set={(links) => set({ links })} /> : null}
     {p.status === 'signed'
       ? <div className="w2-bits">{bits.length ? bits.map((b, k) => <div key={k} className="w2-bit"><div className="w2-bit-h"><span>{b.label}</span><button className="btn sm" onClick={() => copy(String(k), b.text)}><Copy size={12} aria-hidden />{copied === String(k) ? 'Copied' : 'Copy'}</button></div><p>{b.text}</p></div>) : <p className="mute">Nothing written in this piece.</p>}</div>
       : fitted.length
         ? <div className="w2-bits">{fitted.map((id) => { const t = templateById(id); return <div key={id} className="w2-bit"><div className="w2-bit-h"><span>{t.label}</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); set({ text: fitted.map((x) => `${templateById(x).label}\n${outText(templateById(x), p.out![x])}`).join('\n\n'), out: undefined }); }}>Edit as text</button></div>
             {partsOf(t).filter((x) => asList(p.out![id][x.key]).length).map((x) => <p key={x.key}><span className="mute w3-pl">{x.label} · </span>{asList(p.out![id][x.key]).join('\n')}</p>)}</div>; })}</div>
         : <textarea className="w2-text" value={p.text} onChange={(e) => set({ text: e.target.value, parts: undefined })} placeholder="Write here, or a brief: what does this piece need to say? Then Write 3 options, or Fit to templates." rows={Math.max(3, p.text.split('\n').length + 1)} />}
+  </div>;
+}
+
+// ---------- Doc details: campaign, owner, due date, and any extra properties the team add
+const fmtDay = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+const FACE = ['#0D99FF', '#F28EE8', '#2f7a4b', '#6b5a4a', '#7a5af8', '#e5743a'];
+const faceOf = (id: string) => FACE[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % FACE.length];
+
+/** Closes a popover on a click outside it, or Escape */
+function useOutside(open: boolean, close: () => void) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const c = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close(); };
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    addEventListener('mousedown', c); addEventListener('keydown', k);
+    return () => { removeEventListener('mousedown', c); removeEventListener('keydown', k); };
+  }, [open, close]);
+  return ref;
+}
+
+function usePeople(slug: string) {
+  const [people, setPeople] = useState<Person[]>([]);
+  useEffect(() => { fetch(`/api/p/${slug}/apps/people`).then((r) => (r.ok ? r.json() : { people: [] })).then((j) => setPeople(j.people || [])).catch(() => {}); }, [slug]);
+  return people;
+}
+
+function Face({ p, size = 18 }: { p?: Person; size?: number }) {
+  if (!p) return null;
+  return <span className="w3-face" title={`${p.name} · ${p.org}`} style={{ width: size, height: size, fontSize: size * 0.42, background: faceOf(p.id), color: p.studio ? '#000' : '#fff' }}>{initials(p.name)}</span>;
+}
+function Faces({ people, ids }: { people: Person[]; ids: (string | undefined)[] }) {
+  const list = [...new Set(ids.filter(Boolean) as string[])].map((id) => people.find((p) => p.id === id)).filter(Boolean) as Person[];
+  return list.length ? <span className="w3-faces">{list.slice(0, 4).map((p) => <Face key={p.id} p={p} size={24} />)}</span> : null;
+}
+
+/** Choose a person: a small menu of the client team, then Lost Property */
+function PersonPick({ people, value, onPick, placeholder = 'Add', multi }: { people: Person[]; value?: string | string[]; onPick: (id: string | undefined) => void; placeholder?: string; multi?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ids = Array.isArray(value) ? value : value ? [value] : [];
+  const chosen = ids.map((id) => people.find((p) => p.id === id)).filter(Boolean) as Person[];
+  const orgs = [...new Set(people.map((p) => p.org))];
+  const ref = useOutside(open, useCallback(() => setOpen(false), []));
+  return <span className="w3-pp" ref={ref} onClick={(e) => e.stopPropagation()}>
+    <button type="button" className="w3-pp-b" onClick={() => setOpen(!open)} aria-expanded={open}>
+      {chosen.length ? chosen.map((p) => <span key={p.id} className="w3-pp-who"><Face p={p} />{multi && chosen.length > 1 ? null : p.name.split(' ')[0]}</span>) : <span className="mute">{placeholder}</span>}
+    </button>
+    {open ? <span className="w3-pp-pop" role="menu">
+      {!people.length ? <span className="mute w3-pp-none">Nobody on this project yet. Invite the team from Settings.</span> : null}
+      {orgs.map((o) => <span key={o} className="w3-pp-g"><span className="mute">{o}</span>{people.filter((p) => p.org === o).map((p) => { const on = ids.includes(p.id); return <button key={p.id} role="menuitemcheckbox" aria-checked={on} className={'w3-pp-row' + (on ? ' on' : '')} onClick={() => { onPick(on && !multi ? undefined : p.id); if (!multi) setOpen(false); }}><Face p={p} /><span>{p.name}</span>{on ? <Check size={12} aria-hidden /> : null}</button>; })}</span>)}
+      {ids.length && !multi ? <button className="w3-pp-row mute" onClick={() => { onPick(undefined); setOpen(false); }}>Nobody</button> : null}
+    </span> : null}
+  </span>;
+}
+
+function Tags({ tags, set }: { tags: string[]; set: (t: string[]) => void }) {
+  const [v, setV] = useState('');
+  const add = () => { const t = v.trim(); if (t && !tags.includes(t)) set([...tags, t]); setV(''); };
+  return <span className="w3-tags" onClick={(e) => e.stopPropagation()}>
+    {tags.map((t) => <span key={t} className="w3-tag">{t}<button onClick={() => set(tags.filter((x) => x !== t))} aria-label={`Remove ${t}`}><X size={10} aria-hidden /></button></span>)}
+    <input value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} onBlur={add} placeholder="+ Tag" aria-label="Add a tag" size={6} />
+  </span>;
+}
+
+const OPT: [OptProp, string][] = [['reviewers', 'Reviewers'], ['tags', 'Tags'], ['audience', 'Audience'], ['region', 'Region'], ['brief', 'Brief']];
+function DocDetails({ props: d, people, audiences, signed, total, set }: { props: DocProps; people: Person[]; audiences: string[]; signed: number; total: number; set: (x: Partial<DocProps>) => void }) {
+  const [menu, setMenu] = useState(false);
+  const mref = useOutside(menu, useCallback(() => setMenu(false), []));
+  const shown = new Set<OptProp>([...(d.show || []), ...OPT.filter(([k]) => { const v = d[k]; return Array.isArray(v) ? v.length : !!v; }).map(([k]) => k)]);
+  const hide = (k: OptProp) => set({ show: (d.show || []).filter((x) => x !== k), [k]: undefined });
+  const X_ = ({ k }: { k: OptProp }) => <button className="w3-prop-x" onClick={() => hide(k)} aria-label={`Remove ${k}`}><X size={10} aria-hidden /></button>;
+  return <div className="w3-props">
+    <label className="w3-camp"><span className="sr">Campaign</span><input value={d.campaign || ''} onChange={(e) => set({ campaign: e.target.value })} placeholder="Campaign" size={Math.max(8, (d.campaign || '').length)} /></label>
+    <span className="w3-prop"><span className="mute">Owner</span><PersonPick people={people} value={d.owner} onPick={(id) => set({ owner: id })} placeholder="Choose" /></span>
+    <label className="w3-prop"><span className="mute">Due</span><input type="date" className="w3-date" value={d.due || ''} onChange={(e) => set({ due: e.target.value || undefined })} /></label>
+    <span className="w3-prop mute">{signed} of {total} signed off</span>
+    {shown.has('reviewers') ? <span className="w3-prop"><span className="mute">Reviewers</span><PersonPick multi people={people} value={d.reviewers || []} onPick={(id) => id && set({ reviewers: (d.reviewers || []).includes(id) ? (d.reviewers || []).filter((x) => x !== id) : [...(d.reviewers || []), id] })} /><X_ k="reviewers" /></span> : null}
+    {shown.has('tags') ? <span className="w3-prop"><span className="mute">Tags</span><Tags tags={d.tags || []} set={(tags) => set({ tags })} /><X_ k="tags" /></span> : null}
+    {shown.has('audience') ? <label className="w3-prop"><span className="mute">Audience</span><input list="w3-aud" value={d.audience || ''} onChange={(e) => set({ audience: e.target.value })} placeholder="Who it’s for" size={Math.max(10, (d.audience || '').length)} /><datalist id="w3-aud">{audiences.map((a) => <option key={a} value={a} />)}</datalist><X_ k="audience" /></label> : null}
+    {shown.has('region') ? <label className="w3-prop"><span className="mute">Region</span><input value={d.region || ''} onChange={(e) => set({ region: e.target.value })} placeholder="e.g. London" size={Math.max(8, (d.region || '').length)} /><X_ k="region" /></label> : null}
+    {shown.has('brief') ? <label className="w3-prop"><span className="mute">Brief</span>{d.brief && /^https?:\/\//.test(d.brief) ? <a href={d.brief} target="_blank" rel="noopener">Open</a> : null}<input value={d.brief || ''} onChange={(e) => set({ brief: e.target.value })} placeholder="Paste a link" size={Math.max(12, Math.min(40, (d.brief || '').length))} /><X_ k="brief" /></label> : null}
+    {OPT.some(([k]) => !shown.has(k)) ? <span className="w3-pp" ref={mref}><button className="w3-addprop" onClick={() => setMenu(!menu)} aria-expanded={menu}>+ Property</button>
+      {menu ? <span className="w3-pp-pop" role="menu">{OPT.filter(([k]) => !shown.has(k)).map(([k, l]) => <button key={k} role="menuitem" className="w3-pp-row" onClick={() => { set({ show: [...(d.show || []), k] }); setMenu(false); }}>{l}</button>)}</span> : null}</span> : null}
+  </div>;
+}
+
+// ---------- Links from a piece to files in the other apps (a film in Director, another doc), so they stay together
+const APP_PATH: Record<Link['app'], string> = { writer: 'writer', director: 'director', designer: 'designer', photographer: 'photographer' };
+function Links({ slug, docId, links, adding, onDone, set }: { slug: string; docId: string; links: Link[]; adding: boolean; onDone: () => void; set: (l: Link[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [all, setAll] = useState<Link[] | null>(null);
+  const lref = useOutside(open, useCallback(() => setOpen(false), []));
+  useEffect(() => {
+    if (!adding || all) return;
+    Promise.all((['director', 'writer'] as const).map((app) => fetch(`/api/p/${slug}/apps/${app}`).then((r) => r.json()).then((j) => (j.files || []).filter((f: { id: string }) => f.id !== docId).map((f: { id: string; title: string }) => ({ app, id: f.id, title: f.title }))).catch(() => [])))
+      .then((x) => setAll(x.flat()));
+  }, [adding, all, slug, docId]);
+  const href = (l: Link) => `/p/${slug}/${APP_PATH[l.app]}?${l.app === 'director' ? 'p' : 'f'}=${l.id}`;
+  return <div className="w3-links" onClick={(e) => e.stopPropagation()}>
+    {links.length ? <span className="w3-pp" ref={lref}><button className="w3-lk" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`Linked to ${links.length}`}>
+      <span className="w3-lk-ic">{[...new Set(links.map((l) => l.app))].map((a) => <AppIcon key={a} app={a} size={13} still />)}</span>{links.length}</button>
+      {open ? <span className="w3-pp-pop" role="menu">{links.map((l) => <span key={l.app + l.id} className="w3-pp-row"><AppIcon app={l.app} size={13} still /><a href={href(l)}>{l.title}</a><button className="w3-prop-x" onClick={() => set(links.filter((x) => !(x.app === l.app && x.id === l.id)))} aria-label={`Unlink ${l.title}`}><X size={10} aria-hidden /></button></span>)}</span> : null}
+    </span> : null}
+    {adding ? <span className="w3-pp"><span className="w3-pp-pop static" role="menu">
+      <span className="w3-pp-h"><strong>Link a file</strong><button className="w2-ic" onClick={onDone} aria-label="Close"><X size={12} aria-hidden /></button></span>
+      {all === null ? <span className="mute w3-pp-none"><Loader2 size={12} className="spin" aria-hidden /> Loading</span> : !all.length ? <span className="mute w3-pp-none">No other files yet. Films from Director and other docs show here.</span>
+        : all.map((l) => { const on = links.some((x) => x.app === l.app && x.id === l.id); return <button key={l.app + l.id} className={'w3-pp-row' + (on ? ' on' : '')} onClick={() => set(on ? links.filter((x) => !(x.app === l.app && x.id === l.id)) : [...links, l])}><AppIcon app={l.app} size={13} still /><span>{l.title}</span>{on ? <Check size={12} aria-hidden /> : null}</button>; })}
+    </span></span> : null}
   </div>;
 }
 

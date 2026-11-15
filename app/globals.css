@@ -4026,3 +4026,44 @@ button.fb-card, .fb-open { all: unset; box-sizing: border-box; cursor: pointer; 
   .pt-chap-it.on { background: var(--fill-2); }
 }
 .pc-bar.top { left: auto; right: 16px; bottom: auto; top: 56px; flex-direction: row-reverse; }
+/* ---------- Writer v2, step 2: doc details, people, links */
+.w3-props { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12px; padding: 4px 0 6px; }
+.w3-camp input { all: unset; height: 22px; padding: 0 8px; border-radius: 4px; background: #e6f2ea; color: #2f7a4b; font-size: 11px; }
+.w3-camp input::placeholder { color: #2f7a4b; opacity: .6; }
+.w3-prop { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 24px; }
+.w3-prop input:not([type=date]) { all: unset; min-width: 40px; }
+.w3-prop a { text-decoration: underline; }
+.w3-prop-x { all: unset; cursor: pointer; display: none; color: var(--mute); padding: 2px; }
+.w3-prop:hover .w3-prop-x, .w3-pp-row .w3-prop-x { display: inline-flex; }
+.w3-date { all: unset; font-size: 12px; cursor: pointer; }
+.w3-date::-webkit-calendar-picker-indicator { opacity: .4; cursor: pointer; }
+.w3-addprop { all: unset; cursor: pointer; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--fill-2); font-size: 11px; }
+.w3-face { flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-weight: 500; letter-spacing: .02em; box-shadow: 0 0 0 2px #fff; }
+.w3-faces { display: inline-flex; }
+.w3-faces .w3-face + .w3-face { margin-left: -6px; }
+.w3-pp { position: relative; display: inline-flex; }
+.w3-pp-b { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-height: 22px; }
+.w3-pp-who { display: inline-flex; align-items: center; gap: 5px; }
+.w3-pp-pop { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; width: 240px; max-height: 300px; overflow: auto; padding: 6px; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0,0,0,.12); display: flex; flex-direction: column; font-size: 12px; }
+.w3-pp-pop.static { position: relative; top: 0; width: 300px; box-shadow: 0 0 0 1px var(--line); }
+.w3-pp-g { display: flex; flex-direction: column; }
+.w3-pp-g > .mute { font-size: 10.5px; padding: 6px 8px 2px; }
+.w3-pp-row { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; width: 100%; }
+.w3-pp-row > span:not(.w3-face), .w3-pp-row > a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w3-pp-row:hover { background: var(--fill); }
+.w3-pp-row.on { font-weight: 500; }
+.w3-pp-none { padding: 8px; line-height: 1.45; }
+.w3-pp-h { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px 6px 8px; }
+.w3-pp-h strong { font-weight: 500; }
+.w3-tags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.w3-tags .w3-tag button { all: unset; cursor: pointer; display: inline-flex; margin-left: 3px; opacity: .6; }
+.w3-tags input { all: unset; font-size: 11px; min-width: 40px; color: var(--mute); }
+.w2-menu .w2-kv { align-items: center; }
+.w2-menu .w3-pp-pop { left: auto; right: 0; }
+.w3-links { display: flex; align-items: flex-start; gap: 6px; }
+.w3-lk { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 6px; border-radius: 999px; background: var(--fill-2); font-size: 11px; }
+.w3-lk-ic { display: inline-flex; gap: 2px; }
+.w2-menu .w3-pp-row { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; width: 100%; }
+.w2-menu .w3-pp-row:hover { background: var(--fill); }
+.w2-menu .w3-pp-b { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-height: 22px; padding: 0; }
+.w2-menu .w3-tags .w3-tag button { all: unset; cursor: pointer; display: inline-flex; margin-left: 3px; opacity: .6; padding: 0; }
