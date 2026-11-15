@@ -99,11 +99,23 @@ const { data: kitFiles } = await src.from('deliverable_files').select('storage_p
 (kitFiles || []).forEach((f) => f.storage_path && referenced.add(f.storage_path));
 scan(project.content); scan(project.brand); scan(project.showcase);
 let copied = 0, missed = 0;
+const done = new Set();
+// 1. Every folder that belongs to the project: <id>/… and <anything>/<id>/… (fonts/<id>, tools/<id>, …)
 for (const bucket of BUCKETS) {
-  const paths = new Set([...(await listAll(bucket, pid)), ...[...referenced].filter((p) => p.startsWith(pid))]);
-  if (bucket === 'kits') [...referenced].forEach((p) => paths.add(p));
-  for (const p of paths) (await copyFile(bucket, p)) ? copied++ : missed++;
-  console.log(`  ${bucket}: ${paths.size} files`);
+  const { data: top } = await src.storage.from(bucket).list('', { limit: 1000 });
+  const prefixes = [pid, ...(top || []).filter((f) => !f.id && f.name !== pid).map((f) => `${f.name}/${pid}`)];
+  let n = 0;
+  for (const prefix of prefixes) for (const p of await listAll(bucket, prefix)) { if ((await copyFile(bucket, p))) { copied++; n++; done.add(p); } else missed++; }
+  console.log(`  ${bucket}: ${n} files`);
 }
-console.log(`Done: ${copied} files copied${missed ? `, ${missed} not found (usually fine: paths that only look like files)` : ''}.`);
+// 2. Anything else the project points to, from whichever folder holds it
+let extra = 0;
+for (const p of referenced) {
+  if (done.has(p)) continue;
+  let ok = false;
+  for (const bucket of BUCKETS) if (await copyFile(bucket, p)) { ok = true; break; }
+  ok ? (copied++, extra++) : missed++;
+}
+if (extra) console.log(`  other referenced files: ${extra}`);
+console.log(`Done: ${copied} files copied${missed ? `, ${missed} not found (usually fine: text that only looks like a file name)` : ''}.`);
 console.log(`Open ${process.env.NEXT_PUBLIC_APP_URL || 'the staging site'}/p/${slug} and sign in with your studio email.`);

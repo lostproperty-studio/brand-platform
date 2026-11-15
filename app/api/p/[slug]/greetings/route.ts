@@ -21,6 +21,7 @@ export async function POST(_: Request, ctx: { params: Promise<{ slug: string }> 
   const snap = await buildSnapshot(p.id);
   const v = snap?.voice;
   if (!snap || !v || !voiceHas(v)) return NextResponse.json({ error: 'Add the voice work in the studio’s Voice tab first.' }, { status: 409 });
+  try {
   const { ai } = await portalAnthropic(p.id, true);
   const lines = { type: 'array', minItems: 2, maxItems: 4, items: { type: 'array', minItems: 2, maxItems: 2, items: { type: 'string' } } };
   const res = await callTool<GreetingSet>(ai, {
@@ -35,4 +36,8 @@ export async function POST(_: Request, ctx: { params: Promise<{ slug: string }> 
   const { data: cur } = await sb.from('projects').select('content').eq('id', p.id).single();
   await sb.from('projects').update({ content: { ...((cur?.content as object) || {}), portalGreetings: res.input } }).eq('id', p.id);
   return NextResponse.json({ greetings: res.input });
+  } catch (e) {
+    // Say what went wrong (usually a missing or wrong AI key on this site), rather than a blank failure
+    return NextResponse.json({ error: `Couldn’t write them: ${e instanceof Error ? e.message : 'the AI didn’t answer'}.` }, { status: 502 });
+  }
 }
