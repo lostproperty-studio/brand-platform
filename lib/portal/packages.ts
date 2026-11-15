@@ -2,6 +2,7 @@ import { adminClient } from '@/lib/supabase/server';
 import { signMany, signOne } from '@/lib/storage/signed';
 import type { KitFileRow } from '@/lib/portal/context';
 import type { ProjectFont } from '@/lib/fonts';
+import { portalV2 } from '@/lib/portalVersion';
 
 // Resources are presented as packages: everything of one kind in one download, with a visual of what's inside.
 // Core packages (logos, colours, fonts, social avatars) have a place in every portal. Icons, images and graphic
@@ -9,7 +10,7 @@ import type { ProjectFont } from '@/lib/fonts';
 // (Dusk's creatures, say). Packages fill themselves from the kit, plus files the studio uploads. The client
 // only sees packages with something in them, so a simple brand stays simple.
 
-export type PackageKind = 'logos' | 'colours' | 'fonts' | 'avatars' | 'icons' | 'images' | 'graphics' | 'custom' | 'tokens' | 'guidelines' | 'templates' | 'team';
+export type PackageKind = 'logos' | 'motion' | 'colours' | 'fonts' | 'avatars' | 'icons' | 'images' | 'graphics' | 'custom' | 'tokens' | 'guidelines' | 'templates' | 'team';
 export type PkgFile = { name: string; path: string; bytes: number; type: string; /** Came from the Figma template; replaced on each rescan */ fromFigma?: boolean; /** Short content hash, to tell changed files from unchanged ones */ hash?: string };
 export type PackageSettings = { title?: string; purpose?: string; hidden?: boolean; enabled?: boolean; files?: PkgFile[]; cover?: string;
   /** Who owns the files and how they may be used (the approved image library) */ owner?: string;
@@ -23,6 +24,8 @@ export type Section = 'brand' | 'elements' | 'builders' | 'team';
 type Def = { kind: PackageKind; section: Section; title: string; purpose: string; core?: boolean; drafted?: boolean; kit?: RegExp; part?: string };
 export const DEFS: Def[] = [
   { kind: 'logos', section: 'brand', core: true, title: 'Logos', purpose: 'Every logo version and colourway, ready to place.', kit: /^assets\/logo\//, part: 'assets' },
+  // Portal v2: the logos animated in the brand's motion, built in the studio's Motion tab. On only once it has files.
+  { kind: 'motion', section: 'brand', drafted: true, title: 'Motion logos', purpose: 'The logos animated in the brand’s motion: video on brand colours, transparent video, Lottie and animated SVG.' },
   { kind: 'colours', section: 'brand', core: true, title: 'Colours', purpose: 'The palette as swatches for design apps, and as values for code and documents.' },
   { kind: 'fonts', section: 'brand', core: true, title: 'Fonts', purpose: 'The brand typefaces with their licence.', kit: /^assets\/fonts\/(?!LICENCE)/, part: 'assets' },
   { kind: 'avatars', section: 'brand', core: true, title: 'Social avatars', purpose: 'Profile pictures for social accounts, safe for circle crops.' },
@@ -72,7 +75,7 @@ export function packageSettings(content: unknown): PackageMap {
 export async function resolvePackages(opts: { files: KitFileRow[]; content: unknown; colours: { hex: string }[]; fonts: ProjectFont[]; preview: boolean; hasLogo: boolean }) {
   const settings = packageSettings(opts.content);
   const custom = Object.keys(settings).filter((k) => k.startsWith('custom-'));
-  const defs: (Def & { id: string })[] = [...DEFS.map((d) => ({ ...d, id: d.kind as string })), ...custom.map((id) => ({ kind: 'custom' as const, section: 'elements' as const, title: settings[id].title || 'New package', purpose: settings[id].purpose || '', id }))];
+  const defs: (Def & { id: string })[] = [...DEFS.filter((d) => d.kind !== 'motion' || portalV2()).map((d) => ({ ...d, id: d.kind as string })), ...custom.map((id) => ({ kind: 'custom' as const, section: 'elements' as const, title: settings[id].title || 'New package', purpose: settings[id].purpose || '', id }))];
   const out: Package[] = defs.map((d) => {
     const s = settings[d.id] || {};
     const uploads = s.files || [];

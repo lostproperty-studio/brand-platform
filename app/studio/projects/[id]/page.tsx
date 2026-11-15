@@ -15,6 +15,11 @@ import { ToolManager } from '@/components/ToolManager';
 import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
 import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
+import { portalV2 } from '@/lib/portalVersion';
+import { MotionStudio } from '@/components/motion/MotionStudio';
+import { readMotion } from '@/lib/motion/model';
+import { portalContext } from '@/lib/portal/context';
+import { portalPackages } from '@/lib/portal/packages';
 import { readSources, type Source } from '@/lib/figma/sources';
 import { pickLogo, sidebarChoice, withFigmaLogos } from '@/lib/portal/logo';
 import { SidebarLogoPicker } from '@/components/SidebarLogoPicker';
@@ -66,7 +71,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // Tools and Deliverables now live inside Resources
   const asked = sp.tab === 'tools' || sp.tab === 'deliverables' ? 'resources' : sp.tab;
   // The old Review tab is now the creative director, inside the guidelines editor
-  const tab = asked === 'review' ? 'guidelines' : TABS.some(([k]) => k === asked) ? asked! : 'overview';
+  // Portal v2 (staging): a Motion tab, for the brand's logo and type motion
+  const tabs = portalV2() ? [...TABS.slice(0, 5), ['motion', 'Motion'] as const, ...TABS.slice(5)] : [...TABS];
+  const tab = asked === 'review' ? 'guidelines' : tabs.some(([k]) => k === asked) ? asked! : 'overview';
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, figma_page_id, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
@@ -315,6 +322,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const logoUrl = logoRow?.storage_path ? (await signOne('kits', logoRow.storage_path, 6 * 3600)).data?.signedUrl ?? null : null;
     body = <PdfStudio projectId={id} client={p.client} guide={guide} urls={urls} logoUrl={logoUrl} colours={snapP?.colours || []} content={content} sysCss={sysCss} fontCss={fontCss} />;
   }
+  if (tab === 'motion') {
+    // Every SVG logo: the kit's, or the files in the Logos package
+    const pc = await portalContext(p.slug);
+    const pkg = pc ? (await portalPackages(pc)).find((x) => x.kind === 'logos') : undefined;
+    const files = [...(pkg?.uploads || []).filter((u) => /\.svg$/i.test(u.name)).map((u) => ({ path: u.path, name: u.name })), ...(pkg?.kitFiles || []).filter((f) => f.storage_path && /\.svg$/i.test(f.path)).map((f) => ({ path: f.storage_path!, name: f.path.split('/').pop()! }))];
+    const { data: signed } = files.length ? await signMany('kits', files.map((f) => f.path), 6 * 3600) : { data: [] };
+    const url = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
+    const logos = files.filter((f) => url[f.path]).map((f) => ({ path: f.path, name: f.name.replace(/\.svg$/i, '').replace(/[_-]+/g, ' '), url: url[f.path] }));
+    const display = pc?.fonts.find((f) => f.role === 'display' && f.files.length) || pc?.fonts.find((f) => f.files.length);
+    body = <>{pc?.fontCss ? <style>{pc.fontCss}</style> : null}<MotionStudio projectId={id} client={p.client} logos={logos} colours={pc?.snap?.colours || []} motion={readMotion(p.content)} typeFont={display ? `var(--font-${display.role}), sans-serif` : 'inherit'} /></>;
+  }
   if (tab === 'typefaces') {
     body = <FontManager projectId={id} />;
   }
@@ -323,10 +341,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <header className="pj-head">
         <div className="pj-bar"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn ic" href="/studio"><ArrowLeft size={15} strokeWidth={1.75} aria-hidden />Projects</Link></div>
         <h1 className="pj-title">{p.client}</h1>
-        <div className="pj-nav"><ProjectTabs id={id} tabs={TABS} current={tab} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
+        <div className="pj-nav"><ProjectTabs id={id} tabs={tabs} current={tab} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
       </header>
       {myRole === 'viewer' ? <p className="ov-viewer" role="note">You’re a viewer on this project, so changes you try to make won’t be saved.</p> : null}
-      <div id="pj-panel" role="tabpanel" aria-label={TABS.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>{body}</div>
+      <div id="pj-panel" role="tabpanel" aria-label={tabs.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>{body}</div>
     </div>
   );
 }

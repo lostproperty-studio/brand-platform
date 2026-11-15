@@ -15,7 +15,7 @@ import { blockPaths } from '@/lib/figma/blocks';
 
 const textOn = (hex: string) => { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#000' : '#fff'; };
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB ${n >> 16} ${(n >> 8) & 255} ${n & 255}`; };
-const PACKS: Record<string, string[]> = { logo: ['logos'], colour: ['colours'], type: ['fonts'], imagery: ['images'], layout: ['templates'], iconography: ['icons'], icons: ['icons'], graphics: ['graphics'] };
+const PACKS: Record<string, string[]> = { logo: ['logos', 'motion'], colour: ['colours'], type: ['fonts'], imagery: ['images'], layout: ['templates'], iconography: ['icons'], icons: ['icons'], graphics: ['graphics'] };
 
 // One chapter of the guidelines: the Figma frames as designed, then the exact rules, then its resources.
 export default async function Chapter({ params }: { params: Promise<{ slug: string; chapter: string }> }) {
