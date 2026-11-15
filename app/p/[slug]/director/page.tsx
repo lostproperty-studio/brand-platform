@@ -4,6 +4,8 @@ import { canSee, projectStages, stageBadge } from '@/lib/features';
 import { signMany } from '@/lib/storage/signed';
 import { DirectorApp } from '@/components/director/DirectorApp';
 import type { BrandKit } from '@/lib/director/model';
+import { portalV2 } from '@/lib/portalVersion';
+import { DirectorProjects } from '@/components/portal/v2/DirectorProjects';
 
 // Director: plan, shoot and generate short-form video in the brand's world, with its fonts, logos and colours
 // loaded. Gated by the release stage (Admin settings → Releases); studio-only while it's in Labs.
@@ -22,6 +24,8 @@ export default async function DirectorPage({ params }: { params: Promise<{ slug:
     fonts: ctx.fonts.filter((f) => f.files.length).map((f) => ({ role: f.role, label: f.label, name: f.name })),
     logos: logoFiles.filter((f) => url[f.storage_path!]).map((f) => ({ name: f.path.split('/').pop()!.replace(/\.(svg|png)$/i, '').replace(/[_-]+/g, ' '), url: url[f.storage_path!], light: /white|light|reverse|negative|inverse/i.test(f.path.split('/').pop()!) }))
   };
+  // Portal v2 (staging): Projects first, each holding its videos
+  if (portalV2()) return <div className="v2-app dr-app-wrap"><DirectorProjects slug={slug} kit={kit} canGenerate={ctx.access.staff} badge={stageBadge(stage)} labs={stage === 'studio'} /></div>;
   return <div className="dr-app-wrap">
     <DirectorApp slug={slug} kit={kit} canGenerate={ctx.access.staff} badge={stageBadge(stage)} labs={stage === 'studio'} />
   </div>;

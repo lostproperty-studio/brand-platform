@@ -159,7 +159,7 @@ export function Writer({ slug, client, audiences, aiConnected, canConnect, note 
   </div>;
 }
 
-function TemplatePicker({ current, onPick, onClose }: { current: string; onPick: (id: string) => void; onClose: () => void }) {
+export function TemplatePicker({ current, onPick, onClose }: { current: string; onPick: (id: string) => void; onClose: () => void }) {
   const [q, setQ] = useState('');
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; const c = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node) && !(e.target as HTMLElement).closest('.wr-for-btn')) onClose(); }; window.addEventListener('keydown', k); window.addEventListener('mousedown', c); return () => { window.removeEventListener('keydown', k); window.removeEventListener('mousedown', c); }; }, [onClose]);

@@ -57,6 +57,9 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
   useEffect(() => { if (!busy) return; setStep(0); const t = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 2)), 1400); return () => clearInterval(t); }, [busy]);
   useEffect(() => { const el = input.current; if (!el) return; el.style.height = '0px'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }, [text]);
 
+  // Portal v2: the home page's Ask bar hands its question over here (window event 'lp-ask')
+  const sendRef = useRef<(q: string) => void>(() => {});
+  useEffect(() => { const f = (e: Event) => { const q = (e as CustomEvent<string>).detail; if (q) sendRef.current(q); else { setOpen(true); setTimeout(() => input.current?.focus(), 0); } }; window.addEventListener('lp-ask', f); return () => window.removeEventListener('lp-ask', f); }, []);
   async function send(q: string) {
     if ((!q.trim() && !pics.length) || busy) return;
     if (!q.trim()) q = 'Give me feedback on this against the guidelines.';
@@ -86,6 +89,7 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
     ? [[BookOpen, 'Summarise this chapter'], [Palette, 'What are the exact values I need here?'], [ImageIcon, 'Show me an example of this done well']]
     : [[ImageIcon, 'Which logo should I use on a dark background?'], [Palette, 'Show me the brand colours'], [PenLine, 'Help me choose a headline'], [Type, 'What are the typefaces and where do I get them?'], [Download, 'Where do I download the logo files?']];
 
+  sendRef.current = (q: string) => { send(q); };
   if (hidden) return null;
   const last = msgs[msgs.length - 1];
   return (

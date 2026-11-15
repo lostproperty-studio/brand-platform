@@ -2,6 +2,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { AppIcon } from '@/components/portal/AppIcon';
+import type { AppKey } from '@/lib/portalVersion';
 import { BookOpen, Clapperboard, FolderDown, GalleryHorizontalEnd, House, PanelLeftClose, PanelLeftOpen, PenLine, Settings } from 'lucide-react';
 
 // Portal navigation: Home, Guidelines (with its chapters), Showcase, Resources, Settings, each with an icon.
@@ -13,8 +15,10 @@ const KEY = 'pt-side-closed';
 const I = { size: 18, strokeWidth: 1.6, 'aria-hidden': true } as const;
 
 export type NavFeature = { label: keyof typeof ICONS; path: string; badge: string | null };
+/** Portal v2: the apps, in their own section under the portal's pages */
+export type NavApp = { key: AppKey; name: string; ready: boolean };
 
-export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettings, showShowcase, showWriter, showcaseName, features = [] }: { features?: NavFeature[]; showcaseName?: string; slug: string; client: string; logoUrl: string | null; miniUrl?: string | null; chapters: { id: string; title: string }[]; showSettings: boolean; showShowcase: boolean; showWriter?: boolean }) {
+export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettings, showShowcase, showWriter, showcaseName, features = [], apps = [] }: { apps?: NavApp[]; features?: NavFeature[]; showcaseName?: string; slug: string; client: string; logoUrl: string | null; miniUrl?: string | null; chapters: { id: string; title: string }[]; showSettings: boolean; showShowcase: boolean; showWriter?: boolean }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [closed, setClosed] = useState(false);
@@ -43,6 +47,13 @@ export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettin
           </Link>
           {label === 'Guidelines' && path.startsWith(href) ? <div className="pt-sub">{chapters.map((c, k) => { const h = `${href}/${c.id.replace(/[:;]/g, '-')}`; const on = path === h; return <Link key={c.id} href={h} className={'pt-subit' + (on ? ' on' : '')} aria-current={on ? 'page' : undefined} onClick={() => setOpen(false)}><span className="pt-n">{String(k + 1).padStart(2, '0')}</span>{c.title}</Link>; })}</div> : null}
         </div>; })}
+        {apps.length ? <>
+          <p className="pt-nav-h">Apps</p>
+          {apps.map((a) => { const href = `${base}/${a.key}`; const on = a.ready && path.startsWith(href);
+            return a.ready
+              ? <Link key={a.key} href={href} className={'pt-it pt-app' + (on ? ' on' : '')} aria-current={on ? 'page' : undefined} onClick={() => setOpen(false)} data-tip={closed ? a.name : undefined} aria-label={closed ? a.name : undefined}><AppIcon app={a.key} size={18} /><span className="pt-it-t">{a.name}</span></Link>
+              : <span key={a.key} className="pt-it pt-app off" data-tip={closed ? `${a.name}: coming next` : undefined} aria-disabled><AppIcon app={a.key} size={18} still /><span className="pt-it-t">{a.name}</span><span className="pt-badge">Next</span></span>; })}
+        </> : null}
       </nav>
       <div className="pt-foot">
         <button type="button" className="pt-fold" onClick={() => fold(!closed)} aria-label={closed ? 'Open the sidebar' : 'Close the sidebar'} data-tip={closed ? 'Open the sidebar' : undefined}>{closed ? <PanelLeftOpen {...I} /> : <PanelLeftClose {...I} />}<span className="pt-it-t">Close sidebar</span></button>
