@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, Brain, Check, ChevronDown, Copy, Heart, Loader2, Lock, MoreHorizontal, Plus, Redo2, RefreshCw, Search, Sparkles, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Brain, Check, ChevronDown, Copy, Heart, Loader2, Lock, MessageSquare, MessageSquarePlus, MoreHorizontal, Plus, Redo2, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Undo2, X } from 'lucide-react';
 import { AppIcon } from '@/components/portal/AppIcon';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, templateById, type WriterPart, type WriterTemplate } from '@/lib/writerTemplates';
 import { KIND_LABEL, type KnowledgeEntry } from '@/lib/voiceKnowledge';
@@ -18,11 +18,15 @@ export type Out = Record<string, Val>;
 type Length = 'line' | 'short' | 'medium' | 'long';
 export type Piece = { id: string; name: string; text: string; templates: string[]; status: Status; parts?: Record<string, Val>; signedBy?: string; signedAt?: string;
   ideas?: Idea[]; idea?: string; out?: Record<string, Out>; mode?: 'ideas' | 'refine'; length?: Length; audience?: string;
-  owner?: string; reviewer?: string; due?: string; tags?: string[]; links?: Link[] };
+  owner?: string; reviewer?: string; due?: string; tags?: string[]; links?: Link[]; comments?: Comment[]; history?: Event[] };
 /** A person on the project, for owners, reviewers and hand-offs */
 export type Person = { id: string; name: string; org: string; studio: boolean };
 /** A file in another app (or another doc) that a piece is linked to */
 export type Link = { app: 'writer' | 'director' | 'designer' | 'photographer'; id: string; title: string };
+/** A comment on a piece, maybe on some of its words. The Writer leaves its own when it checks the voice. */
+export type Comment = { id: string; by: string; byId?: string; writer?: boolean; kind?: 'changes'; quote?: string; text: string; rule?: string; fix?: string; at: string; replies?: { by: string; text: string; at: string }[]; resolved?: boolean };
+/** What happened to a piece, and who did it */
+export type Event = { at: string; by: string; what: string };
 type OptProp = 'reviewers' | 'tags' | 'audience' | 'region' | 'brief';
 /** The doc's details. Campaign, owner and due date always show; the rest once they're added with + Property */
 export type DocProps = { campaign?: string; owner?: string; due?: string; reviewers?: string[]; tags?: string[]; audience?: string; region?: string; brief?: string; show?: OptProp[] };
@@ -143,7 +147,12 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   const [cardsW, setCardsW] = useState(380);
   const [cmd, setCmd] = useState<Cmd>({ kind: 'ideas', n: 0 });
   const [know, setKnow] = useState(false);
-  const people = usePeople(slug);
+  const { people, me: myId } = usePeople(slug);
+  const [sending, setSending] = useState(false);
+  const [showDone, setShowDone] = useState(false);
+  const [checking, setChecking] = useState('');
+  const [flash, setFlash] = useState('');
+  const say = (t: string) => { setFlash(t); setTimeout(() => setFlash(''), 3500); };
   const first = useRef(true);
   // Saves a moment after the last change
   useEffect(() => {
@@ -162,7 +171,31 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   const tone = doc.tone ?? 70;
   const resize = (e: React.MouseEvent) => { e.preventDefault(); const x0 = e.clientX, w0 = cardsW; const mv = (m: MouseEvent) => setCardsW(Math.max(320, Math.min(600, w0 - (m.clientX - x0)))); const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); }; addEventListener('mousemove', mv); addEventListener('mouseup', up); };
   const ex = (c: string) => (e: React.MouseEvent) => { e.preventDefault(); document.execCommand(c); };
-  const sendAll = () => setDoc((d) => ({ ...d, pieces: d.pieces.map((p) => (p.status === 'draft' && (p.text.trim() || p.out) ? { ...p, status: 'review' } : p)) }));
+  const openComments = doc.pieces.reduce((n, p) => n + (p.comments || []).filter((c) => !c.resolved).length, 0);
+  // Send for approval: every piece that's written goes to one person, with one note and one email
+  const sendAll = async (to: string, msg: string) => {
+    const names = ready.map((p) => p.name); const who = people.find((x) => x.id === to)?.name || 'them';
+    setDoc((d) => ({ ...d, pieces: d.pieces.map((p) => (ready.some((r) => r.id === p.id) ? { ...p, status: 'review', reviewer: to, history: [...(p.history || []), note(me, `Sent to ${who} for approval${msg ? `: “${msg}”` : ''}`)] } : p)) }));
+    setSending(false);
+    say((await notify(slug, file.id, { to, kind: 'handoff', pieces: names, note: msg || undefined })) ? `Sent to ${who}. They’ll get an email.` : `Sent to ${who}. No email went (email isn’t set up here), so let them know.`);
+  };
+  // The Writer reads the piece against the voice and leaves a comment on anything off brand, with a fix
+  async function checkVoice(p: Piece) {
+    const text = allText(p).trim(); if (!text) { say('Write something in this piece first.'); return; }
+    setChecking(p.id);
+    const tpls = p.templates.map(templateById);
+    const r = await fetch(`/api/p/${slug}/writer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'review', brief: text, template: tpls.map((t) => t.label).join(' + '), parts: tpls.flatMap(partsOf).slice(0, 8), tone }) }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : {};
+    setChecking('');
+    if (!r?.ok) { say(j.error || 'The check didn’t work. Try again.'); return; }
+    const notes = (j.review?.notes || []) as { kind: 'good' | 'fix'; quote?: string; rule?: string; note: string; fix?: string }[];
+    const fixes = notes.filter((n) => n.kind === 'fix');
+    const at = new Date().toISOString();
+    const add: Comment[] = fixes.length ? fixes.map((n) => ({ id: uid(), by: 'Writer', writer: true, quote: n.quote, rule: n.rule, text: n.note, fix: n.fix, at }))
+      : [{ id: uid(), by: 'Writer', writer: true, text: j.review?.summary || 'Reads on brand. Nothing to change.', at, resolved: false }];
+    setPiece(p.id, { comments: [...(p.comments || []).filter((c) => !(c.writer && !c.resolved)), ...add] });
+    say(fixes.length ? `${fixes.length} thing${fixes.length === 1 ? '' : 's'} to look at, marked on the piece.` : 'On brand. Nothing to change.');
+  }
 
   return <div className="w2">
     <header className="w2-top">
@@ -175,7 +208,9 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
       <Faces people={people} ids={[doc.props?.owner, ...(doc.props?.reviewers || [])]} />
       <span className="w3-know-wrap"><button className="w2-ic" onClick={() => setKnow(!know)} aria-expanded={know} aria-label="Writer’s knowledge" title="Writer’s knowledge"><Brain {...I} /></button>
         {know ? <Knowledge slug={slug} client={client} onClose={() => setKnow(false)} /> : null}</span>
-      <button className="btn" onClick={sendAll} disabled={!ready.length} title={ready.length ? `Move ${ready.length} piece${ready.length === 1 ? '' : 's'} to In review` : 'Write a piece first'}>Send for approval</button>
+      <button className={'w2-ic w3-cm' + (showDone ? ' on' : '')} onClick={() => setShowDone(!showDone)} aria-pressed={showDone} aria-label={showDone ? 'Hide resolved comments' : 'Show resolved comments too'} title={`${openComments} open comment${openComments === 1 ? '' : 's'} · ${showDone ? 'hide' : 'show'} resolved`}><MessageSquare {...I} />{openComments ? <i>{openComments}</i> : null}</button>
+      <span className="w3-know-wrap"><button className="btn" onClick={() => setSending(!sending)} disabled={!ready.length} title={ready.length ? `Send ${ready.length} piece${ready.length === 1 ? '' : 's'} to someone to approve` : 'Write a piece first'}>Send for approval</button>
+        {sending ? <div className="w3-know w3-send"><HandOff people={people} myId={myId} title={`Send ${ready.length} piece${ready.length === 1 ? '' : 's'} for approval`} onSend={sendAll} onCancel={() => setSending(false)} /></div> : null}</span>
       <button className="btn solid" onClick={onDeliver} disabled={!signed} title={signed ? 'The signed-off text, ready to copy and share' : 'Sign off a piece first'}>Deliver{signed ? ` · ${signed}` : ''}</button>
     </header>
     <div className="w2-body" style={{ gridTemplateColumns: `240px minmax(0, 1fr) ${cardsW}px` }}>
@@ -199,14 +234,18 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
           <input className="w2-h1" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Doc name" />
           <textarea className="w2-intro" value={doc.intro || ''} onChange={(e) => setDoc((d) => ({ ...d, intro: e.target.value }))} placeholder="What’s this doc for? A line or two about the campaign or project." rows={2} />
           <DocDetails props={doc.props || {}} people={people} audiences={audiences} signed={signed} total={doc.pieces.length} set={(x) => setDoc((d) => ({ ...d, props: { ...(d.props || {}), ...x } }))} />
-          {doc.pieces.map((p, i) => <PieceBlock key={p.id} n={i + 1} p={p} on={p.id === piece?.id} me={me} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} />)}
+          {doc.pieces.map((p, i) => <PieceBlock key={p.id} n={i + 1} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} />)}
           <button className="btn" onClick={addPiece}><Plus {...I} />New piece</button>
         </article>
+        <div className="w3-dock">
+        {flash ? <p className="w3-flash" role="status">{flash}</p> : null}
         {piece && piece.status !== 'signed' ? <div className="w3-bar">
           <span className="w3-bar-n">{piece.name}</span>
           <button className="btn pink" onClick={() => setCmd({ kind: 'ideas', n: cmd.n + 1 })}><Sparkles size={14} aria-hidden />Write 3 options</button>
           <button className="btn" onClick={() => setCmd({ kind: 'fit', n: cmd.n + 1 })}>Fit to templates</button>
+          <button className="btn" onClick={() => checkVoice(piece)} disabled={!!checking} title="The Writer reads it against the voice and comments on anything off brand">{checking ? <Loader2 size={14} className="spin" aria-hidden /> : <ShieldCheck size={14} aria-hidden />}Check voice</button>
         </div> : null}
+        </div>
       </section>
       <aside className="w2-cards" aria-label="Cards for this piece">
         <span className="w2-grip" role="separator" aria-orientation="vertical" aria-label="Resize" onMouseDown={resize}><i /></span>
@@ -216,7 +255,21 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   </div>;
 }
 
-function PieceBlock({ n, p, on, me, slug, docId, people, onFocus, set, onDelete }: { n: number; p: Piece; on: boolean; me: string; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
+function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, onFocus, set, onDelete }: { n: number; p: Piece; on: boolean; me: string; myId: string; showDone: boolean; say: (t: string) => void; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
+  const [box, setBox] = useState<null | 'handoff' | 'comment' | 'changes'>(null);
+  const sel = useRef('');
+  const nameOfId = (id?: string) => people.find((x) => x.id === id)?.name;
+  const log = (what: string) => [...(p.history || []), note(me, what)];
+  const comments = (p.comments || []).filter((c) => showDone || !c.resolved);
+  const setC = (id: string, x: Partial<Comment>) => set({ comments: (p.comments || []).map((c) => (c.id === id ? { ...c, ...x } : c)) });
+  const handOff = async (to: string, msg: string) => {
+    const who = nameOfId(to) || 'them'; setBox(null);
+    set({ status: 'review', reviewer: to, history: log(`Handed to ${who}${msg ? `: “${msg}”` : ''}`) });
+    say((await notify(slug, docId, { to, kind: 'handoff', pieces: [p.name], note: msg || undefined })) ? `Sent to ${who}. They’ll get an email.` : `Sent to ${who}. No email went (email isn’t set up here), so let them know.`);
+  };
+  const signOff = () => { set({ status: 'signed', signedBy: me, signedAt: new Date().toISOString(), history: log('Signed off') }); if (p.owner && p.owner !== myId) notify(slug, docId, { to: p.owner, kind: 'signed', pieces: [p.name] }); };
+  const askChanges = (t: string) => { setBox(null); set({ status: 'draft', comments: [...(p.comments || []), { id: uid(), by: me, byId: myId, kind: 'changes', text: t, at: new Date().toISOString() }], history: log('Asked for changes') }); if (p.owner && p.owner !== myId) notify(slug, docId, { to: p.owner, kind: 'changes', pieces: [p.name], note: t }); };
+  const comment = (t: string) => { setBox(null); set({ comments: [...(p.comments || []), { id: uid(), by: me, byId: myId, quote: sel.current || undefined, text: t, at: new Date().toISOString() }] }); sel.current = ''; };
   const [menu, setMenu] = useState(false);
   const [linking, setLinking] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -232,8 +285,9 @@ function PieceBlock({ n, p, on, me, slug, docId, people, onFocus, set, onDelete 
       <span className="mute w2-n">Piece {n}</span>
       <input className="w2-pname" value={p.name} onChange={(e) => set({ name: e.target.value })} aria-label="Piece name" disabled={p.status === 'signed'} />
       <span className="fb-sp" />
-      {p.status === 'draft' ? <><span className={ST.draft[1]}>Draft</span><button className="btn sm" onClick={() => set({ status: 'review' })} disabled={!p.text.trim() && !p.out}>Request review</button></> : null}
-      {p.status === 'review' ? <><span className={ST.review[1]}>In review</span><button className="btn sm solid" onClick={() => set({ status: 'signed', signedBy: me, signedAt: new Date().toISOString() })}>Sign off</button></> : null}
+      {p.status !== 'signed' ? <button className="w2-ic" onClick={(e) => { e.stopPropagation(); setBox(box === 'comment' ? null : 'comment'); }} aria-label="Comment" title="Comment (select words first to comment on them)"><MessageSquarePlus {...I} /></button> : null}
+      {p.status === 'draft' ? <><span className={ST.draft[1]}>Draft</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); setBox('handoff'); }} disabled={!p.text.trim() && !p.out}>Request review</button></> : null}
+      {p.status === 'review' ? <><span className={ST.review[1]}>{nameOfId(p.reviewer) ? <><Face p={people.find((x) => x.id === p.reviewer)} size={14} />With {nameOfId(p.reviewer)!.split(' ')[0]}</> : 'In review'}</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); setBox('changes'); }}>Request changes</button><button className="btn sm solid" onClick={signOff}>Sign off</button></> : null}
       {p.status === 'signed' ? <span className="w2-lock"><Lock size={12} aria-hidden />Signed off</span> : null}
       <span className="w2-menu-wrap">
         <button className="w2-ic" onClick={(e) => { e.stopPropagation(); setMenu(!menu); }} aria-label="Piece details and actions" aria-expanded={menu}><MoreHorizontal {...I} /></button>
@@ -245,20 +299,84 @@ function PieceBlock({ n, p, on, me, slug, docId, people, onFocus, set, onDelete 
           <div className="w2-kv"><span className="mute">Tags</span><Tags tags={p.tags || []} set={(tags) => set({ tags })} /></div>
           {p.signedBy ? <div className="w2-kv"><span className="mute">Signed off</span><span>{p.signedBy} · {new Date(p.signedAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></div> : null}
           <hr />
-          {p.status === 'review' ? <button role="menuitem" onClick={() => { set({ status: 'draft' }); setMenu(false); }}>Request changes</button> : null}
+          {p.status === 'draft' ? <button role="menuitem" onClick={() => { setMenu(false); setBox('handoff'); }}>Hand off to…</button> : null}
+          {p.status === 'review' ? <button role="menuitem" onClick={() => { setMenu(false); setBox('changes'); }}>Request changes</button> : null}
           {p.status === 'signed' ? <><button role="menuitem" onClick={() => copy('all', bits.map((b) => b.text).join('\n\n'))}>Copy all text</button><button role="menuitem" onClick={() => { set({ status: 'draft', signedBy: undefined, signedAt: undefined }); setMenu(false); }}>Reopen for edits</button></> : null}
           <button role="menuitem" onClick={() => { setMenu(false); setLinking(true); }}>Link a file…</button>
+          {p.history?.length ? <><hr /><div className="w3-hist">{p.history.slice(-6).reverse().map((h, k) => <p key={k}><span>{h.what}</span><span className="mute">{h.by} · {when(h.at)}</span></p>)}</div><hr /></> : null}
           <button role="menuitem" className="danger" onClick={() => { setMenu(false); onDelete(); }}>Delete piece</button>
         </div> : null}
       </span>
     </div>
+    {box === 'handoff' ? <HandOff people={people} myId={myId} title="Hand off for review" onSend={handOff} onCancel={() => setBox(null)} /> : null}
+    {box === 'changes' ? <NoteBox label="What needs to change?" cta="Send back" onSend={askChanges} onCancel={() => setBox(null)} /> : null}
+    {box === 'comment' ? <NoteBox label="Comment" quote={sel.current || undefined} cta="Comment" onSend={comment} onCancel={() => setBox(null)} /> : null}
     {p.links?.length || linking ? <Links slug={slug} docId={docId} links={p.links || []} adding={linking} onDone={() => setLinking(false)} set={(links) => set({ links })} /> : null}
     {p.status === 'signed'
       ? <div className="w2-bits">{bits.length ? bits.map((b, k) => <div key={k} className="w2-bit"><div className="w2-bit-h"><span>{b.label}</span><button className="btn sm" onClick={() => copy(String(k), b.text)}><Copy size={12} aria-hidden />{copied === String(k) ? 'Copied' : 'Copy'}</button></div><p>{b.text}</p></div>) : <p className="mute">Nothing written in this piece.</p>}</div>
       : fitted.length
-        ? <div className="w2-bits">{fitted.map((id) => { const t = templateById(id); return <div key={id} className="w2-bit"><div className="w2-bit-h"><span>{t.label}</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); set({ text: fitted.map((x) => `${templateById(x).label}\n${outText(templateById(x), p.out![x])}`).join('\n\n'), out: undefined }); }}>Edit as text</button></div>
+        ? <div className="w2-bits" onMouseUp={() => { sel.current = (getSelection()?.toString() || '').trim().slice(0, 300); }}>{fitted.map((id) => { const t = templateById(id); return <div key={id} className="w2-bit"><div className="w2-bit-h"><span>{t.label}</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); set({ text: fitted.map((x) => `${templateById(x).label}\n${outText(templateById(x), p.out![x])}`).join('\n\n'), out: undefined }); }}>Edit as text</button></div>
             {partsOf(t).filter((x) => asList(p.out![id][x.key]).length).map((x) => <p key={x.key}><span className="mute w3-pl">{x.label} · </span>{asList(p.out![id][x.key]).join('\n')}</p>)}</div>; })}</div>
-        : <textarea className="w2-text" value={p.text} onChange={(e) => set({ text: e.target.value, parts: undefined })} placeholder="Write here, or a brief: what does this piece need to say? Then Write 3 options, or Fit to templates." rows={Math.max(3, p.text.split('\n').length + 1)} />}
+        : <textarea className="w2-text" value={p.text} onSelect={(e) => { const t = e.currentTarget; sel.current = t.value.slice(t.selectionStart, t.selectionEnd).trim().slice(0, 300); }} onChange={(e) => set({ text: e.target.value, parts: undefined })} placeholder="Write here, or a brief: what does this piece need to say? Then Write 3 options, or Fit to templates." rows={Math.max(3, p.text.split('\n').length + 1)} />}
+    {comments.length ? <div className="w3-ths">{comments.map((c) => <Thread key={c.id} c={c} me={me} writerIcon={!!c.writer} canApply={!!c.quote && !!c.fix && !!applyFix(p, c.quote, c.fix)}
+      onApply={c.writer && c.quote && c.fix && p.status !== 'signed' ? () => { const x = applyFix(p, c.quote!, c.fix!); if (x) set({ ...x, comments: (p.comments || []).map((y) => (y.id === c.id ? { ...y, resolved: true } : y)) }); } : undefined}
+      onReply={(t) => setC(c.id, { replies: [...(c.replies || []), { by: me, text: t, at: new Date().toISOString() }] })} onResolve={() => setC(c.id, { resolved: true })} />)}</div> : null}
+  </div>;
+}
+
+// ---------- Review: hand-offs, comments on lines, the Writer's voice check, and a record of what happened
+const when = (iso: string) => { const d = new Date(iso); return Date.now() - d.getTime() < 864e5 ? ago(iso) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+const note = (by: string, what: string): Event => ({ at: new Date().toISOString(), by, what });
+const allText = (p: Piece) => (p.out ? p.templates.filter((t) => p.out![t]).map((t) => outText(templateById(t), p.out![t])).join('\n\n') : p.text);
+/** Puts the fix in place of the quoted words, wherever they are in the piece */
+function applyFix(p: Piece, quote: string, fix: string): Partial<Piece> | null {
+  if (p.out) {
+    let hit = false;
+    const out = Object.fromEntries(Object.entries(p.out).map(([k, o]) => [k, Object.fromEntries(Object.entries(o).map(([pk, v]) => [pk, Array.isArray(v) ? v.map((x) => { if (x.includes(quote)) { hit = true; return x.replace(quote, fix); } return x; }) : (v.includes(quote) ? (hit = true, v.replace(quote, fix)) : v)]))]));
+    return hit ? { out } : null;
+  }
+  return p.text.includes(quote) ? { text: p.text.replace(quote, fix) } : null;
+}
+function notify(slug: string, docId: string, body: { to: string; kind: 'handoff' | 'changes' | 'signed'; pieces: string[]; note?: string }) {
+  return fetch(`/api/p/${slug}/apps/writer/${docId}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json()).then((j) => !!j.emailed).catch(() => false);
+}
+
+/** Hand off to a named person, with a note: who should look at it next */
+function HandOff({ people, myId, title, onSend, onCancel }: { people: Person[]; myId: string; title: string; onSend: (to: string, note: string) => void; onCancel: () => void }) {
+  const [to, setTo] = useState<string | undefined>();
+  const [msg, setMsg] = useState('');
+  const others = people.filter((p) => p.id !== myId);
+  return <div className="w3-box" onClick={(e) => e.stopPropagation()}>
+    <p className="w3-box-h"><strong>{title}</strong><button className="w2-ic" onClick={onCancel} aria-label="Cancel"><X size={13} aria-hidden /></button></p>
+    <div className="w3-who">{others.length ? others.map((p) => <button key={p.id} className={'w3-who-b' + (to === p.id ? ' on' : '')} aria-pressed={to === p.id} onClick={() => setTo(p.id)}><Face p={p} size={22} /><span><span>{p.name}</span><span className="mute">{p.org}</span></span></button>)
+      : <p className="mute">Nobody else is on this project yet. Invite the team from Settings.</p>}</div>
+    <textarea className="w3-note" value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Add a note (optional): what should they look at?" rows={2} />
+    <div className="w3-box-a"><span className="mute">They’ll get an email with a link.</span><button className="btn solid" disabled={!to} onClick={() => to && onSend(to, msg.trim())}>Send</button></div>
+  </div>;
+}
+
+/** A note box: a comment, a reply, or what needs to change */
+function NoteBox({ label, quote, cta, onSend, onCancel }: { label: string; quote?: string; cta: string; onSend: (text: string) => void; onCancel: () => void }) {
+  const [t, setT] = useState('');
+  return <div className="w3-box" onClick={(e) => e.stopPropagation()}>
+    <p className="w3-box-h"><strong>{label}</strong><button className="w2-ic" onClick={onCancel} aria-label="Cancel"><X size={13} aria-hidden /></button></p>
+    {quote ? <p className="w3-quote">“{quote}”</p> : null}
+    <textarea className="w3-note" autoFocus value={t} onChange={(e) => setT(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && t.trim()) onSend(t.trim()); }} rows={2} placeholder="Write a note…" />
+    <div className="w3-box-a"><span className="mute">⌘↵ to send</span><button className="btn solid" disabled={!t.trim()} onClick={() => onSend(t.trim())}>{cta}</button></div>
+  </div>;
+}
+
+function Thread({ c, me, writerIcon, onReply, onResolve, onApply, canApply }: { c: Comment; me: string; writerIcon: boolean; onReply: (t: string) => void; onResolve: () => void; onApply?: () => void; canApply: boolean }) {
+  const [r, setR] = useState('');
+  return <div className={'w3-th' + (c.resolved ? ' done' : '') + (c.writer ? ' wr' : '') + (c.kind === 'changes' ? ' ch' : '')} onClick={(e) => e.stopPropagation()}>
+    <div className="w3-th-h">{writerIcon ? <span className="w3-th-wi"><AppIcon app="writer" size={12} still /></span> : <span className="w3-face" style={{ width: 20, height: 20, fontSize: 8.5, background: faceOf(c.byId || c.by) }}>{initials(c.by)}</span>}
+      <strong>{c.by}</strong><span className="mute">{c.writer ? `Brand voice${c.rule ? ` · ${c.rule}` : ''}` : c.kind === 'changes' ? 'Asked for changes' : when(c.at)}</span>
+      <span className="fb-sp" />{c.resolved ? <span className="mute"><Check size={11} aria-hidden /> Resolved</span> : <button className="btn sm" onClick={onResolve}>{c.writer ? 'Dismiss' : 'Resolve'}</button>}</div>
+    {c.quote ? <p className="w3-quote">“{c.quote}”</p> : null}
+    <p className="w3-th-t">{c.text}</p>
+    {c.fix && !c.resolved ? <div className="w3-fix"><span className="mute">Try</span><span>{c.fix}</span>{onApply ? <button className="btn sm solid" onClick={onApply} disabled={!canApply} title={canApply ? 'Put this in place of the quoted words' : 'Those words have changed since the check'}>Apply</button> : null}</div> : null}
+    {(c.replies || []).map((x, k) => <p key={k} className="w3-th-r"><strong>{x.by}</strong> {x.text} <span className="mute">· {when(x.at)}</span></p>)}
+    {!c.resolved && !c.writer ? <input className="w3-th-in" value={r} onChange={(e) => setR(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && r.trim()) { onReply(r.trim()); setR(''); } }} placeholder={`Reply as ${me.split(' ')[0]}…`} /> : null}
   </div>;
 }
 
@@ -282,9 +400,9 @@ function useOutside(open: boolean, close: () => void) {
 }
 
 function usePeople(slug: string) {
-  const [people, setPeople] = useState<Person[]>([]);
-  useEffect(() => { fetch(`/api/p/${slug}/apps/people`).then((r) => (r.ok ? r.json() : { people: [] })).then((j) => setPeople(j.people || [])).catch(() => {}); }, [slug]);
-  return people;
+  const [v, setV] = useState<{ people: Person[]; me: string }>({ people: [], me: '' });
+  useEffect(() => { fetch(`/api/p/${slug}/apps/people`).then((r) => (r.ok ? r.json() : {}) as Promise<{ people?: Person[]; me?: string }>).then((j) => setV({ people: j.people || [], me: j.me || '' })).catch(() => {}); }, [slug]);
+  return v;
 }
 
 function Face({ p, size = 18 }: { p?: Person; size?: number }) {
