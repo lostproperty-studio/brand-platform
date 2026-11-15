@@ -50,7 +50,7 @@ export async function HomeV2({ ctx, slug }: { ctx: PortalCtx; slug: string }) {
       {recent.length ? <section aria-labelledby="h2-cc">
         <div className="h2-row"><h2 id="h2-cc" className="pt-h2">Continue creating</h2></div>
         <div className="h2-cc">
-          {recent.map((f) => <Link key={f.id} href={`${base}/${f.app}?${f.app === 'director' ? 'p' : 'f'}=${f.id}`} className="h2-card">
+          {recent.map((f) => <Link key={f.id} href={`${base}/${f.app}?${f.app === 'director' ? 'p' : f.app === 'photographer' ? 'c' : 'f'}=${f.id}`} className="h2-card">
             <span className="h2-pv"><Preview app={f.app} data={f.data} title={f.title} /></span>
             <span className="h2-card-t">{f.title}</span>
             <span className="h2-card-m"><span className="h2-tag"><AppIcon app={f.app} size={12} still />{NAME[f.app]}</span><span className="mute" title={new Date(f.updated_at).toLocaleString('en-GB')}>{short(f.updated_at)}</span></span>

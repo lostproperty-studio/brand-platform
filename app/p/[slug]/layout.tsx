@@ -25,7 +25,8 @@ export default async function PortalLayout({ children, params }: { children: Rea
   const features = canSee(stages.director, preview) ? [{ label: 'Director' as const, path: 'director', badge: stageBadge(stages.director) }] : [];
   // Portal v2 (staging): the apps get their own section; the old Writer and Director entries drop out of the pages
   const v2 = portalV2();
-  const apps = v2 ? APPS.map((x) => ({ key: x.key, name: x.name, ready: x.ready })) : [];
+  // Photographer opens once it's at a stage this person can see (Admin settings → Releases); studio-only to start
+  const apps = v2 ? APPS.map((x) => ({ key: x.key, name: x.name, ready: x.ready || (x.key === 'photographer' && canSee(stages.photographer, preview)) })) : [];
   const css = fontCss + `\n.pt { ${display ? `--pt-display: var(--font-${display.role});` : ''} ${body ? `--pt-body: var(--font-${body.role});` : ''} }`;
   return (
     <div className="pt">

@@ -89,7 +89,11 @@ export type Track = {
 
 export type Brief = { prompt: string; length: number; aspect: Aspect; mood?: string };
 
-export type Doc = { v: 1; aspect: Aspect; brief?: Brief; logline?: string; scenes: Scene[]; audio: Track[] };
+/** An effects layer on the timeline: Lost Property's effects over whatever footage or images sit under it */
+export type FxClip = { id: string; start: number; duration: number; layer: import('@/lib/effects/model').EffectLayer };
+export type Doc = { v: 1; aspect: Aspect; brief?: Brief; logline?: string; scenes: Scene[]; audio: Track[]; fx?: FxClip[] };
+/** The effect layers showing at time t, bottom first */
+export const fxAt = (d: Doc, t: number) => (d.fx || []).filter((f) => f.layer.on && t >= f.start && t < f.start + f.duration).map((f) => f.layer);
 
 export type FileRow = { id: string; title: string; aspect: Aspect; status: 'plan' | 'edit'; data: Doc; thumb: string | null; updated_at: string; created_at?: string };
 
@@ -178,6 +182,14 @@ export function captionFrame(c: Caption, local: number): { visible: boolean; sty
     case 'type': { const speed = 28; return { visible: true, style: { opacity: pout }, chars: Math.floor((local - c.start) * speed) }; }
     default: return { visible: true, style: {} };
   }
+}
+
+/** The same camera move as numbers (scale, and sideways shift as a share of the width), for drawing on a canvas */
+export function motionParams(m: Scene['motion'], p: number) {
+  if (m === 'push') return { scale: 1 + 0.08 * p, tx: 0 };
+  if (m === 'pull') return { scale: 1.08 - 0.08 * p, tx: 0 };
+  if (m === 'pan') return { scale: 1.1, tx: (0.5 - p) * 0.06 };
+  return { scale: 1, tx: 0 };
 }
 
 /** Slow camera move on stills, by progress through the scene (0–1) */

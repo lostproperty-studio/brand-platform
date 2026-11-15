@@ -3,6 +3,7 @@ import { projectBySlug } from '@/lib/projects/snapshot';
 import { projectStages } from '@/lib/features';
 import { signMany } from '@/lib/storage/signed';
 import type { Doc } from '@/lib/director/model';
+import { cleanLayers } from '@/lib/effects/model';
 
 // Who can use Director on a project: studio staff unless it's switched off, and the client's team once it's at
 // Client beta or Live (Admin settings → Releases).
@@ -41,7 +42,9 @@ export function stripDoc(d: Doc): Doc {
   return {
     ...d,
     scenes: (d.scenes || []).map((s) => (s.media ? { ...s, media: { path: s.media.path, kind: s.media.kind } } : s)),
-    audio: (d.audio || []).map((a) => (a.media ? { ...a, media: { path: a.media.path, kind: a.media.kind } } : a))
+    audio: (d.audio || []).map((a) => (a.media ? { ...a, media: { path: a.media.path, kind: a.media.kind } } : a)),
+    // Effect layers on the timeline, kept to what the platform knows
+    fx: (d.fx || []).slice(0, 40).flatMap((f) => { const layer = cleanLayers([f.layer])[0]; return layer ? [{ id: String(f.id).slice(0, 40), start: Math.max(0, Number(f.start) || 0), duration: Math.min(600, Math.max(0.1, Number(f.duration) || 1)), layer }] : []; })
   };
 }
 
