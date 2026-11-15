@@ -4109,3 +4109,10 @@ button.fb-card, .fb-open { all: unset; box-sizing: border-box; cursor: pointer; 
 .w3-dock { position: sticky; bottom: 28px; z-index: 4; margin: -120px 0 28px; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
 .w3-dock > * { pointer-events: auto; }
 .w2-ph .btn { white-space: nowrap; }
+/* Writer v2, step 4: delivery by place */
+.dv-meta { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 12px; }
+.dv-place { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 24px; padding: 16px 0; border-top: 1px solid var(--line); }
+.dv-place-c .dv-row { grid-template-columns: 120px minmax(0, 1fr) auto; }
+.dv-place-c .dv-row:first-of-type { border-top: 0; padding-top: 0; }
+.dv-place .dv-for { margin-top: 0; }
+@media print { .dv-place { break-inside: avoid; } .dv-bar .w3-tabs { display: none; } }

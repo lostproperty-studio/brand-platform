@@ -87,7 +87,7 @@ export function WriterApp({ slug, client, audiences, me, note, brand }: { slug: 
     read(); addEventListener('popstate', read); return () => removeEventListener('popstate', read);
   }, [go]);
 
-  if (open && deliver) return <Delivery file={open} client={client} onBack={() => go(open.id, false)} />;
+  if (open && deliver) return <Delivery file={open} client={client} brand={brand} onBack={() => go(open.id, false)} />;
   if (open) return <DocEditor key={open.id} slug={slug} client={client} audiences={audiences} me={me} brand={brand} file={open} onBack={() => go(null)} onDeliver={() => go(open.id, true)} />;
 
   const create = async () => {
@@ -687,24 +687,53 @@ function Preview({ t, o, brand }: { t: WriterTemplate; o: Out; brand: BrandLook 
   return <div className="w3-pv w3-text">{partsOf(t).filter((x) => asList(o[x.key]).length).map((x) => <div key={x.key}><span className="mute">{x.label}</span>{asList(o[x.key]).map((v, k) => <p key={k}>{v}</p>)}</div>)}</div>;
 }
 
-// ---------- The delivery file: only the signed-off text, ready to copy
-function Delivery({ file, client, onBack }: { file: FileRow; client: string; onBack: () => void }) {
+// ---------- The delivery file: only the signed-off text, by piece or by place, to copy or download
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function save(name: string, type: string, body: string) {
+  const u = URL.createObjectURL(new Blob([body], { type })); const a = document.createElement('a'); a.href = u; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(u), 2000);
+}
+function Delivery({ file, client, brand, onBack }: { file: FileRow; client: string; brand: BrandLook; onBack: () => void }) {
   const [copied, setCopied] = useState('');
+  const [by, setBy] = useState<'piece' | 'place'>('piece');
   const copy = async (k: string, t: string) => { try { await navigator.clipboard.writeText(t); setCopied(k); setTimeout(() => setCopied(''), 1400); } catch { /* blocked */ } };
   const done = file.data.pieces.filter((p) => p.status === 'signed');
   const rest = file.data.pieces.filter((p) => p.status !== 'signed');
   const all = done.flatMap((p) => pieceBits(p).map((b) => b.text)).join('\n\n');
+  const d = file.data.props || {};
+  const fileName = (file.title || 'Delivery').replace(/[^\w -]+/g, '').trim() || 'Delivery';
+  // Every place the signed-off pieces are going, with each piece's copy for it
+  const places = [...new Set(done.flatMap((p) => p.templates))].map((tid) => ({ t: templateById(tid), rows: done.filter((p) => p.templates.includes(tid)).map((p) => ({ p, o: p.out?.[tid] })) }));
+  const asText = () => [`${file.title} · ${client}`, file.data.intro || '', ...done.map((p) => [`\n${p.name.toUpperCase()}`, ...pieceBits(p).map((b) => `${b.label}\n${b.text}`)].join('\n\n'))].filter(Boolean).join('\n');
+  const asWord = () => `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${esc(file.title)}</title><style>body{font-family:Arial,sans-serif;font-size:11pt}h1{font-size:22pt;font-weight:normal}h2{font-size:14pt;margin-top:24pt}p.l{color:#777;font-size:9pt;margin:12pt 0 2pt}</style></head><body>
+<p class="l">${esc(client)} · Delivery file</p><h1>${esc(file.title)}</h1>${file.data.intro ? `<p>${esc(file.data.intro)}</p>` : ''}
+${done.map((p) => `<h2>${esc(p.name)}</h2>${pieceBits(p).map((b) => `<p class="l">${esc(b.label)}</p><p>${esc(b.text).replace(/\n/g, '<br>')}</p>`).join('')}`).join('')}</body></html>`;
   return <div className="dv">
-    <div className="dv-bar"><button className="btn" onClick={onBack}><ArrowLeft {...I} />Back to the doc</button><span className="fb-sp" /><button className="btn" onClick={() => navigator.clipboard?.writeText(location.href)}>Copy link</button><button className="btn" onClick={() => print()}>Download PDF</button></div>
+    <div className="dv-bar"><button className="btn" onClick={onBack}><ArrowLeft {...I} />Back to the doc</button><span className="fb-sp" />
+      <div className="w3-tabs" role="tablist" aria-label="Show"><button role="tab" aria-selected={by === 'piece'} onClick={() => setBy('piece')}>By piece</button><button role="tab" aria-selected={by === 'place'} onClick={() => setBy('place')}>By place</button></div>
+      <span className="fb-sp" />
+      <button className="btn" onClick={() => navigator.clipboard?.writeText(location.href)}>Copy link</button>
+      <button className="btn" onClick={() => save(`${fileName}.doc`, 'application/msword', asWord())} disabled={!done.length}>Word</button>
+      <button className="btn" onClick={() => save(`${fileName}.txt`, 'text/plain;charset=utf-8', asText())} disabled={!done.length}>Text</button>
+      <button className="btn" onClick={() => print()}>PDF</button></div>
     <article className="dv-page">
       <p className="mute dv-k"><AppIcon app="writer" size={14} still /> Delivery file · {client}</p>
       <h1>{file.title}</h1>
       {file.data.intro ? <p className="mute">{file.data.intro}</p> : null}
+      {d.campaign || d.due ? <p className="dv-meta">{d.campaign ? <span className="w3-tag ok">{d.campaign}</span> : null}{d.due ? <span className="mute">Due {fmtDay(d.due)}</span> : null}<span className="mute">{done.length} of {file.data.pieces.length} pieces signed off</span></p> : null}
       <div className="dv-note"><span>Only copy the text on the right. The labels say where each line goes. Everything here is signed off.</span><button className="btn sm solid" onClick={() => copy('all', all)} disabled={!done.length}><Copy size={12} aria-hidden />{copied === 'all' ? 'Copied all' : 'Copy all text'}</button></div>
-      {done.map((p) => <section key={p.id} className="dv-piece">
+      {by === 'piece' ? done.map((p) => <section key={p.id} className="dv-piece">
         <div className="dv-ph"><h2>{p.name}</h2><span className="dv-signed"><Lock size={11} aria-hidden />Signed off{p.signedBy ? ` by ${p.signedBy}` : ''}{p.signedAt ? ` · ${new Date(p.signedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}</span></div>
         <p className="dv-for">For: {p.templates.map((t) => templateById(t).label).join(' · ')}</p>
         {pieceBits(p).map((b, k) => <div key={k} className="dv-row"><span className="mute">{b.label}</span><p>{b.text}</p><button className="btn sm" onClick={() => copy(p.id + k, b.text)}><Copy size={12} aria-hidden />{copied === p.id + k ? 'Copied' : 'Copy'}</button></div>)}
+      </section>)
+      : places.map(({ t, rows }) => <section key={t.id} className="dv-piece">
+        <div className="dv-ph"><h2>{t.label}</h2><span className="mute">{rows.length} piece{rows.length === 1 ? '' : 's'}</span></div>
+        {rows.map(({ p, o }) => <div key={p.id} className="dv-place">
+          <div className="dv-place-pv">{o ? <Preview t={t} o={o} brand={brand} /> : <div className="w3-pv w3-text"><div><span className="mute">Copy</span><p>{p.text}</p></div></div>}</div>
+          <div className="dv-place-c"><p className="dv-for">{p.name}</p>
+            {(o ? partsOf(t).filter((x) => asList(o[x.key]).length).map((x) => ({ label: x.label, text: asList(o[x.key]).join('\n') })) : [{ label: 'Copy', text: p.text.trim() }]).map((b, k) => <div key={k} className="dv-row"><span className="mute">{b.label}</span><p>{b.text}</p><button className="btn sm" onClick={() => copy(p.id + t.id + k, b.text)}><Copy size={12} aria-hidden />{copied === p.id + t.id + k ? 'Copied' : 'Copy'}</button></div>)}
+          </div>
+        </div>)}
       </section>)}
       {!done.length ? <p className="mute">Nothing signed off yet.</p> : null}
       {rest.length ? <div className="dv-rest"><strong>Still in progress, not included</strong>{rest.map((p) => <span key={p.id} className="mute">{p.name} · {ST[p.status][0]}</span>)}</div> : null}
