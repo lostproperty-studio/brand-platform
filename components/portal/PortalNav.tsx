@@ -39,12 +39,14 @@ export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettin
       <nav id="pt-nav" className="pt-nav" aria-label="Portal">
         {items.map(([label, href]) => { const Ic = ICONS[label as keyof typeof ICONS]; return <div key={href}>
           <Link href={href} className={'pt-it' + (isOn(href) ? ' on' : '')} aria-current={isOn(href) ? 'page' : undefined} onClick={() => setOpen(false)} data-tip={closed ? label : undefined} aria-label={closed ? label : undefined}>
-            <Ic {...I} /><span className="pt-it-t">{label}</span>{(() => { const b = features.find((f) => f.label === label)?.badge; return b ? <span className={'pt-badge ' + b.toLowerCase()}>{b}</span> : null; })()}
+            <Ic {...I} /><span className="pt-it-t">{label}</span>{(() => { const b = label === 'Writer' ? 'Alpha preview' : features.find((f) => f.label === label)?.badge; return b ? <span className={'pt-badge ' + b.split(' ')[0].toLowerCase()}>{b}</span> : null; })()}
           </Link>
           {label === 'Guidelines' && path.startsWith(href) ? <div className="pt-sub">{chapters.map((c, k) => { const h = `${href}/${c.id.replace(/[:;]/g, '-')}`; const on = path === h; return <Link key={c.id} href={h} className={'pt-subit' + (on ? ' on' : '')} aria-current={on ? 'page' : undefined} onClick={() => setOpen(false)}><span className="pt-n">{String(k + 1).padStart(2, '0')}</span>{c.title}</Link>; })}</div> : null}
         </div>; })}
       </nav>
       <div className="pt-foot">
+        {/* The whole platform is in beta until V1: said plainly at the foot of every portal */}
+        <p className="pt-beta" data-tip={closed ? 'Beta: the platform is still being finished, so things may change' : undefined} title={closed ? undefined : 'The platform is still being finished, so things may change'}><span>Beta</span></p>
         <button type="button" className="pt-fold" onClick={() => fold(!closed)} aria-label={closed ? 'Open the sidebar' : 'Close the sidebar'} data-tip={closed ? 'Open the sidebar' : undefined}>{closed ? <PanelLeftOpen {...I} /> : <PanelLeftClose {...I} />}<span className="pt-it-t">Close sidebar</span></button>
         <a className="pt-credit" href="https://lostproperty.studio" target="_blank" rel="noopener" aria-label="Designed and built by Lost Property Studio" data-tip={closed ? 'Designed and built by Lost Property Studio' : undefined}>
           <span className="pt-credit-by">Designed and built by</span>

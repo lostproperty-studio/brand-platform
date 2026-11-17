@@ -3561,3 +3561,9 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .pt-main:has(.dr-ed) { height: 100vh; height: 100dvh; display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden; }
 .pt-main:has(.dr-ed) .dock.ak:not(.open) { display: none; }
 .pt-main:has(.dr-ed) .dr-app-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Alpha preview (the Writer) and the platform's Beta label at the foot of the sidebar */
+.pt-badge.alpha { background: transparent; color: #555; box-shadow: inset 0 0 0 1px #c9c9c9; white-space: nowrap; }
+.pt-beta { margin: 0; padding: 0 10px; }
+.pt-beta span { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; line-height: 1; padding: 4px 7px; border-radius: 4px; background: #000; color: #fff; }
+.pt-side.mini .pt-beta { padding: 0; text-align: center; }
