@@ -27,7 +27,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ slug: string 
   if (!isPluginId(b.data.plugin)) return new Response('Not found', { status: 404 });
   const def = pluginById(b.data.plugin)!;
   const clean: Record<string, boolean | string> = {};
-  for (const s of def.settings) { const v = b.data.settings[s.id]; if (v === undefined || typeof v !== typeof s.default || (s.studioOnly && !a.acc.staff)) continue; clean[s.id] = v; }
+  for (const s of def.settings) { const v = b.data.settings[s.id]; if (v === undefined || typeof v !== typeof s.default || s.soon || (s.studioOnly && !a.acc.staff)) continue; clean[s.id] = v; }
   try {
     if (clean.home === true) await setHome(a.p.id, def.id);
     await saveConnection(a.p.id, def.id, { settings: clean });

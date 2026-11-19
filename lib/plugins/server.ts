@@ -18,10 +18,15 @@ export async function pluginsAccess(slug: string) {
 }
 
 /** Which plug-ins the platform has been set up for (the developer apps registered with each maker) */
+export const googleAddonUrl = () => process.env.GOOGLE_ADDON_URL || null;
+
 export function configured(id: PluginId) {
   const e = process.env;
   switch (id) {
     case 'canva': return { panel: true, account: !!(e.CANVA_CLIENT_ID && e.CANVA_CLIENT_SECRET) };
+    case 'office': return { panel: true, account: false };
+    // The Google add-on's Marketplace listing, once Lost Property has published it (see plugins/google/README.md)
+    case 'google': return { panel: !!e.GOOGLE_ADDON_URL, account: false };
     default: return { panel: false, account: false };
   }
 }

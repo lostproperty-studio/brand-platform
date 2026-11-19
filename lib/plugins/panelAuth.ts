@@ -26,7 +26,7 @@ export function redirectAllowed(host: PanelHost, uri: string) {
 /** Makes new credentials for one app's panel (replacing any before). The secret is shown once. */
 export async function newPanelClient(projectId: string, host: PanelHost, by: string) {
   const sb = db();
-  await sb.from('panel_clients').update({ revoked_at: new Date().toISOString() }).eq('project_id', projectId).eq('host', host).is('revoked_at', null);
+  await sb.from('panel_clients').update({ revoked_at: new Date().toISOString() }).eq('project_id', projectId).eq('host', host).is('revoked_at', null).not('client_id', 'like', 'lpi_%');
   const clientId = rand('lpc_', 12), secret = rand('lps_');
   const { error } = await sb.from('panel_clients').insert({ client_id: clientId, project_id: projectId, host, secret_hash: hashToken(secret), created_by: by });
   if (error) throw new Error('Plug-ins aren’t set up in this database yet.');
@@ -34,7 +34,7 @@ export async function newPanelClient(projectId: string, host: PanelHost, by: str
 }
 
 export async function panelClients(projectId: string) {
-  const { data } = await db().from('panel_clients').select('client_id, host, created_at').eq('project_id', projectId).is('revoked_at', null);
+  const { data } = await db().from('panel_clients').select('client_id, host, created_at').eq('project_id', projectId).is('revoked_at', null).not('client_id', 'like', 'lpi_%');
   return (data || []) as { client_id: string; host: PanelHost; created_at: string }[];
 }
 
@@ -65,6 +65,30 @@ export async function issueCode(c: { client_id: string; project_id: string }, us
 
 const s256 = (v: string) => createHash('sha256').update(v).digest('base64url');
 const tokens = () => ({ access: rand('lpt_'), refresh: rand('lpr_') });
+
+/** The credential the platform keeps for itself, for panels that sign in by link (Office, Google, Figma) */
+export async function internalClient(projectId: string, host: PanelHost) {
+  const sb = db();
+  const { data } = await sb.from('panel_clients').select('client_id').eq('project_id', projectId).eq('host', host).like('client_id', 'lpi_%').is('revoked_at', null).limit(1).maybeSingle();
+  if (data) return data.client_id as string;
+  const clientId = rand('lpi_', 12);
+  await sb.from('panel_clients').insert({ client_id: clientId, project_id: projectId, host, secret_hash: hashToken(rand('x', 24)) });
+  return clientId;
+}
+
+/** New tokens for someone, straight away (after they've approved a sign-in link) */
+export async function mintGrant(clientId: string, projectId: string, userId: string) {
+  const t = tokens();
+  await db().from('panel_grants').insert({ client_id: clientId, project_id: projectId, user_id: userId, access_hash: hashToken(t.access), refresh_hash: hashToken(t.refresh), access_expires: new Date(Date.now() + ACCESS_HOURS * 3600e3).toISOString(), last_used_at: new Date().toISOString() });
+  return { access_token: t.access, refresh_token: t.refresh, expires_in: ACCESS_HOURS * 3600 };
+}
+
+/** A panel that signed in by link refreshes its tokens without a secret (it has none: it runs in the person's app) */
+export async function refreshByLink(refreshToken: string) {
+  const { data: g } = await db().from('panel_grants').select('client_id').eq('refresh_hash', hashToken(refreshToken)).maybeSingle();
+  if (!g || !String(g.client_id).startsWith('lpi_')) return { error: 'invalid_grant' };
+  return exchange({ client_id: g.client_id }, { grant_type: 'refresh_token', refresh_token: refreshToken });
+}
 
 /** Swaps a code (or a refresh token) for tokens. Refresh tokens work once: each use gives a new one. */
 export async function exchange(c: { client_id: string }, f: { grant_type: string; code?: string; redirect_uri?: string; code_verifier?: string; refresh_token?: string }) {

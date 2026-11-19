@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Copy, Loader2, RotateCw, X } from 'lucide-react';
+import { Check, Copy, Download, Loader2, RotateCw, X } from 'lucide-react';
 import { LpPanel } from '@/components/panel/LpPanel';
 import type { PanelBrand, PanelHostApi } from '@/components/panel/types';
 import { PANEL_PARTS, type PanelSettings, type PluginDef, type PluginId } from '@/lib/plugins/catalog';
@@ -18,6 +18,8 @@ export type PluginView = {
   panelSet: boolean;
   /** Canva, for the studio: whether this client signs in through their own Canva integration, and its redirect URL */
   canva?: { ownApp: boolean; callback: string };
+  /** Google: the add-on's Marketplace listing, once published */
+  marketplace?: string | null;
 };
 
 const I = { size: 14, strokeWidth: 1.75, 'aria-hidden': true } as const;
@@ -52,7 +54,7 @@ export function Plugins({ slug, client, lead, staff, items, panel, preview, dbRe
 
 function Card({ p, onOpen }: { p: PluginView; onOpen: () => void }) {
   const soon = (!p.def.panel || p.def.panel.status === 'soon') && (!p.def.account || p.def.account.status === 'soon');
-  const state = soon ? 'Coming soon' : p.connected ? 'Connected' : p.panelSet ? 'Panel set up' : 'Not connected';
+  const state = soon ? 'Coming soon' : p.connected ? 'Connected' : p.panelSet ? 'Panel set up' : p.def.panel?.status === 'ready' && !p.def.account ? 'Ready to add' : 'Not connected';
   return <button type="button" className={'plg-card' + (soon ? ' soon' : '')} onClick={onOpen}>
     <span className="plg-card-top"><span className="plg-name">{p.def.name}</span><span className={'plg-state' + (p.connected || p.panelSet ? ' on' : '')}>{state}</span></span>
     <span className="mute plg-line">{p.def.line}</span>
@@ -102,19 +104,7 @@ function Drawer({ p, slug, client, lead, staff, onClose, onMsg }: { p: PluginVie
         <div className="plg-bhead"><h4>The brand panel</h4>{d.panel.status === 'soon' ? <span className="tag">Coming soon</span> : p.panelSet ? <span className="plg-state on">Set up</span> : null}</div>
         <p className="mute">{d.panel.where}. The same panel as in your other apps, signed in to this portal only.</p>
         <p className="plg-needs">{d.panel.needs}</p>
-        {d.panel.status === 'ready' && d.panel.host === 'canva' ? <ol className="plg-steps">
-          <li>Lost Property adds the app to your Canva team. Canva builds private apps inside the team that uses them, so we’ll ask to be invited as a member, or your developer can do this step with our app.</li>
-          <li>The app signs in with the details below, so it only ever shows {client}’s brand, and only to people in this portal.</li>
-          <li>Your Canva admin approves it under <strong>Settings → Team apps</strong>. Canva releases it to your team straight away.</li>
-          <li>In a design, open <strong>Apps</strong>, choose the panel and sign in with your portal email.</li>
-        </ol> : null}
-        {d.panel.status === 'ready' && lead ? <div className="plg-row">
-          <button type="button" className="btn" onClick={makeCreds} disabled={!!busy}>{busy === 'creds' ? <Loader2 {...I} className="spin" /> : null}{p.panelSet ? 'Make new sign-in details' : 'Make sign-in details'}</button>
-        </div> : null}
-        {creds ? <div className="plg-creds">
-          <p className="mute">Shown once: copy them into the app’s settings in Canva (Developer Portal → your app → Authentication) now.</p>
-          {([['Client ID', creds.clientId], ['Client secret', creds.secret], ['Authorisation URL', creds.authorizeUrl], ['Token URL', creds.tokenUrl], ['Scope', 'brand']] as const).map(([k, v]) => <CopyRow key={k} k={k} v={v} />)}
-        </div> : null}
+        {d.panel.status === 'ready' ? <PanelSetup p={p} slug={slug} client={client} lead={lead} staff={staff} busy={busy} makeCreds={makeCreds} creds={creds} /> : null}
       </section> : null}
 
       {d.account ? <section className="plg-block">
@@ -132,8 +122,8 @@ function Drawer({ p, slug, client, lead, staff, onClose, onMsg }: { p: PluginVie
       {settings.length && (p.connected || d.group === 'apps') ? <section className="plg-block">
         <h4>Settings</h4>
         <div className="plg-settings">{settings.map((s) => <label key={s.id} className={'plg-set' + (s.type === 'text' ? ' text' : '')}>
-          {s.type === 'toggle' ? <input type="checkbox" checked={!!set[s.id]} disabled={!lead} onChange={(e) => save(s.id, e.target.checked)} /> : null}
-          <span><span>{s.label}{s.tag ? <span className="tag">{s.tag}</span> : null}{s.studioOnly ? <span className="tag">Studio only</span> : null}</span>{s.about ? <span className="mute">{s.about}</span> : null}</span>
+          {s.type === 'toggle' ? <input type="checkbox" checked={!!set[s.id] && !s.soon} disabled={!lead || s.soon} onChange={(e) => save(s.id, e.target.checked)} /> : null}
+          <span><span>{s.label}{s.tag ? <span className="tag">{s.tag}</span> : null}{s.soon ? <span className="tag">Coming soon</span> : null}{s.studioOnly ? <span className="tag">Studio only</span> : null}</span>{s.about ? <span className="mute">{s.about}</span> : null}</span>
           {s.type === 'text' ? <input className="in" defaultValue={String(set[s.id] || '')} disabled={!lead} placeholder="Brand platform" onBlur={(e) => e.target.value !== set[s.id] && save(s.id, e.target.value)} /> : null}
         </label>)}</div>
       </section> : null}
@@ -166,6 +156,46 @@ function CanvaApp({ slug, c, onDone }: { slug: string; c: { ownApp: boolean; cal
     <div className="plg-row"><button type="button" className="btn" disabled={busy || !id || !secret} onClick={() => save()}>Use the client’s integration</button>{c.ownApp ? <button type="button" className="btn" disabled={busy} onClick={() => save(true)}>Use Lost Property’s</button> : null}</div>
     {err ? <p className="plg-last bad">{err}</p> : null}
   </section>;
+}
+
+/** How the panel gets into each app, step by step, with what the lead needs (sign-in details, add-in files, a link) */
+function PanelSetup({ p, slug, client, lead, staff, busy, makeCreds, creds }: { p: PluginView; slug: string; client: string; lead: boolean; staff: boolean; busy: string; makeCreds: () => void; creds: { clientId: string; secret: string; authorizeUrl: string; tokenUrl: string } | null }) {
+  const host = p.def.panel!.host;
+  if (host === 'canva') return <>
+    <ol className="plg-steps">
+      <li>Lost Property adds the app to your Canva team. Canva builds private apps inside the team that uses them, so we’ll ask to be invited as a member, or your developer can do this step with our app.</li>
+      <li>The app signs in with the details below, so it only ever shows {client}’s brand, and only to people in this portal.</li>
+      <li>Your Canva admin approves it under <strong>Settings → Team apps</strong>. Canva releases it to your team straight away.</li>
+      <li>In a design, open <strong>Apps</strong>, choose the panel and sign in with your portal email.</li>
+    </ol>
+    {lead ? <div className="plg-row"><button type="button" className="btn" onClick={makeCreds} disabled={!!busy}>{busy === 'creds' ? <Loader2 {...I} className="spin" /> : null}{p.panelSet ? 'Make new sign-in details' : 'Make sign-in details'}</button></div> : null}
+    {creds ? <div className="plg-creds">
+      <p className="mute">Shown once: copy them into the app’s settings in Canva (Developer Portal → your app → Authentication) now.</p>
+      {([['Client ID', creds.clientId], ['Client secret', creds.secret], ['Authorisation URL', creds.authorizeUrl], ['Token URL', creds.tokenUrl], ['Scope', 'brand']] as const).map(([k, v]) => <CopyRow key={k} k={k} v={v} />)}
+    </div> : null}
+  </>;
+  if (host === 'office') return <>
+    <ol className="plg-steps">
+      <li>Download the two add-in files below: one for Word, PowerPoint and Excel, one for Outlook.</li>
+      <li>Your Microsoft 365 admin opens the <strong>Microsoft 365 admin centre → Settings → Integrated apps → Upload custom apps</strong>, chooses <strong>Office Add-in</strong>, uploads each file and picks who gets it.</li>
+      <li>A <strong>Brand</strong> button appears on the Home tab, and in Outlook when writing an email. It can take a few hours to reach everyone.</li>
+      <li>Press it and sign in: the panel opens a page in your browser where you sign in with your portal email.</li>
+    </ol>
+    {lead ? <div className="plg-row">
+      <a className="btn solid" href={`/api/p/${slug}/plugins/office/manifest?kind=documents`} download><Download {...I} />Word, PowerPoint, Excel</a>
+      <a className="btn" href={`/api/p/${slug}/plugins/office/manifest?kind=mail`} download><Download {...I} />Outlook</a>
+    </div> : <p className="plg-needs">Your portal’s lead downloads the add-in files for your Microsoft 365 admin.</p>}
+  </>;
+  if (host === 'google') return <>
+    <ol className="plg-steps">
+      <li>Your Google Workspace admin opens the add-on’s page in the Google Workspace Marketplace and installs it for your organisation (or for the teams who need it).</li>
+      <li>In a doc, deck or sheet, open <strong>Extensions → Brand panel by Lost Property → Open the brand panel</strong>.</li>
+      <li>Sign in: the panel opens a page where you sign in with your portal email and check a short code.</li>
+    </ol>
+    {p.marketplace ? <div className="plg-row"><a className="btn solid" href={p.marketplace} target="_blank" rel="noopener">Open in the Marketplace</a><CopyRow k="Link for your admin" v={p.marketplace} /></div>
+      : <p className="plg-needs">{staff ? 'Not published yet: set GOOGLE_ADDON_URL once the add-on is listed (see plugins/google/README.md).' : 'Lost Property is finishing the Google listing.'}</p>}
+  </>;
+  return null;
 }
 
 function CopyRow({ k, v }: { k: string; v: string }) {

@@ -13,7 +13,7 @@ import { Plugins, type PluginView } from '@/components/portal/Plugins';
 import { portalV2 } from '@/lib/portalVersion';
 import { projectStages, canSee, stageBadge } from '@/lib/features';
 import { PLUGINS, readPanel } from '@/lib/plugins/catalog';
-import { configured, connections, visibleSettings } from '@/lib/plugins/server';
+import { configured, connections, googleAddonUrl, visibleSettings } from '@/lib/plugins/server';
 import { panelClients } from '@/lib/plugins/panelAuth';
 import { panelBrand } from '@/lib/plugins/panelData';
 import { canvaApp, canvaCallback } from '@/lib/plugins/canva';
@@ -45,10 +45,10 @@ export default async function Resources({ params, searchParams }: { params: Prom
     const origin = await appOrigin();
     const [{ rows, ready }, creds, preview, canvaUses, own] = await Promise.all([connections(ctx.project.id), panelClients(ctx.project.id), panelBrand(ctx.project.id, slug, ctx.preview, origin).catch(() => null), canvaApp(ctx.project.id).catch(() => null), secretOf<{ app?: unknown }>(ctx.project.id, 'canva').catch(() => null)]);
     const staff = ctx.access.staff;
-    const items: PluginView[] = PLUGINS.filter((d) => staff || d.panel?.status === 'ready' || d.account?.status === 'ready').map((d) => {
+    const items: PluginView[] = PLUGINS.filter((d) => staff || (d.panel?.status === 'ready' && configured(d.id).panel) || (d.account?.status === 'ready' && (d.id === 'canva' ? !!canvaUses : configured(d.id).account))).map((d) => {
       const c = rows[d.id];
       const ready = d.id === 'canva' ? { ...configured(d.id), account: !!canvaUses } : configured(d.id);
-      return { def: d, ready, panelSet: !!d.panel && creds.some((x) => x.host === d.panel!.host), ...(d.id === 'canva' && staff ? { canva: { ownApp: !!own?.app, callback: canvaCallback(origin) } } : {}), connected: c?.account ? { account: c.account, settings: visibleSettings(d.id, c.settings, staff) as Record<string, boolean | string>, last: (c.state as { last?: NonNullable<PluginView['connected']>['last'] }).last } : null };
+      return { def: d, ready, panelSet: !!d.panel && creds.some((x) => x.host === d.panel!.host), ...(d.id === 'canva' && staff ? { canva: { ownApp: !!own?.app, callback: canvaCallback(origin) } } : {}), ...(d.id === 'google' ? { marketplace: googleAddonUrl() } : {}), connected: c?.account ? { account: c.account, settings: visibleSettings(d.id, c.settings, staff) as Record<string, boolean | string>, last: (c.state as { last?: NonNullable<PluginView['connected']>['last'] }).last } : null };
     });
     return { items, ready, preview, panel: readPanel(ctx.project.content), badge: stageBadge(plugStage) };
   })() : null;

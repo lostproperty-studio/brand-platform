@@ -2,8 +2,8 @@
 // What each plug-in offers is set by what that app actually allows, so the settings differ from one to the next.
 // `status`: 'ready' works now; 'soon' is shown to the studio only, as what's coming.
 
-export type PluginId = 'canva' | 'office' | 'google' | 'gdrive' | 'dropbox' | 'sharepoint' | 'github';
-export type PanelHost = 'canva' | 'office' | 'google';
+export type PluginId = 'canva' | 'figma' | 'office' | 'google' | 'gdrive' | 'dropbox' | 'sharepoint' | 'github';
+export type PanelHost = 'canva' | 'office' | 'google' | 'figma';
 export type Status = 'ready' | 'soon';
 
 export type SettingDef = {
@@ -12,6 +12,8 @@ export type SettingDef = {
   default: boolean | string;
   /** Only the studio sees and changes it (e.g. something still in preview with the app's maker) */
   studioOnly?: boolean;
+  /** Shown, but not working yet */
+  soon?: boolean;
   tag?: string;
 };
 
@@ -44,27 +46,36 @@ export const PLUGINS: PluginDef[] = [
       { id: 'logos', label: 'Send the logos', type: 'toggle', default: true },
       { id: 'images', label: 'Send approved Photographer images', about: 'Images in collections that have been signed off.', type: 'toggle', default: true },
       { id: 'auto', label: 'Update when the guidelines are published', type: 'toggle', default: true },
-      { id: 'templates', label: 'Designer templates as Canva brand templates', about: 'Canva still has this in preview, so it may change.', type: 'toggle', default: false, studioOnly: true, tag: 'Preview' }
+      { id: 'templates', label: 'Designer templates as Canva brand templates', about: 'Canva still has this in preview, so it may change.', type: 'toggle', default: false, studioOnly: true, soon: true, tag: 'Preview' }
     ]
+  },
+  {
+    id: 'figma', name: 'Figma', group: 'apps',
+    line: 'The brand panel in Figma, and the brand as a Figma library your team can publish.',
+    panel: { host: 'figma', where: 'In Figma, under Plugins', needs: 'Kept private to your team on Figma’s Organization or Enterprise plan. On other plans, Lost Property publishes it to the Figma Community and it signs in to your portal like the others.', status: 'soon' },
+    account: { action: 'Make a brand library', about: 'The plugin builds a library file in your Figma: colour styles and variables, text styles and logo components, from the guidelines. Publish it once and your whole team has it.', status: 'soon' },
+    can: ['Place logos and approved images on the canvas', 'Colours, approved copy and Ask, as in every panel', 'Build a library file of colour variables, text styles and logo components, ready to publish to your team'],
+    cant: ['Install the brand typefaces: each designer installs them, or your Figma admin shares them across the organisation'],
+    settings: []
   },
   {
     id: 'office', name: 'Microsoft Office', group: 'apps',
     line: 'The brand panel in Word, PowerPoint, Excel and Outlook.',
-    panel: { host: 'office', where: 'In the Home tab of Word, PowerPoint, Excel and Outlook', needs: 'Your Microsoft 365 admin adds it for the organisation once, in the admin centre (Integrated apps).', status: 'soon' },
-    can: ['Place logos and approved images in a document, slide or email', 'Colours, approved copy and Ask, as in every panel', 'Branded PowerPoint and Word templates, through SharePoint'],
+    panel: { host: 'office', where: 'A Brand button on the Home tab in Word, PowerPoint and Excel, and when writing an email in Outlook', needs: 'Your Microsoft 365 admin adds it for the organisation once, in the admin centre (Settings → Integrated apps). Microsoft doesn’t need to review it.', status: 'ready' },
+    can: ['Place logos and approved images in a document, slide, sheet or email', 'Colours, approved copy and Ask, as in every panel', 'Branded PowerPoint and Word templates, through SharePoint (coming with SharePoint below)'],
     cant: ['Install the brand typefaces on people’s computers: your IT team does this from the font files in the kit'],
     settings: [
-      { id: 'templates', label: 'Put the brand templates in your organisation’s template library', about: 'Needs SharePoint connected below.', type: 'toggle', default: false }
+      { id: 'templates', label: 'Put the brand templates in your organisation’s template library', about: 'Needs SharePoint connected below.', type: 'toggle', default: false, soon: true }
     ]
   },
   {
     id: 'google', name: 'Google Workspace', group: 'apps',
     line: 'The brand panel in Google Docs, Slides and Sheets.',
-    panel: { host: 'google', where: 'In the side panel of Docs, Slides and Sheets (Extensions)', needs: 'Your Google Workspace admin installs it for the organisation once.', status: 'soon' },
-    can: ['Place logos and approved images in a doc, deck or sheet', 'Colours, approved copy and Ask, as in every panel', 'Brand templates in a shared Drive folder'],
+    panel: { host: 'google', where: 'In Docs, Slides and Sheets, under Extensions', needs: 'Your Google Workspace admin installs it for the organisation once, from the Google Workspace Marketplace.', status: 'ready' },
+    can: ['Place logos and approved images in a doc, deck or sheet', 'Colours, approved copy and Ask, as in every panel', 'Brand templates in a shared Drive folder (coming with Google Drive below)'],
     cant: ['Add the brand typefaces to Google’s font menu: Google only offers its own fonts'],
     settings: [
-      { id: 'templates', label: 'Put the brand templates in a shared Drive folder', about: 'Needs Google Drive connected below.', type: 'toggle', default: false }
+      { id: 'templates', label: 'Put the brand templates in a shared Drive folder', about: 'Needs Google Drive connected below.', type: 'toggle', default: false, soon: true }
     ]
   },
   {
@@ -125,4 +136,4 @@ export function readPanel(content: unknown): PanelSettings {
 
 /** Where the panel signs in. Canva's private apps are made inside the client's own Canva team, so each client's
  *  panel gets its own credentials to paste in there. */
-export const HOST_NAME: Record<PanelHost, string> = { canva: 'Canva', office: 'Microsoft Office', google: 'Google Workspace' };
+export const HOST_NAME: Record<PanelHost, string> = { canva: 'Canva', office: 'Microsoft Office', google: 'Google Workspace', figma: 'Figma' };
