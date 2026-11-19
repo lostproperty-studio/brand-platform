@@ -37,7 +37,7 @@ const folder: SettingDef = { id: 'folder', label: 'Folder name', type: 'text', d
 export const PLUGINS: PluginDef[] = [
   {
     id: 'canva', name: 'Canva', group: 'apps',
-    line: 'The brand panel inside Canva, and the brand’s files in a Canva folder of their own.',
+    line: 'Your brand inside every Canva design.',
     panel: { host: 'canva', where: 'In the Canva editor, under Apps', needs: 'Canva Enterprise: private apps are only for Enterprise teams. Your Canva admin approves it once.', status: 'ready' },
     account: { action: 'Sync with Canva', about: 'Sends the logos and approved images into a folder in your Canva, and keeps it up to date.', status: 'ready' },
     can: ['Place logos and approved images in a design with a click or a drag', 'Colours with their hex values and where each one goes', 'Approved copy and the tone of voice', 'Ask questions about the brand without leaving Canva', 'A folder of brand files kept up to date when the guidelines are published'],
@@ -51,7 +51,7 @@ export const PLUGINS: PluginDef[] = [
   },
   {
     id: 'figma', name: 'Figma', group: 'apps',
-    line: 'The brand panel in Figma, and the brand as a Figma library your team can publish.',
+    line: 'The brand on the canvas, and as a team library.',
     panel: { host: 'figma', where: 'In Figma, under Plugins', needs: 'Kept private to your team on Figma’s Organization or Enterprise plan. On other plans, Lost Property publishes it to the Figma Community and it signs in to your portal like the others.', status: 'soon' },
     account: { action: 'Make a brand library', about: 'The plugin builds a library file in your Figma: colour styles and variables, text styles and logo components, from the guidelines. Publish it once and your whole team has it.', status: 'soon' },
     can: ['Place logos and approved images on the canvas', 'Colours, approved copy and Ask, as in every panel', 'Build a library file of colour variables, text styles and logo components, ready to publish to your team'],
@@ -60,7 +60,7 @@ export const PLUGINS: PluginDef[] = [
   },
   {
     id: 'office', name: 'Microsoft Office', group: 'apps',
-    line: 'The brand panel in Word, PowerPoint, Excel and Outlook.',
+    line: 'Your brand in Word, PowerPoint, Excel and Outlook.',
     panel: { host: 'office', where: 'A Brand button on the Home tab in Word, PowerPoint and Excel, and when writing an email in Outlook', needs: 'Your Microsoft 365 admin adds it for the organisation once, in the admin centre (Settings → Integrated apps). Microsoft doesn’t need to review it.', status: 'ready' },
     can: ['Place logos and approved images in a document, slide, sheet or email', 'Colours, approved copy and Ask, as in every panel', 'Branded PowerPoint and Word templates, through SharePoint (coming with SharePoint below)'],
     cant: ['Install the brand typefaces on people’s computers: your IT team does this from the font files in the kit'],
@@ -70,7 +70,7 @@ export const PLUGINS: PluginDef[] = [
   },
   {
     id: 'google', name: 'Google Workspace', group: 'apps',
-    line: 'The brand panel in Google Docs, Slides and Sheets.',
+    line: 'Your brand in Docs, Slides and Sheets.',
     panel: { host: 'google', where: 'In Docs, Slides and Sheets, under Extensions', needs: 'Your Google Workspace admin installs it for the organisation once, from the Google Workspace Marketplace.', status: 'ready' },
     can: ['Place logos and approved images in a doc, deck or sheet', 'Colours, approved copy and Ask, as in every panel', 'Brand templates in a shared Drive folder (coming with Google Drive below)'],
     cant: ['Add the brand typefaces to Google’s font menu: Google only offers its own fonts'],
@@ -80,7 +80,7 @@ export const PLUGINS: PluginDef[] = [
   },
   {
     id: 'gdrive', name: 'Google Drive', group: 'storage',
-    line: 'The brand kit, and if you like your Photographer and Director files, in your Drive.',
+    line: 'The brand kit and your files, kept in Drive.',
     account: { action: 'Connect Google Drive', about: 'Choose a folder or shared drive. The platform only touches the folder it makes.', status: 'soon' },
     can: ['The brand kit, updated on every publish', 'Photographer images and Director videos at full size'],
     cant: [],
@@ -88,7 +88,7 @@ export const PLUGINS: PluginDef[] = [
   },
   {
     id: 'dropbox', name: 'Dropbox', group: 'storage',
-    line: 'The brand kit, and if you like your Photographer and Director files, in your Dropbox.',
+    line: 'The brand kit and your files, kept in Dropbox.',
     account: { action: 'Connect Dropbox', about: 'The platform works in one app folder in your Dropbox and nowhere else.', status: 'soon' },
     can: ['The brand kit, updated on every publish', 'Photographer images and Director videos at full size'],
     cant: [],
@@ -96,7 +96,7 @@ export const PLUGINS: PluginDef[] = [
   },
   {
     id: 'sharepoint', name: 'SharePoint and OneDrive', group: 'storage',
-    line: 'The brand kit, and if you like your Photographer and Director files, in a SharePoint site.',
+    line: 'The brand kit and your files, kept in SharePoint.',
     account: { action: 'Connect SharePoint', about: 'Choose the site and library. Also where the Office templates go.', status: 'soon' },
     can: ['The brand kit, updated on every publish', 'Photographer images and Director videos at full size', 'The home for Office templates'],
     cant: [],
@@ -104,7 +104,7 @@ export const PLUGINS: PluginDef[] = [
   },
   {
     id: 'github', name: 'GitHub', group: 'storage',
-    line: 'The brand kit in your own GitHub, for your developers.',
+    line: 'The brand kit as code, for your developers.',
     account: { action: 'Connect GitHub', about: 'Install the Lost Property app on your GitHub and choose a repository.', status: 'soon' },
     can: ['The brand kit as code: tokens, guidelines, assets and templates', 'Changes arrive as pull requests your developers can review'],
     cant: ['Hold Photographer and Director files: GitHub isn’t made for large images and video'],

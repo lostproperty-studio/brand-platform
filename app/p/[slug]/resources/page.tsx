@@ -114,7 +114,7 @@ export default async function Resources({ params, searchParams }: { params: Prom
       </section>
 
       {plugins ? <section id="plugins" className="rs-sec" aria-labelledby="h-plugins">
-        <div className="rs-sec-head"><h2 id="h-plugins" className="pt-h2">Plug-ins{plugins.badge ? <span className="beta-tag">{plugins.badge}</span> : null}</h2><p className="mute">{ctx.project.client} inside the tools your team already uses, and your files where you keep them.</p></div>
+        <div className="rs-sec-head"><h2 id="h-plugins" className="pt-h2">Plug-ins{plugins.badge ? <span className="beta-tag">{plugins.badge}</span> : null}</h2><p className="mute">{ctx.project.client}, inside the tools your team already uses.</p></div>
         <Plugins slug={slug} client={ctx.project.client} lead={ctx.access.clientAdmin} staff={ctx.access.staff} items={plugins.items} panel={plugins.panel} preview={plugins.preview} dbReady={plugins.ready} flash={sp.plugin && sp.msg ? { plugin: sp.plugin, msg: sp.msg } : undefined} />
       </section> : null}
 
