@@ -8,4 +8,4 @@ Each app's official icon, named by its id. Take it from the maker's own brand or
 Then add it to `ICONS` in `components/portal/Plugins.tsx`, e.g. `dropbox: 'png'`. Until then the tile shows a monogram.
 
 Ids: canva, figma, office, google, gdrive, dropbox, sharepoint, github.
-In so far: canva.png, figma.png.
+In so far: canva.png, figma.png, office.png, google.png.

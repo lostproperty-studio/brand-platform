@@ -4467,7 +4467,8 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 
 .plg-mark { display: inline-grid; place-items: center; flex: none; border-radius: 22%; background: #fff; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
 .plg-mark img { width: 64%; height: 64%; object-fit: contain; }
-.plg-mark.full { box-shadow: none; }
+.plg-mark.full { box-shadow: none; position: relative; }
+.plg-mark.full::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(0,0,0,.07); pointer-events: none; }
 .plg-mark.full img { width: 100%; height: 100%; object-fit: cover; }
 .plg-tile.soon .plg-mark.full { opacity: .7; }
 .plg-mono { font-weight: 500; color: #111; line-height: 1; }
