@@ -35,16 +35,19 @@ const stateOf = (p: PluginView): State => (isSoon(p.def) ? 'soon' : p.connected 
 const STATE_LABEL: Record<State, string> = { on: 'Connected', add: 'Add', soon: 'Soon' };
 
 const MONO: Partial<Record<PluginId, string>> = { office: 'M', google: 'G', gdrive: 'D', sharepoint: 'S' };
+/** Official app icons in public/plugins (from each maker's brand kit). A square app icon (.png) fills the mark;
+ *  a bare logo (.svg) sits inside it. Add an app here when its file goes in; the rest show a monogram. */
+const ICONS: Partial<Record<PluginId, 'png' | 'svg'>> = { canva: 'png', figma: 'png' };
 
-/** The app's mark. Official logos are dropped in as public/plugins/<id>.svg (from each maker's brand kit);
- *  until one is there, a quiet monogram stands in. */
+/** The app's mark: its official icon, or a quiet monogram until there is one */
 export function AppMark({ id, name, size = 44 }: { id: PluginId | 'lp'; name: string; size?: number }) {
-  const [missing, setMissing] = useState(false);
   if (id === 'lp') return <span className="plg-mark lp" style={{ width: size, height: size }} aria-hidden />;
-  return <span className="plg-mark" style={{ width: size, height: size }} aria-hidden>
-    {missing ? <span className="plg-mono" style={{ fontSize: size * 0.42 }}>{MONO[id] || name.slice(0, 1)}</span>
+  const icon = ICONS[id];
+  return <span className={'plg-mark' + (icon === 'png' ? ' full' : '')} style={{ width: size, height: size }} aria-hidden>
+    {icon
       // eslint-disable-next-line @next/next/no-img-element
-      : <img src={`/plugins/${id}.svg`} alt="" onError={() => setMissing(true)} />}
+      ? <img src={`/plugins/${id}.${icon}`} alt="" />
+      : <span className="plg-mono" style={{ fontSize: size * 0.42 }}>{MONO[id] || name.slice(0, 1)}</span>}
   </span>;
 }
 
