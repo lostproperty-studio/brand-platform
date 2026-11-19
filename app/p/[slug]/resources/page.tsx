@@ -9,12 +9,23 @@ import { AppTile, SystemPreview } from '@/components/portal/ResourceVisuals';
 import { PackageCard } from '@/components/portal/PackageCard';
 import { JumpNav } from '@/components/portal/JumpNav';
 import { TeamFileUpload } from '@/components/portal/TeamFiles';
+import { Plugins, type PluginView } from '@/components/portal/Plugins';
+import { portalV2 } from '@/lib/portalVersion';
+import { projectStages, canSee, stageBadge } from '@/lib/features';
+import { PLUGINS, readPanel } from '@/lib/plugins/catalog';
+import { configured, connections, visibleSettings } from '@/lib/plugins/server';
+import { panelClients } from '@/lib/plugins/panelAuth';
+import { panelBrand } from '@/lib/plugins/panelData';
+import { canvaApp, canvaCallback } from '@/lib/plugins/canva';
+import { secretOf } from '@/lib/plugins/server';
+import { appOrigin } from '@/lib/origin';
 
 
 // Resources: the apps tray at the top, then everything to take away, as packages in a long scroll with a jump bar.
 // Only what this client has is shown, so a simple brand stays simple.
-export default async function Resources({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Resources({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ plugin?: string; msg?: string }> }) {
   const { slug } = await params;
+  const sp = await searchParams;
   const ctx = (await portalContext(slug))!;
   const snap = ctx.snap!;
   const tools = await listTools(ctx.project.id, ctx.preview);
@@ -28,7 +39,20 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
   // One Brand assets section, as in the studio: logo, colour and type, then the extras this brand has
   const sec = (p: Package) => (p.section === 'elements' ? 'brand' : p.section);
   const sections = SECTIONS.filter((s) => s.id !== 'elements').map((s) => ({ ...s, items: shown.filter((p) => sec(p) === s.id) })).filter((s) => s.items.length || (s.id === 'team' && ctx.access.canManage));
-  const jump = [{ id: 'apps', label: 'Apps' }, ...sections.filter((s) => s.id === 'brand' || s.id === 'elements').map((s) => ({ id: s.id, label: s.title })), { id: 'ai', label: 'For AI' }, ...sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => ({ id: s.id, label: s.id === 'builders' ? 'For developers' : 'Team files' }))];
+  // Plug-ins (portal v2, behind its release stage): what's ready for everyone; what's coming, for the studio only
+  const plugStage = portalV2() ? (await projectStages(ctx.project.id)).plugins : 'off';
+  const plugins = canSee(plugStage, ctx.preview) ? await (async () => {
+    const origin = await appOrigin();
+    const [{ rows, ready }, creds, preview, canvaUses, own] = await Promise.all([connections(ctx.project.id), panelClients(ctx.project.id), panelBrand(ctx.project.id, slug, ctx.preview, origin).catch(() => null), canvaApp(ctx.project.id).catch(() => null), secretOf<{ app?: unknown }>(ctx.project.id, 'canva').catch(() => null)]);
+    const staff = ctx.access.staff;
+    const items: PluginView[] = PLUGINS.filter((d) => staff || d.panel?.status === 'ready' || d.account?.status === 'ready').map((d) => {
+      const c = rows[d.id];
+      const ready = d.id === 'canva' ? { ...configured(d.id), account: !!canvaUses } : configured(d.id);
+      return { def: d, ready, panelSet: !!d.panel && creds.some((x) => x.host === d.panel!.host), ...(d.id === 'canva' && staff ? { canva: { ownApp: !!own?.app, callback: canvaCallback(origin) } } : {}), connected: c?.account ? { account: c.account, settings: visibleSettings(d.id, c.settings, staff) as Record<string, boolean | string>, last: (c.state as { last?: NonNullable<PluginView['connected']>['last'] }).last } : null };
+    });
+    return { items, ready, preview, panel: readPanel(ctx.project.content), badge: stageBadge(plugStage) };
+  })() : null;
+  const jump = [{ id: 'apps', label: 'Apps' }, ...sections.filter((s) => s.id === 'brand' || s.id === 'elements').map((s) => ({ id: s.id, label: s.title })), { id: 'ai', label: 'For AI' }, ...(plugins ? [{ id: 'plugins', label: 'Plug-ins' }] : []), ...sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => ({ id: s.id, label: s.id === 'builders' ? 'For developers' : 'Team files' }))];
 
   const card = (p: Package) => <PackageCard key={p.id} p={p} slug={slug} colours={snap.colours} logoUrl={ctx.logoUrl} preview={ctx.preview} fonts={ctx.fonts} canManage={ctx.access.canManage} />;
 
@@ -88,6 +112,11 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
         </div> : null}
         <p className="mute rs-note">To add a skill or the design system: in Claude, open <strong>Settings → Capabilities → Skills</strong> and upload the .zip. Download again after a new version of the guidelines.</p>
       </section>
+
+      {plugins ? <section id="plugins" className="rs-sec" aria-labelledby="h-plugins">
+        <div className="rs-sec-head"><h2 id="h-plugins" className="pt-h2">Plug-ins{plugins.badge ? <span className="beta-tag">{plugins.badge}</span> : null}</h2><p className="mute">{ctx.project.client} inside the tools your team already uses, and your files where you keep them.</p></div>
+        <Plugins slug={slug} client={ctx.project.client} lead={ctx.access.clientAdmin} staff={ctx.access.staff} items={plugins.items} panel={plugins.panel} preview={plugins.preview} dbReady={plugins.ready} flash={sp.plugin && sp.msg ? { plugin: sp.plugin, msg: sp.msg } : undefined} />
+      </section> : null}
 
       {sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => (
         <section key={s.id} id={s.id} className="rs-sec" aria-labelledby={`h-${s.id}`}>
