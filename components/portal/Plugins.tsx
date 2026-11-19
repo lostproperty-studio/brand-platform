@@ -37,7 +37,7 @@ const STATE_LABEL: Record<State, string> = { on: 'Connected', add: 'Add', soon: 
 const MONO: Partial<Record<PluginId, string>> = { office: 'M', google: 'G', gdrive: 'D', sharepoint: 'S' };
 /** Official app icons in public/plugins (from each maker's brand kit). A square app icon (.png) fills the mark;
  *  a bare logo (.svg) sits inside it. Add an app here when its file goes in; the rest show a monogram. */
-const ICONS: Partial<Record<PluginId, 'png' | 'svg'>> = { canva: 'png', figma: 'png', office: 'png', google: 'png' };
+const ICONS: Partial<Record<PluginId, 'png' | 'svg'>> = { canva: 'png', figma: 'png', office: 'png', google: 'png', gdrive: 'png', dropbox: 'png', sharepoint: 'png', github: 'png' };
 
 /** The app's mark: its official icon, or a quiet monogram until there is one */
 export function AppMark({ id, name, size = 44 }: { id: PluginId | 'lp'; name: string; size?: number }) {
