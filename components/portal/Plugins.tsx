@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronDown, Copy, Download, Loader2, RotateCw, X } from 'lucide-react';
 import { LpPanel } from '@/components/panel/LpPanel';
+import { LpAppIcon } from '@/components/panel/LpAppIcon';
 import type { PanelBrand, PanelHostApi } from '@/components/panel/types';
 import { PANEL_PARTS, type PanelSettings, type PluginDef, type PluginId } from '@/lib/plugins/catalog';
 
@@ -41,7 +42,7 @@ const ICONS: Partial<Record<PluginId, 'png' | 'svg'>> = { canva: 'png', figma: '
 
 /** The app's mark: its official icon, or a quiet monogram until there is one */
 export function AppMark({ id, name, size = 44 }: { id: PluginId | 'lp'; name: string; size?: number }) {
-  if (id === 'lp') return <span className="plg-mark lp" style={{ width: size, height: size }} aria-hidden />;
+  if (id === 'lp') return <LpAppIcon size={size} className="plg-lpicon" />;
   const icon = ICONS[id];
   return <span className={'plg-mark' + (icon === 'png' ? ' full' : '')} style={{ width: size, height: size }} aria-hidden>
     {icon
@@ -61,8 +62,8 @@ export function Plugins({ group, slug, client, lead, staff, items, panel, previe
   return <>
     {!dbReady && staff ? <p className="plg-flash warn">Preview: plug-ins aren’t set up in this database yet (migration 0013).</p> : null}
     {group === 'apps' ? <button type="button" className="plg-bar" onClick={() => setSheet(true)}>
-      <AppMark id="lp" name="Lost Property" size={36} />
-      <span className="plg-bartxt"><span>The brand panel</span><span className="mute">{client}’s logos, colours, images and Ask, the same in every app below.</span></span>
+      <AppMark id="lp" name="Lost Property" size={52} />
+      <span className="plg-bartxt"><span className="plg-barname">Brand Panel</span><span className="mute">Bring the platform with you in the workspaces your organisation uses day to day.</span></span>
       <span className="btn">Preview</span>
     </button> : null}
     <div className="plg-tiles">{items.map((p) => {
@@ -152,7 +153,7 @@ function Connect({ p, slug, client, lead, staff, onClose, onMsg, onPreview }: { 
       <Wire id={d.id} name={d.name} live={live} />
       <h3 className="plg-title">{client} in {d.name}</h3>
       <p className="mute plg-sub">{d.line}</p>
-      {d.panel ? <button type="button" className="plg-peek" onClick={() => onPreview(d.id)}>Preview the panel</button> : null}
+      {d.panel ? <button type="button" className="plg-peek" onClick={() => onPreview(d.id)}>Preview the Brand Panel</button> : null}
 
       <div className="plg-rows">
         {/* The brand panel, in each app */}
@@ -279,8 +280,8 @@ function PanelSheet({ slug, client, lead, panel, preview, onClose }: { slug: str
     },
     openPortal: () => window.open(`/p/${slug}`, '_blank')
   };
-  return <div className="plg-sheet-scrim" onClick={onClose}><aside className="plg-sheet" role="dialog" aria-modal="true" aria-label="The brand panel" onClick={(e) => e.stopPropagation()}>
-    <header className="plg-sheet-h"><div><p>The brand panel</p><p className="mute">As it appears in Canva, Office and Google. Try it.</p></div><button type="button" className="plg-x" onClick={onClose} aria-label="Close"><X {...I} /></button></header>
+  return <div className="plg-sheet-scrim" onClick={onClose}><aside className="plg-sheet" role="dialog" aria-modal="true" aria-label="Brand Panel" onClick={(e) => e.stopPropagation()}>
+    <header className="plg-sheet-h"><div className="plg-sheet-id"><LpAppIcon size={36} /><div><p>Brand Panel</p><p className="mute">As it appears in Canva, Office and Google. Try it.</p></div></div><button type="button" className="plg-x" onClick={onClose} aria-label="Close"><X {...I} /></button></header>
     <div className="plg-frame">{preview ? <LpPanel brand={{ ...preview, show }} host={host} /> : <p className="mute plg-empty">Shows {client}’s brand once the guidelines are published.</p>}</div>
     {note ? <p className="mute plg-note">{note}</p> : null}
     {lead ? <div className="plg-shows"><p className="mute">What it shows</p><div className="plg-chips" aria-label="What the panel shows">{PANEL_PARTS.map(({ id, label }) => <button key={id} type="button" aria-pressed={show[id]} className={'plg-chip' + (show[id] ? ' on' : '')} onClick={() => toggle(id)}>{show[id] ? <Check size={11} strokeWidth={2.5} aria-hidden /> : null}{label}</button>)}</div></div> : null}

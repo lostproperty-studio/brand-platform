@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LpPanel } from './LpPanel';
 import { PanelSession, type LinkStart } from './linkSession';
 import type { PanelBrand, PanelHostApi } from './types';
+import { LpAppIcon } from './LpAppIcon';
 
 // The panel in apps that sign in by link (Office, Google Workspace, Figma): signs in, loads the brand, and hands the
 // shared panel a host that can act in the app. `hostApi` gets the session so Ask can call the platform.
@@ -45,7 +46,7 @@ export function PanelShell({ session, where, hint, hostApi, openUrl }: {
 
   if (state === 'ready' && brand && host) return <LpPanel brand={brand} host={host} />;
   return <div className="lpx lpx-gate">
-    <span className="lpx-mark" aria-hidden />
+    <LpAppIcon size={28} className="lpx-icon" />
     {state === 'checking' ? <p className="lpx-sub">Loading the brand…</p> : null}
     {state === 'signin' ? <>
       <p className="lpx-client">Your brand, in {where}</p>

@@ -2,6 +2,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PanelBrand, PanelHostApi, PanelImage, PanelLogo } from './types';
 import './panel.css';
+import { LpAppIcon } from './LpAppIcon';
 
 // The LP panel: the same design for every client and in every app (Canva, Word, PowerPoint, Google Slides...).
 // What's in it is the client's own brand; what it can do depends on the app (the host). No outside dependencies,
@@ -34,7 +35,7 @@ export function LpPanel({ brand, host }: { brand: PanelBrand; host: PanelHostApi
   return (
     <div className="lpx">
       <header className="lpx-head">
-        <div className="lpx-id"><span className="lpx-mark" aria-hidden /><div><p className="lpx-client">{brand.client}</p><p className="lpx-sub">Brand</p></div></div>
+        <div className="lpx-id"><LpAppIcon size={28} className="lpx-icon" /><div><p className="lpx-client">{brand.client}</p><p className="lpx-sub">Brand Panel</p></div></div>
         {host.openPortal ? <button type="button" className="lpx-icon" onClick={host.openPortal} title="Open the brand portal" aria-label="Open the brand portal"><Ico d={I.out} /></button> : null}
       </header>
       <nav className="lpx-tabs" role="tablist">

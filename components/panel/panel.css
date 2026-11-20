@@ -124,3 +124,6 @@
 /* A page that is only the panel (Office task pane, Google sidebar) */
 .lpx-page { height: 100vh; }
 .lpx-page .lpx { height: 100vh; }
+
+.lpx-icon { flex: none; display: block; }
+.lpx-gate .lpx-icon { width: 40px; height: 40px; margin-bottom: 4px; }

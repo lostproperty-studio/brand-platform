@@ -4497,10 +4497,13 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 .plg-live { width: 6px; height: 6px; border-radius: 50%; background: var(--pink); animation: plg-beat 2.4s ease-in-out infinite; }
 @keyframes plg-beat { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
-.plg-bar { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; margin-bottom: 32px; border: 1px solid transparent; border-radius: 16px; background: var(--fill); text-align: left; cursor: pointer; transition: border-color .15s; }
+.plg-bar { display: flex; align-items: center; gap: 16px; width: 100%; padding: 16px 18px; margin-bottom: 32px; border: 1px solid transparent; border-radius: 16px; background: var(--fill); text-align: left; cursor: pointer; transition: border-color .15s; }
 .plg-bar:hover { border-color: #000; }
 .plg-bar:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
-.plg-bartxt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: 14px; }
+.plg-bartxt { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; font-size: 14px; }
+.plg-barname { font-size: 16px; }
+.plg-lpicon { flex: none; display: block; }
+.plg-sheet-id { display: flex; gap: 12px; align-items: center; }
 .plg-bartxt .mute { font-size: 12.5px; }
 .plg-bar .btn { background: #fff; }
 .plg-peek { display: block; margin: -12px auto 20px; border: 0; background: none; font-size: 12px; color: var(--mute); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }

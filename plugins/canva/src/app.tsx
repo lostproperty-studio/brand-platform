@@ -5,6 +5,7 @@ import { addElementAtPoint, ui } from '@canva/design';
 import { requestOpenExternalUrl } from '@canva/platform';
 import { LpPanel } from '../../../components/panel/LpPanel';
 import type { PanelBrand, PanelHostApi } from '../../../components/panel/types';
+import { LpAppIcon } from '../../../components/panel/LpAppIcon';
 
 // The LP panel inside Canva. Signs in to the client's brand portal (the platform is the sign-in provider, set up
 // per client in Resources → Plug-ins), loads that client's brand and places things into the design. The panel
@@ -76,7 +77,7 @@ export function App() {
 
   if (state === 'ready' && brand) return <LpPanel brand={brand} host={host} />;
   return <div className="lpx lpx-gate">
-    <span className="lpx-mark" aria-hidden />
+    <LpAppIcon size={28} className="lpx-icon" />
     {state === 'checking' ? <p className="lpx-sub">Loading the brand…</p> : null}
     {state === 'signin' ? <>
       <p className="lpx-client">Your brand, in Canva</p>
