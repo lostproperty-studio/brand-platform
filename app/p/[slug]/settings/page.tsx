@@ -4,6 +4,7 @@ import { portalContext } from '@/lib/portal/context';
 import { PortalSettings } from '@/components/portal/Settings';
 import { Plugins } from '@/components/portal/Plugins';
 import { pluginViews } from '@/lib/plugins/views';
+import { JumpNav } from '@/components/portal/JumpNav';
 
 // Settings: managers see the team; admins also see AI and its usage, the Claude connector, and requests to Lost Property.
 export default async function SettingsPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ plugin?: string; msg?: string }> }) {
@@ -20,13 +21,11 @@ export default async function SettingsPage({ params, searchParams }: { params: P
   // Storage (portal v2, behind the Plug-ins release stage): where the platform keeps the kit and the apps' files
   const storage = await pluginViews({ projectId: ctx.project.id, slug, content: ctx.project.content, preview: ctx.preview, staff: ctx.access.staff }, 'storage');
   return (
-    <div className="pt-page">
-      <header className="pt-chhead"><p className="mute">{ctx.access.clientAdmin ? 'For admins' : 'For managers'}</p><h1 className="pt-display">Settings</h1></header>
-      <PortalSettings slug={slug} hint={ctx.project.ai_key_hint} rejected={!!(ctx.project.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt} isAdmin={ctx.access.clientAdmin} usage={usage} />
-      {storage ? <section id="storage" className="rs-sec" aria-labelledby="h-storage">
-        <div className="rs-sec-head"><h2 id="h-storage" className="pt-h2">Storage{storage.badge ? <span className="beta-tag">{storage.badge}</span> : null}</h2><p className="mute">Keep the brand kit in your own storage, and choose where Photographer and Director keep their full-size files.</p></div>
-        <Plugins group="storage" slug={slug} client={ctx.project.client} lead={ctx.access.clientAdmin} staff={ctx.access.staff} items={storage.items} panel={storage.panel} preview={null} dbReady={storage.ready} flash={sp.plugin && sp.msg ? { plugin: sp.plugin, msg: sp.msg } : undefined} />
-      </section> : null}
+    <div className="pt-page rs">
+      <header className="pt-chhead"><p className="mute">{ctx.access.clientAdmin ? 'For admins' : 'For managers'}</p><h1 className="pt-display">Settings</h1><p className="pt-lede">Your team, your AI and how the platform connects to the rest of your organisation.</p></header>
+      <JumpNav items={[{ id: 'team', label: 'Team' }, ...(ctx.access.clientAdmin ? [{ id: 'ai', label: 'AI' }, { id: 'claude', label: 'Your own Claude' }] : []), ...(storage ? [{ id: 'storage', label: 'Storage' }] : []), ...(ctx.access.clientAdmin ? [{ id: 'requests', label: 'Requests' }] : [])]} />
+      <PortalSettings slug={slug} hint={ctx.project.ai_key_hint} rejected={!!(ctx.project.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt} isAdmin={ctx.access.clientAdmin} usage={usage}
+        storage={storage ? { title: <>Storage{storage.badge ? <span className="beta-tag">{storage.badge}</span> : null}</>, body: <Plugins group="storage" slug={slug} client={ctx.project.client} lead={ctx.access.clientAdmin} staff={ctx.access.staff} items={storage.items} panel={storage.panel} preview={null} dbReady={storage.ready} flash={sp.plugin && sp.msg ? { plugin: sp.plugin, msg: sp.msg } : undefined} /> } : null} />
     </div>
   );
 }

@@ -4615,3 +4615,23 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 
 /* Read by screen readers, not shown */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Settings, laid out like Resources: sections divided by hairlines, a row per setting */
+.st-body { display: flex; flex-direction: column; gap: 4px; max-width: 760px; }
+.st-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.st-rowtxt { min-width: 0; }
+.st-rowtxt p { margin: 0; }
+.st-rowtxt .mute { font-size: 13px; margin-top: 2px; }
+.st-field { display: flex; gap: 8px; padding: 14px 0 4px; }
+.st-field .in { flex: 1; min-width: 200px; }
+.st-msg { margin: 4px 0 0; font-size: 13px; }
+.st-alert { margin: 0 0 8px; padding: 10px 14px; border-radius: 10px; background: #fdecea; color: #8c1d18; font-size: 13px; }
+.st-copy { margin-top: 10px; }
+.st-help { margin-top: 10px; }
+.st-help summary { cursor: pointer; font-size: 13px; color: var(--mute); list-style: none; }
+.st-help summary::-webkit-details-marker { display: none; }
+.st-help summary::after { content: ' +'; }
+.st-help[open] summary::after { content: ' –'; }
+.st-help ol { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: #444; display: flex; flex-direction: column; gap: 4px; }
+.st-sec .plg-tiles { max-width: none; }
+#storage .st-body { max-width: none; }
