@@ -73,11 +73,6 @@ export default async function Resources({ params, searchParams }: { params: Prom
             <span className="rs-app-name">{t.name}{t.beta ? <span className="beta-tag" title="A work in progress: it may change, and things may not always work as expected">Beta</span> : null}{t.ai_enabled ? <span className="rs-pill">AI</span> : null}{t.visible ? null : <span className="rs-pill">Hidden</span>}</span>
             <span className="mute rs-app-desc">{t.description}</span>
           </Link>)}
-          <Link href={`${base}/resources/design-system`} className="rs-app">
-            <span className="rs-tile rs-tile-sys"><SystemPreview colours={snap.colours} logoUrl={ctx.logoUrl} client={ctx.project.client} roles={r} /></span>
-            <span className="rs-app-name">Design system<span className="rs-pill">For Claude</span></span>
-            <span className="mute rs-app-desc">The brand as a system AI can build with.</span>
-          </Link>
         </div>
       </section>
 
