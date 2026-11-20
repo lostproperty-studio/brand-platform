@@ -5,6 +5,7 @@ import { chapterText, keyFor } from '@/lib/portal/guide';
 import { chapterPhotos } from '@/lib/portal/covers';
 import { pickLogo, withFigmaLogos } from '@/lib/portal/logo';
 import { signMany } from '@/lib/storage/signed';
+import { packageSettings } from '@/lib/portal/packages';
 
 // A private export for the studio's Toolbox (toolbox.lostproperty.studio), so Mockup Studio can fill a project from a
 // brand's guidelines. Studio-only: it answers only to the shared TOOLBOX_API_KEY, never to clients or the public,
@@ -31,6 +32,7 @@ export async function toolboxBrands() {
 }
 
 const IMAGE = /\.(png|jpe?g|webp|svg)$/i;
+const VIDEO = /\.(mp4|mov|webm|m4v)$/i;
 
 export async function toolboxBrand(slug: string) {
   const sb = adminClient();
@@ -61,9 +63,12 @@ export async function toolboxBrand(slug: string) {
   const logos = [...byName.values()].slice(0, 24);
   const kitImages = files.filter((f) => /^assets\/(imagery|images|photography)\//.test(f.path) && IMAGE.test(f.path) && f.storage_path).slice(0, 12);
   const chapterImgs = [...new Set(imagery.flatMap((c) => chapterPhotos(c)))].slice(0, 12);
+  // Motion: video files in the kit's visible parts and in packages the studio hasn't hidden (e.g. a motion logo package)
+  const kitMotion = files.filter((f) => VIDEO.test(f.path) && f.storage_path).slice(0, 24);
+  const pkgMotion = Object.values(packageSettings(p.content)).filter((s) => !s.hidden && s.enabled !== false).flatMap((s) => (s.files || []).filter((u) => VIDEO.test(u.name)).map((u) => ({ ...u, pkg: s.title || '' }))).slice(0, 24);
   // Signed for an hour: long enough for the Toolbox to copy them
   const [kitUrls, prevUrls] = await Promise.all([
-    signMany('kits', [...logos, ...kitImages].map((f) => f.storage_path!), 3600),
+    signMany('kits', [...logos, ...kitImages, ...kitMotion].map((f) => f.storage_path!).concat(pkgMotion.map((u) => u.path)), 3600),
     signMany('previews', chapterImgs, 3600)
   ]);
   const kitUrl = (path: string) => kitUrls.data.find((d) => d.path === path)?.signedUrl;
@@ -76,6 +81,7 @@ export async function toolboxBrand(slug: string) {
     design: snap.design || [],
     artDirection: { chapters: imagery.map((c) => c.title), text: [...new Set(imageryText)].slice(0, 40) },
     logos: logos.map((f) => ({ name: name(f.path), url: kitUrl(f.storage_path!), light: /white|light|reverse|negative|inverse/i.test(f.path) })).filter((l) => l.url),
+    motion: [...kitMotion.map((f) => ({ name: name(f.path), url: kitUrl(f.storage_path!), from: 'kit' })), ...pkgMotion.map((u) => ({ name: u.name.replace(/\.[^.]+$/, ''), url: kitUrl(u.path), from: u.pkg || 'package' }))].filter((m) => m.url).slice(0, 24),
     images: [...chapterImgs.map((path) => ({ name: name(path), url: prevUrl(path), from: 'guidelines' })), ...kitImages.map((f) => ({ name: name(f.path), url: kitUrl(f.storage_path!), from: 'kit' }))].filter((i) => i.url).slice(0, 16)
   };
 }
