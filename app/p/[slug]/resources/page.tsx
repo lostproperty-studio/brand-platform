@@ -61,7 +61,7 @@ export default async function Resources({ params, searchParams }: { params: Prom
       <header className="pt-chhead">
         <p className="mute">Make and take away</p>
         <h1 className="pt-display">Resources</h1>
-        <p className="pt-lede">Apps for making {ctx.project.client} work, and everything you need to take with you, packaged by type.</p>
+        <p className="pt-lede">Download assets, use custom apps, and plug the platform into the tools you use day to day.</p>
       </header>
       <JumpNav items={jump} />
 
