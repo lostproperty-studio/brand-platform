@@ -285,7 +285,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pg-bar.failed i { background: #b3261e; }
 
 /* ---------- guideline blocks (responsive rebuild of Figma slides) */
-.gb { position: relative; display: flex; flex-direction: column; gap: 20px; border-radius: 6px; overflow: hidden; }
+/* clip, not hidden: it rounds the corners the same way but leaves sticky text (split modules) working */
+.gb { position: relative; display: flex; flex-direction: column; gap: 20px; border-radius: 6px; overflow: hidden; overflow: clip; }
 .gb.pad { padding: clamp(20px, 4vw, 48px); }
 .gb-in { position: relative; display: flex; flex-direction: column; gap: 14px; z-index: 1; }
 .gb-head { display: flex; flex-direction: column; gap: 8px; }
