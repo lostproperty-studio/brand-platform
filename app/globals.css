@@ -323,6 +323,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .gb-orig { margin: 0; }
 .gb-orig img { width: 100%; height: auto; display: block; border-radius: 4px; }
 .pt-blocks { display: flex; flex-direction: column; gap: clamp(48px, 10vw, 128px); }
+/* The first module sits well clear of the chapter's headline */
+.pt-chhead + .pt-blocks { margin-top: clamp(24px, 6vw, 88px); }
+/* A chapter's Resources sit apart from its content: the same space as between content modules, or more */
+.pt-page > .pt-res { margin-top: clamp(32px, 9vw, 120px); }
 @media (max-width: 760px) {
   .gb-two, .gb-split { grid-template-columns: 1fr; }
   .gb-split.left > .gb-media { order: 0; }
@@ -4018,7 +4022,8 @@ button.fb-card, .fb-open { all: unset; box-sizing: border-box; cursor: pointer; 
   .pt:has(.pt-chap) { --pt-sidew: 304px; grid-template-columns: 72px minmax(0, 1fr); }
   .pt-gwrap { display: grid; grid-template-columns: 232px minmax(0, 1fr); }
   .pt-gmain { min-width: 0; }
-  .pt-chap { position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 22px 12px 24px; border-right: 1px solid var(--line); background: #fff; }
+  /* Sits above the guideline content: full-bleed sections reach under it as the page scrolls */
+  .pt-chap { position: sticky; top: 0; z-index: 20; align-self: start; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 22px 12px 24px; border-right: 1px solid var(--line); background: var(--bg, #fff); }
   .pt-chap-h { padding: 6px 10px 12px; font-weight: 500; text-decoration: none; }
   .pt-chap-it { display: flex; gap: 10px; align-items: baseline; padding: 7px 10px; border-radius: 8px; text-decoration: none; line-height: 1.3; }
   .pt-chap-it .pt-n { flex: none; font-size: 11px; color: var(--mute); font-variant-numeric: tabular-nums; }

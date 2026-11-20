@@ -74,7 +74,7 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
         <div className="pt-rules">{c.rules.map((r, k) => <div key={k} className="pt-rule"><span className="pt-n">{chapterNum(k)}</span><p className="pt-rule-h">{r.title}</p><p>{r.text}</p></div>)}</div>
       </section> : null}
 
-      {packs.length ? <section className="pt-blk" aria-labelledby="h-d">
+      {packs.length ? <section className="pt-blk pt-res" aria-labelledby="h-d">
         <h2 id="h-d" className="pt-h2">Resources</h2>
         <div className="rs-grid">{packs.map((p) => <PackageCard key={p.id} p={p} slug={slug} colours={ctx.snap?.colours || []} logoUrl={ctx.logoUrl} preview={ctx.preview} fonts={ctx.fonts} />)}</div>
         <Link href={`/p/${slug}/resources`} className="mute">Everything in the kit →</Link>
