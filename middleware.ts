@@ -20,7 +20,7 @@ export async function middleware(req: NextRequest) {
   });
   const { data } = await sb.auth.getUser();
   const path = target ? target.pathname : req.nextUrl.pathname;
-  const open = path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/join/') || path.startsWith('/api/mcp') || path === '/api/health';
+  const open = path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/join/') || path.startsWith('/api/mcp') || path.startsWith('/api/toolbox/') || path === '/api/health';
   if (!data.user && !open) {
     // Client portals send people to that client's own branded sign-in page
     const portal = path.match(/^\/p\/([^/]+)/);
