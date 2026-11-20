@@ -1725,6 +1725,14 @@ p.as-wipe { margin-top: -6px; }
 /* The bar */
 .ak-bar { display: flex; align-items: flex-end; gap: 8px; width: 100%; max-width: 760px; background: #fff; border-radius: 22px; padding: 8px 8px 8px 16px; box-shadow: 0 0 0 1px var(--line), 0 10px 32px rgba(0,0,0,.09); transition: box-shadow .15s; }
 .ak-bar:focus-within { box-shadow: 0 0 0 1.5px #000, 0 10px 32px rgba(0,0,0,.09); }
+/* Woken: focused with nothing asked yet. The bar grows and lifts, and suggestions rise above it. */
+.ak-bar { transition: box-shadow .3s, max-width .45s cubic-bezier(.2,.8,.2,1), transform .45s cubic-bezier(.2,.8,.2,1); }
+.dock.ak.awake .ak-bar { max-width: 880px; transform: translateY(-6px); box-shadow: 0 0 0 1.5px #000, 0 24px 64px rgba(0,0,0,.16); }
+.ak-wake { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; max-width: 880px; margin-bottom: 14px; }
+.ak-wake .ak-chip { background: #fff; box-shadow: 0 0 0 1px var(--line), 0 6px 20px rgba(0,0,0,.08); opacity: 0; animation: ak-rise .4s cubic-bezier(.2,.8,.2,1) forwards; }
+.ak-wake .ak-chip:hover { box-shadow: 0 0 0 1px #000, 0 6px 20px rgba(0,0,0,.08); }
+@keyframes ak-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ak-bar { transition: none; } .dock.ak.awake .ak-bar { transform: none; } .ak-wake .ak-chip { animation: none; opacity: 1; } }
 .ak-bar > .ak-mark { align-self: center; }
 .ak-in { flex: 1; border: 0; background: transparent; font: inherit; font-size: 15px; line-height: 1.45; min-width: 0; resize: none; padding: 6px 0; max-height: 160px; color: #111; }
 .ak-in:focus { outline: none; }
