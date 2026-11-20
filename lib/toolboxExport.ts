@@ -11,8 +11,8 @@ import { signMany } from '@/lib/storage/signed';
 // and changes nothing on the platform. It reads the published guidelines only (what clients see), never the working copy.
 
 export function toolboxAuthorised(req: Request) {
-  const secret = process.env.TOOLBOX_API_KEY || '';
-  const got = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  const secret = (process.env.TOOLBOX_API_KEY || '').trim();
+  const got = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (secret.length < 24 || !got) return false;
   const a = Buffer.from(got), b = Buffer.from(secret);
   return a.length === b.length && timingSafeEqual(a, b);
