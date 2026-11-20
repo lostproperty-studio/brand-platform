@@ -4469,7 +4469,7 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 .plg-hmute { color: #b0b0b0; }
 /* auto-fit: the tiles always share the full width, however many a client sees */
 .plg-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
-.plg-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 16px; min-height: 140px; border: 1px solid var(--line); border-radius: 16px; background: #fff; cursor: pointer; text-align: left; transition: border-color .15s; }
+.plg-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 18px; min-height: 160px; aspect-ratio: 5 / 4; border: 1px solid var(--line); border-radius: 16px; background: #fff; cursor: pointer; text-align: left; transition: border-color .15s; }
 /* Hover as on every other card in the platform: a black hairline, no lift */
 .plg-tile:hover, .plg-tile:focus-visible { border-color: #000; }
 .plg-tile:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
