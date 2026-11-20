@@ -148,10 +148,10 @@ function Connect({ p, slug, client, lead, staff, onClose, onMsg, onPreview }: { 
   const spin = (k: string) => (busy === k ? <Loader2 {...I} className="spin" /> : null);
 
   return <div className="plg-scrim" onClick={onClose}>
-    <div className="plg-modal" role="dialog" aria-modal="true" aria-label={`${client} in ${d.name}`} onClick={(e) => e.stopPropagation()}>
+    <div className="plg-modal" role="dialog" aria-modal="true" aria-label={`LP Platform in ${d.name}`} onClick={(e) => e.stopPropagation()}>
       <button type="button" className="plg-x plg-close" onClick={onClose} aria-label="Close"><X {...I} /></button>
       <Wire id={d.id} name={d.name} live={live} />
-      <h3 className="plg-title">{client} in {d.name}</h3>
+      <h3 className="plg-title">LP Platform in {d.name}</h3>
       <p className="mute plg-sub">{d.line}</p>
       {d.panel ? <button type="button" className="plg-peek" onClick={() => onPreview(d.id)}>Preview the Brand Panel</button> : null}
 

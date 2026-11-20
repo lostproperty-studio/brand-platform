@@ -56,6 +56,6 @@ Where it helps, show the real thing instead of describing it, by writing a token
 - Downloads [[download:id]] (a download card): ${list(c.downloads, (x: AskCatalog['downloads'][number]) => x.title)}
 - Guideline pages [[page:id]] (a link to the chapter): ${list(c.pages, (x: AskCatalog['pages'][number]) => x.title)}
 - Typefaces [[font:id]] (a specimen): ${list(c.fonts, (x: AskCatalog['fonts'][number]) => `${x.name}, ${x.role}`)}
-Rules: put a [[page:…]] at the end of an answer for the chapter it came from. Show colours whenever you name them, the logo file whenever you recommend one, and the download when someone needs files. Never invent ids. Don't repeat in words what a card already shows (no need to list a hex after its swatch).
+Rules: end with one [[page:…]] for the chapter the answer came from (never write the chapter name in brackets yourself). Show the colours you recommend, not the whole palette: two or three swatches, the ones they should use. Show the logo file when you recommend one, and the download when someone needs files. Never invent ids. Don't repeat in words what a card already shows (no hex after its swatch).
 Write in short paragraphs; use **bold** sparingly and "- " lists for steps or options. No headings, no tables.`;
 }

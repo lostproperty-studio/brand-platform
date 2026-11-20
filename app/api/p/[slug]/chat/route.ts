@@ -45,7 +45,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   // The cards Ask can show (colours, logos, downloads, pages, typefaces), from the same portal the person sees
   const pc = await portalContext(slug);
   const catalog = pc?.snap ? await askCatalog(pc, slug).catch(() => null) : null;
-  const system = brandSystemPrompt(snap) + (catalog ? `\n\n${catalogPrompt(catalog)}` : '') + (here ? `\n\nWHAT THEY'RE LOOKING AT\n${here.text}\nIf they say "this", "here" or "on this page", they mean this. Keep answers short and practical.` : '');
+  const system = brandSystemPrompt(snap, { cite: 'none', voice: true }) + (catalog ? `\n\n${catalogPrompt(catalog)}` : '') + (here ? `\n\nWHAT THEY'RE LOOKING AT\n${here.text}\nIf they say "this", "here" or "on this page", they mean this. Keep answers short and practical.` : '');
   // The latest question carries any pictures they added
   const msgs = body.data.messages.map((m, i, all) => (i === all.length - 1 && m.role === 'user' && pics.length
     ? { role: 'user' as const, content: [...pics.map((x) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: x.type, data: x.data } })), { type: 'text' as const, text: m.content + '\n\n(Give feedback on the attached image against the guidelines: what follows them, what doesn’t and which rule, and a concrete fix for each. Check any words in it against the voice.)' }] }

@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   try { ({ ai } = await portalAnthropic(who.projectId, who.staff)); } catch (e) { if (e instanceof NoClientKey) return new Response(e.message, { status: 402, headers: cors }); throw e; }
   const r = await ai.messages.create({
     model: 'claude-sonnet-5-5', max_tokens: 700,
-    system: `${brandSystemPrompt(snap)}\n\nYou are answering inside a small side panel in ${body.data.where || 'a design app'}. Keep answers short: a few sentences or a short list. Give exact values. No headings.`,
+    system: `${brandSystemPrompt(snap, { cite: 'none', voice: true })}\n\nYou are answering inside a small side panel in ${body.data.where || 'a design app'}. Keep answers short: a few sentences or a short list. Give exact values. No headings.`,
     messages: body.data.messages
   });
   await logUsage(who.projectId, who.userId, 'chat', r.usage).catch(() => {});
