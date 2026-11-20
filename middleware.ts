@@ -22,7 +22,7 @@ export async function middleware(req: NextRequest) {
   const path = target ? target.pathname : req.nextUrl.pathname;
   const open = path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/join/') || path.startsWith('/api/mcp') || path === '/api/health'
     // The LP panel inside other apps: it signs in with its own tokens, and its pages load before anyone has signed in
-    || path.startsWith('/api/panel/') || /^\/panel\/(office|google|figma|link)(\/|$)/.test(path);
+    || path.startsWith('/api/panel/') || path === '/api/slack/events' || /^\/panel\/(office|google|figma|link)(\/|$)/.test(path);
   if (!data.user && !open) {
     // Client portals send people to that client's own branded sign-in page
     const portal = path.match(/^\/p\/([^/]+)/);

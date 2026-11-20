@@ -4635,3 +4635,81 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 .st-help ol { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: #444; display: flex; flex-direction: column; gap: 4px; }
 .st-sec .plg-tiles { max-width: none; }
 #storage .st-body { max-width: none; }
+
+/* Ask bar: Ask (the AI) or the Lost Property team */
+.ak-modes { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--fill-2); }
+.ak-modes button { border: 0; background: none; height: 26px; padding: 0 12px; border-radius: 999px; font: inherit; font-size: 13px; color: var(--mute); cursor: pointer; }
+.ak-modes button.on { background: #fff; color: #000; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.ak-chip.on { background: #000; color: #fff; box-shadow: none; }
+.lpc-empty svg { margin-bottom: 8px; }
+.lpc-thread { display: flex; flex-direction: column; gap: 14px; }
+.lpc-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.lpc-a { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: start; max-width: 86%; }
+.lpc-who { margin: 0 0 4px; font-size: 13px; }
+.lpc-body { font-size: 15px; line-height: 1.5; white-space: pre-wrap; }
+.lpc-wait { font-size: 12.5px; margin: 0; text-align: center; }
+.lpc-err { margin: 0; font-size: 12.5px; color: #b3261e; text-align: center; }
+.lpc-st { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 11px; background: var(--fill-2); color: #333; white-space: nowrap; }
+.lpc-st.in_progress::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--pink); }
+.lpc-st.done { background: transparent; color: var(--mute); box-shadow: inset 0 0 0 1px var(--line); }
+.lpc-list { display: flex; flex-direction: column; }
+.lpc-ticket { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 3px; padding: 12px 6px; border-bottom: 1px solid var(--line); border-radius: 8px; }
+.lpc-ticket:hover { background: var(--fill); }
+.lpc-tt { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 14px; }
+.lpc-tm { font-size: 12px; }
+.lpc-pv { font-size: 13px; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Settings → Lost Property */
+.lps { display: flex; flex-direction: column; gap: 28px; }
+.lps-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.lps-act { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s; }
+.lps-act:hover, .lps-act:focus-visible { border-color: #000; }
+.lps-ic { width: 40px; height: 40px; flex: none; border-radius: 12px; background: var(--fill); display: grid; place-items: center; }
+.lps-txt { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; font-size: 15px; }
+.lps-txt .mute { font-size: 13px; }
+.lps-price { flex: none; font-size: 12px; color: var(--mute); }
+.lps-th { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
+.lps-th h3 { margin: 0; font-size: 15px; font-weight: 500; }
+.lps-filter { display: inline-flex; gap: 2px; }
+.lps-filter button { border: 0; background: none; height: 28px; padding: 0 11px; border-radius: 999px; font: inherit; font-size: 12.5px; color: var(--mute); cursor: pointer; }
+.lps-filter button.on { background: #000; color: #fff; }
+.lps-row { all: unset; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+.lps-row:hover { background: var(--fill); }
+.lps-rt { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; }
+.lps-rt .mute { font-size: 12.5px; }
+.lps-none { padding: 14px 0; margin: 0; }
+
+/* Booking a session */
+.lpb { padding-top: 32px; }
+.lpb-back { position: absolute; top: 14px; left: 14px; }
+.lpb-id { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 18px; }
+.lpb-steps { display: flex; gap: 5px; margin: 0; }
+.lpb-steps span { width: 18px; height: 3px; border-radius: 2px; background: var(--line); }
+.lpb-steps span.on { background: #000; }
+.lpb-opts { display: flex; flex-direction: column; gap: 8px; }
+.lpb-opt { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s; }
+.lpb-opt:hover { border-color: #bdbdbd; }
+.lpb-opt.on { border-color: #000; }
+.lpb-opt .mute { font-size: 12.5px; line-height: 1.45; }
+.lpb-ot { display: flex; justify-content: space-between; font-size: 15px; }
+.lpb-p { font-variant-numeric: tabular-nums; }
+.lpb-go { width: 100%; justify-content: center; min-height: 40px; margin-top: 16px; }
+.lpb-days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.lpb-day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 0; border: 1px solid var(--line); border-radius: 12px; background: #fff; font-size: 15px; cursor: pointer; }
+.lpb-day .mute { font-size: 11px; }
+.lpb-day.on { background: #000; border-color: #000; color: #fff; }
+.lpb-day.on .mute { color: rgba(255,255,255,.7); }
+.lpb-times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+.lpb-time { height: 38px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+.lpb-time.on { border-color: #000; box-shadow: inset 0 0 0 1px #000; }
+.lpb-time:disabled { color: #c4c4c4; text-decoration: line-through; cursor: default; }
+.lpb-hint { text-align: center; font-size: 13px; margin: 14px 0 0; }
+.lpb-notes { width: 100%; margin-bottom: 8px; }
+.lpb .in { width: 100%; }
+.lpb-sum { margin-top: 16px; padding: 14px 16px; border-radius: 14px; background: var(--fill); display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.lpb-sum > div { display: flex; justify-content: space-between; gap: 12px; }
+.lpb-sum .mute { font-size: 12.5px; }
+.lpb-fine { text-align: center; font-size: 12px; margin: 10px 0 0; }
+.lpb-done { display: flex; flex-direction: column; align-items: center; }
+.lpb-tick { width: 44px; height: 44px; border-radius: 999px; background: #000; color: #fff; display: grid; place-items: center; margin-bottom: 14px; }
+.lpb-mock { margin: 0; padding: 8px 12px; border-radius: 8px; background: #fde3fa; color: #7a1f70; font-size: 12px; }

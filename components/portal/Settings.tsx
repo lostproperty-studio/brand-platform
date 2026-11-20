@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { TeamManager } from '@/components/TeamManager';
 import { Requests } from '@/components/portal/Requests';
+import { LpSupport } from '@/components/portal/LpSupport';
 
 // Client settings, laid out like Resources: a section each, divided by hairlines. Managers see the team; admins also
 // connect AI and see its usage, get a connector for their own Claude, choose storage and send requests to Lost Property.
@@ -13,7 +14,7 @@ function Sec({ id, title, line, children }: { id: string; title: ReactNode; line
   </section>;
 }
 
-export function PortalSettings({ slug, hint, rejected, isAdmin, usage, storage }: { slug: string; hint: string | null; rejected?: boolean; isAdmin: boolean; usage: { requests: number; input: number; output: number } | null; storage?: { title: ReactNode; body: ReactNode } | null }) {
+export function PortalSettings({ slug, hint, rejected, isAdmin, usage, storage, support }: { slug: string; hint: string | null; rejected?: boolean; isAdmin: boolean; usage: { requests: number; input: number; output: number } | null; storage?: { title: ReactNode; body: ReactNode } | null; support?: { badge: string | null } | null }) {
   const router = useRouter();
   const [key, setKey] = useState('');
   const [msg, setMsg] = useState('');
@@ -58,9 +59,11 @@ export function PortalSettings({ slug, hint, rejected, isAdmin, usage, storage }
         {conn ? <input className="in st-copy" readOnly value={conn.url} onFocus={(e) => e.target.select()} aria-label="Connector URL" /> : null}
       </Sec>
       {storage ? <Sec id="storage" title={storage.title} line="Keep the brand kit in your own storage, and choose where Photographer and Director keep their full-size files.">{storage.body}</Sec> : null}
-      <Sec id="requests" title="Requests to Lost Property" line="Ask for changes to the guidelines, new assets, hosting on your own domain, or anything else.">
+      {support ? <Sec id="requests" title={<>Lost Property{support.badge ? <span className="beta-tag">{support.badge}</span> : null}</>} line="The studio behind your brand: message the team, follow your requests, or book time with us.">
+        <LpSupport slug={slug} isAdmin={isAdmin} />
+      </Sec> : <Sec id="requests" title="Requests to Lost Property" line="Ask for changes to the guidelines, new assets, hosting on your own domain, or anything else.">
         <Requests slug={slug} />
-      </Sec>
+      </Sec>}
     </> : storage ? <Sec id="storage" title={storage.title} line="Keep the brand kit in your own storage, and choose where Photographer and Director keep their full-size files.">{storage.body}</Sec> : null}
   </>;
 }

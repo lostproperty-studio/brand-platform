@@ -36,7 +36,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
         {preview ? <div className="pt-preview" role="status">Studio preview of the working copy. <a href={`/api/p/${slug}/view-as?mode=client`}>View as the client</a> · {project.status === 'live' ? 'Clients see the last published version.' : 'Not published yet, so clients can’t see it.'} <a href={`/studio/projects/${project.id}`}>Back to the studio</a></div> : null}
         {asClient ? <div className="pt-preview as-client" role="status">You’re seeing exactly what {project.client}’s team sees: {project.status === 'live' ? 'the published version' : 'nothing yet, because it isn’t published'}, with their downloads, apps and AI. <a href={`/api/p/${slug}/view-as?mode=studio`}>Back to the studio preview</a></div> : null}
         {preview ? <PreviewComments projectId={project.id} v2={v2} /> : null}
-        {snap ? <AskDock slug={slug} client={project.client} aiConnected={!!project.ai_key_hint || preview} studioAi={preview} canConnect={access.clientAdmin} /> : null}
+        {snap ? <AskDock slug={slug} client={project.client} aiConnected={!!project.ai_key_hint || preview} studioAi={preview} canConnect={access.clientAdmin} lpChat={v2 && canSee(stages.support, preview)} /> : null}
         {!snap ? <div className="pt-empty"><h1>Coming soon</h1><p className="mute">Lost Property is preparing your brand guidelines. You’ll get an email when they’re ready.</p></div> : v2 ? <GuideShell slug={slug} chapters={chapters}>{children}</GuideShell> : children}
       </div>
     </div>
