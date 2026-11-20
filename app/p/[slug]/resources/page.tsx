@@ -38,7 +38,7 @@ export default async function Resources({ params, searchParams }: { params: Prom
   const skillsShown = SKILLS.filter((s) => skillShown(skillSet, s.id));
   // One Brand assets section, as in the studio: logo, colour and type, then the extras this brand has
   const sec = (p: Package) => (p.section === 'elements' ? 'brand' : p.section);
-  const sections = SECTIONS.filter((s) => s.id !== 'elements').map((s) => ({ ...s, items: shown.filter((p) => sec(p) === s.id) })).filter((s) => s.items.length || (s.id === 'team' && ctx.access.canManage));
+  const sections = SECTIONS.filter((s) => s.id !== 'elements').map((s) => ({ ...s, items: shown.filter((p) => sec(p) === s.id) })).filter((s) => s.items.length); // Team files only show where the team has already shared some
   // Plug-ins (portal v2, behind its release stage): what's ready for everyone; what's coming, for the studio only
   const plugStage = portalV2() ? (await projectStages(ctx.project.id)).plugins : 'off';
   const plugins = canSee(plugStage, ctx.preview) ? await (async () => {

@@ -4456,16 +4456,16 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 /* Resources → Plug-ins: a grid of apps; each opens a small connection window */
 .plg-flash { padding: 10px 14px; border-radius: 10px; margin: 0 0 20px; font-size: 13px; }
 .plg-flash.warn { background: #fde3fa; color: #7a1f70; }
-.plg-split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: clamp(32px, 5vw, 72px); align-items: start; }
-@media (max-width: 1080px) { .plg-split { grid-template-columns: 1fr; } }
 .plg-groups { display: flex; flex-direction: column; gap: 36px; }
 .plg-h { font-size: 13px; font-weight: 400; color: var(--mute); margin: 0 0 12px; }
 .plg-hmute { color: #b0b0b0; }
-.plg-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 12px; }
-.plg-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 16px; min-height: 140px; border: 1px solid var(--line); border-radius: 16px; background: #fff; cursor: pointer; text-align: left; transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s, border-color .2s; }
-.plg-tile:hover { transform: translateY(-2px); border-color: #e2e2e2; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 10px 28px rgba(0,0,0,.07); }
+.plg-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.plg-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 16px; min-height: 140px; border: 1px solid var(--line); border-radius: 16px; background: #fff; cursor: pointer; text-align: left; transition: border-color .15s; }
+/* Hover as on every other card in the platform: a black hairline, no lift */
+.plg-tile:hover, .plg-tile:focus-visible { border-color: #000; }
 .plg-tile:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
 .plg-tile.soon { background: var(--fill); border-color: transparent; }
+.plg-tile.soon:hover, .plg-tile.soon:focus-visible { border-color: #000; }
 .plg-tile.soon .plg-mark { opacity: .55; }
 .plg-tname { font-size: 15px; margin-top: auto; }
 .plg-tile .plg-pill { margin-top: -8px; height: 20px; font-size: 10.5px; }
@@ -4488,8 +4488,26 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 .plg-live { width: 6px; height: 6px; border-radius: 50%; background: var(--pink); animation: plg-beat 2.4s ease-in-out infinite; }
 @keyframes plg-beat { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
-.plg-preview { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 12px; }
-.plg-frame { height: 560px; border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 18px 48px rgba(0,0,0,.08); }
+.plg-bar { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; margin-bottom: 32px; border: 1px solid transparent; border-radius: 16px; background: var(--fill); text-align: left; cursor: pointer; transition: border-color .15s; }
+.plg-bar:hover { border-color: #000; }
+.plg-bar:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+.plg-bartxt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: 14px; }
+.plg-bartxt .mute { font-size: 12.5px; }
+.plg-bar .btn { background: #fff; }
+.plg-peek { display: block; margin: -12px auto 20px; border: 0; background: none; font-size: 12px; color: var(--mute); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.plg-peek:hover { color: #000; }
+
+/* The panel, in a sheet from the right, at the size it has in an app */
+.plg-sheet-scrim { position: fixed; inset: 0; z-index: 85; background: rgba(250,250,250,.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: flex-end; animation: plg-fade .2s ease-out; }
+.plg-sheet { width: min(400px, 100%); height: 100%; background: #fff; display: flex; flex-direction: column; gap: 14px; padding: 20px; box-shadow: -1px 0 0 var(--line), -24px 0 60px rgba(0,0,0,.08); animation: plg-slide .32s cubic-bezier(.2,.8,.2,1); }
+@keyframes plg-slide { from { transform: translateX(32px); opacity: 0; } }
+.plg-sheet-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.plg-sheet-h p { margin: 0; font-size: 15px; }
+.plg-sheet-h .mute { font-size: 12.5px; margin-top: 2px; }
+.plg-sheet .plg-frame { flex: 1; min-height: 0; height: auto; }
+.plg-shows { display: flex; flex-direction: column; gap: 8px; }
+.plg-shows > .mute { margin: 0; font-size: 12px; }
+.plg-frame { border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 18px 48px rgba(0,0,0,.08); }
 .plg-frame .lpx { min-height: 0; height: 100%; }
 .plg-empty { padding: 24px; }
 .plg-note { font-size: 12px; margin: 0; }
@@ -4563,7 +4581,7 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 .plg-err { margin: 12px 0 0; font-size: 12px; text-align: center; }
 .plg-toast { position: fixed; left: 50%; bottom: 28px; z-index: 90; transform: translate(-50%, 12px); padding: 10px 16px; border-radius: 999px; background: #000; color: #fff; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; }
 .plg-toast.show { opacity: 1; transform: translate(-50%, 0); }
-@media (prefers-reduced-motion: reduce) { .plg-tile, .plg-modal, .plg-scrim, .plg-live, .plg-switch, .plg-switch::after { transition: none; animation: none; } }
+@media (prefers-reduced-motion: reduce) { .plg-sheet, .plg-sheet-scrim, .plg-tile, .plg-modal, .plg-scrim, .plg-live, .plg-switch, .plg-switch::after { transition: none; animation: none; } }
 
 /* The panel's sign-in page (opened from Office, Google or Figma) */
 .pk { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--fill); }

@@ -58,10 +58,15 @@ export function Plugins({ slug, client, lead, staff, items, panel, preview, dbRe
   useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(''), 6000); return () => clearTimeout(t); }, [msg]);
   const groups = [{ id: 'apps', label: 'Apps', items: items.filter((i) => i.def.group === 'apps') }, { id: 'storage', label: 'Storage', items: items.filter((i) => i.def.group === 'storage') }].filter((g) => g.items.length);
   const cur = items.find((i) => i.def.id === open);
+  const [sheet, setSheet] = useState(false);
   return <>
     {!dbReady && staff ? <p className="plg-flash warn">Preview: plug-ins aren’t set up in this database yet (migration 0013).</p> : null}
-    <div className="plg-split">
-      <div className="plg-groups">
+    <button type="button" className="plg-bar" onClick={() => setSheet(true)}>
+      <AppMark id="lp" name="Lost Property" size={36} />
+      <span className="plg-bartxt"><span>The brand panel</span><span className="mute">{client}’s logos, colours, images and Ask, the same in every app below.</span></span>
+      <span className="btn">Preview</span>
+    </button>
+    <div className="plg-groups">
         {groups.map((g) => <div key={g.id}>
           <h3 className="plg-h">{g.label}</h3>
           <div className="plg-tiles">{g.items.map((p) => {
@@ -73,10 +78,9 @@ export function Plugins({ slug, client, lead, staff, items, panel, preview, dbRe
             </button>;
           })}</div>
         </div>)}
-      </div>
-      <PanelPreview slug={slug} client={client} lead={lead} panel={panel} preview={preview} />
     </div>
-    {cur ? <Connect p={cur} slug={slug} client={client} lead={lead} staff={staff} onClose={() => setOpen(null)} onMsg={setMsg} /> : null}
+    {cur ? <Connect p={cur} slug={slug} client={client} lead={lead} staff={staff} onClose={() => setOpen(null)} onMsg={setMsg} onPreview={d => { setOpen(null); setSheet(true); void d; }} /> : null}
+    {sheet ? <PanelSheet slug={slug} client={client} lead={lead} panel={panel} preview={preview} onClose={() => setSheet(false)} /> : null}
     <div className={'plg-toast' + (msg ? ' show' : '')} role="status" aria-live="polite">{msg}</div>
   </>;
 }
@@ -108,7 +112,7 @@ function Row({ title, sub, state, children }: { title: string; sub?: ReactNode; 
   </div>;
 }
 
-function Connect({ p, slug, client, lead, staff, onClose, onMsg }: { p: PluginView; slug: string; client: string; lead: boolean; staff: boolean; onClose: () => void; onMsg: (m: string) => void }) {
+function Connect({ p, slug, client, lead, staff, onClose, onMsg, onPreview }: { p: PluginView; slug: string; client: string; lead: boolean; staff: boolean; onClose: () => void; onMsg: (m: string) => void; onPreview: (id: PluginId) => void }) {
   const router = useRouter();
   const d = p.def;
   const [busy, setBusy] = useState(''), [err, setErr] = useState('');
@@ -154,6 +158,7 @@ function Connect({ p, slug, client, lead, staff, onClose, onMsg }: { p: PluginVi
       <Wire id={d.id} name={d.name} live={live} />
       <h3 className="plg-title">{client} in {d.name}</h3>
       <p className="mute plg-sub">{d.line}</p>
+      {d.panel ? <button type="button" className="plg-peek" onClick={() => onPreview(d.id)}>Preview the panel</button> : null}
 
       <div className="plg-rows">
         {/* The brand panel, in each app */}
@@ -257,7 +262,8 @@ function CopyRow({ k, v }: { k: string; v: string }) {
 }
 
 /** The panel as it looks in every app, live, with this client's brand; and (for the lead) what it shows */
-function PanelPreview({ slug, client, lead, panel, preview }: { slug: string; client: string; lead: boolean; panel: PanelSettings; preview: PanelBrand | null }) {
+function PanelSheet({ slug, client, lead, panel, preview, onClose }: { slug: string; client: string; lead: boolean; panel: PanelSettings; preview: PanelBrand | null; onClose: () => void }) {
+  useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
   const router = useRouter();
   const [show, setShow] = useState(panel);
   const [note, setNote] = useState('');
@@ -279,10 +285,10 @@ function PanelPreview({ slug, client, lead, panel, preview }: { slug: string; cl
     },
     openPortal: () => window.open(`/p/${slug}`, '_blank')
   };
-  return <div className="plg-preview">
-    <h3 className="plg-h">The panel <span className="plg-hmute">· the same in every app</span></h3>
+  return <div className="plg-sheet-scrim" onClick={onClose}><aside className="plg-sheet" role="dialog" aria-modal="true" aria-label="The brand panel" onClick={(e) => e.stopPropagation()}>
+    <header className="plg-sheet-h"><div><p>The brand panel</p><p className="mute">As it appears in Canva, Office and Google. Try it.</p></div><button type="button" className="plg-x" onClick={onClose} aria-label="Close"><X {...I} /></button></header>
     <div className="plg-frame">{preview ? <LpPanel brand={{ ...preview, show }} host={host} /> : <p className="mute plg-empty">Shows {client}’s brand once the guidelines are published.</p>}</div>
     {note ? <p className="mute plg-note">{note}</p> : null}
-    {lead ? <div className="plg-chips" aria-label="What the panel shows">{PANEL_PARTS.map(({ id, label }) => <button key={id} type="button" aria-pressed={show[id]} className={'plg-chip' + (show[id] ? ' on' : '')} onClick={() => toggle(id)}>{show[id] ? <Check size={11} strokeWidth={2.5} aria-hidden /> : null}{label}</button>)}</div> : null}
-  </div>;
+    {lead ? <div className="plg-shows"><p className="mute">What it shows</p><div className="plg-chips" aria-label="What the panel shows">{PANEL_PARTS.map(({ id, label }) => <button key={id} type="button" aria-pressed={show[id]} className={'plg-chip' + (show[id] ? ' on' : '')} onClick={() => toggle(id)}>{show[id] ? <Check size={11} strokeWidth={2.5} aria-hidden /> : null}{label}</button>)}</div></div> : null}
+  </aside></div>;
 }
