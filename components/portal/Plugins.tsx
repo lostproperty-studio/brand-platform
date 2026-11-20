@@ -51,34 +51,28 @@ export function AppMark({ id, name, size = 44 }: { id: PluginId | 'lp'; name: st
   </span>;
 }
 
-export function Plugins({ slug, client, lead, staff, items, panel, preview, dbReady, flash }: { slug: string; client: string; lead: boolean; staff: boolean; items: PluginView[]; panel: PanelSettings; preview: PanelBrand | null; dbReady: boolean; flash?: { plugin: string; msg: string } }) {
+export function Plugins({ group, slug, client, lead, staff, items, panel, preview, dbReady, flash }: { group: 'apps' | 'storage'; slug: string; client: string; lead: boolean; staff: boolean; items: PluginView[]; panel: PanelSettings; preview: PanelBrand | null; dbReady: boolean; flash?: { plugin: string; msg: string } }) {
   const [open, setOpen] = useState<PluginId | null>(flash && items.some((i) => i.def.id === flash.plugin) ? flash.plugin as PluginId : null);
   const [msg, setMsg] = useState(flash?.msg || '');
   useEffect(() => { if (flash) { const u = new URL(window.location.href); u.searchParams.delete('plugin'); u.searchParams.delete('msg'); window.history.replaceState(null, '', u.toString()); } }, [flash]);
   useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(''), 6000); return () => clearTimeout(t); }, [msg]);
-  const groups = [{ id: 'apps', label: 'Apps', items: items.filter((i) => i.def.group === 'apps') }, { id: 'storage', label: 'Storage', items: items.filter((i) => i.def.group === 'storage') }].filter((g) => g.items.length);
   const cur = items.find((i) => i.def.id === open);
   const [sheet, setSheet] = useState(false);
   return <>
     {!dbReady && staff ? <p className="plg-flash warn">Preview: plug-ins aren’t set up in this database yet (migration 0013).</p> : null}
-    <button type="button" className="plg-bar" onClick={() => setSheet(true)}>
+    {group === 'apps' ? <button type="button" className="plg-bar" onClick={() => setSheet(true)}>
       <AppMark id="lp" name="Lost Property" size={36} />
       <span className="plg-bartxt"><span>The brand panel</span><span className="mute">{client}’s logos, colours, images and Ask, the same in every app below.</span></span>
       <span className="btn">Preview</span>
-    </button>
-    <div className="plg-groups">
-        {groups.map((g) => <div key={g.id}>
-          <h3 className="plg-h">{g.label}</h3>
-          <div className="plg-tiles">{g.items.map((p) => {
-            const st = stateOf(p);
-            return <button key={p.def.id} type="button" className={'plg-tile ' + st} onClick={() => setOpen(p.def.id)}>
-              <AppMark id={p.def.id} name={p.def.name} />
-              <span className="plg-tname">{p.def.name}</span>
-              <span className={'plg-pill ' + st}>{st === 'on' ? <span className="plg-live" aria-hidden /> : null}{STATE_LABEL[st]}</span>
-            </button>;
-          })}</div>
-        </div>)}
-    </div>
+    </button> : null}
+    <div className="plg-tiles">{items.map((p) => {
+      const st = stateOf(p);
+      return <button key={p.def.id} type="button" className={'plg-tile ' + st} onClick={() => setOpen(p.def.id)}>
+        <AppMark id={p.def.id} name={p.def.name} />
+        <span className="plg-tname">{p.def.name}</span>
+        <span className={'plg-pill ' + st}>{st === 'on' ? <span className="plg-live" aria-hidden /> : null}{STATE_LABEL[st]}</span>
+      </button>;
+    })}</div>
     {cur ? <Connect p={cur} slug={slug} client={client} lead={lead} staff={staff} onClose={() => setOpen(null)} onMsg={setMsg} onPreview={d => { setOpen(null); setSheet(true); void d; }} /> : null}
     {sheet ? <PanelSheet slug={slug} client={client} lead={lead} panel={panel} preview={preview} onClose={() => setSheet(false)} /> : null}
     <div className={'plg-toast' + (msg ? ' show' : '')} role="status" aria-live="polite">{msg}</div>

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { appOrigin } from '@/lib/origin';
 import { encryptSecret } from '@/lib/crypto';
 import { pluginsAccess } from '@/lib/plugins/server';
+import { pluginById } from '@/lib/plugins/catalog';
 import { authoriseUrl, canvaApp } from '@/lib/plugins/canva';
 
 // Starts connecting an account: off to the app to allow access, then back to Resources → Plug-ins
@@ -10,7 +11,9 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string; id:
   const { slug, id } = await ctx.params;
   const a = await pluginsAccess(slug); if (!a) return new Response('Not found', { status: 404 });
   const o = await appOrigin();
-  const back = (msg: string) => NextResponse.redirect(`${o}/p/${slug}/resources?plugin=${id}&msg=${encodeURIComponent(msg)}#plugins`);
+  // Apps live in Resources → Plug-ins; storage in Settings
+  const where = pluginById(id)?.group === 'storage' ? `settings?plugin=${id}&msg=MSG#storage` : `resources?plugin=${id}&msg=MSG#plugins`;
+  const back = (msg: string) => NextResponse.redirect(`${o}/p/${slug}/${where.replace('MSG', encodeURIComponent(msg))}`);
   if (!a.lead) return back('Only your portal’s lead can connect accounts.');
   if (id !== 'canva') return back('That one isn’t ready yet.');
   const app = await canvaApp(a.p.id);
