@@ -49,9 +49,16 @@ export async function toolboxBrand(slug: string) {
   const { data: parts } = await sb.from('deliverable_parts').select('visible, deliverable_files(path, format, storage_path)').eq('project_id', p.id).eq('visible', true);
   const kit = (parts || []).flatMap((d) => (d.deliverable_files || []) as { path: string; format: string; storage_path: string | null }[]);
   const files = withFigmaLogos(kit, p.content, { format: 'svg' });
+  // Every logo (wordmarks, symbols, lockups), one per name: SVG when there is one, otherwise PNG. The main ones first.
   const { main, light } = pickLogo(files);
-  const logos = [main, light, ...files.filter((f) => f.path.startsWith('assets/logo/') && /\.(svg|png)$/i.test(f.path))]
-    .filter((f, i, all): f is NonNullable<typeof f> => !!f?.storage_path && all.findIndex((x) => x?.path === f.path) === i).slice(0, 6);
+  const base = (path: string) => path.split('/').pop()!.replace(/\.[^.]+$/, '').toLowerCase();
+  const byName = new Map<string, (typeof files)[number]>();
+  for (const f of [main, light, ...files.filter((x) => x.path.startsWith('assets/logo/') && /\.(svg|png)$/i.test(x.path))]) {
+    if (!f?.storage_path) continue;
+    const have = byName.get(base(f.path));
+    if (!have || (!have.path.endsWith('.svg') && f.path.endsWith('.svg'))) byName.set(base(f.path), f);
+  }
+  const logos = [...byName.values()].slice(0, 24);
   const kitImages = files.filter((f) => /^assets\/(imagery|images|photography)\//.test(f.path) && IMAGE.test(f.path) && f.storage_path).slice(0, 12);
   const chapterImgs = [...new Set(imagery.flatMap((c) => chapterPhotos(c)))].slice(0, 12);
   // Signed for an hour: long enough for the Toolbox to copy them
