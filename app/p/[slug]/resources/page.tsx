@@ -52,7 +52,7 @@ export default async function Resources({ params, searchParams }: { params: Prom
     });
     return { items, ready, preview, panel: readPanel(ctx.project.content), badge: stageBadge(plugStage) };
   })() : null;
-  const jump = [{ id: 'apps', label: 'Apps' }, ...sections.filter((s) => s.id === 'brand' || s.id === 'elements').map((s) => ({ id: s.id, label: s.title })), { id: 'ai', label: 'For AI' }, ...(plugins ? [{ id: 'plugins', label: 'Plug-ins' }] : []), ...sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => ({ id: s.id, label: s.id === 'builders' ? 'For developers' : 'Team files' }))];
+  const jump = [{ id: 'apps', label: 'Custom Apps' }, ...sections.filter((s) => s.id === 'brand' || s.id === 'elements').map((s) => ({ id: s.id, label: s.title })), { id: 'ai', label: 'For AI' }, ...(plugins ? [{ id: 'plugins', label: 'Plug-ins' }] : []), ...sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => ({ id: s.id, label: s.id === 'builders' ? 'For developers' : 'Team files' }))];
 
   const card = (p: Package) => <PackageCard key={p.id} p={p} slug={slug} colours={snap.colours} logoUrl={ctx.logoUrl} preview={ctx.preview} fonts={ctx.fonts} canManage={ctx.access.canManage} />;
 
@@ -66,7 +66,7 @@ export default async function Resources({ params, searchParams }: { params: Prom
       <JumpNav items={jump} />
 
       <section id="apps" className="rs-sec" aria-labelledby="h-apps">
-        <div className="rs-sec-head"><h2 id="h-apps" className="pt-h2">Apps</h2><p className="mute">Built for the {ctx.project.client} brand, with the rules built in.</p></div>
+        <div className="rs-sec-head"><h2 id="h-apps" className="pt-h2">Custom Apps</h2><p className="mute">Built for the {ctx.project.client} brand, with the rules built in.</p></div>
         <div className="rs-tray">
           {tools.map((t, i) => <Link key={t.id} href={`${base}/tools/${t.id}`} className={'rs-app' + (t.visible ? '' : ' off')}>
             <AppTile icon={t.icon} />
