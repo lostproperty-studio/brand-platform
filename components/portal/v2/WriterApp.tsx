@@ -336,7 +336,7 @@ function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, on
   return <div id={`pc-${p.id}`} className={'w2-piece' + (on ? ' on' : '') + (p.status === 'signed' ? ' locked' : '')} onClick={onFocus}>
     <div className="w2-ph">
       <span className="tpl-tag" title={TEMPLATE_FOR[tid] || ''}><Tic size={15} strokeWidth={1.7} aria-hidden /></span>
-      <span className="tpl-t"><span className="tpl-l">{tpl.label}</span><input className="w2-pname" value={p.name === tpl.label ? '' : p.name} placeholder={`Name it (${n})`} onChange={(e) => set({ name: e.target.value || tpl.label })} aria-label="Piece name" disabled={p.status === 'signed'} /></span>
+      <span className="tpl-t"><span className="tpl-l">{tpl.label}</span></span>
       <span className="fb-sp" />
       {p.status !== 'signed' ? <button className="w2-ic" onClick={(e) => { e.stopPropagation(); setBox(box === 'comment' ? null : 'comment'); }} aria-label="Comment" title="Comment (select words first to comment on them)"><MessageSquarePlus {...I} /></button> : null}
       {p.status === 'draft' ? <><span className={ST.draft[1]}>Draft</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); setBox('handoff'); }} disabled={!p.text.trim() && !p.out}>Request review</button></> : null}

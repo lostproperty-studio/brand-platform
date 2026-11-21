@@ -160,21 +160,42 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
   const grow = (el: HTMLTextAreaElement | null) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } };
 
   let pieceN = 0;
-  return <div className="wb" onDragOver={(e) => drag && e.preventDefault()}>
+  // Reordering: hold the ⋮⋮ handle and move. A short press without moving opens the block's menu instead.
+  const grab = (b: Block) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    const x0 = e.clientX, y0 = e.clientY; let moving = false; let target: { id: string; after: boolean } | null = null;
+    const move = (m: PointerEvent) => {
+      if (!moving && Math.hypot(m.clientX - x0, m.clientY - y0) < 5) return;
+      if (!moving) { moving = true; setDrag(b.id); document.body.classList.add('wb-dragging'); }
+      m.preventDefault();
+      const els = [...document.querySelectorAll<HTMLElement>('.wb > .wb-b')];
+      let best: { id: string; after: boolean } | null = null;
+      for (const el of els) { const r = el.getBoundingClientRect(); if (m.clientY < r.top + r.height / 2) { best = { id: el.dataset.block!, after: false }; break; } best = { id: el.dataset.block!, after: true }; }
+      target = best && best.id !== b.id ? best : null; setOver(target);
+      if (m.clientY < 80) scrollBy(0, -12); if (m.clientY > innerHeight - 80) scrollBy(0, 12);
+      const sc = (e.currentTarget as HTMLElement | null)?.closest('.w2-doc'); if (sc) { if (m.clientY < 120) sc.scrollTop -= 14; if (m.clientY > innerHeight - 100) sc.scrollTop += 14; }
+    };
+    const up = () => {
+      removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+      document.body.classList.remove('wb-dragging');
+      if (!moving) { setMenu(menu?.at === b.id && menu.mode === 'turn' ? null : { at: b.id, q: '', mode: 'turn' }); return; }
+      const t = target as { id: string; after: boolean } | null;
+      if (t) setBlocks((bs) => { const mv = bs.find((x) => x.id === b.id)!; const rest = bs.filter((x) => x.id !== b.id); const j = rest.findIndex((x) => x.id === t.id) + (t.after ? 1 : 0); rest.splice(j, 0, mv); return rest; });
+      setDrag(null); setOver(null);
+    };
+    addEventListener('pointermove', move, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  };
+  return <div className="wb">
     {blocks.map((b, i) => {
       if (b.type === 'piece') pieceN++;
       const n = pieceN;
-      const dnd = drag ? {
-        onDragOver: (e: React.DragEvent) => { e.preventDefault(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setOver({ id: b.id, after: e.clientY > r.top + r.height / 2 }); },
-        onDrop: (e: React.DragEvent) => { e.preventDefault(); if (drag && over && drag !== over.id) setBlocks((bs) => { const m = bs.find((x) => x.id === drag)!; const rest = bs.filter((x) => x.id !== drag); const j = rest.findIndex((x) => x.id === over.id) + (over.after ? 1 : 0); rest.splice(j, 0, m); return rest; }); setDrag(null); setOver(null); }
-      } : {};
       const numbered = b.type === 'bullet';
       return <Fragment key={b.id}>
-        <div className={`wb-b wb-is-${b.type}` + (over?.id === b.id ? (over.after ? ' drop-after' : ' drop-before') : '') + (drag === b.id ? ' dragging' : '')} data-block={b.id} {...dnd}>
+        <div className={`wb-b wb-is-${b.type}` + (over?.id === b.id ? (over.after ? ' drop-after' : ' drop-before') : '') + (drag === b.id ? ' dragging' : '')} data-block={b.id}>
           {!readOnly ? <div className="wb-gut" contentEditable={false}>
             <button type="button" className="wb-g" onClick={() => setMenu(menu?.at === b.id && menu.mode === 'plus' ? null : { at: b.id, q: '', mode: 'plus' })} aria-label="Add a block below" title="Add a block below"><Plus size={16} strokeWidth={1.6} aria-hidden /></button>
-            <button type="button" className="wb-g wb-drag" draggable onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', b.id); setDrag(b.id); }} onDragEnd={() => { setDrag(null); setOver(null); }}
-              onClick={() => setMenu(menu?.at === b.id && menu.mode === 'turn' ? null : { at: b.id, q: '', mode: 'turn' })} aria-label="Drag to move, or click for options" title="Drag to move · click for options"><GripVertical size={16} strokeWidth={1.6} aria-hidden /></button>
+            <button type="button" className="wb-g wb-drag" onPointerDown={grab(b)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMenu({ at: b.id, q: '', mode: 'turn' }); } if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); setBlocks((bs) => { const i = bs.findIndex((x) => x.id === b.id); const j = e.key === 'ArrowUp' ? i - 1 : i + 1; if (j < 0 || j >= bs.length) return bs; const n = [...bs]; [n[i], n[j]] = [n[j], n[i]]; return n; }); } }}
+              aria-label="Drag to move, or click for options (Alt and arrow keys to move)" title="Drag to move · click for options"><GripVertical size={16} strokeWidth={1.6} aria-hidden /></button>
             {blocks.length > 1 || b.type !== 'text' ? <button type="button" className="wb-g wb-del" onClick={() => del(b)} aria-label="Delete this block" title="Delete"><Trash2 size={15} strokeWidth={1.6} aria-hidden /></button> : null}
           </div> : null}
           {TEXTY.includes(b.type) ? <div className="wb-line">

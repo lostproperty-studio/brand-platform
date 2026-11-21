@@ -5368,3 +5368,7 @@ html.in-app body { -webkit-tap-highlight-color: transparent; overscroll-behavior
 .pc-del { color: #a6a6a6; }
 .pc-del:hover { color: #c4314b; background: #fdf1ee; }
 .wb-g { color: #9a9a9a; }
+.wb-drag { touch-action: none; }
+body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+.wb-b.dragging { opacity: .35; }
+.wb-b.drop-before::before, .wb-b.drop-after::after { z-index: 6; }
