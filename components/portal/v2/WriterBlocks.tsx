@@ -1,8 +1,9 @@
 'use client';
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CheckSquare, ClipboardList, Compass, GripVertical, Heading1, Heading2, Lightbulb, List, Minus, PenLine, Plus, Quote, Text, Trash2, Copy as CopyIcon } from 'lucide-react';
 import { isCheck, readFacts, type FactSheet } from '@/lib/factSheet';
-import { TemplatePicker } from '@/components/portal/v2/WriterTemplates';
+import { TemplatePicker, TEMPLATE_FOR, iconFor, usedTemplate, useQuickTemplates } from '@/components/portal/v2/WriterTemplates';
+import { templateById } from '@/lib/writerTemplates';
 
 // The Writer's page, built from blocks like a Notion page: text, headings, lists, to-dos, quotes, callouts and
 // dividers, plus smart blocks. A Piece is copy written for places (Instagram, email…) with options from the Writer;
@@ -47,7 +48,7 @@ function factOf(f: FactSheet | null | undefined, b: Block) {
   return { label: r[0], value: vals.length === 1 ? vals[0][1] : vals.map(([k, c]) => `${k}: ${c}`).join(' · '), unsure: isCheck(r), where: t.title };
 }
 
-type Item = { type: BlockType; label: string; about: string; Ic: typeof Text; smart?: boolean; keys?: string };
+type Item = { type: BlockType; label: string; about: string; Ic: typeof Text; smart?: boolean; keys?: string; tpl?: string; quick?: 'fav' | 'recent' };
 const MENU: Item[] = [
   { type: 'piece', label: 'Piece', about: 'Copy for a destination: Instagram, an ad, an email, a poster…', Ic: PenLine, smart: true },
   { type: 'brief', label: 'Brief', about: 'What the pieces need to do. The Writer reads it', Ic: Compass, smart: true },
@@ -61,6 +62,19 @@ const MENU: Item[] = [
   { type: 'divider', label: 'Divider', about: 'A line across the page', Ic: Minus, keys: '---' }
 ];
 const SHORT: [RegExp, BlockType][] = [[/^#\s$/, 'h1'], [/^##\s$/, 'h2'], [/^\[\]\s$/, 'todo'], [/^[-*]\s$/, 'bullet'], [/^>\s$/, 'quote'], [/^---$/, 'divider']];
+
+/** Like Notion: a menu opens below the line if there's room, above it if there's more room there, and never runs off the screen */
+export function useFit(ref: React.RefObject<HTMLElement | null>, want = 380) {
+  const [fit, setFit] = useState<{ up: boolean; max: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current?.parentElement; if (!el) return;
+    const r = el.getBoundingClientRect(); const anchorBottom = Math.min(r.bottom, r.top + 40);
+    const below = innerHeight - anchorBottom - 16, above = r.top - 72;
+    const up = below < Math.min(want, 300) && above > below;
+    setFit({ up, max: Math.max(160, Math.min(want, up ? above : below)) });
+  }, [ref, want]);
+  return fit ? { style: { maxHeight: fit.max, ...(fit.up ? { top: 'auto', bottom: 'calc(100% + 4px)' } : {}) }, up: fit.up } : { style: { visibility: 'hidden' as const }, up: false };
+}
 
 export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePiece, restorePiece, renderPiece, readOnly }: {
   blocks: Block[]; setBlocks: (fn: (b: Block[]) => Block[]) => void; slug: string; facts: boolean;
@@ -91,9 +105,10 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
     return { id: uid(), type, text: '' };
   };
   // Picking from the menu: an empty line becomes the block; otherwise it goes in below
-  const choose = (type: BlockType) => {
+  const choose = (type: BlockType, tpl?: string) => {
     if (!menu) return;
     const at = blocks.find((b) => b.id === menu.at); setMenu(null);
+    if (type === 'piece' && tpl) { placePiece(tpl, menu.at); return; }
     if (type === 'fact') { setFactPick(menu.at); return; }
     if (type === 'piece') { setTplPick(menu.at); return; }
     if (menu.mode === 'turn' && at && TEXTY.includes(type) && TEXTY.includes(at.type)) { patch(at.id, { type }); setFocusId({ id: at.id }); return; }
@@ -106,8 +121,8 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
     else if (type === 'divider' || type === 'brief') { const t: Block = { id: uid(), type: 'text', text: '' }; setTimeout(() => { insertAfter(id, t); if (type === 'divider') setFocusId({ id: t.id }); }, 0); }
   };
   // A piece is a template for a destination: pick it, and the card goes in (an empty line becomes it)
-  const placePiece = (template: string) => {
-    const at = blocks.find((b) => b.id === tplPick); setTplPick(null);
+  const placePiece = (template: string, atId = tplPick) => {
+    const at = blocks.find((b) => b.id === atId); setTplPick(null); usedTemplate(template);
     const b: Block = { id: uid(), type: 'piece', pieceId: addPiece(template) };
     if (at && at.type === 'text' && !(at.text || '').replace(/^\//, '').trim()) setBlocks((bs) => bs.map((x) => (x.id === at.id ? { ...b, id: at.id } : x)));
     else insertAfter(at?.id || null, b);
@@ -125,7 +140,10 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
     if (at && at.type === 'text' && !(at.text || '').replace(/^\//, '').trim()) setBlocks((bs) => bs.map((x) => (x.id === at.id ? { ...b, id: at.id } : x)));
     else insertAfter(at?.id || null, b);
   };
-  const items = menu ? MENU.filter((m) => (menu.mode !== 'turn' || TEXTY.includes(m.type)) && (m.type !== 'fact' || facts) && (!menu.q || `${m.label} ${m.about}`.toLowerCase().includes(menu.q.toLowerCase()))) : [];
+  const quickT = useQuickTemplates();
+  const quick: Item[] = menu && menu.mode !== 'turn' ? [...quickT.favs.map((id) => ({ id, q: 'fav' as const })), ...quickT.recent.filter((id) => !quickT.favs.includes(id)).slice(0, 3).map((id) => ({ id, q: 'recent' as const }))]
+    .slice(0, 6).map(({ id, q }) => ({ type: 'piece' as const, tpl: id, quick: q, label: templateById(id).label, about: TEMPLATE_FOR[id] || '', Ic: iconFor(id) as unknown as typeof Text })) : [];
+  const items = !menu ? [] : [...quick.filter((m) => !menu.q || `${m.label} ${m.about}`.toLowerCase().includes(menu.q.toLowerCase())), ...MENU.filter((m) => (menu.mode !== 'turn' || TEXTY.includes(m.type)) && (m.type !== 'fact' || facts) && (!menu.q || `${m.label} ${m.about}`.toLowerCase().includes(menu.q.toLowerCase())))];
   useEffect(() => { setHi(0); }, [menu?.q, menu?.at]);
 
   const key = (b: Block, i: number) => (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -133,7 +151,7 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
     if (menu && menu.at === b.id && menu.mode === 'slash') {
       if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min(items.length - 1, h + 1)); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(0, h - 1)); return; }
-      if (e.key === 'Enter') { e.preventDefault(); if (items[hi]) { patch(b.id, { text: '' }); choose(items[hi].type); } return; }
+      if (e.key === 'Enter') { e.preventDefault(); if (items[hi]) { patch(b.id, { text: '' }); choose(items[hi].type, items[hi].tpl); } return; }
       if (e.key === 'Escape') { e.preventDefault(); setMenu(null); return; }
     }
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -221,7 +239,7 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
             {f ? <><span className="wb-fact-k">{f.label}</span><span className="wb-fact-v">{f.value || '–'}</span><span className="wb-fact-w">{f.unsure ? 'Not confirmed yet' : f.where}</span></>
               : <span className="mute">{sheet ? 'This fact isn’t on the fact sheet any more.' : 'Loading the fact…'}</span>}
           </div>; })() : null}
-          {menu?.at === b.id ? <Menu items={items} hi={hi} setHi={setHi} title={menu.mode === 'turn' ? 'Turn into' : menu.q ? undefined : 'Add a block'} onPick={(t) => { if (menu.mode === 'slash') patch(b.id, { text: '' }); choose(t); }} onClose={() => setMenu(null)}
+          {menu?.at === b.id ? <Menu items={items} hi={hi} setHi={setHi} title={menu.mode === 'turn' ? 'Turn into' : undefined} onPick={(t, tpl) => { if (menu.mode === 'slash') patch(b.id, { text: '' }); choose(t, tpl); }} onClose={() => setMenu(null)}
             extra={menu.mode === 'turn' ? <>
               <button type="button" onClick={() => { setMenu(null); const c = { ...b, id: uid() }; insertAfter(b.id, b.type === 'piece' ? { ...c, type: 'text', text: '' } : c); }}><CopyIcon size={15} strokeWidth={1.6} aria-hidden /><span><b>Duplicate</b></span></button>
               <button type="button" className="danger" onClick={() => { setMenu(null); del(b); }}><Trash2 size={15} strokeWidth={1.6} aria-hidden /><span><b>Delete</b></span></button>
@@ -236,16 +254,20 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
   </div>;
 }
 
-function Menu({ items, hi, setHi, title, onPick, onClose, extra }: { items: Item[]; hi: number; setHi: (n: number) => void; title?: string; onPick: (t: BlockType) => void; onClose: () => void; extra?: ReactNode }) {
+function Menu({ items, hi, setHi, title, onPick, onClose, extra }: { items: Item[]; hi: number; setHi: (n: number) => void; title?: string; onPick: (t: BlockType, tpl?: string) => void; onClose: () => void; extra?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { const c = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as Element).closest?.('.wb-gut')) onClose(); }; const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; addEventListener('mousedown', c); addEventListener('keydown', k); return () => { removeEventListener('mousedown', c); removeEventListener('keydown', k); }; }, [onClose]);
   useEffect(() => { ref.current?.querySelector('.hi')?.scrollIntoView({ block: 'nearest' }); }, [hi]);
-  const smart = items.filter((x) => x.smart), basic = items.filter((x) => !x.smart);
-  const row = (x: Item) => { const k = items.indexOf(x); return <button type="button" key={x.type} className={k === hi ? 'hi' : ''} onMouseEnter={() => setHi(k)} onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(x.type)}>
-    <span className={'wb-mi' + (x.smart ? ' smart' : '')}><x.Ic size={17} strokeWidth={1.6} aria-hidden /></span><span><b>{x.label}</b><span>{x.about}</span></span>{x.keys ? <kbd>{x.keys}</kbd> : null}</button>; };
-  return <div className="wb-menu" ref={ref} role="menu">
+  const fit = useFit(ref, 380);
+  const favs = items.filter((x) => x.quick === 'fav'), recent = items.filter((x) => x.quick === 'recent');
+  const smart = items.filter((x) => x.smart && !x.quick), basic = items.filter((x) => !x.smart && !x.quick);
+  const row = (x: Item) => { const k = items.indexOf(x); return <button type="button" key={x.tpl ? `${x.quick}-${x.tpl}` : x.type} className={k === hi ? 'hi' : ''} onMouseEnter={() => setHi(k)} onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(x.type, x.tpl)}>
+    <span className={'wb-mi' + (x.smart || x.tpl ? ' smart' : '')}><x.Ic size={17} strokeWidth={1.6} aria-hidden /></span><span><b>{x.label}</b><span>{x.about}</span></span>{x.keys ? <kbd>{x.keys}</kbd> : null}</button>; };
+  return <div className={'wb-menu' + (fit.up ? ' up' : '')} ref={ref} role="menu" style={fit.style}>
     {title ? <p className="wb-mh">{title}</p> : null}
     {!items.length ? <p className="wb-none">No blocks match</p> : null}
+    {favs.length ? <><p className="wb-mh">Favourites</p>{favs.map(row)}</> : null}
+    {recent.length ? <><p className="wb-mh">Recently used</p>{recent.map(row)}</> : null}
     {smart.length ? <><p className="wb-mh">Smart</p>{smart.map(row)}</> : null}
     {basic.length ? <><p className="wb-mh">{smart.length ? 'Basic' : title === 'Turn into' ? '' : 'Basic'}</p>{basic.map(row)}</> : null}
     {extra ? <><hr />{extra}</> : null}

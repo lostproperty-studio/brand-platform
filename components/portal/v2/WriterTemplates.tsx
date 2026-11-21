@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { AtSign, Bell, Clapperboard, FileText, Globe, Image, Instagram, Linkedin, Mail, Megaphone, MessageSquareText, Monitor, Music2, Newspaper, Package, PanelTop, Presentation, RectangleHorizontal, Search, ShoppingBag, Signpost, Smartphone, Sparkles, Type, Youtube, type LucideProps } from 'lucide-react';
+import { useFit } from '@/components/portal/v2/WriterBlocks';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, countOf, templateById, type WriterPart } from '@/lib/writerTemplates';
-import { ArrowRight, Plus, RefreshCw, X } from 'lucide-react';
+import { ArrowRight, Plus, RefreshCw, Star, X } from 'lucide-react';
 import { CoText } from '@/components/portal/v2/CoWriter';
 
 // Pieces are templates: each one is copy for a destination (an Instagram caption, a Google search ad, a poster),
@@ -28,16 +29,31 @@ export const TEMPLATE_FOR: Record<string, string> = {
 };
 export const iconFor = (id: string): Ic => TEMPLATE_ICON[id] || Sparkles;
 
+// Favourite and recently used templates (kept in this browser), shown first in the / menu
+const FAV = 'lp-writer-favs', REC = 'lp-writer-recent';
+const read = (k: string): string[] => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
+const write = (k: string, v: string[]) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage off */ } dispatchEvent(new Event('lp-tpl')); };
+export const usedTemplate = (id: string) => write(REC, [id, ...read(REC).filter((x) => x !== id)].slice(0, 6));
+export const toggleFav = (id: string) => { const f = read(FAV); write(FAV, f.includes(id) ? f.filter((x) => x !== id) : [...f, id].slice(0, 8)); };
+export function useQuickTemplates() {
+  const [q, setQ] = useState<{ favs: string[]; recent: string[] }>({ favs: [], recent: [] });
+  useEffect(() => { const f = () => setQ({ favs: read(FAV), recent: read(REC) }); f(); addEventListener('lp-tpl', f); return () => removeEventListener('lp-tpl', f); }, []);
+  return q;
+}
+
 export function TemplatePicker({ onPick, onClose }: { onPick: (id: string) => void; onClose: () => void }) {
   const [q, setQ] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { const c = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); }; const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; addEventListener('mousedown', c); addEventListener('keydown', k); return () => { removeEventListener('mousedown', c); removeEventListener('keydown', k); }; }, [onClose]);
+  const fit = useFit(ref, 480);
+  const { favs } = useQuickTemplates();
   const list = WRITER_TEMPLATES.filter((t) => !q || `${t.label} ${t.group} ${TEMPLATE_FOR[t.id] || ''}`.toLowerCase().includes(q.toLowerCase()));
-  return <div className="tp" ref={ref} role="dialog" aria-label="Choose what you’re writing">
+  return <div className="tp" ref={ref} role="dialog" aria-label="Choose what you’re writing" style={fit.style}>
     <div className="tp-h"><strong>What are you writing?</strong><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search: Instagram, email, poster…" onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) onPick(list[0].id); }} /></div>
     <div className="tp-body">
       {TEMPLATE_GROUPS.map((g) => { const ts = list.filter((t) => t.group === g); return ts.length ? <section key={g}><p className="tp-g">{g}</p><div className="tp-grid">
-        {ts.map((t) => { const I = iconFor(t.id); return <button type="button" key={t.id} className="tp-t" onClick={() => onPick(t.id)}><span className="tp-i"><I size={18} strokeWidth={1.6} aria-hidden /></span><span><b>{t.label}</b><span>{TEMPLATE_FOR[t.id] || ''}</span></span></button>; })}
+        {ts.map((t) => { const I = iconFor(t.id); const fav = favs.includes(t.id); return <div key={t.id} className="tp-r"><button type="button" className="tp-t" onClick={() => onPick(t.id)}><span className="tp-i"><I size={18} strokeWidth={1.6} aria-hidden /></span><span><b>{t.label}</b><span>{TEMPLATE_FOR[t.id] || ''}</span></span></button>
+          <button type="button" className={'tp-star' + (fav ? ' on' : '')} onClick={() => toggleFav(t.id)} aria-pressed={fav} aria-label={fav ? `Unfavourite ${t.label}` : `Favourite ${t.label}`} title={fav ? 'Favourite: first in the / menu' : 'Add to favourites, first in the / menu'}><Star size={14} strokeWidth={1.7} fill={fav ? 'currentColor' : 'none'} aria-hidden /></button></div>; })}
       </div></section> : null; })}
       {!list.length ? <p className="tp-none">Nothing matches. Try “Something else”.</p> : null}
     </div>
