@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CheckSquare, ClipboardList, Compass, GripVertical, Heading1, Heading2, Lightbulb, List, Minus, PenLine, Plus, Quote, Text, Trash2, Copy as CopyIcon } from 'lucide-react';
 import { isCheck, readFacts, type FactSheet } from '@/lib/factSheet';
+import { TemplatePicker } from '@/components/portal/v2/WriterTemplates';
 
 // The Writer's page, built from blocks like a Notion page: text, headings, lists, to-dos, quotes, callouts and
 // dividers, plus smart blocks. A Piece is copy written for places (Instagram, email…) with options from the Writer;
@@ -41,9 +42,8 @@ function factOf(f: FactSheet | null | undefined, b: Block) {
 
 type Item = { type: BlockType; label: string; about: string; Ic: typeof Text; smart?: boolean; keys?: string };
 const MENU: Item[] = [
-  { type: 'piece', label: 'Piece', about: 'Copy for places, with options from the Writer', Ic: PenLine, smart: true },
+  { type: 'piece', label: 'Piece', about: 'Copy for a destination: Instagram, an ad, an email, a poster…', Ic: PenLine, smart: true },
   { type: 'brief', label: 'Brief', about: 'What the pieces need to do. The Writer reads it', Ic: Compass, smart: true },
-  { type: 'fact', label: 'Fact', about: 'A confirmed fact, live from the fact sheet', Ic: ClipboardList, smart: true },
   { type: 'text', label: 'Text', about: 'Plain writing', Ic: Text },
   { type: 'h1', label: 'Heading', about: 'A section', Ic: Heading1, keys: '#' },
   { type: 'h2', label: 'Subheading', about: 'A smaller section', Ic: Heading2, keys: '##' },
@@ -57,7 +57,7 @@ const SHORT: [RegExp, BlockType][] = [[/^#\s$/, 'h1'], [/^##\s$/, 'h2'], [/^\[\]
 
 export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePiece, renderPiece, readOnly }: {
   blocks: Block[]; setBlocks: (fn: (b: Block[]) => Block[]) => void; slug: string; facts: boolean;
-  addPiece: () => string; removePiece: (id: string) => void; renderPiece: (pieceId: string, n: number) => ReactNode; readOnly?: boolean;
+  addPiece: (template: string) => string; removePiece: (id: string) => void; renderPiece: (pieceId: string, n: number) => ReactNode; readOnly?: boolean;
 }) {
   const refs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [focusId, setFocusId] = useState<{ id: string; end?: boolean } | null>(null);
@@ -67,14 +67,19 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
   const [over, setOver] = useState<{ id: string; after: boolean } | null>(null);
   const [sheet, setSheet] = useState<FactSheet | null>(null);
   const [factPick, setFactPick] = useState<string | null>(null);
+  const [tplPick, setTplPick] = useState<string | null>(null);
   useEffect(() => { if (facts) fetch(`/api/p/${slug}/facts`).then((r) => (r.ok ? r.json() : null)).then((j) => j && setSheet(readFacts({ factSheet: j.facts }))).catch(() => {}); }, [slug, facts]);
   useEffect(() => { if (!focusId) return; const el = refs.current[focusId.id]; if (el) { el.focus(); const n = focusId.end === false ? 0 : el.value.length; el.setSelectionRange(n, n); } setFocusId(null); }, [focusId, blocks]);
 
+  // "+ Piece" from the toolbar or the outline: a line at the end, with the template picker open on it
+  useEffect(() => {
+    const f = () => { const nb: Block = { id: uid(), type: 'text', text: '' }; setBlocks((bs) => [...bs, nb]); setTplPick(nb.id); setTimeout(() => document.querySelector(`[data-block="${nb.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60); };
+    addEventListener('wb-add-piece', f); return () => removeEventListener('wb-add-piece', f);
+  }, [setBlocks]);
   const patch = (id: string, x: Partial<Block>) => setBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, ...x } : b)));
   const insertAfter = (id: string | null, b: Block) => setBlocks((bs) => { const i = id ? bs.findIndex((x) => x.id === id) : bs.length - 1; const n = [...bs]; n.splice(i + 1, 0, b); return n; });
   const remove = (id: string) => setBlocks((bs) => bs.filter((b) => b.id !== id));
   const make = (type: BlockType): Block => {
-    if (type === 'piece') return { id: uid(), type, pieceId: addPiece() };
     if (type === 'brief') return { id: uid(), type, brief: {} };
     return { id: uid(), type, text: '' };
   };
@@ -83,6 +88,7 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
     if (!menu) return;
     const at = blocks.find((b) => b.id === menu.at); setMenu(null);
     if (type === 'fact') { setFactPick(menu.at); return; }
+    if (type === 'piece') { setTplPick(menu.at); return; }
     if (menu.mode === 'turn' && at && TEXTY.includes(type) && TEXTY.includes(at.type)) { patch(at.id, { type }); setFocusId({ id: at.id }); return; }
     const emptyLine = at && at.type === 'text' && !(at.text || '').replace(/^\//, '').trim();
     const b = make(type);
@@ -92,6 +98,14 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
     if (TEXTY.includes(type)) setFocusId({ id });
     else if (type === 'divider' || type === 'brief') { const t: Block = { id: uid(), type: 'text', text: '' }; setTimeout(() => { insertAfter(id, t); if (type === 'divider') setFocusId({ id: t.id }); }, 0); }
   };
+  // A piece is a template for a destination: pick it, and the card goes in (an empty line becomes it)
+  const placePiece = (template: string) => {
+    const at = blocks.find((b) => b.id === tplPick); setTplPick(null);
+    const b: Block = { id: uid(), type: 'piece', pieceId: addPiece(template) };
+    if (at && at.type === 'text' && !(at.text || '').replace(/^\//, '').trim()) setBlocks((bs) => bs.map((x) => (x.id === at.id ? { ...b, id: at.id } : x)));
+    else insertAfter(at?.id || null, b);
+  };
+  const del = (b: Block) => { if (b.type === 'piece') { if (!confirm('Delete this piece?')) return; removePiece(b.pieceId!); } remove(b.id); };
   const placeFact = (tab: string, key: string) => {
     const at = blocks.find((b) => b.id === factPick); setFactPick(null);
     const b: Block = { id: uid(), type: 'fact', fact: { tab, key } };
@@ -155,6 +169,7 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
             <button type="button" className="wb-g" onClick={() => setMenu(menu?.at === b.id && menu.mode === 'plus' ? null : { at: b.id, q: '', mode: 'plus' })} aria-label="Add a block below" title="Add a block below"><Plus size={16} strokeWidth={1.6} aria-hidden /></button>
             <button type="button" className="wb-g wb-drag" draggable onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', b.id); setDrag(b.id); }} onDragEnd={() => { setDrag(null); setOver(null); }}
               onClick={() => setMenu(menu?.at === b.id && menu.mode === 'turn' ? null : { at: b.id, q: '', mode: 'turn' })} aria-label="Drag to move, or click for options" title="Drag to move · click for options"><GripVertical size={16} strokeWidth={1.6} aria-hidden /></button>
+            {blocks.length > 1 || b.type !== 'text' ? <button type="button" className="wb-g wb-del" onClick={() => del(b)} aria-label="Delete this block" title="Delete"><Trash2 size={15} strokeWidth={1.6} aria-hidden /></button> : null}
           </div> : null}
           {TEXTY.includes(b.type) ? <div className="wb-line">
             {b.type === 'todo' ? <input type="checkbox" className="wb-check" checked={!!b.checked} onChange={(e) => patch(b.id, { checked: e.target.checked })} aria-label="Done" disabled={readOnly} /> : null}
@@ -175,8 +190,9 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
           {menu?.at === b.id ? <Menu items={items} hi={hi} setHi={setHi} title={menu.mode === 'turn' ? 'Turn into' : menu.q ? undefined : 'Add a block'} onPick={(t) => { if (menu.mode === 'slash') patch(b.id, { text: '' }); choose(t); }} onClose={() => setMenu(null)}
             extra={menu.mode === 'turn' ? <>
               <button type="button" onClick={() => { setMenu(null); const c = { ...b, id: uid() }; insertAfter(b.id, b.type === 'piece' ? { ...c, type: 'text', text: '' } : c); }}><CopyIcon size={15} strokeWidth={1.6} aria-hidden /><span><b>Duplicate</b></span></button>
-              <button type="button" className="danger" onClick={() => { setMenu(null); if (b.type === 'piece') { if (!confirm('Delete this piece?')) return; removePiece(b.pieceId!); } remove(b.id); }}><Trash2 size={15} strokeWidth={1.6} aria-hidden /><span><b>Delete</b></span></button>
+              <button type="button" className="danger" onClick={() => { setMenu(null); del(b); }}><Trash2 size={15} strokeWidth={1.6} aria-hidden /><span><b>Delete</b></span></button>
             </> : null} /> : null}
+          {tplPick === b.id ? <TemplatePicker onPick={placePiece} onClose={() => setTplPick(null)} /> : null}
           {factPick === b.id ? <FactPicker sheet={sheet} onPick={placeFact} onClose={() => setFactPick(null)} /> : null}
         </div>
       </Fragment>;

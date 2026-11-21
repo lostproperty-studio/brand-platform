@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, CircleCheck, Flag, Link2, MapPin, Tag, UserRound, Users } from 'lucide-react';
 import { ArrowLeft, BookOpen, Brain, Check, ChevronDown, Layers, Copy, Heart, Loader2, Lock, MessageSquare, MessageSquarePlus, MoreHorizontal, Plus, Redo2, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Undo2, X } from 'lucide-react';
 import { AppIcon } from '@/components/portal/AppIcon';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, templateById, type WriterPart, type WriterTemplate } from '@/lib/writerTemplates';
@@ -7,6 +8,7 @@ import { KIND_LABEL, type KnowledgeEntry } from '@/lib/voiceKnowledge';
 import { BlockCanvas, blocksOf, contextFor, type Block } from '@/components/portal/v2/WriterBlocks';
 import { CoText, useCoWriterOn } from '@/components/portal/v2/CoWriter';
 import { KnowsButton, suggestFact } from '@/components/portal/v2/WriterKnows';
+import { TemplateFields, iconFor, partsText, TEMPLATE_FOR } from '@/components/portal/v2/WriterTemplates';
 
 // Portal v2 Writer: Docs first (one per campaign or project), then a doc of pieces. Each piece is written for one
 // or more places (Instagram, email, a poster…), gets options from the Writer in the brand's voice, and moves
@@ -48,7 +50,7 @@ function useNarrow() {
 const uid = () => Math.random().toString(36).slice(2, 9);
 const ST: Record<Status, [string, string]> = { draft: ['Draft', 'w2-st draft'], review: ['In review', 'w2-st review'], signed: ['Signed off', 'w2-st signed'] };
 const ago = (iso: string) => { const m = (Date.now() - new Date(iso).getTime()) / 60000; return m < 1 ? 'just now' : m < 60 ? `${Math.round(m)}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`; };
-const newPiece = (name = 'Untitled piece'): Piece => ({ id: uid(), name, text: '', templates: ['instagram'], status: 'draft' });
+const newPiece = (name = 'Untitled piece', template = 'instagram'): Piece => ({ id: uid(), name, text: '', templates: [template], status: 'draft' });
 const docStatus = (d: DocData): Status => (d.pieces.length && d.pieces.every((p) => p.status === 'signed') ? 'signed' : d.pieces.some((p) => p.status !== 'draft') ? 'review' : 'draft');
 const asList = (v?: Val) => (Array.isArray(v) ? v : v ? [v] : []);
 
@@ -178,7 +180,9 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
     return () => clearTimeout(t);
   }, [doc, title, A, file.id]);
   const setPiece = (id: string, p: Partial<Piece>) => setDoc((d) => ({ ...d, pieces: d.pieces.map((x) => (x.id === id ? { ...x, ...p } : x)) }));
-  const addPiece = () => { const p = newPiece(); setDoc((d) => ({ ...d, pieces: [...d.pieces, p] })); setActive(p.id); return p.id; };
+  const addPiece = (template = 'instagram') => { const p = newPiece(templateById(template).label, template); setDoc((d) => ({ ...d, pieces: [...d.pieces, p] })); setActive(p.id); return p.id; };
+  // New piece from the toolbar or the outline: the canvas asks what it's for, then adds it at the end
+  const askPiece = () => dispatchEvent(new Event('wb-add-piece'));
   // The page is blocks (WriterBlocks); pieces are one kind of block, and older docs open with one block per piece
   const blocks = useMemo(() => blocksOf(doc.blocks, doc.pieces), [doc.blocks, doc.pieces]);
   const setBlocks = useCallback((fn: (b: Block[]) => Block[]) => setDoc((d) => ({ ...d, blocks: fn(blocksOf(d.blocks, d.pieces)) })), []);
@@ -245,7 +249,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
     </header>
     {narrow ? <nav className="w2-strip" aria-label="Pieces">{doc.pieces.map((p, i) => <button key={p.id} className={'w2-sp' + (p.id === piece?.id ? ' on' : '')} onClick={() => { setActive(p.id); document.getElementById(`pc-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
       <span className="mute">{i + 1}</span>{p.name}{p.status === 'signed' ? <Check size={11} aria-hidden /> : p.status === 'review' ? <i className="w2-sp-dot" /> : null}</button>)}
-      <button className="w2-sp add" onClick={addPiece} aria-label="New piece"><Plus size={13} aria-hidden /></button></nav> : null}
+      <button className="w2-sp add" onClick={askPiece} aria-label="New piece"><Plus size={13} aria-hidden /></button></nav> : null}
     <div className="w2-body" style={narrow ? undefined : { gridTemplateColumns: panel ? `240px minmax(0, 1fr) ${cardsW}px` : '240px minmax(0, 1fr) 0px' }}>
       <aside className="w2-side" aria-label="Pieces">
         <div className="w2-side-h"><strong>On this page</strong><span className="mute">{doc.pieces.length} piece{doc.pieces.length === 1 ? '' : 's'}</span></div>
@@ -255,14 +259,14 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
           return <button key={p.id} className={'w2-row' + (p.id === piece?.id ? ' on' : '')} onClick={() => { setActive(p.id); jump(o.id); }}>
           <span className="mute w2-n">{i + 1}</span><span className="w2-row-t"><span>{p.name}</span><span className="mute">{p.out ? `${Object.keys(p.out).length} place${Object.keys(p.out).length === 1 ? '' : 's'} fitted` : p.text.trim() ? `${p.text.trim().split(/\s+/).length} words` : 'Empty'} · {p.templates.map((t) => templateById(t).label.split(' ')[0]).join(', ')}</span></span>
           <span className={ST[p.status][1]}>{p.status === 'signed' ? <Check size={11} aria-hidden /> : ST[p.status][0]}</span></button>; })}
-          <button className="w2-add" onClick={addPiece}><Plus size={14} aria-hidden />New piece</button>
+          <button className="w2-add" onClick={askPiece}><Plus size={14} aria-hidden />New piece</button>
         </div>
       </aside>
       <section className="w2-doc" aria-label="The doc">
         <div className="w2-tb" role="toolbar" aria-label="Writing">
           <button onMouseDown={ex('undo')} aria-label="Undo" title="Undo ⌘Z"><Undo2 {...I} /></button><button onMouseDown={ex('redo')} aria-label="Redo" title="Redo ⇧⌘Z"><Redo2 {...I} /></button><span className="w2-sep" />
           <label className="w3-tone"><span className="sr">Tone</span><select value={tone} onChange={(e) => setDoc((d) => ({ ...d, tone: Number(e.target.value) }))}>{TONES.map(([v, l]) => <option key={v} value={v}>Tone: {l}</option>)}</select><ChevronDown size={12} aria-hidden /></label>
-          <span className="w2-sep" /><button onClick={() => { const id = addPiece(); setTimeout(() => document.getElementById(`pc-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }}><Plus {...I} />Piece</button><span className="w2-sep" /><span className="mute w2-tb-note">Plain text, so it pastes cleanly anywhere</span>
+          <span className="w2-sep" /><button onClick={askPiece}><Plus {...I} />Piece</button><span className="w2-sep" /><span className="mute w2-tb-note">Plain text, so it pastes cleanly anywhere</span>
         </div>
         <article className="w2-page">
           <p className="w2-kick"><AppIcon app="writer" size={14} />{client}<span>·</span>{doc.pieces.length} piece{doc.pieces.length === 1 ? '' : 's'}<span>·</span>{signed} signed off</p>
@@ -270,14 +274,13 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
           <textarea className="w2-intro" value={doc.intro || ''} onChange={(e) => setDoc((d) => ({ ...d, intro: e.target.value }))} placeholder="What’s this doc for? A line or two about the campaign or project." rows={2} />
           <DocDetails props={doc.props || {}} people={people} audiences={audiences} signed={signed} total={doc.pieces.length} set={(x) => setDoc((d) => ({ ...d, props: { ...(d.props || {}), ...x } }))} />
           <BlockCanvas blocks={blocks} setBlocks={setBlocks} slug={slug} facts={facts} addPiece={addPiece} removePiece={(id) => setDoc((d) => ({ ...d, pieces: d.pieces.filter((x) => x.id !== id) }))}
-            renderPiece={(id, n) => { const p = doc.pieces.find((x) => x.id === id); return p ? <PieceBlock factsOn={facts} brief={[doc.intro || '', contextFor(blocks, p.id)].filter((x) => x.trim()).join('\n') || p.name} tone={tone} n={n} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} /> : null; }} />
+            renderPiece={(id, n) => { const p = doc.pieces.find((x) => x.id === id); return p ? <PieceBlock others={doc.pieces.filter((x) => x.id !== p.id && x.status !== 'draft' || (x.id !== p.id && (x.text.trim() || x.parts))).map((x) => `${templateById(x.templates[0]).label}:\n${x.parts ? partsText(x.templates[0], x.parts) : allText(x)}`).filter((x) => x.split('\n')[1]?.trim()).join('\n\n')} factsOn={facts} brief={[doc.intro || '', contextFor(blocks, p.id)].filter((x) => x.trim()).join('\n') || p.name} tone={tone} n={n} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} /> : null; }} />
         </article>
         <div className="w3-dock">
         {flash ? <p className="w3-flash" role="status">{flash}</p> : null}
         {piece && piece.status !== 'signed' ? <div className="w3-bar">
           <span className="w3-bar-n">{piece.name}</span>
           <button className={'btn w3-co' + (coOn ? ' on' : '')} onClick={() => setCoOn(!coOn)} aria-pressed={coOn} title={coOn ? 'The co-writer suggests the next line as you write. Click to pause it.' : 'Turn the co-writer back on'}><Sparkles size={14} aria-hidden />{coOn ? 'Co-writer on' : 'Co-writer off'}</button>
-          <button className="btn" onClick={() => { setCmd({ kind: 'fit', n: cmd.n + 1 }); setPanel(true); if (narrow) setSheet(true); }}>{narrow ? 'Fit' : 'Fit to places'}</button>
           <button className="btn" onClick={() => checkVoice(piece)} disabled={!!checking} title="The Writer reads it against the voice and comments on anything off brand">{checking ? <Loader2 size={14} className="spin" aria-hidden /> : <ShieldCheck size={14} aria-hidden />}{narrow ? 'Check' : 'Check voice'}</button>
           {piece.out ? <button className="btn w3-optb" onClick={() => { setPanel(true); setSheet(true); }} aria-label="Places" title="The places this piece is fitted to"><Layers size={14} aria-hidden />{Object.keys(piece.out).length}</button> : null}
         </div> : narrow && piece ? <div className="w3-bar"><span className="w3-bar-n">{piece.name}</span><button className="btn" onClick={() => setSheet(true)}><Layers size={14} aria-hidden />Options and places</button></div> : null}
@@ -293,7 +296,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   </div>;
 }
 
-function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, onFocus, set, onDelete, brief, tone, factsOn }: { factsOn: boolean; brief: string; tone: number; n: number; p: Piece; on: boolean; me: string; myId: string; showDone: boolean; say: (t: string) => void; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
+function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, onFocus, set, onDelete, brief, tone, factsOn, others }: { others: string; factsOn: boolean; brief: string; tone: number; n: number; p: Piece; on: boolean; me: string; myId: string; showDone: boolean; say: (t: string) => void; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
   const [box, setBox] = useState<null | 'handoff' | 'comment' | 'changes'>(null);
   const sel = useRef('');
   const nameOfId = (id?: string) => people.find((x) => x.id === id)?.name;
@@ -316,9 +319,11 @@ function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, on
   const [copied, setCopied] = useState('');
   const copy = async (k: string, t: string) => { try { await navigator.clipboard.writeText(t); setCopied(k); setTimeout(() => setCopied(''), 1400); } catch { /* blocked */ } };
   const bits = pieceBits(p);
+  const tid = p.templates[0] || 'custom'; const tpl = templateById(tid); const Tic = iconFor(tid);
   // The Writer reads the piece for facts when you pause: new ones to add, and ones that don't match the fact sheet
   const [spots, setSpots] = useState<{ found: { label: string; value: string; done?: string }[]; clash: { label: string; says: string; sheet: string; done?: boolean }[] }>({ found: [], clash: [] });
   const spotted = useRef('');
+  const spotT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const spot = async (text: string) => {
     if (text.trim().length < 40 || text === spotted.current) return; spotted.current = text;
     const r = await fetch(`/api/p/${slug}/writer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'coach', action: 'spot', brief: brief || p.name, text, tone }) }).catch(() => null);
@@ -330,8 +335,8 @@ function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, on
   const fitted = p.out ? p.templates.filter((t) => p.out![t]) : [];
   return <div id={`pc-${p.id}`} className={'w2-piece' + (on ? ' on' : '') + (p.status === 'signed' ? ' locked' : '')} onClick={onFocus}>
     <div className="w2-ph">
-      <span className="mute w2-n">Piece {n}</span>
-      <input className="w2-pname" value={p.name} onChange={(e) => set({ name: e.target.value })} aria-label="Piece name" disabled={p.status === 'signed'} />
+      <span className="tpl-tag" title={TEMPLATE_FOR[tid] || ''}><Tic size={15} strokeWidth={1.7} aria-hidden /></span>
+      <span className="tpl-t"><span className="tpl-l">{tpl.label}</span><input className="w2-pname" value={p.name === tpl.label ? '' : p.name} placeholder={`Name it (${n})`} onChange={(e) => set({ name: e.target.value || tpl.label })} aria-label="Piece name" disabled={p.status === 'signed'} /></span>
       <span className="fb-sp" />
       {p.status !== 'signed' ? <button className="w2-ic" onClick={(e) => { e.stopPropagation(); setBox(box === 'comment' ? null : 'comment'); }} aria-label="Comment" title="Comment (select words first to comment on them)"><MessageSquarePlus {...I} /></button> : null}
       {p.status === 'draft' ? <><span className={ST.draft[1]}>Draft</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); setBox('handoff'); }} disabled={!p.text.trim() && !p.out}>Request review</button></> : null}
@@ -365,8 +370,8 @@ function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, on
       : fitted.length
         ? <div className="w2-bits" onMouseUp={() => { sel.current = (getSelection()?.toString() || '').trim().slice(0, 300); }}>{fitted.map((id) => { const t = templateById(id); return <div key={id} className="w2-bit"><div className="w2-bit-h"><span>{t.label}</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); set({ text: fitted.map((x) => `${templateById(x).label}\n${outText(templateById(x), p.out![x])}`).join('\n\n'), out: undefined }); }}>Edit as text</button></div>
             {partsOf(t).filter((x) => asList(p.out![id][x.key]).length).map((x) => <p key={x.key}><span className="mute w3-pl">{x.label} · </span>{asList(p.out![id][x.key]).join('\n')}</p>)}</div>; })}</div>
-        : <CoText value={p.text} onChange={(v) => set({ text: v, parts: undefined })} slug={slug} brief={brief} tone={tone} template={places} onSelectText={(t) => { sel.current = t; }} onPause={factsOn ? spot : undefined} say={say}
-            placeholder="Start writing. The Writer suggests the next line as you go: Tab keeps it. Select words for other ways to say them." />}
+        : <TemplateFields template={tid} parts={(p.parts || {}) as Record<string, Val>} legacy={p.text} slug={slug} brief={brief} tone={tone} others={others} say={say}
+            setParts={(parts) => { set({ parts, text: partsText(tid, parts) }); if (factsOn) { clearTimeout(spotT.current); spotT.current = setTimeout(() => spot(partsText(tid, parts)), 2500); } }} />}
     {p.status !== 'signed' && (live.found.length || live.clash.length) ? <div className="sp">
       {live.clash.map((c, k) => <div key={'c' + k} className="sp-c clash"><span className="sp-i">!</span><span className="sp-t"><span className="sp-k">Doesn’t match the facts</span><b>{c.label}</b> should be <q>{c.sheet}</q></span>
         <button className="btn sm solid" onClick={() => { set({ text: p.text.replace(c.says, c.sheet) }); setSpots((s) => ({ ...s, clash: s.clash.map((x) => (x === c ? { ...x, done: true } : x)) })); }}>Use the fact</button>
@@ -508,16 +513,16 @@ function DocDetails({ props: d, people, audiences, signed, total, set }: { props
   const hide = (k: OptProp) => set({ show: (d.show || []).filter((x) => x !== k), [k]: undefined });
   const X_ = ({ k }: { k: OptProp }) => <button className="w3-prop-x" onClick={() => hide(k)} aria-label={`Remove ${k}`}><X size={10} aria-hidden /></button>;
   return <div className="w3-props">
-    <label className="w3-camp"><span className="sr">Campaign</span><input value={d.campaign || ''} onChange={(e) => set({ campaign: e.target.value })} placeholder="Campaign" size={Math.max(8, (d.campaign || '').length)} /></label>
-    <span className="w3-prop"><span className="mute">Owner</span><PersonPick people={people} value={d.owner} onPick={(id) => set({ owner: id })} placeholder="Choose" /></span>
-    <label className="w3-prop"><span className="mute">Due</span><input type="date" className="w3-date" value={d.due || ''} onChange={(e) => set({ due: e.target.value || undefined })} /></label>
-    <span className="w3-prop mute">{signed} of {total} signed off</span>
-    {shown.has('reviewers') ? <span className="w3-prop"><span className="mute">Reviewers</span><PersonPick multi people={people} value={d.reviewers || []} onPick={(id) => id && set({ reviewers: (d.reviewers || []).includes(id) ? (d.reviewers || []).filter((x) => x !== id) : [...(d.reviewers || []), id] })} /><X_ k="reviewers" /></span> : null}
-    {shown.has('tags') ? <span className="w3-prop"><span className="mute">Tags</span><Tags tags={d.tags || []} set={(tags) => set({ tags })} /><X_ k="tags" /></span> : null}
-    {shown.has('audience') ? <label className="w3-prop"><span className="mute">Audience</span><input list="w3-aud" value={d.audience || ''} onChange={(e) => set({ audience: e.target.value })} placeholder="Who it’s for" size={Math.max(10, (d.audience || '').length)} /><datalist id="w3-aud">{audiences.map((a) => <option key={a} value={a} />)}</datalist><X_ k="audience" /></label> : null}
-    {shown.has('region') ? <label className="w3-prop"><span className="mute">Region</span><input value={d.region || ''} onChange={(e) => set({ region: e.target.value })} placeholder="e.g. London" size={Math.max(8, (d.region || '').length)} /><X_ k="region" /></label> : null}
-    {shown.has('brief') ? <label className="w3-prop"><span className="mute">Brief</span>{d.brief && /^https?:\/\//.test(d.brief) ? <a href={d.brief} target="_blank" rel="noopener">Open</a> : null}<input value={d.brief || ''} onChange={(e) => set({ brief: e.target.value })} placeholder="Paste a link" size={Math.max(12, Math.min(40, (d.brief || '').length))} /><X_ k="brief" /></label> : null}
-    {OPT.some(([k]) => !shown.has(k)) ? <span className="w3-pp" ref={mref}><button className="w3-addprop" onClick={() => setMenu(!menu)} aria-expanded={menu}>+ Property</button>
+    <label className="w3-prop"><span className="mute"><Flag size={14} aria-hidden />Campaign</span><input value={d.campaign || ''} onChange={(e) => set({ campaign: e.target.value })} placeholder="Empty" /></label>
+    <span className="w3-prop"><span className="mute"><UserRound size={14} aria-hidden />Owner</span><PersonPick people={people} value={d.owner} onPick={(id) => set({ owner: id })} placeholder="Choose" /></span>
+    <label className="w3-prop"><span className="mute"><CalendarDays size={14} aria-hidden />Due</span><input type="date" className="w3-date" value={d.due || ''} onChange={(e) => set({ due: e.target.value || undefined })} /></label>
+    <span className="w3-prop"><span className="mute"><CircleCheck size={14} aria-hidden />Signed off</span><span>{signed} of {total}</span></span>
+    {shown.has('reviewers') ? <span className="w3-prop"><span className="mute"><Users size={14} aria-hidden />Reviewers</span><PersonPick multi people={people} value={d.reviewers || []} onPick={(id) => id && set({ reviewers: (d.reviewers || []).includes(id) ? (d.reviewers || []).filter((x) => x !== id) : [...(d.reviewers || []), id] })} /><X_ k="reviewers" /></span> : null}
+    {shown.has('tags') ? <span className="w3-prop"><span className="mute"><Tag size={14} aria-hidden />Tags</span><Tags tags={d.tags || []} set={(tags) => set({ tags })} /><X_ k="tags" /></span> : null}
+    {shown.has('audience') ? <label className="w3-prop"><span className="mute"><Users size={14} aria-hidden />Audience</span><input list="w3-aud" value={d.audience || ''} onChange={(e) => set({ audience: e.target.value })} placeholder="Who it’s for" size={Math.max(10, (d.audience || '').length)} /><datalist id="w3-aud">{audiences.map((a) => <option key={a} value={a} />)}</datalist><X_ k="audience" /></label> : null}
+    {shown.has('region') ? <label className="w3-prop"><span className="mute"><MapPin size={14} aria-hidden />Region</span><input value={d.region || ''} onChange={(e) => set({ region: e.target.value })} placeholder="e.g. London" size={Math.max(8, (d.region || '').length)} /><X_ k="region" /></label> : null}
+    {shown.has('brief') ? <label className="w3-prop"><span className="mute"><Link2 size={14} aria-hidden />Brief</span>{d.brief && /^https?:\/\//.test(d.brief) ? <a href={d.brief} target="_blank" rel="noopener">Open</a> : null}<input value={d.brief || ''} onChange={(e) => set({ brief: e.target.value })} placeholder="Paste a link" size={Math.max(12, Math.min(40, (d.brief || '').length))} /><X_ k="brief" /></label> : null}
+    {OPT.some(([k]) => !shown.has(k)) ? <span className="w3-pp" ref={mref}><button className="w3-addprop" onClick={() => setMenu(!menu)} aria-expanded={menu}><Plus size={14} aria-hidden />Add a property</button>
       {menu ? <span className="w3-pp-pop" role="menu">{OPT.filter(([k]) => !shown.has(k)).map(([k, l]) => <button key={k} role="menuitem" className="w3-pp-row" onClick={() => { set({ show: [...(d.show || []), k] }); setMenu(false); }}>{l}</button>)}</span> : null}</span> : null}
   </div>;
 }

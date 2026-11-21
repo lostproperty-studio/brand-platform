@@ -87,6 +87,13 @@ export function CoText({ value, onChange, slug, brief, tone, template, placehold
     setStarts({ lines: null, busy: true });
     try { const j = await call({ action: 'open', text: '' }); setStarts({ lines: j.lines || [], busy: false }); } catch (x) { setStarts({ lines: null, busy: false, err: (x as Error).message }); }
   };
+  // Asked for straight away from the helper bar, rather than waiting for a pause
+  const [asking, setAsking] = useState(false);
+  const nextNow = async () => {
+    setAsking(true); abort.current?.abort(); const c = new AbortController(); abort.current = c;
+    try { const j = await call({ action: value.trim() ? 'next' : 'open', text: value }, c.signal); if (j.next) setGhost(/^\s/.test(j.next) || /\s$/.test(value) || !value ? j.next : ' ' + j.next); else if (j.lines) setStarts({ lines: j.lines, busy: false }); } catch { /* */ }
+    setAsking(false); ta.current?.focus();
+  };
   const accept = () => { if (!ghost) return; const v = value + ghost; onChange(v); setGhost(''); requestAnimationFrame(() => { const el = ta.current; if (el) { el.setSelectionRange(v.length, v.length); } }); };
   const caretLine = caret !== null && !sel && !pop && focus && value.trim() ? sentenceAt(value, Math.max(0, Math.min(caret, value.length - 1))) : null;
 
@@ -107,7 +114,12 @@ export function CoText({ value, onChange, slug, brief, tone, template, placehold
         else if (e.key === 'Escape') { setGhost(''); setPop(null); }
         else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); const el = e.currentTarget; const [s, en] = el.selectionEnd - el.selectionStart > 1 ? [el.selectionStart, el.selectionEnd] : sentenceAt(value, el.selectionStart); if (value.slice(s, en).trim()) rework(s, en); }
       }} />
-    {ghost && focus ? <span className="co-hint" aria-live="polite"><kbd>Tab</kbd> to keep</span> : null}
+    {on && (focus || asking) && !pop ? <div className="co-bar" onMouseDown={(e) => e.preventDefault()}>
+      {ghost ? <><span className="co-bar-t"><Sparkles size={12} aria-hidden />A next line from the Writer</span><button type="button" className="on" onClick={accept}><kbd>Tab</kbd>Keep it</button><button type="button" onClick={() => setGhost('')}><kbd>Esc</kbd>No thanks</button></>
+        : <><button type="button" onClick={nextNow} disabled={asking}><Sparkles size={12} aria-hidden />{asking ? 'Thinking…' : value.trim() ? 'Suggest a next line' : 'Suggest a first line'}</button>
+          {caretLine ? <button type="button" onClick={() => rework(caretLine[0], caretLine[1])}>Other ways to say this line<kbd>⌘J</kbd></button> : null}
+          <span className="co-bar-t">or select words to rework them</span></>}
+    </div> : null}
     {/* ✦ beside the line you're on */}
     {on && caretLine && cpos && !ghost ? <button type="button" className="co-spark" style={{ top: cpos.y }} onMouseDown={(e) => e.preventDefault()} onClick={() => rework(caretLine[0], caretLine[1])} aria-label="Other ways to say this line" title="Other ways to say this line (⌘J)"><Sparkles size={14} strokeWidth={1.8} aria-hidden /></button> : null}
     {/* Selected words: rework them */}
