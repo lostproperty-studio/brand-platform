@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { appAccess, db } from '@/lib/apps/server';
+import { appAccess, db, hasSharing, openFile, viewerOf } from '@/lib/apps/server';
 import { appOrigin } from '@/lib/origin';
 import { clientBrand } from '@/lib/email/brand';
 import { emailProvider, sendEmail } from '@/lib/email/send';
@@ -27,13 +27,19 @@ export async function POST(req: Request, ctx: P) {
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const sb = db();
-  const { data: file } = await sb.from('app_files').select('title').eq('id', id).eq('project_id', a.p.id).eq('app', a.app).maybeSingle();
+  const file = await openFile(a.p.id, a.app, id, viewerOf(a.acc));
   if (!file) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const [{ data: member }, { data: staff }] = await Promise.all([
     sb.from('project_members').select('email').eq('project_id', a.p.id).eq('user_id', b.data.to).maybeSingle(),
     sb.from('staff').select('email').eq('user_id', b.data.to).maybeSingle()
   ]);
   if (!member && !staff) return NextResponse.json({ error: 'They’re not on this project.' }, { status: 403 });
+  // A studio file can only go to the studio
+  if (file.studio && !staff) return NextResponse.json({ error: 'This file was made in the studio preview, so it can only go to Lost Property.' }, { status: 403 });
+  // Sending someone a file to approve gives them access to it, if they didn't have it
+  const to = b.data.to;
+  if (await hasSharing() && file.created_by !== to && !(file.members || []).includes(to) && !(file.visibility === 'team' && (staff || !file.studio)))
+    await sb.from('app_files').update({ members: [...(file.members || []), to] }).eq('id', id);
   let email = member?.email || staff?.email || null;
   if (!email) { const { data } = await sb.auth.admin.getUserById(b.data.to); email = data.user?.email || null; }
   if (!email || !emailProvider()) return NextResponse.json({ emailed: false });

@@ -9,6 +9,8 @@ import { BlockCanvas, blocksOf, contextFor, onePerPiece, type Block } from '@/co
 import { CoText, useCoWriterOn } from '@/components/portal/v2/CoWriter';
 import { KnowsButton, suggestFact } from '@/components/portal/v2/WriterKnows';
 import { TemplateFields, iconFor, partsText, TEMPLATE_FOR } from '@/components/portal/v2/WriterTemplates';
+import { LiveFaces, useFocusBlock, useHeldBlocks, useLiveFile } from '@/components/portal/v2/Live';
+import { apply as applyOps, diff as diffOps, type Op, type SyncDoc } from '@/lib/apps/docSync';
 
 // Portal v2 Writer: Docs first (one per campaign or project), then a doc of pieces. Each piece is written for one
 // or more places (Instagram, email, a poster…), gets options from the Writer in the brand's voice, and moves
@@ -38,7 +40,8 @@ export type DocProps = { campaign?: string; owner?: string; due?: string; review
 export type DocData = { intro?: string; tone?: number; props?: DocProps; pieces: Piece[]; blocks?: Block[] };
 /** The client's look, for previews of where the copy is going */
 export type BrandLook = { name: string; handle: string; dark: string; light: string; avatar: string | null };
-type FileRow = { id: string; title: string; status: Status; data: DocData; updated_at: string };
+type Visibility = 'private' | 'team';
+type FileRow = { id: string; title: string; status: Status; data: DocData; updated_at: string; created_by?: string | null; studio?: boolean; visibility?: Visibility; members?: string[] };
 
 const I = { size: 15, strokeWidth: 1.75, 'aria-hidden': true } as const;
 /** True on a phone-width screen: the Writer becomes one column, with the cards in a sheet that slides up */
@@ -73,7 +76,8 @@ function api(slug: string) {
   const base = `/api/p/${slug}/apps/writer`;
   const j = async (r: Response) => { const x = await r.json().catch(() => ({})); if (!r.ok) throw new Error(x.error || 'Something went wrong'); return x; };
   return {
-    list: () => fetch(base).then(j) as Promise<{ files: FileRow[]; error?: string }>,
+    list: () => fetch(base).then(j) as Promise<{ files: FileRow[]; error?: string; me?: string }>,
+    share: (id: string, body: { visibility?: Visibility; members?: string[] }) => fetch(`${base}/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(j) as Promise<{ members?: string[] }>,
     open: (id: string) => fetch(`${base}/${id}`).then(j) as Promise<{ file: FileRow }>,
     create: (title: string, data: DocData) => fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, data }) }).then(j) as Promise<{ id: string }>,
     save: (id: string, body: Partial<Pick<FileRow, 'title' | 'status' | 'data'>>) => fetch(`${base}/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(j),
@@ -81,13 +85,14 @@ function api(slug: string) {
   };
 }
 
-export function WriterApp({ slug, client, audiences, me, note, brand, facts = false }: { facts?: boolean; slug: string; client: string; audiences: string[]; me: string; note?: string; brand: BrandLook }) {
+export function WriterApp({ slug, client, audiences, me, note, brand, facts = false, studio = false }: { facts?: boolean; slug: string; client: string; audiences: string[]; me: string; note?: string; brand: BrandLook; studio?: boolean }) {
   const A = useMemo(() => api(slug), [slug]);
   const [files, setFiles] = useState<FileRow[] | null>(null);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<FileRow | null>(null);
   const [deliver, setDeliver] = useState(false);
-  const refresh = useCallback(() => { A.list().then((r) => { setFiles(r.files); setErr(r.error || ''); }).catch((e) => setErr(e.message)); }, [A]);
+  const [myId, setMyId] = useState('');
+  const refresh = useCallback(() => { A.list().then((r) => { setFiles(r.files); setErr(r.error || ''); setMyId(r.me || ''); }).catch((e) => setErr(e.message)); }, [A]);
   const go = useCallback(async (id: string | null, d = false, push = true) => {
     if (!id) { setOpen(null); setDeliver(false); if (push) history.pushState({}, '', location.pathname); refresh(); return; }
     try { const { file } = await A.open(id); setOpen({ ...file, data: { ...file.data, pieces: file.data?.pieces || [] } }); setDeliver(d); if (push) history.pushState({}, '', `?f=${id}${d ? '&deliver=1' : ''}`); }
@@ -99,19 +104,21 @@ export function WriterApp({ slug, client, audiences, me, note, brand, facts = fa
   }, [go]);
 
   if (open && deliver) return <Delivery file={open} client={client} brand={brand} onBack={() => go(open.id, false)} />;
-  if (open) return <DocEditor facts={facts} key={open.id} slug={slug} client={client} audiences={audiences} me={me} brand={brand} file={open} onBack={() => go(null)} onDeliver={() => go(open.id, true)} />;
+  if (open) return <DocEditor facts={facts} key={open.id} studio={studio} slug={slug} client={client} audiences={audiences} me={me} brand={brand} file={open} onBack={() => go(null)} onDeliver={() => go(open.id, true)} />;
 
   const create = async () => {
     try { const { id } = await A.create('Untitled doc', { intro: '', pieces: [newPiece('First piece')] }); go(id); } catch (e) { setErr((e as Error).message); }
   };
-  return <Browser slug={slug} client={client} facts={facts} files={files} err={err} note={note} onOpen={(id) => go(id)} onNew={create} onDelete={async (f) => { if (!confirm(`Delete “${f.title}”? This can’t be undone.`)) return; await A.remove(f.id).catch(() => {}); refresh(); }} />;
+  return <Browser slug={slug} client={client} facts={facts} files={files} err={err} myId={myId} studio={studio} note={note} onOpen={(id) => go(id)} onNew={create} onDelete={async (f) => { if (!confirm(`Delete “${f.title}”? This can’t be undone.`)) return; await A.remove(f.id).catch((e) => setErr(e.message)); refresh(); }} />;
 }
 
 // ---------- Docs: the first screen
-function Browser({ slug, client, facts, files, err, note, onOpen, onNew, onDelete }: { slug: string; client: string; facts: boolean; files: FileRow[] | null; err: string; note?: string; onOpen: (id: string) => void; onNew: () => void; onDelete: (f: FileRow) => void }) {
+function Browser({ slug, client, facts, files, err, note, myId, studio, onOpen, onNew, onDelete }: { slug: string; client: string; facts: boolean; files: FileRow[] | null; err: string; note?: string; myId: string; studio: boolean; onOpen: (id: string) => void; onNew: () => void; onDelete: (f: FileRow) => void }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | Status>('all');
-  const list = (files || []).filter((f) => (filter === 'all' || f.status === filter) && (!q || f.title.toLowerCase().includes(q.toLowerCase())));
+  const [whose, setWhose] = useState<'all' | 'mine' | 'shared'>('all');
+  const mine = (f: FileRow) => !f.created_by || f.created_by === myId;
+  const list = (files || []).filter((f) => (filter === 'all' || f.status === filter) && (whose === 'all' || (whose === 'mine') === mine(f)) && (!q || f.title.toLowerCase().includes(q.toLowerCase())));
   return <div className="fb">
     <header className="fb-top">
       <AppIcon app="writer" size={18} play /><strong>Writer</strong><span className="mute fb-crumb">/</span><span className="fb-crumb">Docs</span>
@@ -122,9 +129,12 @@ function Browser({ slug, client, facts, files, err, note, onOpen, onNew, onDelet
     </header>
     <div className="fb-body">
       {note ? <p className="wr-note-studio" role="note">{note}</p> : null}
+      {studio ? <p className="wr-note-studio" role="note"><Lock size={13} aria-hidden /> Docs you make in the studio preview are yours alone. Clients never see them, and you can share them with the Lost Property team.</p> : null}
       <label className="fb-search fb-search-m"><Search {...I} /><span className="sr">Search docs</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search docs" /></label>
       <div className="fb-bar"><h1>Docs</h1><span className="mute">{files ? `${files.length} doc${files.length === 1 ? '' : 's'}` : ''}</span><span className="fb-sp" />
-        {(['all', 'draft', 'review', 'signed'] as const).map((k) => <button key={k} className={'fb-chip' + (filter === k ? ' on' : '')} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === 'all' ? 'All' : ST[k][0]}</button>)}
+        {(['all', 'mine', 'shared'] as const).map((k) => <button key={k} className={'fb-chip' + (whose === k ? ' on' : '')} aria-pressed={whose === k} onClick={() => setWhose(k)}>{k === 'all' ? 'Everyone’s' : k === 'mine' ? 'Mine' : 'Shared with me'}</button>)}
+        <span className="fb-chip-sep" />
+        {(['all', 'draft', 'review', 'signed'] as const).map((k) => <button key={k} className={'fb-chip' + (filter === k ? ' on' : '')} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === 'all' ? 'Any status' : ST[k][0]}</button>)}
       </div>
       {err ? <p className="cd-err" role="alert">{err}</p> : null}
       <div className="fb-grid">
@@ -135,15 +145,23 @@ function Browser({ slug, client, facts, files, err, note, onOpen, onNew, onDelet
             <button className="fb-open" onClick={() => onOpen(f.id)} aria-label={`Open ${f.title}`}>
               <span className="fb-th"><span className="fb-page"><span className="fb-page-k">{first?.name || 'Doc'}</span><span className="fb-page-h">{first?.text?.split('\n')[0]?.slice(0, 70) || f.title}</span><span className="fb-page-b">{f.data?.intro?.slice(0, 180)}</span></span></span>
               <span className="fb-name">{f.title}</span>
-              <span className="fb-meta"><span className={ST[f.status][1]}>{ST[f.status][0]}</span><span className="mute">{f.data?.pieces?.length || 0} piece{f.data?.pieces?.length === 1 ? '' : 's'} · {f.data?.props?.due ? `Due ${fmtDay(f.data.props.due)}` : ago(f.updated_at)}</span></span>
+              <span className="fb-meta"><Access f={f} mine={mine(f)} /><span className={ST[f.status][1]}>{ST[f.status][0]}</span><span className="mute">{f.data?.pieces?.length || 0} piece{f.data?.pieces?.length === 1 ? '' : 's'} · {f.data?.props?.due ? `Due ${fmtDay(f.data.props.due)}` : ago(f.updated_at)}</span></span>
             </button>
-            <button className="fb-del" onClick={() => onDelete(f)} aria-label={`Delete ${f.title}`} title="Delete"><Trash2 size={14} strokeWidth={1.6} aria-hidden /></button>
+            {mine(f) ? <button className="fb-del" onClick={() => onDelete(f)} aria-label={`Delete ${f.title}`} title="Delete"><Trash2 size={14} strokeWidth={1.6} aria-hidden /></button> : null}
           </div>;
         })}
       </div>
+      {files?.length && !list.length ? <p className="mute">Nothing here{whose === 'shared' ? ' yet. Docs your team shares with you will show up here.' : '.'}</p> : null}
       {files?.length === 0 ? <p className="mute">No docs yet. Start one for a campaign, then add a piece for each thing you need to write.</p> : null}
     </div>
   </div>;
+}
+
+/** Who can open a doc, in a word: on each card in Docs */
+function Access({ f, mine }: { f: FileRow; mine: boolean }) {
+  const n = f.members?.length || 0;
+  const [Ic, t] = !mine ? [Users, 'Shared with you'] : f.visibility === 'team' ? [Users, 'Team'] : n ? [Users, `You and ${n}`] : [Lock, 'Only you'];
+  return <span className="fb-acc" title={f.studio ? 'Made in the studio preview: clients never see it' : undefined}><Ic size={11} strokeWidth={1.8} aria-hidden />{t}</span>;
 }
 
 // ---------- The doc
@@ -151,7 +169,7 @@ const TONES: [number, string][] = [[10, 'Functional'], [30, 'Mostly functional']
 const LENGTHS: [Length, string][] = [['line', 'A line'], ['short', 'Short'], ['medium', 'A paragraph'], ['long', 'Long']];
 type Cmd = { kind: 'ideas' | 'fit'; n: number };
 
-function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver, facts }: { facts: boolean; slug: string; client: string; audiences: string[]; me: string; brand: BrandLook; file: FileRow; onBack: () => void; onDeliver: () => void }) {
+function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver, facts, studio }: { studio: boolean; facts: boolean; slug: string; client: string; audiences: string[]; me: string; brand: BrandLook; file: FileRow; onBack: () => void; onDeliver: () => void }) {
   const A = useMemo(() => api(slug), [slug]);
   const [title, setTitle] = useState(file.title);
   const [doc, setDoc] = useState<DocData>(file.data);
@@ -172,6 +190,26 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   const [coOn, setCoOn] = useCoWriterOn();
   const say = (t: string) => { setFlash(t); setTimeout(() => setFlash(''), 3500); };
   const first = useRef(true);
+  // Who it's shared with, and working on it together: everyone in the doc sees each other's edits as they happen
+  const [share, setShare] = useState<{ visibility: Visibility; members: string[] }>({ visibility: file.visibility || 'private', members: file.members || [] });
+  const liveMe = useMemo(() => (myId ? { id: myId, name: me } : null), [myId, me]);
+  const at = useFocusBlock('.w2-page');
+  const base = useRef<SyncDoc>({ ...file.data, title: file.title } as unknown as SyncDoc);
+  const now = useRef({ doc, title }); now.current = { doc, title };
+  const live = useLiveFile<{ doc: DocData; title: string }>({ fileId: file.id, me: liveMe, at,
+    onOps: (ops: Op[]) => {
+      base.current = applyOps(base.current, ops);
+      const t = ops.find((o) => o.k === 'f' && o.f === 'title'); if (t && t.k === 'f') setTitle(String(t.v ?? ''));
+      const rest = ops.filter((o) => !(o.k === 'f' && o.f === 'title'));
+      if (rest.length) setDoc((d) => { const { title: _t, ...n } = applyOps({ ...d, title: '' } as unknown as SyncDoc, rest) as unknown as DocData & { title: string }; void _t; return n as DocData; });
+    },
+    getState: () => now.current,
+    onState: (st) => { base.current = { ...st.doc, title: st.title } as unknown as SyncDoc; setDoc(st.doc); setTitle(st.title); } });
+  const sendOps = live.send;
+  useEffect(() => { const cur = { ...doc, title } as unknown as SyncDoc; const ops = diffOps(base.current, cur); if (ops.length) { base.current = cur; sendOps(ops); } }, [doc, title, sendOps]);
+  useHeldBlocks('.w2-page', live.peers, liveMe, doc);
+  const sharePop = <SharePop file={file} owner={!file.created_by || file.created_by === myId} studio={!!file.studio || (studio && !file.created_by)} client={client} people={people} value={share}
+    onChange={async (v) => { const was = share; setShare(v); try { const r = await A.share(file.id, v); if (r.members) setShare({ ...v, members: r.members }); } catch (e) { setShare(was); say((e as Error).message); } }} />;
   // Saves a moment after the last change
   useEffect(() => {
     if (first.current) { first.current = false; return; }
@@ -230,6 +268,8 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
       <span className={ST[docStatus(doc)][1] + ' w2-hide-m'}>{ST[docStatus(doc)][0]}</span>
       <span className="mute w2-saved w2-hide-m" role="status">{saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : 'Saved'}</span>
       <span className="fb-sp" />
+      <LiveFaces me={liveMe} peers={live.peers} />
+      {sharePop}
       {narrow ? <span className="w3-know-wrap"><button className="w2-ic" onClick={() => setMore(!more)} aria-expanded={more} aria-label="More" title="More"><MoreHorizontal {...I} />{openComments ? <i className="w2-dot" /> : null}</button>
         {more ? <><div className="w2-scrim" onClick={() => setMore(false)} /><div className="w2-menu w2-more" role="menu">
           <div className="w2-kv"><span className="mute">Status</span><span><span className={ST[docStatus(doc)][1]}>{ST[docStatus(doc)][0]}</span> <span className="mute">{saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : 'Saved'}</span></span></div>
@@ -271,8 +311,8 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
         </div>
         <article className="w2-page">
           <p className="w2-kick"><AppIcon app="writer" size={14} />{client}<span>·</span>{doc.pieces.length} piece{doc.pieces.length === 1 ? '' : 's'}<span>·</span>{signed} signed off</p>
-          <input className="w2-h1" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Doc name" />
-          <textarea className="w2-intro" value={doc.intro || ''} onChange={(e) => setDoc((d) => ({ ...d, intro: e.target.value }))} placeholder="What’s this doc for? A line or two about the campaign or project." rows={2} />
+          <div className="lv-part" data-block="__title"><input className="w2-h1" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Doc name" /></div>
+          <div className="lv-part" data-block="__intro"><textarea className="w2-intro" value={doc.intro || ''} onChange={(e) => setDoc((d) => ({ ...d, intro: e.target.value }))} placeholder="What’s this doc for? A line or two about the campaign or project." rows={2} /></div>
           <DocDetails props={doc.props || {}} people={people} audiences={audiences} signed={signed} total={doc.pieces.length} set={(x) => setDoc((d) => ({ ...d, props: { ...(d.props || {}), ...x } }))} />
           <BlockCanvas blocks={blocks} setBlocks={setBlocks} slug={slug} facts={facts} addPiece={addPiece} removePiece={(id) => { const p = doc.pieces.find((x) => x.id === id); setDoc((d) => ({ ...d, pieces: d.pieces.filter((x) => x.id !== id) })); return p; }} restorePiece={(p) => setDoc((d) => ({ ...d, pieces: [...d.pieces, p as Piece] }))}
             renderPiece={(id, n) => { const p = doc.pieces.find((x) => x.id === id); return p ? <PieceBlock others={doc.pieces.filter((x) => x.id !== p.id && x.status !== 'draft' || (x.id !== p.id && (x.text.trim() || x.parts))).map((x) => `${templateById(x.templates[0]).label}:\n${x.parts ? partsText(x.templates[0], x.parts) : allText(x)}`).filter((x) => x.split('\n')[1]?.trim()).join('\n\n')} factsOn={facts} brief={[doc.intro || '', contextFor(blocks, p.id)].filter((x) => x.trim()).join('\n') || p.name} tone={tone} n={n} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} /> : null; }} />
@@ -295,6 +335,42 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
       </aside>
     </div>
   </div>;
+}
+
+/** Share: who can open the doc. Only you (and anyone you add), or everyone on your side; plus people by name.
+ *  Docs made in the studio preview stay with Lost Property. Only the person who made a doc can change this. */
+function SharePop({ file, owner, studio, client, people, value, onChange }: { file: FileRow; owner: boolean; studio: boolean; client: string; people: Person[]; value: { visibility: Visibility; members: string[] }; onChange: (v: { visibility: Visibility; members: string[] }) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useOutside(open, useCallback(() => setOpen(false), []));
+  const team = studio ? 'Lost Property' : client;
+  const can = people.filter((p) => p.id !== file.created_by && (!studio || p.studio));
+  const maker = people.find((p) => p.id === file.created_by);
+  const added = value.members.map((id) => people.find((p) => p.id === id)).filter(Boolean) as Person[];
+  const Ic = value.visibility === 'team' || value.members.length ? Users : Lock;
+  const set = (v: Partial<typeof value>) => onChange({ ...value, ...v });
+  return <span className="w3-know-wrap" ref={ref}>
+    <button className={'btn wsh-b' + (open ? ' on' : '')} onClick={() => setOpen(!open)} aria-expanded={open} title="Who can open this doc"><Ic size={14} strokeWidth={1.75} aria-hidden /><span className="w2-hide-m">Share</span></button>
+    {open ? <div className="w3-know wsh-pop" role="dialog" aria-label="Share">
+      <p className="wsh-h">Who can open this doc</p>
+      {studio ? <p className="mute wsh-note">Made in the studio preview, so only Lost Property can ever see it. Clients won’t.</p> : null}
+      <div className="wsh-opts" role="radiogroup" aria-label="Who can open it">
+        {([['private', Lock, owner ? 'Only you, and people you add' : `${maker?.name.split(' ')[0] || 'Its maker'}, and people they add`], ['team', Users, `Everyone at ${team}`]] as const).map(([k, I2, l]) =>
+          <label key={k} className={'wsh-opt' + (value.visibility === k ? ' on' : '') + (!owner ? ' off' : '')}>
+            <input type="radio" name="wsh-vis" checked={value.visibility === k} disabled={!owner} onChange={() => set({ visibility: k })} />
+            <I2 size={15} strokeWidth={1.75} aria-hidden /><span>{l}{k === 'team' && !studio ? <span className="mute wsh-sub">Lost Property can see it too, to help</span> : null}</span>
+          </label>)}
+      </div>
+      <p className="wsh-h">People</p>
+      <ul className="wsh-people">
+        {maker ? <li><Face p={maker} size={22} /><span>{maker.name}</span><span className="mute">Made it</span></li> : null}
+        {added.map((p) => <li key={p.id}><Face p={p} size={22} /><span>{p.name}</span><span className="mute">{p.org}</span>
+          {owner ? <button className="w2-ic wsh-x" onClick={() => set({ members: value.members.filter((m) => m !== p.id) })} aria-label={`Remove ${p.name}`} title="Remove"><X size={13} aria-hidden /></button> : null}</li>)}
+      </ul>
+      {owner ? <PersonPick people={can} value={value.members} multi placeholder="Add someone by name" onPick={(id) => { if (!id) return; set({ members: value.members.includes(id) ? value.members.filter((m) => m !== id) : [...value.members, id] }); }} />
+        : <p className="mute wsh-note">Only {maker?.name.split(' ')[0] || 'the person who made it'} can change who it’s shared with.</p>}
+      <p className="mute wsh-note">Everyone who can open it can edit it, and you’ll see each other in the doc as you work.</p>
+    </div> : null}
+  </span>;
 }
 
 function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, onFocus, set, onDelete, brief, tone, factsOn, others }: { others: string; factsOn: boolean; brief: string; tone: number; n: number; p: Piece; on: boolean; me: string; myId: string; showDone: boolean; say: (t: string) => void; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {

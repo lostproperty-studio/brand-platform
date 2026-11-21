@@ -5420,3 +5420,34 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .psw-tog:checked { background: #000; }
 .psw-tog:checked::after { transform: translateX(16px); }
 .psw-tog:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+
+/* Writer: who can open a doc, and working on it together */
+.fb-acc { display: inline-flex; align-items: center; gap: 3px; color: var(--mute, #8a8a8a); white-space: nowrap; }
+.fb-chip-sep { width: 1px; height: 16px; background: var(--line); margin: 0 2px; }
+.wsh-b { display: inline-flex; align-items: center; gap: 6px; }
+.wsh-pop { width: 340px; display: flex; flex-direction: column; gap: 8px; }
+.wsh-h { margin: 4px 0 0; font-weight: 500; font-size: 13px; }
+.wsh-note { margin: 0; font-size: 12px; line-height: 1.45; }
+.wsh-opts { display: flex; flex-direction: column; gap: 4px; }
+.wsh-opt { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 9px; cursor: pointer; font-size: 13px; line-height: 1.35; }
+.wsh-opt:hover { background: var(--fill-2, #f4f4f4); }
+.wsh-opt.on { box-shadow: inset 0 0 0 1px #000; }
+.wsh-opt.off { cursor: default; opacity: .7; }
+.wsh-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.wsh-opt:has(input:focus-visible) { outline: 2px solid #000; outline-offset: 1px; }
+.wsh-opt svg { flex: none; margin-top: 1px; }
+.wsh-opt > span { display: flex; flex-direction: column; gap: 2px; }
+.wsh-sub { font-size: 11.5px; }
+.wsh-people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.wsh-people li { display: flex; align-items: center; gap: 8px; padding: 5px 2px; font-size: 13px; }
+.wsh-people li > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wsh-x { width: 24px; height: 24px; }
+.lv-faces { display: inline-flex; align-items: center; padding-left: 6px; }
+.lv-face { width: 26px; height: 26px; border-radius: 50%; color: #fff; font-size: 10.5px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; margin-left: -6px; box-shadow: 0 0 0 2px #fff; }
+.lv-face.more { background: #000; }
+.lv-part { position: relative; }
+/* Someone else is in this block: their colour down the side and their name on it, and it's theirs until they leave it */
+.w2-page [data-held-by] { position: relative; box-shadow: -3px 0 0 var(--held, #000); border-radius: 2px; }
+.w2-page [data-held-by]::after { content: attr(data-held-by); position: absolute; top: -9px; right: 4px; z-index: 6; padding: 1px 7px; border-radius: 5px; background: var(--held, #000); color: #fff; font-size: 11px; line-height: 16px; font-weight: 500; pointer-events: none; white-space: nowrap; }
+.w2-page [data-held-by][inert] { opacity: .85; }
+@media (max-width: 720px) { .wsh-pop { width: auto; } .lv-face { width: 24px; height: 24px; } }

@@ -4,7 +4,7 @@ import { ChapterCover } from '@/components/portal/ChapterCover';
 import { coverPaths } from '@/lib/portal/covers';
 import { showcasePaths } from '@/lib/showcase';
 import { systemCss, systemFor } from '@/lib/guideSystem';
-import { recentFiles } from '@/lib/apps/server';
+import { recentFiles, viewerOf } from '@/lib/apps/server';
 import { APPS, type AppKey } from '@/lib/portalVersion';
 import { readSwitches } from '@/lib/portal/switches';
 import type { GreetingSet } from '@/lib/portal/greetings';
@@ -41,7 +41,7 @@ export async function HomeV2({ ctx, slug }: { ctx: PortalCtx; slug: string }) {
   const rows = (on.showcase ? ctx.snap?.showcase?.rows || [] : []).filter((r) => r.frames.some((f) => f.kind !== 'empty'));
   const items = rows.flatMap((r) => r.frames.filter((f) => f.kind !== 'empty').map((f) => ({ f, wide: r.layout === 'full' })));
   const urls = await signFrames([...new Set([...(guide ? coverPaths(guide) : []), ...(ctx.snap?.showcase ? showcasePaths(ctx.snap.showcase) : [])])]);
-  const recent = (await recentFiles(ctx.project.id, 8)).filter((f) => on[f.app as keyof typeof on] !== false);
+  const recent = (await recentFiles(ctx.project.id, viewerOf(ctx.access), 8)).filter((f) => on[f.app as keyof typeof on] !== false);
   const firstName = nameOf(ctx.access.user).split(/\s+/)[0] || '';
   const greetings = (ctx.project.content as { portalGreetings?: GreetingSet } | null)?.portalGreetings;
   return (

@@ -1,3 +1,4 @@
+import { clientFiles, hasSharing } from '@/lib/apps/server';
 import { adminClient } from '@/lib/supabase/server';
 import { buildSnapshot, publishedSnapshot } from '@/lib/projects/snapshot';
 import { keyFor } from '@/lib/portal/guide';
@@ -39,7 +40,9 @@ export async function panelBrand(projectId: string, slug: string, staff: boolean
 
   // Images: collections in Photographer that have been signed off (the studio sees collections in review too)
   const images: PanelImage[] = [];
-  const { data: cols } = await sb.from('app_files').select('id, title, status, data').eq('project_id', projectId).eq('app', 'photographer').in('status', staff ? ['signed', 'review'] : ['signed']).order('updated_at', { ascending: false }).limit(20);
+  const { data: cols0 } = await sb.from('app_files').select('id, title, status, data, created_by' + ((await hasSharing()) ? ', studio' : '')).eq('project_id', projectId).eq('app', 'photographer').in('status', staff ? ['signed', 'review'] : ['signed']).order('updated_at', { ascending: false }).limit(20);
+  // Clients never see collections the studio made in its preview
+  const cols = staff ? cols0 : await clientFiles((cols0 || []) as unknown as { created_by?: string | null; studio?: boolean }[]);
   for (const c of (cols || []) as { id: string; title: string; data: { images?: Photo[] } }[]) {
     for (const ph of (c.data?.images || []).slice(0, 40)) {
       if (!ph.path || images.length >= 120) continue;

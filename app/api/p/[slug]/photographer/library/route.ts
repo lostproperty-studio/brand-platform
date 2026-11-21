@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listFiles } from '@/lib/apps/server';
+import { listFiles, viewerOf } from '@/lib/apps/server';
 import { BUCKET, photoAccess, photoPrefix } from '@/lib/photographer/server';
 import { signMany } from '@/lib/storage/signed';
 import type { Collection } from '@/lib/photographer/model';
@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 // The library: every collection with its count and cover, and every image across them (for All images), with view links
 export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }) {
   const a = await photoAccess((await ctx.params).slug); if (!a) return new Response('Not found', { status: 404 });
-  const { files, error } = await listFiles(a.p.id, 'photographer', 500);
+  const { files, error } = await listFiles(a.p.id, 'photographer', viewerOf(a.acc), 500);
   const pre = photoPrefix(a.p.id);
   const all = files.flatMap((f) => ((f.data as Collection).images || []).map((im) => ({ ...im, collection: f.id, collectionTitle: f.title })));
   const paths = [...new Set(all.map((x) => x.path).filter((p) => p?.startsWith(pre)))];
