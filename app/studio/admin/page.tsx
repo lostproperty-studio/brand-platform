@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { StudioBar } from '@/components/StudioBar';
 import { Sparkles, ArrowLeft, Globe, Mail, Rocket, Users } from 'lucide-react';
 import { adminClient } from '@/lib/supabase/server';
 import { AdminEmail } from '@/components/AdminEmail';
@@ -21,6 +23,7 @@ export default async function Admin() {
         <div className="pj-bar"><Link href="/studio" className="pj-bp"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn ic" href="/studio"><ArrowLeft size={15} strokeWidth={1.75} aria-hidden />Projects</Link></div>
         <h1 className="pj-title">Admin settings</h1>
       </header>
+      <Suspense><StudioBar requests={0} admin email={st.user.email || ''} /></Suspense>
       <div className="adm-body">
         <section className="ov-card" aria-labelledby="adm-team">
           <h2 id="adm-team" className="ov-h"><Users size={16} strokeWidth={1.75} aria-hidden />Studio team</h2>

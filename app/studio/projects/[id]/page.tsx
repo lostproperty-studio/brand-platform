@@ -59,6 +59,12 @@ import { portalUrl } from '@/lib/domain';
 import { PortalAddress } from '@/components/PortalAddress';
 import { env } from '@/lib/env';
 import { teamGate, teamRole } from '@/lib/studioTeam';
+import { StudioBar } from '@/components/StudioBar';
+import { Suspense } from 'react';
+import { MonitorSmartphone } from 'lucide-react';
+
+// On a phone the studio keeps to what works well on a small screen; these sections say to use a bigger one
+const DESK = new Set(['showcase', 'typefaces', 'motion', 'pdf']);
 
 const TABS = [['overview', 'Overview'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['pdf', 'PDF'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
@@ -95,6 +101,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const tier = tierOf(content);
   const drafts = guide ? guide.chapters.flatMap((c) => c.blocks).filter((b) => b.draft === 'draft').length : 0;
   const missing = guide ? guide.chapters.flatMap((c) => c.blocks).filter((b) => b.draft === 'missing').length : 0;
+  const { count: openCount } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'open');
   let body: React.ReactNode = null;
   if (tab === 'overview') {
     const { fonts } = await readFonts(id);
@@ -344,10 +351,14 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <header className="pj-head">
         <div className="pj-bar"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn ic" href="/studio"><ArrowLeft size={15} strokeWidth={1.75} aria-hidden />Projects</Link></div>
         <h1 className="pj-title">{p.client}</h1>
-        <div className="pj-nav"><ProjectTabs id={id} tabs={tabs} current={tab} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
+        <div className="pj-nav"><ProjectTabs id={id} tabs={tabs} current={tab} desk={[...DESK]} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
       </header>
       {myRole === 'viewer' ? <p className="ov-viewer" role="note">You’re a viewer on this project, so changes you try to make won’t be saved.</p> : null}
-      <div id="pj-panel" role="tabpanel" aria-label={tabs.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>{body}</div>
+      <div id="pj-panel" role="tabpanel" aria-label={tabs.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>
+        {DESK.has(tab) ? <div className="pj-desk-note"><MonitorSmartphone size={28} strokeWidth={1.4} aria-hidden /><h2>{tabs.find(([k]) => k === tab)?.[1]} is for a bigger screen</h2><p className="mute">On a phone you can review, comment and edit the words. Open this on a laptop to work on it.</p><a className="btn" href={`/p/${p.slug}`}>Preview as client</a></div> : null}
+        <div className={DESK.has(tab) ? 'pj-desk' : undefined}>{body}</div>
+      </div>
+      <Suspense><StudioBar requests={openCount || 0} admin={me instanceof Response ? false : me.role === 'admin'} email={me instanceof Response ? '' : me.user.email || ''} /></Suspense>
     </div>
   );
 }
