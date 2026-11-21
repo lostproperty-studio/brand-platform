@@ -23,6 +23,13 @@ export function blocksOf(blocks: Block[] | undefined, pieces: { id: string }[]):
   return [...list, ...pieces.filter((p) => !held.has(p.id)).map((p) => ({ id: 'b-' + p.id, type: 'piece' as const, pieceId: p.id }))];
 }
 
+/** One block per piece: if a piece ended up in two (added, then placed), keep the one that was placed */
+export function onePerPiece(list: Block[]): Block[] {
+  const placed = new Set(list.filter((b) => b.type === 'piece' && !b.id.startsWith('b-')).map((b) => b.pieceId));
+  const seen = new Set<string>();
+  return list.filter((b) => { if (b.type !== 'piece') return true; if (b.id.startsWith('b-') && placed.has(b.pieceId)) return false; if (seen.has(b.pieceId!)) return false; seen.add(b.pieceId!); return true; });
+}
+
 /** What briefs a piece: the doc's Brief blocks, and the words written above it since the last piece */
 export function contextFor(blocks: Block[], pieceId: string, facts?: FactSheet | null) {
   const at = blocks.findIndex((b) => b.pieceId === pieceId);

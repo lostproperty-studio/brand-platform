@@ -5,7 +5,7 @@ import { ArrowLeft, BookOpen, Brain, Check, ChevronDown, Layers, Copy, Heart, Lo
 import { AppIcon } from '@/components/portal/AppIcon';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, templateById, type WriterPart, type WriterTemplate } from '@/lib/writerTemplates';
 import { KIND_LABEL, type KnowledgeEntry } from '@/lib/voiceKnowledge';
-import { BlockCanvas, blocksOf, contextFor, type Block } from '@/components/portal/v2/WriterBlocks';
+import { BlockCanvas, blocksOf, contextFor, onePerPiece, type Block } from '@/components/portal/v2/WriterBlocks';
 import { CoText, useCoWriterOn } from '@/components/portal/v2/CoWriter';
 import { KnowsButton, suggestFact } from '@/components/portal/v2/WriterKnows';
 import { TemplateFields, iconFor, partsText, TEMPLATE_FOR } from '@/components/portal/v2/WriterTemplates';
@@ -184,8 +184,8 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   // New piece from the toolbar or the outline: the canvas asks what it's for, then adds it at the end
   const askPiece = () => dispatchEvent(new Event('wb-add-piece'));
   // The page is blocks (WriterBlocks); pieces are one kind of block, and older docs open with one block per piece
-  const blocks = useMemo(() => blocksOf(doc.blocks, doc.pieces), [doc.blocks, doc.pieces]);
-  const setBlocks = useCallback((fn: (b: Block[]) => Block[]) => setDoc((d) => ({ ...d, blocks: fn(blocksOf(d.blocks, d.pieces)) })), []);
+  const blocks = useMemo(() => onePerPiece(blocksOf(doc.blocks, doc.pieces)), [doc.blocks, doc.pieces]);
+  const setBlocks = useCallback((fn: (b: Block[]) => Block[]) => setDoc((d) => ({ ...d, blocks: onePerPiece(fn(onePerPiece(blocksOf(d.blocks, d.pieces)))) })), []);
   const outline = blocks.filter((b) => b.type === 'h1' || b.type === 'h2' || b.type === 'piece');
   const jump = (id: string) => document.querySelector(`[data-block="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const delPiece = (id: string) => { dispatchEvent(new CustomEvent('wb-del-piece', { detail: id })); };
