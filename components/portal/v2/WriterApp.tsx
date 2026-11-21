@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/portal/AppIcon';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, templateById, type WriterPart, type WriterTemplate } from '@/lib/writerTemplates';
 import { KIND_LABEL, type KnowledgeEntry } from '@/lib/voiceKnowledge';
 import { FactButton } from '@/components/portal/v2/FactSheet';
+import { BlockCanvas, blocksOf, contextFor, type Block } from '@/components/portal/v2/WriterBlocks';
 
 // Portal v2 Writer: Docs first (one per campaign or project), then a doc of pieces. Each piece is written for one
 // or more places (Instagram, email, a poster…), gets options from the Writer in the brand's voice, and moves
@@ -31,7 +32,7 @@ export type Event = { at: string; by: string; what: string };
 type OptProp = 'reviewers' | 'tags' | 'audience' | 'region' | 'brief';
 /** The doc's details. Campaign, owner and due date always show; the rest once they're added with + Property */
 export type DocProps = { campaign?: string; owner?: string; due?: string; reviewers?: string[]; tags?: string[]; audience?: string; region?: string; brief?: string; show?: OptProp[] };
-export type DocData = { intro?: string; tone?: number; props?: DocProps; pieces: Piece[] };
+export type DocData = { intro?: string; tone?: number; props?: DocProps; pieces: Piece[]; blocks?: Block[] };
 /** The client's look, for previews of where the copy is going */
 export type BrandLook = { name: string; handle: string; dark: string; light: string; avatar: string | null };
 type FileRow = { id: string; title: string; status: Status; data: DocData; updated_at: string };
@@ -174,7 +175,12 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
     return () => clearTimeout(t);
   }, [doc, title, A, file.id]);
   const setPiece = (id: string, p: Partial<Piece>) => setDoc((d) => ({ ...d, pieces: d.pieces.map((x) => (x.id === id ? { ...x, ...p } : x)) }));
-  const addPiece = () => { const p = newPiece(); setDoc((d) => ({ ...d, pieces: [...d.pieces, p] })); setActive(p.id); };
+  const addPiece = () => { const p = newPiece(); setDoc((d) => ({ ...d, pieces: [...d.pieces, p] })); setActive(p.id); return p.id; };
+  // The page is blocks (WriterBlocks); pieces are one kind of block, and older docs open with one block per piece
+  const blocks = useMemo(() => blocksOf(doc.blocks, doc.pieces), [doc.blocks, doc.pieces]);
+  const setBlocks = useCallback((fn: (b: Block[]) => Block[]) => setDoc((d) => ({ ...d, blocks: fn(blocksOf(d.blocks, d.pieces)) })), []);
+  const outline = blocks.filter((b) => b.type === 'h1' || b.type === 'h2' || b.type === 'piece');
+  const jump = (id: string) => document.querySelector(`[data-block="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const delPiece = (id: string) => { if (!confirm('Delete this piece?')) return; setDoc((d) => ({ ...d, pieces: d.pieces.filter((x) => x.id !== id) })); };
   const piece = doc.pieces.find((p) => p.id === active) || doc.pieces[0];
   const pi = piece ? doc.pieces.indexOf(piece) : -1;
@@ -243,11 +249,13 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
       <button className="w2-sp add" onClick={addPiece} aria-label="New piece"><Plus size={13} aria-hidden /></button></nav> : null}
     <div className="w2-body" style={narrow ? undefined : { gridTemplateColumns: `240px minmax(0, 1fr) ${cardsW}px` }}>
       <aside className="w2-side" aria-label="Pieces">
-        <div className="w2-side-h"><strong>Pieces</strong><span className="mute">{doc.pieces.length}</span></div>
+        <div className="w2-side-h"><strong>On this page</strong><span className="mute">{doc.pieces.length} piece{doc.pieces.length === 1 ? '' : 's'}</span></div>
         <a className="w3-voice" href={`/p/${slug}/guidelines`}><BookOpen size={14} strokeWidth={1.6} aria-hidden /><span>Voice from Guidelines</span><span className="w3-tag ok">In sync</span></a>
-        <div className="w2-list">{doc.pieces.map((p, i) => <button key={p.id} className={'w2-row' + (p.id === piece?.id ? ' on' : '')} onClick={() => { setActive(p.id); document.getElementById(`pc-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
+        <div className="w2-list">{outline.map((o) => { if (o.type !== 'piece') return o.text?.trim() ? <button key={o.id} className={'w2-row w2-oh ' + o.type} onClick={() => jump(o.id)}><span className="w2-row-t"><span>{o.text}</span></span></button> : null;
+          const p = doc.pieces.find((x) => x.id === o.pieceId); if (!p) return null; const i = doc.pieces.indexOf(p);
+          return <button key={p.id} className={'w2-row' + (p.id === piece?.id ? ' on' : '')} onClick={() => { setActive(p.id); jump(o.id); }}>
           <span className="mute w2-n">{i + 1}</span><span className="w2-row-t"><span>{p.name}</span><span className="mute">{p.out ? `${Object.keys(p.out).length} place${Object.keys(p.out).length === 1 ? '' : 's'} fitted` : p.text.trim() ? `${p.text.trim().split(/\s+/).length} words` : 'Empty'} · {p.templates.map((t) => templateById(t).label.split(' ')[0]).join(', ')}</span></span>
-          <span className={ST[p.status][1]}>{p.status === 'signed' ? <Check size={11} aria-hidden /> : ST[p.status][0]}</span></button>)}
+          <span className={ST[p.status][1]}>{p.status === 'signed' ? <Check size={11} aria-hidden /> : ST[p.status][0]}</span></button>; })}
           <button className="w2-add" onClick={addPiece}><Plus size={14} aria-hidden />New piece</button>
         </div>
       </aside>
@@ -255,15 +263,15 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
         <div className="w2-tb" role="toolbar" aria-label="Writing">
           <button onMouseDown={ex('undo')} aria-label="Undo" title="Undo ⌘Z"><Undo2 {...I} /></button><button onMouseDown={ex('redo')} aria-label="Redo" title="Redo ⇧⌘Z"><Redo2 {...I} /></button><span className="w2-sep" />
           <label className="w3-tone"><span className="sr">Tone</span><select value={tone} onChange={(e) => setDoc((d) => ({ ...d, tone: Number(e.target.value) }))}>{TONES.map(([v, l]) => <option key={v} value={v}>Tone: {l}</option>)}</select><ChevronDown size={12} aria-hidden /></label>
-          <span className="w2-sep" /><button onClick={addPiece}><Plus {...I} />Piece</button><span className="w2-sep" /><span className="mute w2-tb-note">Plain text, so it pastes cleanly anywhere</span>
+          <span className="w2-sep" /><button onClick={() => { const id = addPiece(); setTimeout(() => document.getElementById(`pc-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }}><Plus {...I} />Piece</button><span className="w2-sep" /><span className="mute w2-tb-note">Plain text, so it pastes cleanly anywhere</span>
         </div>
         <article className="w2-page">
-          <p className="mute w2-kick">{client} · {doc.pieces.length} piece{doc.pieces.length === 1 ? '' : 's'}</p>
+          <p className="w2-kick"><AppIcon app="writer" size={14} />{client}<span>·</span>{doc.pieces.length} piece{doc.pieces.length === 1 ? '' : 's'}<span>·</span>{signed} signed off</p>
           <input className="w2-h1" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Doc name" />
           <textarea className="w2-intro" value={doc.intro || ''} onChange={(e) => setDoc((d) => ({ ...d, intro: e.target.value }))} placeholder="What’s this doc for? A line or two about the campaign or project." rows={2} />
           <DocDetails props={doc.props || {}} people={people} audiences={audiences} signed={signed} total={doc.pieces.length} set={(x) => setDoc((d) => ({ ...d, props: { ...(d.props || {}), ...x } }))} />
-          {doc.pieces.map((p, i) => <PieceBlock key={p.id} n={i + 1} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} />)}
-          <button className="btn" onClick={addPiece}><Plus {...I} />New piece</button>
+          <BlockCanvas blocks={blocks} setBlocks={setBlocks} slug={slug} facts={facts} addPiece={addPiece} removePiece={(id) => setDoc((d) => ({ ...d, pieces: d.pieces.filter((x) => x.id !== id) }))}
+            renderPiece={(id, n) => { const p = doc.pieces.find((x) => x.id === id); return p ? <PieceBlock n={n} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} /> : null; }} />
         </article>
         <div className="w3-dock">
         {flash ? <p className="w3-flash" role="status">{flash}</p> : null}
@@ -280,7 +288,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
       <aside className={'w2-cards' + (narrow ? ' sheet' + (sheet ? ' open' : '') : '')} aria-label="Cards for this piece" aria-hidden={narrow && !sheet ? true : undefined}>
         {narrow ? <div className="w2-sheet-h"><span className="w2-grab" /><button className="w2-ic" onClick={() => setSheet(false)} aria-label="Close"><X {...I} /></button></div>
           : <span className="w2-grip" role="separator" aria-orientation="vertical" aria-label="Resize" onMouseDown={resize}><i /></span>}
-        {piece ? <Cards key={piece.id} slug={slug} audiences={audiences} brand={brand} n={pi + 1} piece={piece} intro={doc.intro || ''} tone={tone} cmd={cmd} set={(x) => setPiece(piece.id, x)} /> : <p className="mute" style={{ padding: 16 }}>Add a piece to start.</p>}
+        {piece ? <Cards key={piece.id} slug={slug} audiences={audiences} brand={brand} n={pi + 1} piece={piece} intro={[doc.intro || '', contextFor(blocks, piece.id)].filter((x) => x.trim()).join('\n')} tone={tone} cmd={cmd} set={(x) => setPiece(piece.id, x)} /> : <p className="mute" style={{ padding: 16 }}>Add a piece to start.</p>}
       </aside>
     </div>
   </div>;
