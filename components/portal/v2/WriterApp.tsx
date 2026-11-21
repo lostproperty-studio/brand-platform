@@ -132,7 +132,7 @@ function Browser({ slug, client, facts, files, err, note, myId, studio, onOpen, 
       {studio ? <p className="wr-note-studio" role="note"><Lock size={13} aria-hidden /> Docs you make in the studio preview are yours alone. Clients never see them, and you can share them with the Lost Property team.</p> : null}
       <label className="fb-search fb-search-m"><Search {...I} /><span className="sr">Search docs</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search docs" /></label>
       <div className="fb-bar"><h1>Docs</h1><span className="mute">{files ? `${files.length} doc${files.length === 1 ? '' : 's'}` : ''}</span><span className="fb-sp" />
-        {(['all', 'mine', 'shared'] as const).map((k) => <button key={k} className={'fb-chip' + (whose === k ? ' on' : '')} aria-pressed={whose === k} onClick={() => setWhose(k)}>{k === 'all' ? 'Everyone’s' : k === 'mine' ? 'Mine' : 'Shared with me'}</button>)}
+        {(['all', 'mine', 'shared'] as const).map((k) => <button key={k} className={'fb-chip' + (whose === k ? ' on' : '')} aria-pressed={whose === k} onClick={() => setWhose(k)}>{k === 'all' ? 'All docs' : k === 'mine' ? 'Mine' : 'Shared with me'}</button>)}
         <span className="fb-chip-sep" />
         {(['all', 'draft', 'review', 'signed'] as const).map((k) => <button key={k} className={'fb-chip' + (filter === k ? ' on' : '')} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === 'all' ? 'Any status' : ST[k][0]}</button>)}
       </div>

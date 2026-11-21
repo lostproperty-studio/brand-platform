@@ -5439,7 +5439,9 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .wsh-opt > span { display: flex; flex-direction: column; gap: 2px; }
 .wsh-sub { font-size: 11.5px; }
 .wsh-people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.wsh-people li { display: flex; align-items: center; gap: 8px; padding: 5px 2px; font-size: 13px; }
+.w3-know .wsh-people { flex-direction: column; }
+.w3-know .wsh-people li { display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 5px 2px; border-top: 0; font-size: 13px; }
+.wsh-pop .w3-pp-b { padding: 6px 2px; }
 .wsh-people li > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wsh-x { width: 24px; height: 24px; }
 .lv-faces { display: inline-flex; align-items: center; padding-left: 6px; }
