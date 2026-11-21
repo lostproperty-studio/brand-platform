@@ -64,7 +64,8 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi, lpCha
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && open) setOpen(false); if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setOpen(true); setTimeout(() => input.current?.focus(), 0); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [open]);
   // What Ask is doing, until the first words arrive
   useEffect(() => { if (!busy) return; setStep(0); const t = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 2)), 1400); return () => clearInterval(t); }, [busy]);
-  useEffect(() => { const el = input.current; if (!el) return; el.style.height = '0px'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }, [text]);
+  // Grows with what's typed. Measured while hidden it reads 0, so then it's left to its natural one-line height
+  useEffect(() => { const el = input.current; if (!el) return; el.style.height = 'auto'; const h = el.scrollHeight; el.style.height = h ? Math.min(h, 160) + 'px' : ''; }, [text]);
 
   // Portal v2: the home page's Ask bar hands its question over here (window event 'lp-ask')
   const sendRef = useRef<(q: string) => void>(() => {});
