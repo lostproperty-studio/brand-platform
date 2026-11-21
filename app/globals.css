@@ -4941,3 +4941,5 @@ html.in-app body { -webkit-tap-highlight-color: transparent; overscroll-behavior
   html.in-app .pt-main:has(.v2-app) { height: calc(100dvh - 49px - env(safe-area-inset-top)); }
   html.in-app .pt-preview { display: none; }
 }
+.ls-code { letter-spacing: .3em; font-variant-numeric: tabular-nums; }
+html.in-app .auth-google, html.in-app .auth-or { display: none; }

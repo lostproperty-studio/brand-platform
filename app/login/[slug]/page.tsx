@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { projectBranding } from '@/lib/branding';
 import { LoginScreen } from '@/components/LoginScreen';
-import { sendSignInLink } from '@/lib/auth/sendLink';
+import { sendSignInLink, signInWithCode } from '@/lib/auth/sendLink';
 
 // A client's own sign-in page, in the look the studio chose for them.
 export default async function ClientLogin({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ next?: string; sent?: string; error?: string }> }) {
@@ -12,12 +12,20 @@ export default async function ClientLogin({ params, searchParams }: { params: Pr
   const next = sp.next?.startsWith('/') ? sp.next : `/p/${slug}`;
   return (
     <LoginScreen b={b}>
-      {sp.sent ? <p className="ls-msg">Check your email for a sign-in link. It works once, for the next hour.</p> : <form action={sendSignInLink} className="ls-form">
+      {sp.sent ? <form action={signInWithCode} className="ls-form">
+        <p className="ls-msg">Check your email for a sign-in link. It works once, for the next hour.</p>
+        <label htmlFor="code">Or type the 6-digit code from the email</label>
+        <input id="code" name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" maxLength={8} required className="ls-in ls-code" />
+        <input type="hidden" name="next" value={next} /><input type="hidden" name="back" value={`/login/${slug}`} />
+        <button className="ls-btn" type="submit">Sign in</button>
+        {sp.error === 'code' ? <p className="ls-msg">That code didn’t work. Check it, or use the link in the email.</p> : null}
+        <a className="ls-fine" href={`/login/${slug}?next=${encodeURIComponent(next)}`}>Send a new email</a>
+      </form> : <form action={sendSignInLink} className="ls-form">
         <label htmlFor="email">Your work email</label>
         <input id="email" name="email" type="email" required autoComplete="email" className="ls-in" />
         <input type="hidden" name="next" value={next} /><input type="hidden" name="back" value={`/login/${slug}`} /><input type="hidden" name="brand" value={slug} />
         <button className="ls-btn" type="submit">Email me a sign-in link</button>
-        {sp.error ? <p className="ls-msg">{sp.error === 'wait' ? 'Too many sign-in emails in a short time. Wait a minute, then try again.' : 'That didn’t work. Check the address and try again.'}</p> : null}
+        {sp.error ? <p className="ls-msg">{sp.error === 'expired' ? 'That sign-in has expired. Ask for a new email.' : sp.error === 'wait' ? 'Too many sign-in emails in a short time. Wait a minute, then try again.' : 'That didn’t work. Check the address and try again.'}</p> : null}
         <p className="ls-fine">No password needed. If you haven’t been invited yet, ask your team’s admin.</p>
       </form>}
     </LoginScreen>
