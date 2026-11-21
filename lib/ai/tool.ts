@@ -9,7 +9,9 @@ export async function callTool<T>(ai: Anthropic, params: Omit<Params, 'tool_choi
   const { tool, ...rest } = params;
   const ask = `\n\nAnswer only by calling the ${tool.name} tool, once, with everything filled in.`;
   const system = typeof rest.system === 'string' || !rest.system ? (rest.system || '') + ask : [...rest.system, { type: 'text' as const, text: ask }];
-  const first = await ai.messages.create({ ...rest, system, tools: [tool], tool_choice: { type: 'auto' } });
+  let first = await ai.messages.create({ ...rest, system, tools: [tool], tool_choice: { type: 'auto' } });
+  // Ran out of room part-way through the answer (it then arrives empty): once more with twice the room
+  if (first.stop_reason === 'max_tokens' && rest.max_tokens < 32000) first = await ai.messages.create({ ...rest, max_tokens: Math.min(32000, rest.max_tokens * 2), system, tools: [tool], tool_choice: { type: 'auto' } });
   const got = first.content.find((c) => c.type === 'tool_use');
   if (got && got.type === 'tool_use') return { input: repair(got.input, tool.input_schema as Schema) as T, usage: first.usage };
   // Asked again, with its own answer in view

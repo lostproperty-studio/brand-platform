@@ -155,7 +155,7 @@ ${Object.entries(q.like).map(([k, t]) => `${k}: ${Array.isArray(t) ? t.join(' | 
     if (q.mode === 'write') {
       const props = Object.fromEntries(q.parts.map((x) => [x.key, x.count && x.count > 1 ? { type: 'array', items: { type: 'string' }, minItems: x.count, maxItems: x.count, description: x.label } : { type: 'string', description: x.label }]));
       const res = await callTool<{ options?: Record<string, string | string[]>[] }>(ai, {
-        model: 'claude-sonnet-5-5', max_tokens: Math.min(16000, 800 + q.count * q.parts.reduce((n, x) => n + (x.count || 1) * (x.body ? (q.length === 'article' ? 2600 : q.length === 'long' ? 700 : 300) : 60), 0)),
+        model: 'claude-sonnet-5-5', max_tokens: Math.min(16000, 800 + q.count * q.parts.reduce((n, x) => n + (x.count || 1) * (x.body ? (q.length === 'article' ? 2600 : q.length === 'long' ? 700 : 300) : x.hint ? 160 : 80), 0)),
         system,
         messages: [{ role: 'user', content: `Write ${q.count} option${q.count > 1 ? 's' : ''}${q.template ? ` for a ${q.template}` : ''}. Each option has:
 ${partsText}
@@ -171,8 +171,6 @@ ${q.brief}${q.idea ? `\n\nTHE CHOSEN IDEA (develop this one: keep its angle and 
       if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
       if (!acc.staff) await logActivity(p.id, acc.user.id, 'tool', `Writer${q.template ? ` · ${q.template}` : ''}`);
       const options = (res.input?.options || []).slice(0, q.count);
-      // Studio only, while we find out why some answers come back empty: what the model actually sent
-      if (!options.length && acc.staff) return NextResponse.json({ options: [], debug: { input: JSON.stringify(res.input).slice(0, 1500), text: (res.text || '').slice(0, 600), max: Math.min(16000, 800 + q.count * q.parts.reduce((n, x) => n + (x.count || 1) * (x.body ? 300 : 60), 0)) } });
       // Anything over a hard limit (a Google headline over 30, say) is shortened before it's shown
       const over: { o: number; key: string; i: number; text: string; limit: number; unit: 'chars' | 'words' }[] = [];
       options.forEach((o, oi) => q.parts.forEach((x) => { if (!x.limit || x.soft) return; const vals = Array.isArray(o[x.key]) ? (o[x.key] as string[]) : [o[x.key] as string]; vals.forEach((t, i) => { if (typeof t === 'string' && count(t, x.unit) > x.limit!) over.push({ o: oi, key: x.key, i, text: t, limit: x.limit!, unit: x.unit || 'chars' }); }); }));
