@@ -103,14 +103,15 @@ const ADD: Record<string, string> = { key: 'a fact', people: 'a person', places:
 const CHECK = /(^|[\s.;,(])check:\s*/i;
 /** The question in a row: the text after "Check:" */
 const questionOf = (row: string[]) => { const c = row.find((x) => CHECK.test(x)) || ''; return c.slice(c.search(CHECK)).replace(CHECK, '').trim(); };
+const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
 const stripCheck = (c: string) => (CHECK.test(c) ? c.slice(0, c.search(CHECK)).replace(/[\s.;,(]+$/, '') : c);
 
 function Question({ tab, row, canEdit, onAnswer, where }: { tab: Sheet['tabs'][number]; row: string[]; canEdit: boolean; onAnswer: (v: string) => void; where?: string }) {
   const [v, setV] = useState('');
   const known = row.slice(1).map((c, i) => [tab.columns[i + 1], stripCheck(c)]).filter(([, c]) => c.trim());
   return <div className="fct-qc">
-    <div className="fct-qh"><CircleHelp {...I} /><div><span className="fct-qn">{row[0] || 'Untitled'}{where ? <span className="mute"> · {where}</span> : null}</span><p>{questionOf(row)}</p>
-      {known.length ? <p className="mute fct-qk">Now: {known.map(([k, c]) => `${k} ${c}`).join(' · ')}</p> : null}</div></div>
+    <div className="fct-qh"><CircleHelp {...I} /><div><span className="fct-qn">{row[0] || 'Untitled'}{where ? <span className="mute"> · {where}</span> : null}</span><p>{cap(questionOf(row))}</p>
+      {known.length ? <p className="mute fct-qk">Currently: {known.length === 1 ? known[0][1] : known.map(([k, c]) => `${k}: ${c}`).join(' · ')}</p> : null}</div></div>
     {canEdit ? <div className="fct-qa"><input value={v} onChange={(e) => setV(e.target.value)} placeholder="Type the answer" onKeyDown={(e) => { if (e.key === 'Enter') onAnswer(v); }} />
       <button className="btn solid" onClick={() => onAnswer(v)}>{v.trim() ? 'Save answer' : 'It’s right as it is'}</button></div> : null}
   </div>;

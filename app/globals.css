@@ -4791,7 +4791,9 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 .mm-menu button:disabled { opacity: .4; cursor: default; }
 .mm-menu button svg { margin-top: 2px; flex: none; }
 .mm-menu button > span { display: flex; flex-direction: column; gap: 1px; }
-.mm-menu b { font-weight: 500; text-transform: capitalize; }
+.mm-menu b { font-weight: 500; }
+.mm-menu b.cap { text-transform: capitalize; }
+.mm-pb .mo-seg button { white-space: nowrap; padding: 0 12px; }
 .mm-menu .mute { font-size: 12px; }
 .mm-prog { height: 2px; background: var(--fill); position: relative; overflow: hidden; }
 .mm-prog i { position: absolute; left: 0; top: 0; bottom: 0; background: currentColor; transition: width .3s; }

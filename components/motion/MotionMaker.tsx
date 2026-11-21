@@ -176,7 +176,7 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
         <button className="btn solid" onClick={() => setMenu(!menu)} aria-expanded={menu} disabled={!!exp}>{exp ? <Loader2 size={14} className="spin" aria-hidden /> : <Package {...I} />}Export<ChevronDown size={13} aria-hidden /></button>
         {menu ? <div className="mm-menu" role="menu" onMouseLeave={() => setMenu(false)}>
           <p className="mm-mh">Add to {client}’s Motion logos</p>
-          <button role="menuitem" onClick={() => logo && toPackage([logo])} disabled={!logo}><Package {...I} /><span><b>{logo ? logo.name : 'This logo'}</b><span className="mute">{logo ? 'MP4, transparent video, Lottie and SVG, in Resources' : 'Pick a logo on the left'}</span></span></button>
+          <button role="menuitem" onClick={() => logo && toPackage([logo])} disabled={!logo}><Package {...I} /><span><b className="cap">{logo ? logo.name : 'This logo'}</b><span className="mute">{logo ? 'MP4, transparent video, Lottie and SVG, in Resources' : 'Pick a logo on the left'}</span></span></button>
           <button role="menuitem" onClick={() => toPackage(logos)} disabled={!logos.length}><Layers {...I} /><span><b>Every logo</b><span className="mute">{logos.length} logo{logos.length === 1 ? '' : 's'}, each in its own motion</span></span></button>
           <p className="mm-mh">Download a draft</p>
           <button role="menuitem" onClick={() => draft('mp4')} disabled={!logo || !art}><Film {...I} /><span><b>MP4</b><span className="mute">This logo, on the stage colour</span></span></button>
