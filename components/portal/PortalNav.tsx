@@ -43,7 +43,7 @@ export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettin
           <span className="pt-logo-full">{logoUrl ? <img src={logoUrl} alt={client} /> : <span>{client}</span>}</span>
           <span className="pt-logo-sm" aria-hidden>{mini ? <img className="pt-logo-mini" src={mini} alt="" /> : <span className="pt-logo-init">{client.slice(0, 1)}</span>}</span>
         </Link>
-        <button className="pt-burger" aria-expanded={open} aria-controls="pt-nav" onClick={() => setOpen(!open)}><span className="sr">Menu</span><svg width="14" height="8" viewBox="0 0 14 8" aria-hidden><path d="M0 .5h14M0 7.5h14" stroke="currentColor" /></svg></button>
+        <button className="pt-burger" aria-expanded={open} aria-controls="pt-nav" onClick={() => setOpen(!open)}><span className="sr">{open ? 'Close the menu' : 'Menu'}</span>{open ? <X size={16} strokeWidth={1.75} aria-hidden /> : <svg width="14" height="8" viewBox="0 0 14 8" aria-hidden><path d="M0 .5h14M0 7.5h14" stroke="currentColor" /></svg>}</button>
       </div>
       <nav id="pt-nav" className="pt-nav" aria-label="Portal">
         {items.map(([label, href]) => { const Ic = ICONS[label as keyof typeof ICONS]; return <div key={href}>

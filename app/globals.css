@@ -4943,3 +4943,42 @@ html.in-app body { -webkit-tap-highlight-color: transparent; overscroll-behavior
 }
 .ls-code { letter-spacing: .3em; font-variant-numeric: tabular-nums; }
 html.in-app .auth-google, html.in-app .auth-or { display: none; }
+
+/* ---------- Portal on a phone, tidied: a clean top bar, the menu as a full page, chapters as a strip */
+@media (max-width: 760px) {
+  .pt-side, .pt-side.rail, .pt-side.mini { position: sticky; top: 0; z-index: 38; height: auto; min-height: 52px; padding: 0 12px 0 16px; padding-top: env(safe-area-inset-top); display: flex; flex-direction: column; justify-content: center; gap: 0; background: #fff; border-bottom: 1px solid var(--line); overflow: visible; }
+  /* (no backdrop-filter here: it would trap the fixed tab bar and menu inside the top bar) */
+  .pt-side .pt-brand, .pt-side.mini .pt-brand { height: 52px; min-height: 0; padding: 0; justify-content: space-between; }
+  .pt-side .pt-logo-full { display: block; }
+  .pt-side .pt-logo-sm { display: none; }
+  .pt-side .pt-logo-full img, .pt-logo img { height: 24px; max-height: 24px; width: auto; max-width: 160px; }
+  .pt-burger { width: 36px; height: 36px; }
+  /* The menu: the whole screen under the bar, names in full */
+  .pt-side.open .pt-nav { display: flex; position: fixed; left: 0; right: 0; top: calc(52px + env(safe-area-inset-top)); bottom: 0; z-index: 38; max-height: none; overflow-y: auto; padding: 12px 12px calc(90px + env(safe-area-inset-bottom)); background: #fff; animation: pt-fade .16s ease; }
+  .pt-side.mini .pt-it, .pt-side .pt-it { width: auto; height: auto; min-height: 48px; margin: 0; padding: 0 12px; justify-content: flex-start; gap: 14px; font-size: 16px; }
+  .pt-side.mini .pt-it-t { display: inline; overflow: visible; }
+  .pt-side.mini .pt-badge { display: inline-block; }
+  .pt-side.mini .pt-nav-h { height: auto; margin: 18px 12px 6px; overflow: visible; color: var(--mute); background: none; font-size: 13px; }
+  .pt-side [data-tip]::after { display: none !important; }
+  .pt-side .pt-sub { margin: 0 0 8px 24px; }
+  .pt-side .pt-subit { min-height: 40px; align-items: center; font-size: 15px; }
+  .pt:has(.pt-side.open) .dock, .pt:has(.pt-side.open) .pc-bar, .pt:has(.pt-side.open) .pc-ui { display: none; }
+  .pt-side .pt-foot { display: none; }
+  /* Guidelines: the chapters as a strip under the bar */
+  .pt-gwrap { display: block; }
+  .pt-chap { display: flex; gap: 6px; position: sticky; top: calc(52px + env(safe-area-inset-top)); z-index: 30; padding: 8px 16px; overflow-x: auto; scrollbar-width: none; background: rgba(255,255,255,.96); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border-bottom: 1px solid var(--line); }
+  .pt-chap::-webkit-scrollbar { display: none; }
+  .pt-chap-h, .pt-chap-it { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--fill-2); text-decoration: none; font-size: 13px; white-space: nowrap; }
+  .pt-chap-it .pt-n { font-size: 11px; color: var(--mute); }
+  .pt-chap-it.on { background: #000; color: #fff; }
+  .pt-chap-it.on .pt-n { color: rgba(255,255,255,.6); }
+  /* Studio-only bits stay out of the way */
+  .pt-preview { padding: 6px 16px; font-size: 11px; line-height: 1.45; }
+  .pc-bar.top, .pc-bar { top: auto; left: auto; right: 12px; bottom: calc(140px + env(safe-area-inset-bottom)); }
+}
+@keyframes pt-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 760px) {
+  .plg-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .plg-tile { aspect-ratio: auto; min-height: 132px; padding: 14px; gap: 10px; }
+  .rs-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
