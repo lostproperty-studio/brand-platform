@@ -20,18 +20,18 @@ export type MotionLogo = { path: string; name: string; url: string };
 export type MotionFont = { role: string; label: string; name: string; css: string };
 type Step = 'choose' | 'describe' | 'explore' | 'submit';
 type Sel = { kind: 'logo'; path: string } | { kind: 'type'; role: string };
-type Msg = { role: 'user' | 'assistant'; text: string };
-type Patch = Partial<Omit<MotionPreset, 'split'>> & { split?: MotionPreset['split'] | TypePreset['split'] };
-type Direction = { name: string; about: string; logo: MotionPreset; type: TypePreset; controls: Control[] };
-const I = { size: 14, strokeWidth: 1.75, 'aria-hidden': true } as const;
-const kebab = (s: string) => s.toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-const lum = (h: string) => { const n = parseInt(h.replace('#', '').slice(0, 6), 16); return (0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255)) / 255; };
+export type Msg = { role: 'user' | 'assistant'; text: string };
+export type Patch = Partial<Omit<MotionPreset, 'split'>> & { split?: MotionPreset['split'] | TypePreset['split'] };
+export type Direction = { name: string; about: string; logo: MotionPreset; type: TypePreset; controls: Control[] };
+export const I = { size: 14, strokeWidth: 1.75, 'aria-hidden': true } as const;
+export const kebab = (s: string) => s.toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+export const lum = (h: string) => { const n = parseInt(h.replace('#', '').slice(0, 6), 16); return (0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255)) / 255; };
 const STEPS: { id: Step; label: string }[] = [{ id: 'choose', label: 'Choose' }, { id: 'describe', label: 'Describe' }, { id: 'explore', label: 'Explore' }, { id: 'submit', label: 'Submit' }];
-const download = (name: string, blob: Blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
-const post = async (url: string, body: object, method = 'POST') => { const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null); if (!r) throw new Error('You seem to be offline. Try again.'); const txt = await r.text(); let j: Record<string, any> = {}; try { j = JSON.parse(txt); } catch { /* a plain message */ } if (!r.ok) throw new Error(j.error || txt.slice(0, 200) || 'That didn’t work. Try again.'); return j; }; // eslint-disable-line @typescript-eslint/no-explicit-any
+export const download = (name: string, blob: Blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+export const post = async (url: string, body: object, method = 'POST') => { const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null); if (!r) throw new Error('You seem to be offline. Try again.'); const txt = await r.text(); let j: Record<string, any> = {}; try { j = JSON.parse(txt); } catch { /* a plain message */ } if (!r.ok) throw new Error(j.error || txt.slice(0, 200) || 'That didn’t work. Try again.'); return j; }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** A clock that loops a length (ms) */
-function useLoop(T: number, on = true) {
+export function useLoop(T: number, on = true) {
   const [t, setT] = useState(0);
   useEffect(() => { if (!on) return; let raf = 0; const t0 = performance.now(); const tick = (n: number) => { setT((n - t0) % (T + 700)); raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf); }, [T, on]);
   return Math.min(t, T);
@@ -120,7 +120,7 @@ function Choose({ logos, fonts, m, pair, onNext }: { logos: MotionLogo[]; fonts:
 // ---------- 2 Describe
 
 /** A small stage with a logo or a line of type moving in a preset, on a loop */
-function Mini({ logo, font, P, T, pair, label }: { logo?: MotionLogo; font?: MotionFont; P: MotionPreset; T: TypePreset; pair: { dark: string; light: string }; label?: string }) {
+export function Mini({ logo, font, P, T, pair, label }: { logo?: MotionLogo; font?: MotionFont; P: MotionPreset; T: TypePreset; pair: { dark: string; light: string }; label?: string }) {
   const t = useLoop(Math.max(P.length, T.length) * 1000);
   const dark = logo ? /white|light|reverse|negative|inverse/i.test(logo.path) : true;
   return <span className="mo-mini" style={{ background: dark ? pair.dark : pair.light }}>
@@ -311,7 +311,7 @@ function Slide({ label, value, min, max, step, unit, set }: { label: string; val
 }
 
 /** The settings, showing only the qualities being played with */
-function Settings({ P, type, set, controls }: { P: MotionPreset | TypePreset; type: boolean; set: (x: Patch) => void; controls: Control[] }) {
+export function Settings({ P, type, set, controls }: { P: MotionPreset | TypePreset; type: boolean; set: (x: Patch) => void; controls: Control[] }) {
   const e = P.ease;
   const f = useMemo(() => bezier(...e), [e]);
   const d = useMemo(() => Array.from({ length: 41 }, (_, i) => `${i ? 'L' : 'M'}${i * 2.5} ${100 - f(i / 40) * 100}`).join(''), [f]);
@@ -383,7 +383,7 @@ function Claude({ projectId, target, P, subject, parts, brief, apply }: { projec
 
 // ---------- 4 Submit
 
-function Submit({ projectId, client, m, setM, saveNow, logos, fonts, pair, live, canSubmit, onBack }: { projectId: string; client: string; m: BrandMotion; setM: (x: BrandMotion) => void; saveNow: (x: BrandMotion) => Promise<BrandMotion>; logos: MotionLogo[]; fonts: MotionFont[]; pair: { dark: string; light: string }; live: { version: number } | null; canSubmit: boolean; onBack: () => void }) {
+export function Submit({ projectId, client, m, setM, saveNow, logos, fonts, pair, live, canSubmit, onBack }: { projectId: string; client: string; m: BrandMotion; setM: (x: BrandMotion) => void; saveNow: (x: BrandMotion) => Promise<BrandMotion>; logos: MotionLogo[]; fonts: MotionFont[]; pair: { dark: string; light: string }; live: { version: number } | null; canSubmit: boolean; onBack: () => void }) {
   const [prog, setProg] = useState<{ p: number; note: string; error?: boolean } | null>(null);
   const [result, setResult] = useState<{ version: number; chapter: boolean } | null>(null);
   const running = !!prog && prog.p < 1 && !prog.error;
@@ -442,7 +442,7 @@ function Submit({ projectId, client, m, setM, saveNow, logos, fonts, pair, live,
     {result ? <div className="mo-done" role="status"><Check size={16} aria-hidden /><div><strong>Version {result.version} submitted.</strong><p>{result.chapter ? <>The Motion chapter is drafted. <a href="?tab=guidelines">Check it in Guidelines</a> and accept it to show clients.</> : 'There are no guidelines on this project yet, so no Motion chapter was written.'} The package is in Resources.</p></div></div> : null}
     {prog && !result ? <div className="mo-prog"><i style={{ width: `${Math.round(prog.p * 100)}%` }} /><span className={prog.error ? 'mo-err' : 'mute'}>{prog.note}</span></div> : null}
     <div className="mo-pane-foot">
-      <button className="btn" onClick={onBack} disabled={running}><ArrowLeft {...I} />Back to Explore</button>
+      <button className="btn" onClick={onBack} disabled={running}><ArrowLeft {...I} />Back</button>
       <span className="mo-sp" />
       {!canSubmit ? <span className="mute">Only the project’s leads can submit.</span> : null}
       <button className="btn solid" onClick={go} disabled={!canSubmit || running || !!result || (!logos.length && !fonts.length)}>{running ? <Loader2 size={14} className="spin" aria-hidden /> : <Send {...I} />}{result ? 'Submitted' : live ? `Submit version ${live.version + 1}` : 'Submit motion'}</button>
@@ -452,7 +452,7 @@ function Submit({ projectId, client, m, setM, saveNow, logos, fonts, pair, live,
 
 // ---------- Import
 
-type Imported = { logo: MotionPreset; type: TypePreset; controls: Control[]; summary: string; unsure: string; kind: 'kit' | 'video'; name: string };
+export type Imported = { logo: MotionPreset; type: TypePreset; controls: Control[]; summary: string; unsure: string; kind: 'kit' | 'video'; name: string };
 /** Frames from a video, evenly through its first 10 seconds, as small JPEGs */
 async function videoFrames(file: File, n = 14) {
   const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = URL.createObjectURL(file);
@@ -470,7 +470,7 @@ async function videoFrames(file: File, n = 14) {
   return { frames, duration: v.duration };
 }
 
-function Import({ projectId, logos, fonts, onClose, onDone }: { projectId: string; logos: MotionLogo[]; fonts: MotionFont[]; onClose: () => void; onDone: (r: Imported, approved: boolean) => void }) {
+export function Import({ projectId, logos, fonts, onClose, onDone }: { projectId: string; logos: MotionLogo[]; fonts: MotionFont[]; onClose: () => void; onDone: (r: Imported, approved: boolean) => void }) {
   const [kind, setKind] = useState<'kit' | 'video'>('kit');
   const [file, setFile] = useState<File | null>(null);
   const [approved, setApproved] = useState(true);
@@ -499,7 +499,7 @@ function Import({ projectId, logos, fonts, onClose, onDone }: { projectId: strin
       </div>
       <label className="mo-file"><input type="file" accept={kind === 'kit' ? '.html,.htm,text/html' : 'video/*'} onChange={(e) => setFile(e.target.files?.[0] || null)} /><Upload {...I} /><span>{file ? file.name : kind === 'kit' ? 'Choose an HTML file' : 'Choose a video'}</span></label>
       <div className="mo-seg" role="radiogroup" aria-label="Use it as">
-        <button role="radio" aria-checked={approved} onClick={() => setApproved(true)}>Already approved: go to Submit</button>
+        <button role="radio" aria-checked={approved} onClick={() => setApproved(true)}>Already approved: publish it</button>
         <button role="radio" aria-checked={!approved} onClick={() => setApproved(false)}>A starting point: explore it</button>
       </div>
       {err ? <p className="mo-err" role="alert">{err}</p> : null}

@@ -16,7 +16,7 @@ import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
 import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
 import { portalV2 } from '@/lib/portalVersion';
-import { MotionStudio } from '@/components/motion/MotionStudio';
+import { MotionMaker } from '@/components/motion/MotionMaker';
 import { readDraft, readMotion, isSubmitted } from '@/lib/motion/model';
 import { portalContext } from '@/lib/portal/context';
 import { portalPackages } from '@/lib/portal/packages';
@@ -333,7 +333,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     // Every typeface on the project, in its own font where it's been uploaded
     const fonts = (pc?.fonts || []).filter((f) => f.name).map((f) => ({ role: f.role, label: f.label, name: f.name, css: f.files.length ? `var(--font-${f.role}), sans-serif` : 'inherit' }));
     const sub = isSubmitted(p.content) ? readMotion(p.content) : null;
-    body = <>{pc?.fontCss ? <style>{pc.fontCss}</style> : null}<MotionStudio key={sub?.version || 0} projectId={id} client={p.client} logos={logos} fonts={fonts} colours={pc?.snap?.colours || []} motion={readDraft(p.content)}
+    body = <>{pc?.fontCss ? <style>{pc.fontCss}</style> : null}<MotionMaker key={sub?.version || 0} projectId={id} client={p.client} logos={logos} fonts={fonts} colours={pc?.snap?.colours || []} motion={readDraft(p.content)}
       live={sub ? { version: sub.version || 1, submittedAt: sub.submittedAt, submittedBy: sub.submittedBy } : null} canSubmit={myRole === 'lead'} /></>;
   }
   if (tab === 'typefaces') {
