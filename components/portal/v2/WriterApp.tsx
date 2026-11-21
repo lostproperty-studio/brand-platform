@@ -4,9 +4,9 @@ import { ArrowLeft, BookOpen, Brain, Check, ChevronDown, Layers, Copy, Heart, Lo
 import { AppIcon } from '@/components/portal/AppIcon';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, templateById, type WriterPart, type WriterTemplate } from '@/lib/writerTemplates';
 import { KIND_LABEL, type KnowledgeEntry } from '@/lib/voiceKnowledge';
-import { FactButton } from '@/components/portal/v2/FactSheet';
 import { BlockCanvas, blocksOf, contextFor, type Block } from '@/components/portal/v2/WriterBlocks';
 import { CoText, useCoWriterOn } from '@/components/portal/v2/CoWriter';
+import { KnowsButton, suggestFact } from '@/components/portal/v2/WriterKnows';
 
 // Portal v2 Writer: Docs first (one per campaign or project), then a doc of pieces. Each piece is written for one
 // or more places (Instagram, email, a poster…), gets options from the Writer in the brand's voice, and moves
@@ -102,11 +102,11 @@ export function WriterApp({ slug, client, audiences, me, note, brand, facts = fa
   const create = async () => {
     try { const { id } = await A.create('Untitled doc', { intro: '', pieces: [newPiece('First piece')] }); go(id); } catch (e) { setErr((e as Error).message); }
   };
-  return <Browser slug={slug} facts={facts} files={files} err={err} note={note} onOpen={(id) => go(id)} onNew={create} onDelete={async (f) => { if (!confirm(`Delete “${f.title}”? This can’t be undone.`)) return; await A.remove(f.id).catch(() => {}); refresh(); }} />;
+  return <Browser slug={slug} client={client} facts={facts} files={files} err={err} note={note} onOpen={(id) => go(id)} onNew={create} onDelete={async (f) => { if (!confirm(`Delete “${f.title}”? This can’t be undone.`)) return; await A.remove(f.id).catch(() => {}); refresh(); }} />;
 }
 
 // ---------- Docs: the first screen
-function Browser({ slug, facts, files, err, note, onOpen, onNew, onDelete }: { slug: string; facts: boolean; files: FileRow[] | null; err: string; note?: string; onOpen: (id: string) => void; onNew: () => void; onDelete: (f: FileRow) => void }) {
+function Browser({ slug, client, facts, files, err, note, onOpen, onNew, onDelete }: { slug: string; client: string; facts: boolean; files: FileRow[] | null; err: string; note?: string; onOpen: (id: string) => void; onNew: () => void; onDelete: (f: FileRow) => void }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | Status>('all');
   const list = (files || []).filter((f) => (filter === 'all' || f.status === filter) && (!q || f.title.toLowerCase().includes(q.toLowerCase())));
@@ -115,7 +115,7 @@ function Browser({ slug, facts, files, err, note, onOpen, onNew, onDelete }: { s
       <AppIcon app="writer" size={18} play /><strong>Writer</strong><span className="mute fb-crumb">/</span><span className="fb-crumb">Docs</span>
       <span className="fb-sp" />
       <label className="fb-search"><Search {...I} /><span className="sr">Search docs</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search docs" /></label>
-      {facts ? <FactButton slug={slug} /> : null}
+      <KnowsButton slug={slug} client={client} facts={facts} />
       <button className="btn solid fb-newb" onClick={onNew} aria-label="New doc"><Plus {...I} /><span>New doc</span></button>
     </header>
     <div className="fb-body">
@@ -157,7 +157,6 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   const [saved, setSaved] = useState<'saved' | 'saving' | 'error'>('saved');
   const [cardsW, setCardsW] = useState(380);
   const [cmd, setCmd] = useState<Cmd>({ kind: 'ideas', n: 0 });
-  const [know, setKnow] = useState(false);
   const { people, me: myId } = usePeople(slug);
   const [sending, setSending] = useState(false);
   const [showDone, setShowDone] = useState(false);
@@ -231,18 +230,14 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
         {more ? <><div className="w2-scrim" onClick={() => setMore(false)} /><div className="w2-menu w2-more" role="menu">
           <div className="w2-kv"><span className="mute">Status</span><span><span className={ST[docStatus(doc)][1]}>{ST[docStatus(doc)][0]}</span> <span className="mute">{saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : 'Saved'}</span></span></div>
           <hr />
-          {facts ? <FactButton slug={slug} asItem /> : null}
-          <button role="menuitem" onClick={() => { setMore(false); setKnow(true); }}><Brain {...I} />Writer’s knowledge</button>
+          <KnowsButton slug={slug} client={client} facts={facts} asItem />
           <button role="menuitem" onClick={() => { setShowDone(!showDone); }}><MessageSquare {...I} />{showDone ? 'Hide resolved comments' : 'Show resolved comments'}{openComments ? <span className="mute"> · {openComments} open</span> : null}</button>
           <button role="menuitem" disabled={!ready.length} onClick={() => { setMore(false); setSending(true); }}><Sparkles {...I} />Send {ready.length || ''} for approval</button>
         </div></>: null}
-        {know ? <><div className="w2-scrim" onClick={() => setKnow(false)} /><Knowledge slug={slug} client={client} onClose={() => setKnow(false)} /></> : null}
         {sending ? <><div className="w2-scrim" onClick={() => setSending(false)} /><div className="w3-know w3-send"><HandOff people={people} myId={myId} title={`Send ${ready.length} piece${ready.length === 1 ? '' : 's'} for approval`} onSend={sendAll} onCancel={() => setSending(false)} /></div></> : null}
       </span> : <>
       <Faces people={people} ids={[doc.props?.owner, ...(doc.props?.reviewers || [])]} />
-      <span className="w3-know-wrap"><button className="w2-ic" onClick={() => setKnow(!know)} aria-expanded={know} aria-label="Writer’s knowledge" title="Writer’s knowledge"><Brain {...I} /></button>
-        {know ? <Knowledge slug={slug} client={client} onClose={() => setKnow(false)} /> : null}</span>
-      {facts ? <FactButton slug={slug} /> : null}
+      <KnowsButton slug={slug} client={client} facts={facts} />
       <button className={'w2-ic w3-cm' + (showDone ? ' on' : '')} onClick={() => setShowDone(!showDone)} aria-pressed={showDone} aria-label={showDone ? 'Hide resolved comments' : 'Show resolved comments too'} title={`${openComments} open comment${openComments === 1 ? '' : 's'} · ${showDone ? 'hide' : 'show'} resolved`}><MessageSquare {...I} />{openComments ? <i>{openComments}</i> : null}</button>
       <span className="w3-know-wrap"><button className="btn" onClick={() => setSending(!sending)} disabled={!ready.length} title={ready.length ? `Send ${ready.length} piece${ready.length === 1 ? '' : 's'} to someone to approve` : 'Write a piece first'}>Send for approval</button>
         {sending ? <div className="w3-know w3-send"><HandOff people={people} myId={myId} title={`Send ${ready.length} piece${ready.length === 1 ? '' : 's'} for approval`} onSend={sendAll} onCancel={() => setSending(false)} /></div> : null}</span></>}
@@ -275,7 +270,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
           <textarea className="w2-intro" value={doc.intro || ''} onChange={(e) => setDoc((d) => ({ ...d, intro: e.target.value }))} placeholder="What’s this doc for? A line or two about the campaign or project." rows={2} />
           <DocDetails props={doc.props || {}} people={people} audiences={audiences} signed={signed} total={doc.pieces.length} set={(x) => setDoc((d) => ({ ...d, props: { ...(d.props || {}), ...x } }))} />
           <BlockCanvas blocks={blocks} setBlocks={setBlocks} slug={slug} facts={facts} addPiece={addPiece} removePiece={(id) => setDoc((d) => ({ ...d, pieces: d.pieces.filter((x) => x.id !== id) }))}
-            renderPiece={(id, n) => { const p = doc.pieces.find((x) => x.id === id); return p ? <PieceBlock brief={[doc.intro || '', contextFor(blocks, p.id)].filter((x) => x.trim()).join('\n') || p.name} tone={tone} n={n} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} /> : null; }} />
+            renderPiece={(id, n) => { const p = doc.pieces.find((x) => x.id === id); return p ? <PieceBlock factsOn={facts} brief={[doc.intro || '', contextFor(blocks, p.id)].filter((x) => x.trim()).join('\n') || p.name} tone={tone} n={n} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} /> : null; }} />
         </article>
         <div className="w3-dock">
         {flash ? <p className="w3-flash" role="status">{flash}</p> : null}
@@ -298,7 +293,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   </div>;
 }
 
-function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, onFocus, set, onDelete, brief, tone }: { brief: string; tone: number; n: number; p: Piece; on: boolean; me: string; myId: string; showDone: boolean; say: (t: string) => void; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
+function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, onFocus, set, onDelete, brief, tone, factsOn }: { factsOn: boolean; brief: string; tone: number; n: number; p: Piece; on: boolean; me: string; myId: string; showDone: boolean; say: (t: string) => void; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
   const [box, setBox] = useState<null | 'handoff' | 'comment' | 'changes'>(null);
   const sel = useRef('');
   const nameOfId = (id?: string) => people.find((x) => x.id === id)?.name;
@@ -321,6 +316,16 @@ function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, on
   const [copied, setCopied] = useState('');
   const copy = async (k: string, t: string) => { try { await navigator.clipboard.writeText(t); setCopied(k); setTimeout(() => setCopied(''), 1400); } catch { /* blocked */ } };
   const bits = pieceBits(p);
+  // The Writer reads the piece for facts when you pause: new ones to add, and ones that don't match the fact sheet
+  const [spots, setSpots] = useState<{ found: { label: string; value: string; done?: string }[]; clash: { label: string; says: string; sheet: string; done?: boolean }[] }>({ found: [], clash: [] });
+  const spotted = useRef('');
+  const spot = async (text: string) => {
+    if (text.trim().length < 40 || text === spotted.current) return; spotted.current = text;
+    const r = await fetch(`/api/p/${slug}/writer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'coach', action: 'spot', brief: brief || p.name, text, tone }) }).catch(() => null);
+    const j = r?.ok ? await r.json().catch(() => null) : null;
+    if (j && spotted.current === text) setSpots({ found: j.found || [], clash: (j.clash || []).filter((c: { says: string }) => p.text.includes(c.says)) });
+  };
+  const live = { found: spots.found.filter((f) => f.done !== 'x'), clash: spots.clash.filter((c) => !c.done) };
   const places = p.templates.map((t) => templateById(t).label).join(' · ');
   const fitted = p.out ? p.templates.filter((t) => p.out![t]) : [];
   return <div id={`pc-${p.id}`} className={'w2-piece' + (on ? ' on' : '') + (p.status === 'signed' ? ' locked' : '')} onClick={onFocus}>
@@ -360,8 +365,17 @@ function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, on
       : fitted.length
         ? <div className="w2-bits" onMouseUp={() => { sel.current = (getSelection()?.toString() || '').trim().slice(0, 300); }}>{fitted.map((id) => { const t = templateById(id); return <div key={id} className="w2-bit"><div className="w2-bit-h"><span>{t.label}</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); set({ text: fitted.map((x) => `${templateById(x).label}\n${outText(templateById(x), p.out![x])}`).join('\n\n'), out: undefined }); }}>Edit as text</button></div>
             {partsOf(t).filter((x) => asList(p.out![id][x.key]).length).map((x) => <p key={x.key}><span className="mute w3-pl">{x.label} · </span>{asList(p.out![id][x.key]).join('\n')}</p>)}</div>; })}</div>
-        : <CoText value={p.text} onChange={(v) => set({ text: v, parts: undefined })} slug={slug} brief={brief} tone={tone} template={places} onSelectText={(t) => { sel.current = t; }}
+        : <CoText value={p.text} onChange={(v) => set({ text: v, parts: undefined })} slug={slug} brief={brief} tone={tone} template={places} onSelectText={(t) => { sel.current = t; }} onPause={factsOn ? spot : undefined} say={say}
             placeholder="Start writing. The Writer suggests the next line as you go: Tab keeps it. Select words for other ways to say them." />}
+    {p.status !== 'signed' && (live.found.length || live.clash.length) ? <div className="sp">
+      {live.clash.map((c, k) => <div key={'c' + k} className="sp-c clash"><span className="sp-i">!</span><span className="sp-t"><span className="sp-k">Doesn’t match the facts</span><b>{c.label}</b> should be <q>{c.sheet}</q></span>
+        <button className="btn sm solid" onClick={() => { set({ text: p.text.replace(c.says, c.sheet) }); setSpots((s) => ({ ...s, clash: s.clash.map((x) => (x === c ? { ...x, done: true } : x)) })); }}>Use the fact</button>
+        <button className="w2-ic" onClick={() => setSpots((s) => ({ ...s, clash: s.clash.map((x) => (x === c ? { ...x, done: true } : x)) }))} aria-label="Keep mine"><X size={13} aria-hidden /></button></div>)}
+      {live.found.map((f, k) => <div key={'f' + k} className={'sp-c' + (f.done ? ' done' : '')}><span className="sp-i">+</span><span className="sp-t"><span className="sp-k">New fact?</span><b>{f.label}</b> {f.value}</span>
+        {f.done === 'added' ? <span className="sp-ok">Added to facts</span> : f.done === 'asked' ? <span className="sp-ok">Sent to confirm</span>
+          : <><button className="btn sm" onClick={async () => { const r = await suggestFact(slug, f.label, f.value); if (r === 'failed') { say('That didn’t save. Try again.'); return; } setSpots((s) => ({ ...s, found: s.found.map((x) => (x === f ? { ...x, done: r } : x)) })); }}>Add to facts</button>
+          <button className="w2-ic" onClick={() => setSpots((s) => ({ ...s, found: s.found.map((x) => (x === f ? { ...x, done: 'x' } : x)) }))} aria-label="Not a fact"><X size={13} aria-hidden /></button></>}</div>)}
+    </div> : null}
     {comments.length ? <div className="w3-ths">{comments.map((c) => <Thread key={c.id} c={c} me={me} writerIcon={!!c.writer} canApply={!!c.quote && !!c.fix && !!applyFix(p, c.quote, c.fix)}
       onApply={c.writer && c.quote && c.fix && p.status !== 'signed' ? () => { const x = applyFix(p, c.quote!, c.fix!); if (x) set({ ...x, comments: (p.comments || []).map((y) => (y.id === c.id ? { ...y, resolved: true } : y)) }); } : undefined}
       onReply={(t) => setC(c.id, { replies: [...(c.replies || []), { by: me, text: t, at: new Date().toISOString() }] })} onResolve={() => setC(c.id, { resolved: true })} />)}</div> : null}
@@ -530,18 +544,6 @@ function Links({ slug, docId, links, adding, onDone, set }: { slug: string; docI
       {all === null ? <span className="mute w3-pp-none"><Loader2 size={12} className="spin" aria-hidden /> Loading</span> : !all.length ? <span className="mute w3-pp-none">No other files yet. Films from Director and other docs show here.</span>
         : all.map((l) => { const on = links.some((x) => x.app === l.app && x.id === l.id); return <button key={l.app + l.id} className={'w3-pp-row' + (on ? ' on' : '')} onClick={() => set(on ? links.filter((x) => !(x.app === l.app && x.id === l.id)) : [...links, l])}><AppIcon app={l.app} size={13} still /><span>{l.title}</span>{on ? <Check size={12} aria-hidden /> : null}</button>; })}
     </span></span> : null}
-  </div>;
-}
-
-// ---------- The Writer's knowledge: lines the team love, that worked, or that missed
-function Knowledge({ slug, client, onClose }: { slug: string; client: string; onClose: () => void }) {
-  const [list, setList] = useState<KnowledgeEntry[] | null>(null);
-  useEffect(() => { fetch(`/api/p/${slug}/writer/knowledge`).then((r) => r.json()).then((j) => setList(j.entries || [])).catch(() => setList([])); }, [slug]);
-  return <div className="w3-know" role="dialog" aria-label="Writer’s knowledge" onMouseLeave={onClose}>
-    <p className="w3-know-h"><strong>What the Writer has learned</strong><button className="w2-ic" onClick={onClose} aria-label="Close"><X size={13} aria-hidden /></button></p>
-    <p className="mute w3-know-s">Examples from the {client} team, used alongside the voice. Add one with the heart on any idea.</p>
-    {list === null ? <p className="mute"><Loader2 size={13} className="spin" aria-hidden /> Loading</p> : !list.length ? <p className="mute">Nothing yet.</p>
-      : <ul>{list.slice(0, 30).map((e) => <li key={e.id}><span className="w3-tag">{KIND_LABEL[e.kind]}</span><span>{e.text}</span></li>)}</ul>}
   </div>;
 }
 

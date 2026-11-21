@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowRight, RefreshCw, Sparkles, Undo2, X } from 'lucide-react';
+import { ArrowRight, Heart, RefreshCw, Sparkles, Undo2, X } from 'lucide-react';
+import { saveExample } from '@/components/portal/v2/WriterKnows';
 
 // The Writer as a co-writer, on the page. As you write, the next line appears faintly ahead of you (Tab keeps it,
 // carry on typing to ignore it). Select words, or tap ✦ beside the line you're on, for three other ways to say that
@@ -23,8 +24,9 @@ function sentenceAt(t: string, at: number): [number, number] {
   return [s, Math.max(s, e)];
 }
 
-export function CoText({ value, onChange, slug, brief, tone, template, placeholder, onSelectText }: {
+export function CoText({ value, onChange, slug, brief, tone, template, placeholder, onSelectText, onPause, say }: {
   value: string; onChange: (v: string) => void; slug: string; brief: string; tone: number; template?: string; placeholder: string; onSelectText?: (t: string) => void;
+  /** Called when you leave the text (the Writer reads it for facts then) */ onPause?: (text: string) => void; say?: (t: string) => void;
 }) {
   const [on] = useCoWriterOn();
   const ta = useRef<HTMLTextAreaElement>(null);
@@ -99,7 +101,7 @@ export function CoText({ value, onChange, slug, brief, tone, template, placehold
     <div className="co-mirror w2-text" aria-hidden>{mirror}{'​'}</div>
     <textarea ref={ta} className="co-ta w2-text" value={value} placeholder={placeholder} rows={1} spellCheck
       onChange={(e) => { onChange(e.target.value); setUndo(null); setPop(null); }} onSelect={track} onKeyUp={track} onMouseUp={track}
-      onFocus={() => { setFocus(true); track(); }} onBlur={() => setTimeout(() => setFocus(false), 150)}
+      onFocus={() => { setFocus(true); track(); }} onBlur={() => { setTimeout(() => setFocus(false), 150); onPause?.(value); }}
       onKeyDown={(e) => {
         if (e.key === 'Tab' && ghost) { e.preventDefault(); accept(); }
         else if (e.key === 'Escape') { setGhost(''); setPop(null); }
@@ -111,7 +113,9 @@ export function CoText({ value, onChange, slug, brief, tone, template, placehold
     {/* Selected words: rework them */}
     {sel && !pop && pos ? <div className="co-bub" style={{ left: pos.x, top: pos.y - 44 }} onMouseDown={(e) => e.preventDefault()}>
       <button type="button" className="co-main" onClick={() => rework(sel[0], sel[1])}><Sparkles size={13} strokeWidth={1.9} aria-hidden />Other ways</button>
-      {STEERS.slice(0, 4).map(([l, s]) => <button type="button" key={l} onClick={() => rework(sel[0], sel[1], s)}>{l}</button>)}
+      {STEERS.slice(0, 3).map(([l, s]) => <button type="button" key={l} onClick={() => rework(sel[0], sel[1], s)}>{l}</button>)}
+      <span className="co-sep" />
+      <button type="button" onClick={async () => { const ok = await saveExample(slug, value.slice(sel[0], sel[1]).trim(), template); say?.(ok ? 'Saved as an example. The Writer learns from it.' : 'That didn’t save. Try again.'); }} aria-label="Save as an example the Writer learns from" title="Save as an example the Writer learns from"><Heart size={13} aria-hidden /></button>
     </div> : null}
     {pop && pos ? <div className="co-pop" style={{ left: pos.x, top: pos.y + pos.h + 8 }} onMouseDown={(e) => e.preventDefault()} role="dialog" aria-label="Other ways to say it">
       <div className="co-pop-h"><Sparkles size={13} strokeWidth={1.9} aria-hidden /><span>{pop.steer ? `${pop.steer[0].toUpperCase()}${pop.steer.slice(1)}` : 'Other ways to say it'}</span><button type="button" className="co-x" onClick={() => setPop(null)} aria-label="Close"><X size={13} aria-hidden /></button></div>

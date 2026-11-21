@@ -54,3 +54,18 @@ export function factsMd(client: string, f: FactSheet) {
 ${sure.join('\n\n')}${unsure.length ? `\n\nNOT CONFIRMED YET (open questions for ${client}: don't state these facts; if the copy needs one, leave a [check: …] placeholder for a person to fill)\n${unsure.join('\n\n')}` : ''}
 If the copy needs a fact that isn't here, don't guess: leave a short [check: …] placeholder for a person to fill.`;
 }
+
+/** The sheet as a simple list of facts: a label and its value (notes left out), for the Writer's "What it knows" */
+export type FlatFact = { tab: string; tabTitle: string; row: number; label: string; value: string; unsure: boolean; question: string };
+export function flatFacts(f: FactSheet): FlatFact[] {
+  return f.tabs.flatMap((t) => t.rows.map((r, i) => {
+    const vals = r.slice(1).map((c, k) => [t.columns[k + 1] || '', c.trim()] as const).filter(([k, c]) => c && !/^notes?$/i.test(k) && !/(^|[\s.;,(])check:/i.test(c));
+    const q = r.find((c) => /(^|[\s.;,(])check:/i.test(c)) || '';
+    return { tab: t.id, tabTitle: t.title, row: i, label: (r[0] || '').trim(), value: vals.length === 1 ? vals[0][1] : vals.map(([k, c]) => `${k}: ${c}`).join(' · '), unsure: isCheck(r), question: q.slice(q.search(/check:/i) + 6).trim() };
+  })).filter((x) => x.label);
+}
+/** Adds one fact to a tab (Key facts unless another is named); a note makes it a question for the sheet's owner */
+export function addFact(f: FactSheet, x: { label: string; value: string; tab?: string; note?: string }): FactSheet {
+  const id = f.tabs.some((t) => t.id === x.tab) ? x.tab! : f.tabs[0]?.id;
+  return { ...f, tabs: f.tabs.map((t) => (t.id !== id ? t : { ...t, rows: [...t.rows, t.columns.map((c, k) => (k === 0 ? x.label : k === 1 ? x.value : /^notes?$/i.test(c) && x.note ? x.note : ''))] })) };
+}

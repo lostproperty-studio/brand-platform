@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { projectBySlug } from '@/lib/projects/snapshot';
 import { nameOf } from '@/lib/guideVersions';
-import { readFacts } from '@/lib/factSheet';
+import { addFact, readFacts } from '@/lib/factSheet';
 import { canSee, projectStages } from '@/lib/features';
 
 // The fact sheet the Writer works from. Everyone in the portal can read it; managers, admins and the studio edit it.
@@ -36,4 +36,21 @@ export async function PUT(req: Request, ctx: { params: Promise<{ slug: string }>
   const facts = { ...b.data.facts, updatedAt: new Date().toISOString(), updatedBy: nameOf(a.acc.user as Parameters<typeof nameOf>[0]) };
   await sb.from('projects').update({ content: { ...content, factSheet: facts } }).eq('id', a.p.id);
   return NextResponse.json({ facts: readFacts({ factSheet: facts }) });
+}
+
+// One fact, added while writing (the Writer spotted it). Managers and admins add it as confirmed; anyone else's goes
+// in as a question for them to confirm, so nothing unchecked reaches the Writer.
+const One = z.object({ label: z.string().min(1).max(120), value: z.string().min(1).max(500), tab: z.string().max(40).optional() });
+export async function POST(req: Request, ctx: { params: Promise<{ slug: string }> }) {
+  const a = await load((await ctx.params).slug); if (!a) return new Response('Not found', { status: 404 });
+  const b = One.safeParse(await req.json().catch(() => ({}))); if (!b.success) return new Response('Bad request', { status: 400 });
+  const sb = adminClient();
+  const { data } = await sb.from('projects').select('content').eq('id', a.p.id).single();
+  const content = (data?.content || {}) as Record<string, unknown>;
+  const who = nameOf(a.acc.user as Parameters<typeof nameOf>[0]);
+  const cur = readFacts(content);
+  const next = addFact(cur, { ...b.data, note: a.canEdit ? undefined : `Check: added from the Writer by ${who}` });
+  const facts = { owner: cur.owner, tabs: next.tabs, updatedAt: new Date().toISOString(), updatedBy: who };
+  await sb.from('projects').update({ content: { ...content, factSheet: facts } }).eq('id', a.p.id);
+  return NextResponse.json({ facts: readFacts({ factSheet: facts }), confirmed: a.canEdit });
 }

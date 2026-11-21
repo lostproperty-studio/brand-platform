@@ -18,7 +18,7 @@ const Part = z.object({ key: z.string().regex(/^[a-z0-9_-]{1,24}$/), label: z.st
 const Body = z.object({
   mode: z.enum(['write', 'review', 'ideas', 'coach']),
   /** Coach (the co-writer on the page): other ways to say one line, the next line, or ways to open */
-  action: z.enum(['alts', 'next', 'open']).optional(),
+  action: z.enum(['alts', 'next', 'open', 'spot']).optional(),
   /** Coach: the piece so far, and the line being worked on */
   text: z.string().max(12000).optional(),
   line: z.string().max(1200).optional(),
@@ -88,6 +88,17 @@ ${VOICE_GUARD(snap.client)}
       const act = q.action || 'alts';
       const where = q.template ? `It's for: ${q.template}.` : '';
       const ctxt = `${where}\nTone: ${toneWords(q.tone)} (within the voice's range)\n\nWHAT THEY'RE WRITING ABOUT (brief and notes)\n${q.brief}`;
+      if (act === 'spot') {
+        // Facts in their copy: ones the fact sheet doesn't have yet, and ones that don't match it
+        if (!factsOn) return NextResponse.json({ found: [], clash: [] });
+        const res = await callTool<{ found?: { label: string; value: string }[]; clash?: { label: string; says: string; sheet: string }[] }>(ai, { model: 'claude-sonnet-5-5', max_tokens: 800, system,
+          messages: [{ role: 'user', content: `Read their copy for hard facts about ${snap.client}: names of places and people, dates, times, prices, numbers, addresses, offers. Compare with the fact sheet above.\n- found: facts in the copy that the fact sheet doesn't have at all (not ones it already has). Only concrete, reusable facts about ${snap.client}, never opinions, slogans or campaign lines. A short label (like "Open studios dates") and the value as written.\n- clash: facts in the copy that contradict a confirmed fact on the sheet: what the copy says and what the sheet says.\nMost copy has none of either: return empty lists then. At most 3 of each.\n\nTHEIR COPY\n${q.text || ''}` }],
+          tool: { name: 'facts', description: 'Facts found', input_schema: { type: 'object', properties: {
+            found: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, value: { type: 'string' } }, required: ['label', 'value'] } },
+            clash: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, says: { type: 'string', description: 'The words in their copy' }, sheet: { type: 'string', description: 'What the fact sheet says instead' } }, required: ['label', 'says', 'sheet'] } } }, required: ['found', 'clash'] } } });
+        if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
+        return NextResponse.json({ found: (res.input?.found || []).slice(0, 3), clash: (res.input?.clash || []).slice(0, 3) });
+      }
       if (act === 'next') {
         const res = await callTool<{ next?: string }>(ai, { model: 'claude-haiku-5-5', max_tokens: 300, system,
           messages: [{ role: 'user', content: `You're a co-writer, sitting beside them. Suggest only the next sentence of their copy, carrying on from exactly where it stops, in the voice and in their direction. One sentence at most, shorter is better. If their text stops mid-sentence, finish that sentence only. If the piece already feels complete, return an empty string.\n\n${ctxt}\n\nTHEIR COPY SO FAR\n${q.text || ''}` }],
