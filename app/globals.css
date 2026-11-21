@@ -4718,7 +4718,7 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 /* Fact sheet (Writer) */
 .fs-btn { display: inline-flex; align-items: center; gap: 6px; }
 .fs-btn i, .fs-tab i { font-style: normal; font-size: 10px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #f3d58a; color: #5a4300; display: inline-flex; align-items: center; justify-content: center; }
-.fs { position: fixed; inset: 0; z-index: 60; background: #fff; display: flex; flex-direction: column; font-size: 13px; }
+.fs { position: fixed; inset: 0; z-index: 300; background: #fff; display: flex; flex-direction: column; font-size: 13px; }
 .fs-top { flex: none; height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 14px 0 20px; border-bottom: 1px solid var(--line); }
 .fs-top strong { font-weight: 500; }
 .fs-load { flex: 1; display: grid; place-items: center; }

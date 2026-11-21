@@ -27,7 +27,8 @@ export function FactSheet({ slug, onClose }: { slug: string; onClose: () => void
   const base = useRef<string | undefined>(undefined);
   const dirty = useRef(false);
   useEffect(() => {
-    fetch(`/api/p/${slug}/facts`).then((r) => r.json()).then((j) => { setF(j.facts); setCanEdit(j.canEdit); base.current = j.facts.updatedAt; }).catch(() => setErr('Couldn’t open the fact sheet.'));
+    const get = () => fetch(`/api/p/${slug}/facts`).then((r) => { if (!r.ok) throw new Error(); return r.json(); });
+    get().catch(() => new Promise((ok) => setTimeout(ok, 800)).then(get)).then((j) => { setF(j.facts); setCanEdit(j.canEdit); base.current = j.facts.updatedAt; }).catch(() => setErr('Couldn’t open the fact sheet. Close it and try again.'));
   }, [slug]);
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [onClose]);
   // Save a moment after the last change
