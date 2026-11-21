@@ -34,10 +34,10 @@ export function readFacts(content: unknown): FactSheet {
   return { owner: clean(f.owner, 80), tabs, updatedAt: f.updatedAt, updatedBy: f.updatedBy };
 }
 
-export const isCheck = (row: string[]) => row.some((c) => /^\s*check:/i.test(c));
+export const isCheck = (row: string[]) => row.some((c) => /(^|[\s.;,(])check:/i.test(c));
 /** Rows still waiting on an answer from the client */
 export const openChecks = (f: FactSheet) => f.tabs.reduce((n, t) => n + t.rows.filter(isCheck).length, 0);
-export const filled = (f: FactSheet) => f.tabs.reduce((n, t) => n + t.rows.filter((r) => r.slice(1).some((c) => c.trim() && !/^\s*check:/i.test(c))).length, 0);
+export const filled = (f: FactSheet) => f.tabs.reduce((n, t) => n + t.rows.filter((r) => r.slice(1).some((c) => c.trim() && !/(^|[\s.;,(])check:/i.test(c))).length, 0);
 
 /** For the Writer: the confirmed facts as the truth, and the open questions as things not to state */
 export function factsMd(client: string, f: FactSheet) {
