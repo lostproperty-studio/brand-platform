@@ -6,6 +6,7 @@ import { TEMPLATE_GROUPS, WRITER_TEMPLATES, templateById, type WriterPart, type 
 import { KIND_LABEL, type KnowledgeEntry } from '@/lib/voiceKnowledge';
 import { FactButton } from '@/components/portal/v2/FactSheet';
 import { BlockCanvas, blocksOf, contextFor, type Block } from '@/components/portal/v2/WriterBlocks';
+import { CoText, useCoWriterOn } from '@/components/portal/v2/CoWriter';
 
 // Portal v2 Writer: Docs first (one per campaign or project), then a doc of pieces. Each piece is written for one
 // or more places (Instagram, email, a poster…), gets options from the Writer in the brand's voice, and moves
@@ -165,6 +166,9 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   const narrow = useNarrow();
   const [sheet, setSheet] = useState(false);
   const [more, setMore] = useState(false);
+  // The places panel (fitting a piece to Instagram, email…) opens only when asked for; the writing stays on the page
+  const [panel, setPanel] = useState(false);
+  const [coOn, setCoOn] = useCoWriterOn();
   const say = (t: string) => { setFlash(t); setTimeout(() => setFlash(''), 3500); };
   const first = useRef(true);
   // Saves a moment after the last change
@@ -247,7 +251,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
     {narrow ? <nav className="w2-strip" aria-label="Pieces">{doc.pieces.map((p, i) => <button key={p.id} className={'w2-sp' + (p.id === piece?.id ? ' on' : '')} onClick={() => { setActive(p.id); document.getElementById(`pc-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
       <span className="mute">{i + 1}</span>{p.name}{p.status === 'signed' ? <Check size={11} aria-hidden /> : p.status === 'review' ? <i className="w2-sp-dot" /> : null}</button>)}
       <button className="w2-sp add" onClick={addPiece} aria-label="New piece"><Plus size={13} aria-hidden /></button></nav> : null}
-    <div className="w2-body" style={narrow ? undefined : { gridTemplateColumns: `240px minmax(0, 1fr) ${cardsW}px` }}>
+    <div className="w2-body" style={narrow ? undefined : { gridTemplateColumns: panel ? `240px minmax(0, 1fr) ${cardsW}px` : '240px minmax(0, 1fr) 0px' }}>
       <aside className="w2-side" aria-label="Pieces">
         <div className="w2-side-h"><strong>On this page</strong><span className="mute">{doc.pieces.length} piece{doc.pieces.length === 1 ? '' : 's'}</span></div>
         <a className="w3-voice" href={`/p/${slug}/guidelines`}><BookOpen size={14} strokeWidth={1.6} aria-hidden /><span>Voice from Guidelines</span><span className="w3-tag ok">In sync</span></a>
@@ -271,30 +275,30 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
           <textarea className="w2-intro" value={doc.intro || ''} onChange={(e) => setDoc((d) => ({ ...d, intro: e.target.value }))} placeholder="What’s this doc for? A line or two about the campaign or project." rows={2} />
           <DocDetails props={doc.props || {}} people={people} audiences={audiences} signed={signed} total={doc.pieces.length} set={(x) => setDoc((d) => ({ ...d, props: { ...(d.props || {}), ...x } }))} />
           <BlockCanvas blocks={blocks} setBlocks={setBlocks} slug={slug} facts={facts} addPiece={addPiece} removePiece={(id) => setDoc((d) => ({ ...d, pieces: d.pieces.filter((x) => x.id !== id) }))}
-            renderPiece={(id, n) => { const p = doc.pieces.find((x) => x.id === id); return p ? <PieceBlock n={n} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} /> : null; }} />
+            renderPiece={(id, n) => { const p = doc.pieces.find((x) => x.id === id); return p ? <PieceBlock brief={[doc.intro || '', contextFor(blocks, p.id)].filter((x) => x.trim()).join('\n') || p.name} tone={tone} n={n} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} /> : null; }} />
         </article>
         <div className="w3-dock">
         {flash ? <p className="w3-flash" role="status">{flash}</p> : null}
         {piece && piece.status !== 'signed' ? <div className="w3-bar">
           <span className="w3-bar-n">{piece.name}</span>
-          <button className="btn pink" onClick={() => { setCmd({ kind: 'ideas', n: cmd.n + 1 }); if (narrow) setSheet(true); }}><Sparkles size={14} aria-hidden />{narrow ? 'Write' : 'Write 3 options'}</button>
-          <button className="btn" onClick={() => { setCmd({ kind: 'fit', n: cmd.n + 1 }); if (narrow) setSheet(true); }}>{narrow ? 'Fit' : 'Fit to templates'}</button>
+          <button className={'btn w3-co' + (coOn ? ' on' : '')} onClick={() => setCoOn(!coOn)} aria-pressed={coOn} title={coOn ? 'The co-writer suggests the next line as you write. Click to pause it.' : 'Turn the co-writer back on'}><Sparkles size={14} aria-hidden />{coOn ? 'Co-writer on' : 'Co-writer off'}</button>
+          <button className="btn" onClick={() => { setCmd({ kind: 'fit', n: cmd.n + 1 }); setPanel(true); if (narrow) setSheet(true); }}>{narrow ? 'Fit' : 'Fit to places'}</button>
           <button className="btn" onClick={() => checkVoice(piece)} disabled={!!checking} title="The Writer reads it against the voice and comments on anything off brand">{checking ? <Loader2 size={14} className="spin" aria-hidden /> : <ShieldCheck size={14} aria-hidden />}{narrow ? 'Check' : 'Check voice'}</button>
-          {narrow ? <button className="btn w3-optb" onClick={() => setSheet(true)} aria-label="Options and places"><Layers size={14} aria-hidden />{piece.ideas?.length || (piece.out ? Object.keys(piece.out).length : 0) || ''}</button> : null}
+          {piece.out ? <button className="btn w3-optb" onClick={() => { setPanel(true); setSheet(true); }} aria-label="Places" title="The places this piece is fitted to"><Layers size={14} aria-hidden />{Object.keys(piece.out).length}</button> : null}
         </div> : narrow && piece ? <div className="w3-bar"><span className="w3-bar-n">{piece.name}</span><button className="btn" onClick={() => setSheet(true)}><Layers size={14} aria-hidden />Options and places</button></div> : null}
         </div>
       </section>
       {narrow && sheet ? <div className="w2-scrim sheet" onClick={() => setSheet(false)} /> : null}
-      <aside className={'w2-cards' + (narrow ? ' sheet' + (sheet ? ' open' : '') : '')} aria-label="Cards for this piece" aria-hidden={narrow && !sheet ? true : undefined}>
+      <aside className={'w2-cards' + (narrow ? ' sheet' + (sheet ? ' open' : '') : '') + (!narrow && !panel ? ' shut' : '')} aria-label="Cards for this piece" aria-hidden={narrow && !sheet ? true : undefined}>
         {narrow ? <div className="w2-sheet-h"><span className="w2-grab" /><button className="w2-ic" onClick={() => setSheet(false)} aria-label="Close"><X {...I} /></button></div>
-          : <span className="w2-grip" role="separator" aria-orientation="vertical" aria-label="Resize" onMouseDown={resize}><i /></span>}
+          : <><span className="w2-grip" role="separator" aria-orientation="vertical" aria-label="Resize" onMouseDown={resize}><i /></span><button className="w2-ic w2-shut" onClick={() => setPanel(false)} aria-label="Close the places panel" title="Close"><X {...I} /></button></>}
         {piece ? <Cards key={piece.id} slug={slug} audiences={audiences} brand={brand} n={pi + 1} piece={piece} intro={[doc.intro || '', contextFor(blocks, piece.id)].filter((x) => x.trim()).join('\n')} tone={tone} cmd={cmd} set={(x) => setPiece(piece.id, x)} /> : <p className="mute" style={{ padding: 16 }}>Add a piece to start.</p>}
       </aside>
     </div>
   </div>;
 }
 
-function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, onFocus, set, onDelete }: { n: number; p: Piece; on: boolean; me: string; myId: string; showDone: boolean; say: (t: string) => void; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
+function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, onFocus, set, onDelete, brief, tone }: { brief: string; tone: number; n: number; p: Piece; on: boolean; me: string; myId: string; showDone: boolean; say: (t: string) => void; slug: string; docId: string; people: Person[]; onFocus: () => void; set: (x: Partial<Piece>) => void; onDelete: () => void }) {
   const [box, setBox] = useState<null | 'handoff' | 'comment' | 'changes'>(null);
   const sel = useRef('');
   const nameOfId = (id?: string) => people.find((x) => x.id === id)?.name;
@@ -356,7 +360,8 @@ function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, on
       : fitted.length
         ? <div className="w2-bits" onMouseUp={() => { sel.current = (getSelection()?.toString() || '').trim().slice(0, 300); }}>{fitted.map((id) => { const t = templateById(id); return <div key={id} className="w2-bit"><div className="w2-bit-h"><span>{t.label}</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); set({ text: fitted.map((x) => `${templateById(x).label}\n${outText(templateById(x), p.out![x])}`).join('\n\n'), out: undefined }); }}>Edit as text</button></div>
             {partsOf(t).filter((x) => asList(p.out![id][x.key]).length).map((x) => <p key={x.key}><span className="mute w3-pl">{x.label} · </span>{asList(p.out![id][x.key]).join('\n')}</p>)}</div>; })}</div>
-        : <textarea className="w2-text" value={p.text} onSelect={(e) => { const t = e.currentTarget; sel.current = t.value.slice(t.selectionStart, t.selectionEnd).trim().slice(0, 300); }} onChange={(e) => set({ text: e.target.value, parts: undefined })} placeholder="Write here, or a brief: what does this piece need to say? Then Write 3 options, or Fit to templates." rows={Math.max(3, p.text.split('\n').length + 1)} />}
+        : <CoText value={p.text} onChange={(v) => set({ text: v, parts: undefined })} slug={slug} brief={brief} tone={tone} template={places} onSelectText={(t) => { sel.current = t; }}
+            placeholder="Start writing. The Writer suggests the next line as you go: Tab keeps it. Select words for other ways to say them." />}
     {comments.length ? <div className="w3-ths">{comments.map((c) => <Thread key={c.id} c={c} me={me} writerIcon={!!c.writer} canApply={!!c.quote && !!c.fix && !!applyFix(p, c.quote, c.fix)}
       onApply={c.writer && c.quote && c.fix && p.status !== 'signed' ? () => { const x = applyFix(p, c.quote!, c.fix!); if (x) set({ ...x, comments: (p.comments || []).map((y) => (y.id === c.id ? { ...y, resolved: true } : y)) }); } : undefined}
       onReply={(t) => setC(c.id, { replies: [...(c.replies || []), { by: me, text: t, at: new Date().toISOString() }] })} onResolve={() => setC(c.id, { resolved: true })} />)}</div> : null}

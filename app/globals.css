@@ -5159,6 +5159,59 @@ html.in-app body { -webkit-tap-highlight-color: transparent; overscroll-behavior
   .wb-is-piece .w2-piece { padding: 16px; }
   .wb-brief-r { grid-template-columns: 72px 1fr; }
 }
-.wb-is-piece .w2-pname { flex: 1 1 auto; }
+.wb-is-piece .w2-pname { flex: 1 1 0; width: 100%; min-width: 60px; }
 .wb-is-piece .w2-ph .fb-sp { display: none; }
 .w2-tb { background: rgba(255,255,255,.82); -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6); box-shadow: 0 0 0 1px rgba(0,0,0,.05), 0 6px 20px rgba(0,0,0,.06); }
+
+/* ---------- The co-writer: suggestions on the page, a line at a time */
+.w2-cards.shut { display: none; }
+.w2-shut { position: absolute; top: 10px; right: 10px; z-index: 5; }
+.w3-co.on { background: #111; color: #fff; }
+.w3-co.on svg { color: #F28EE8; }
+.co { position: relative; }
+.co-mirror, .co-ta { font: inherit; font-size: 16px; line-height: 1.65; letter-spacing: normal; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; padding: 0; margin: 0; border: 0; tab-size: 4; }
+.co-mirror { position: absolute; inset: 0; color: transparent; pointer-events: none; overflow: hidden; min-height: 0 !important; }
+.co-mirror mark { color: transparent; background: rgba(242,142,232,.22); border-radius: 3px; box-shadow: 0 0 0 2px rgba(242,142,232,.22); }
+.co-ghost { color: #b9b4c4; animation: co-in .45s ease both; }
+.co-ta { position: relative; z-index: 1; display: block; width: 100%; background: transparent; resize: none; overflow: hidden; caret-color: #000; min-height: 3lh; }
+.co-ta::selection { background: rgba(242,142,232,.35); }
+.co-hint { position: absolute; right: 0; bottom: -22px; font-size: 11px; color: #a6a6a6; animation: co-in .3s ease both; }
+.co-hint kbd { font: 10px var(--font); padding: 1px 5px; border-radius: 5px; background: #f2f2f2; color: #555; margin-right: 3px; }
+.co-spark { all: unset; cursor: pointer; position: absolute; right: -46px; z-index: 2; width: 28px; height: 28px; margin-top: -1px; border-radius: 999px; display: grid; place-items: center; color: #b06fd6; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.06); opacity: .75; transition: opacity .15s, transform .15s, top .15s; animation: co-in .3s ease both; }
+.co-spark:hover { opacity: 1; transform: scale(1.08); }
+.co-bub { position: absolute; z-index: 30; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: #111; color: #fff; box-shadow: 0 8px 26px rgba(0,0,0,.22); animation: co-pop .18s cubic-bezier(.3,1.4,.5,1) both; white-space: nowrap; }
+.co-bub button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; font-size: 12.5px; }
+.co-bub button:hover { background: rgba(255,255,255,.12); }
+.co-bub .co-main svg { color: #F28EE8; }
+.co-pop { position: absolute; z-index: 30; width: min(460px, 100%); padding: 8px; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.05), 0 18px 48px rgba(0,0,0,.16); animation: co-pop .22s cubic-bezier(.3,1.3,.5,1) both; }
+.co-pop-h { display: flex; align-items: center; gap: 7px; padding: 4px 8px 8px; font-size: 12px; color: #8a8a8a; }
+.co-pop-h svg { color: #c06ad9; }
+.co-x { all: unset; cursor: pointer; margin-left: auto; width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; }
+.co-x:hover { background: #f3f3f3; }
+.co-alt { all: unset; box-sizing: border-box; cursor: pointer; position: relative; display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 10px 36px 10px 12px; border-radius: 11px; animation: co-up .35s cubic-bezier(.2,.8,.2,1) both; }
+.co-alt:hover { background: #faf7fb; }
+.co-alt-t { font-size: 15.5px; line-height: 1.5; color: #111; }
+.co-alt-w { font-size: 11.5px; color: #a07ab0; }
+.co-go { position: absolute; right: 12px; top: 50%; margin-top: -7px; opacity: 0; transition: opacity .15s, transform .15s; }
+.co-alt:hover .co-go { opacity: 1; transform: translateX(2px); }
+.co-steers { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 6px 4px; margin-top: 4px; border-top: 1px solid #f2f2f2; }
+.co-steers button { all: unset; cursor: pointer; display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; background: #f4f4f4; font-size: 12px; }
+.co-steers button:hover { background: #ececec; }
+.co-steers button.on { background: #111; color: #fff; }
+.co-wait { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; }
+.co-wait i { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, #f3eef6 0%, #fbe6f8 40%, #eaf0ff 60%, #f3eef6 100%); background-size: 300% 100%; animation: co-shim 1.4s linear infinite; }
+.co-wait i:nth-child(2) { width: 82%; } .co-wait i:nth-child(3) { width: 64%; }
+.co-err { margin: 6px 10px; color: #c4314b; font-size: 13px; }
+.co-undo { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 12px; color: #8a8a8a; animation: co-in .3s ease both; }
+.co-undo:hover { color: #000; }
+.co-start { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.co-startb { all: unset; cursor: pointer; align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; background: linear-gradient(135deg, #fbe7f8, #eaf0ff); color: #4a2a57; transition: transform .15s; }
+.co-startb:hover { transform: translateY(-1px); }
+.co-start .co-alt { padding-left: 10px; }
+.co-link { all: unset; cursor: pointer; align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; margin: 4px 10px; font-size: 12px; color: #8a8a8a; }
+@keyframes co-in { from { opacity: 0; } }
+@keyframes co-up { from { opacity: 0; transform: translateY(6px); } }
+@keyframes co-pop { from { opacity: 0; transform: translateY(4px) scale(.97); } }
+@keyframes co-shim { to { background-position: -300% 0; } }
+@media (prefers-reduced-motion: reduce) { .co-ghost, .co-bub, .co-pop, .co-alt, .co-wait i, .co-spark { animation: none; } }
+@media (max-width: 760px) { .co-spark { right: -6px; transform: translateX(100%); } .co-pop { position: fixed; left: 0 !important; right: 0; bottom: 0; top: auto !important; width: auto; border-radius: 18px 18px 0 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); } }

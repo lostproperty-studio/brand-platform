@@ -16,7 +16,13 @@ const LENGTH = { line: 'one sentence or less', short: 'two or three sentences', 
 const Part = z.object({ key: z.string().regex(/^[a-z0-9_-]{1,24}$/), label: z.string().max(60), limit: z.number().int().min(1).max(10000).optional(), unit: z.enum(['chars', 'words']).optional(), soft: z.boolean().optional(), count: z.number().int().min(1).max(15).optional(), hint: z.string().max(120).optional(), body: z.boolean().optional() });
 
 const Body = z.object({
-  mode: z.enum(['write', 'review', 'ideas']),
+  mode: z.enum(['write', 'review', 'ideas', 'coach']),
+  /** Coach (the co-writer on the page): other ways to say one line, the next line, or ways to open */
+  action: z.enum(['alts', 'next', 'open']).optional(),
+  /** Coach: the piece so far, and the line being worked on */
+  text: z.string().max(12000).optional(),
+  line: z.string().max(1200).optional(),
+  steer: z.string().max(120).optional(),
   /** Ideas: the places it's going, for a one-line taste of each idea there */
   places: z.array(z.string().max(80)).max(12).optional(),
   /** Write: develop this chosen idea (its angle and core line) rather than starting fresh */
@@ -77,6 +83,28 @@ ${VOICE_GUARD(snap.client)}
   const partsText = q.parts.map((x) => `- ${x.label}${x.count && x.count > 1 ? `: ${x.count} different ones` : ''}${x.limit ? `, each ${limitText(x)}` : ''}${x.hint ? ` (${x.hint})` : ''}`).join('\n');
 
   try {
+    if (q.mode === 'coach') {
+      // The co-writer: works a line at a time, so the person stays the writer
+      const act = q.action || 'alts';
+      const where = q.template ? `It's for: ${q.template}.` : '';
+      const ctxt = `${where}\nTone: ${toneWords(q.tone)} (within the voice's range)\n\nWHAT THEY'RE WRITING ABOUT (brief and notes)\n${q.brief}`;
+      if (act === 'next') {
+        const res = await callTool<{ next?: string }>(ai, { model: 'claude-haiku-5-5', max_tokens: 300, system,
+          messages: [{ role: 'user', content: `You're a co-writer, sitting beside them. Suggest only the next sentence of their copy, carrying on from exactly where it stops, in the voice and in their direction. One sentence at most, shorter is better. If their text stops mid-sentence, finish that sentence only. If the piece already feels complete, return an empty string.\n\n${ctxt}\n\nTHEIR COPY SO FAR\n${q.text || ''}` }],
+          tool: { name: 'next', description: 'The next sentence', input_schema: { type: 'object', properties: { next: { type: 'string', description: 'Only the new words to add after their text, with a leading space if needed. Empty if finished.' } }, required: ['next'] } } });
+        if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
+        return NextResponse.json({ next: (res.input?.next || '').replace(/\s+$/, '').slice(0, 300) });
+      }
+      const ask = act === 'open'
+        ? `Suggest 3 different opening lines for this piece. Each a single line, each a different way in (not rewordings). They'll pick one and carry on writing themselves.`
+        : `They want another way to say one line of their copy. Give 3 rewrites of THAT LINE only (not the whole piece), each a different move${q.steer ? `, all of them ${q.steer}` : ''}. Keep what it's for and how it fits the lines around it. Each roughly the same length as theirs unless asked otherwise.`;
+      const res = await callTool<{ lines?: { text: string; why: string }[] }>(ai, { model: 'claude-sonnet-5-5', max_tokens: 900, system,
+        messages: [{ role: 'user', content: `You're a co-writer and coach, not a replacement: ${ask} For each, a few words on the move you made, like a coach would say it (e.g. "Leads with the sound", "Cuts the warm-up"). No marketing clichés.\n\n${ctxt}\n\nTHEIR COPY${q.text ? `\n${q.text}` : ' (nothing yet)'}${act === 'alts' ? `\n\nTHE LINE TO REWORK\n${q.line || ''}` : ''}` }],
+        tool: { name: 'lines', description: 'The suggested lines', input_schema: { type: 'object', properties: { lines: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' }, why: { type: 'string', description: '2 to 6 words: the move' } }, required: ['text', 'why'] } } }, required: ['lines'] } } });
+      if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
+      if (!acc.staff) await logActivity(p.id, acc.user.id, 'tool', `Writer · ${act === 'open' ? 'openings' : 'line'}`);
+      return NextResponse.json({ lines: (res.input?.lines || []).slice(0, 3) });
+    }
     if (q.mode === 'ideas') {
       // Ideas: distinct angles on the brief, each with its core line and a taste of how it reads in each place
       const places = q.places?.length ? q.places : ['the piece'];
