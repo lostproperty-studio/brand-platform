@@ -5385,3 +5385,8 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .tf-ai { top: 2px; }
 .tf-warn { margin: 2px 0 0; font-size: 12px; color: #b07a00; }
 .tf-warn.over { color: #c4314b; }
+.w2-orow { gap: 10px; }
+.w2-oi { flex: none; width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; background: #111; color: #fff; }
+.w2-oh { padding: 6px 8px 2px; }
+.w2-oh .w2-row-t span { font-size: 12px; color: #8a8a8a; font-weight: 400 !important; }
+.w2-oh.h2 .w2-row-t span { padding-left: 0; }

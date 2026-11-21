@@ -255,9 +255,10 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
         <div className="w2-side-h"><strong>On this page</strong><span className="mute">{doc.pieces.length} piece{doc.pieces.length === 1 ? '' : 's'}</span></div>
         <a className="w3-voice" href={`/p/${slug}/guidelines`}><BookOpen size={14} strokeWidth={1.6} aria-hidden /><span>Voice from Guidelines</span><span className="w3-tag ok">In sync</span></a>
         <div className="w2-list">{outline.map((o) => { if (o.type !== 'piece') return o.text?.trim() ? <button key={o.id} className={'w2-row w2-oh ' + o.type} onClick={() => jump(o.id)}><span className="w2-row-t"><span>{o.text}</span></span></button> : null;
-          const p = doc.pieces.find((x) => x.id === o.pieceId); if (!p) return null; const i = doc.pieces.indexOf(p);
-          return <button key={p.id} className={'w2-row' + (p.id === piece?.id ? ' on' : '')} onClick={() => { setActive(p.id); jump(o.id); }}>
-          <span className="mute w2-n">{i + 1}</span><span className="w2-row-t"><span>{p.name}</span><span className="mute">{p.out ? `${Object.keys(p.out).length} place${Object.keys(p.out).length === 1 ? '' : 's'} fitted` : p.text.trim() ? `${p.text.trim().split(/\s+/).length} words` : 'Empty'} · {p.templates.map((t) => templateById(t).label.split(' ')[0]).join(', ')}</span></span>
+          const p = doc.pieces.find((x) => x.id === o.pieceId); if (!p) return null;
+          const tid = p.templates[0] || 'custom'; const Ic = iconFor(tid); const words = (p.parts ? partsText(tid, p.parts as Record<string, Val>) : p.text).replace(/^[^:\n]+: /gm, '').trim();
+          return <button key={o.id} className={'w2-row w2-orow' + (p.id === piece?.id ? ' on' : '')} onClick={() => { setActive(p.id); jump(o.id); }}>
+          <span className="w2-oi"><Ic size={13} strokeWidth={1.7} aria-hidden /></span><span className="w2-row-t"><span>{templateById(tid).label}</span><span className="mute">{words ? `${words.split(/\s+/).length} words` : 'Empty'}</span></span>
           <span className={ST[p.status][1]}>{p.status === 'signed' ? <Check size={11} aria-hidden /> : ST[p.status][0]}</span></button>; })}
           <button className="w2-add" onClick={askPiece}><Plus size={14} aria-hidden />New piece</button>
         </div>
