@@ -49,7 +49,7 @@ export function LpPanel({ brand, host }: { brand: PanelBrand; host: PanelHostApi
               <span className="lpx-chip" style={{ background: c.hex, color: ink(c.hex) }}><Ico d={I.copy} size={12} /></span>
               <span className="lpx-coltxt"><span className="lpx-name">{c.name}</span><span className="lpx-meta">{c.role}</span></span>
               <span className="lpx-hex">{c.hex.toUpperCase()}</span>
-            </button></li>)}</ul>
+            </button>{host.fillColour ? <button type="button" className="lpx-link lpx-fill" onClick={() => run(() => host.fillColour!(c), `Filled with ${c.name}`)} title={`Fill the selection with ${c.name}`}>Fill</button> : null}</li>)}</ul>
           <Rules title="Using colour" rules={brand.rules.colour} />
         </section> : null}
         {tab === 'type' ? <section>
@@ -57,7 +57,7 @@ export function LpPanel({ brand, host }: { brand: PanelBrand; host: PanelHostApi
             <p className="lpx-meta">{f.role}</p><p className="lpx-fontname">{f.name}</p><p className="lpx-usage">{f.usage}</p>
             <button type="button" className="lpx-link" onClick={() => copy(f.name, `Copied ${f.name}`)}>Copy name</button>
           </li>)}</ul>
-          <p className="lpx-note"><Ico d={I.info} size={12} /> {host.name === 'Canva' ? 'Use these from your Brand Kit. If they’re not there, ask your Canva admin to add them.' : 'If these aren’t in your font menu, ask your IT team to install them from the brand kit.'}</p>
+          <p className="lpx-note"><Ico d={I.info} size={12} /> {host.name === 'Canva' ? 'Use these from your Brand Kit. If they’re not there, ask your Canva admin to add them.' : host.name === 'Figma' ? 'Text you add uses these if they’re installed on your computer, and Inter if not. Ask your team for the font files from the brand kit.' : 'If these aren’t in your font menu, ask your IT team to install them from the brand kit.'}</p>
           <Rules title="Using type" rules={brand.rules.type} />
         </section> : null}
         {tab === 'images' ? <Images images={brand.images} host={host} run={run} /> : null}

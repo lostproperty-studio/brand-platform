@@ -54,6 +54,8 @@
 
 /* Colours */
 .lpx-cols { display: flex; flex-direction: column; gap: 2px; }
+.lpx-cols > li { display: flex; align-items: center; gap: 4px; }
+.lpx-fill { flex: none; padding: 4px 6px; }
 .lpx-col { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px; border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
 .lpx-col:hover { background: var(--lpx-fill); }
 .lpx-chip { width: 36px; height: 36px; border-radius: 8px; flex: none; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }

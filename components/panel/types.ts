@@ -21,6 +21,8 @@ export type PanelHostApi = {
   /** Start dragging an image into the design (Canva). Click must always work too. */
   dragImage?: (e: unknown, img: { url: string; name: string; format: 'svg' | 'png' | 'jpg'; w?: number; h?: number }) => void;
   insertText?: (text: string) => Promise<void>;
+  /** Fill what's selected with a brand colour (Figma) */
+  fillColour?: (c: PanelColour) => Promise<void>;
   copy: (text: string) => Promise<void>;
   ask?: (question: string, history: { role: 'user' | 'assistant'; content: string }[]) => Promise<string>;
   openPortal?: () => void;
