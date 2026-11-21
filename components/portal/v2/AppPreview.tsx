@@ -64,10 +64,15 @@ export function AppPreview({ app, name, preview, client, logo, colours, images, 
 // ---------- The glimpses of the interface
 
 const pic = (b: Brand, k: number) => b.images.length ? b.images[k % b.images.length] : null;
-const col = (b: Brand, k: number) => b.colours[k % b.colours.length].hex;
+// Colours with some body, for fills (very light ones disappear on a white page)
+const light = (hex: string) => { const h = hex.replace('#', ''); if (h.length < 6) return false; const [r, g, bl] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)); return 0.299 * r + 0.587 * g + 0.114 * bl > 225; };
+const fill = (b: Brand, k: number) => { const strong = b.colours.filter((c) => !light(c.hex)); const list = strong.length ? strong : b.colours; return list[k % list.length].hex; };
+/** One of the brand's pictures; with none, a plain field of one of its colours with soft light and the logo */
 function Img({ b, k, className }: { b: Brand; k: number; className?: string }) {
   const u = pic(b, k);
-  return u ? <span className={'apv-img ' + (className || '')} style={{ backgroundImage: `url("${u}")` }} /> : <span className={'apv-img ' + (className || '')} style={{ background: `linear-gradient(135deg, ${col(b, k)}, ${col(b, k + 1)})` }} />;
+  if (u) return <span className={'apv-img ' + (className || '')} style={{ backgroundImage: `url("${u}")` }} />;
+  const c = fill(b, k);
+  return <span className={'apv-img plain with-logo ' + (className || '')} style={{ ['--c' as string]: c }}><Logo b={b} light={!light(c)} /></span>;
 }
 function Logo({ b, light }: { b: Brand; light?: boolean }) {
   return b.logo ? <img className={'apv-logo' + (light ? ' light' : '')} src={b.logo} alt="" /> : <span className="apv-logo-t">{b.client}</span>;
@@ -87,21 +92,21 @@ function Frag({ ui, b, live }: { ui: Fragment; b: Brand; live: boolean }) {
       </div>
     </div>;
     case 'effects': return <div className={cls}>
-      <div className="apv-split"><Img b={b} k={2} /><span className="apv-fx" style={{ ['--a' as string]: col(b, 0), ['--b' as string]: col(b, 2) }}><Img b={b} k={2} /></span><i className="apv-handle" /></div>
+      <div className="apv-split"><Img b={b} k={2} /><span className="apv-fx" style={{ ['--a' as string]: fill(b, 0), ['--b' as string]: fill(b, 1) }}><Img b={b} k={2} /></span><i className="apv-handle" /></div>
       <div className="apv-chips">{['Grain', 'Duotone', 'Glow', 'Halftone'].map((t, k) => <span key={t} className={'apv-chip' + (k === 1 ? ' on' : '')}>{t}</span>)}<span className="mute apv-by">by Lost Property</span></div>
     </div>;
     case 'endboard': return <div className={cls}>
-      <div className="apv-phone"><Img b={b} k={0} className="apv-clip" /><span className="apv-end" style={{ background: col(b, 0) }}><Logo b={b} light /></span></div>
-      <div className="apv-tl"><span className="apv-seg" /><span className="apv-seg" /><span className="apv-seg" /><span className="apv-seg end" style={{ background: col(b, 0) }}>End board</span><i className="apv-head-line" /></div>
+      <div className="apv-phone"><Img b={b} k={0} className="apv-clip" /><span className="apv-end" style={{ background: fill(b, 0) }}><Logo b={b} light /></span></div>
+      <div className="apv-tl"><span className="apv-seg" /><span className="apv-seg" /><span className="apv-seg" /><span className="apv-seg end" style={{ background: fill(b, 0) }}>End board</span><i className="apv-head-line" /></div>
     </div>;
     case 'cutdown': case 'sizes': {
       const words = ui === 'sizes';
       return <div className={cls}>{[['9:16', 'apv-r916'], ['1:1', 'apv-r11'], ['16:9', 'apv-r169']].map(([t, r], k) => <figure key={t} className={'apv-size ' + r} style={{ animationDelay: `${k * 140}ms` }}>
-        <span className="apv-frame">{words ? <span className="apv-design" style={{ background: col(b, k) }}><b>New season</b><Logo b={b} light={k !== 2} /></span> : <><Img b={b} k={k + 3} /><span className="apv-corner"><Logo b={b} light /></span></>}</span>
+        <span className="apv-frame">{words ? <span className="apv-design" style={{ background: fill(b, k) }}><b>New season</b><Logo b={b} light={k !== 2} /></span> : <><Img b={b} k={k + 3} /><span className="apv-corner"><Logo b={b} light /></span></>}</span>
         <figcaption>{t}</figcaption></figure>)}</div>;
     }
     case 'motion': return <div className={cls}>
-      <div className="apv-mstage" style={{ background: col(b, 0) }}><span className="apv-mlogo"><Logo b={b} light /></span></div>
+      <div className="apv-mstage" style={{ background: fill(b, 0) }}><span className="apv-mlogo"><Logo b={b} light /></span></div>
       <div className="apv-chips">{['Logo reveal', 'Type in motion', 'Transitions', 'End boards'].map((t, k) => <span key={t} className={'apv-chip' + (k === 0 ? ' on' : '')}>{t}</span>)}</div>
     </div>;
     case 'pieces': return <div className={cls}>{[['Instagram caption', 'A first line that does the work, then the rest…', '136 / 2,200'], ['Email subject', 'Something worth opening', '23 / 50'], ['Poster headline', 'Say it big', '3 words'], ['Press release', 'Date TBC: …', 'Full draft']].map(([t, x, c], k) =>
@@ -115,7 +120,7 @@ function Frag({ ui, b, live }: { ui: Fragment; b: Brand; live: boolean }) {
       <p className="apv-txt"><mark className="ok">Come early, stay late.</mark> We’re a <mark className="fix">world-class destination</mark> for people who love good drinks.</p>
       <div className="apv-notes"><p className="ok"><Check size={11} aria-hidden />Short and warm: right on the voice</p><p className="fix">Swap “world-class destination” for something only {b.client} could say</p></div>
     </div>;
-    case 'templates': return <div className={cls}><div className="apv-grid4">{[0, 1, 2, 3].map((k) => <span key={k} className={'apv-tpl t' + k} style={{ background: k % 2 ? '#fff' : col(b, k), animationDelay: `${k * 100}ms` }}>
+    case 'templates': return <div className={cls}><div className="apv-grid4">{[0, 1, 2, 3].map((k) => <span key={k} className={'apv-tpl t' + k} style={{ background: k % 2 ? '#fff' : fill(b, k), animationDelay: `${k * 100}ms` }}>
       {k === 1 || k === 3 ? <Img b={b} k={k} /> : null}<b style={{ color: k % 2 ? '#111' : undefined }}>Headline</b><Logo b={b} light={k % 2 === 0} /></span>)}</div></div>;
     case 'onbrand': return <div className={cls}>
       <div className="apv-pal">{b.colours.slice(0, 5).map((c) => <span key={c.hex} style={{ background: c.hex }} title={c.name} />)}</div>

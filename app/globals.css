@@ -5634,7 +5634,12 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .h2-tip { position: absolute; left: 50%; top: calc(100% + 8px); transform: translate(-50%, 4px); width: max-content; max-width: 220px; padding: 7px 10px; border-radius: 8px; background: #000; color: #fff; font-size: 12px; line-height: 1.35; text-align: center; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; z-index: 10; }
 .h2-app.soon:hover .h2-tip, .h2-app.soon:focus-visible .h2-tip { opacity: 1; transform: translate(-50%, 0); }
 
-.psw-seg { flex: none; display: inline-flex; padding: 2px; border-radius: 999px; background: var(--fill-2, #f0f0f0); }
+.psw-row > .psw-seg { flex-direction: row; gap: 0; }
+.psw-seg { flex: none; display: inline-flex; align-items: center; padding: 2px; border-radius: 999px; background: var(--fill-2, #f0f0f0); }
 .psw-seg button { border: 0; background: none; height: 26px; padding: 0 11px; border-radius: 999px; font: inherit; font-size: 12.5px; color: var(--mute); cursor: pointer; white-space: nowrap; }
 .psw-seg button.on { background: #000; color: #fff; }
 .psw-seg button:focus-visible { outline: 2px solid #000; outline-offset: 1px; }
+
+.apv-img.plain { background-color: var(--c); background-image: radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,.28), transparent 60%), radial-gradient(80% 70% at 80% 100%, rgba(0,0,0,.18), transparent 70%); }
+.apv-img.plain.with-logo { display: grid; place-items: center; }
+.apv-img.plain.with-logo .apv-logo { max-width: 46%; max-height: 22px; opacity: .9; }
