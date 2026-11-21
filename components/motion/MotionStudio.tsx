@@ -444,7 +444,7 @@ export function Submit({ projectId, client, m, setM, saveNow, logos, fonts, pair
     <div className="mo-pane-foot">
       <button className="btn" onClick={onBack} disabled={running}><ArrowLeft {...I} />Back</button>
       <span className="mo-sp" />
-      {!canSubmit ? <span className="mute">Only the project’s leads can submit.</span> : null}
+      {!canSubmit ? <span className="mute">Only the project’s leads and studio admins can publish.</span> : null}
       <button className="btn solid" onClick={go} disabled={!canSubmit || running || !!result || (!logos.length && !fonts.length)}>{running ? <Loader2 size={14} className="spin" aria-hidden /> : <Send {...I} />}{result ? 'Submitted' : live ? `Submit version ${live.version + 1}` : 'Submit motion'}</button>
     </div>
   </section>;

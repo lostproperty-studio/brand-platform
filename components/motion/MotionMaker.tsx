@@ -183,7 +183,7 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
           <button role="menuitem" onClick={() => draft('lottie')} disabled={!logo || !art}><Download {...I} /><span><b>Lottie</b><span className="mute">This logo</span></span></button>
           <button role="menuitem" onClick={() => draft('page')} disabled={!logos.length}><FileCode2 {...I} /><span><b>Review page</b><span className="mute">Every logo moving, to share</span></span></button>
           <p className="mm-mh">Make it the brand’s motion</p>
-          <button role="menuitem" onClick={() => { setMenu(false); setPublishing(true); }}><Send {...I} /><span><b>{live ? `Publish version ${live.version + 1}` : 'Publish'}</b><span className="mute">Package, guidelines chapter, design tokens and AI{canSubmit ? '' : ' · leads only'}</span></span></button>
+          <button role="menuitem" onClick={() => { setMenu(false); setPublishing(true); }}><Send {...I} /><span><b>{live ? `Publish version ${live.version + 1}` : 'Publish'}</b><span className="mute">Package, guidelines chapter, design tokens and AI{canSubmit ? '' : ' · leads and admins only'}</span></span></button>
         </div> : null}
       </span>
     </header>
