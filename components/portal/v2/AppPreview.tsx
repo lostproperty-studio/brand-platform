@@ -59,7 +59,13 @@ function Card({ f, b, copy }: { f: Feature; b: Brand; copy: boolean }) {
 
 const pic = (b: Brand, k: number) => (b.images.length ? b.images[k % b.images.length] : null);
 // Very soft washes of the palette, for pictures when there are none and for designs
-const SOFT = ['linear-gradient(160deg, #FFF7FE 0%, #F9E1F6 100%)', 'linear-gradient(160deg, #FFFFFF 0%, #EDEDED 100%)', 'linear-gradient(200deg, #FDF0FB 0%, #FFFFFF 100%)', 'linear-gradient(160deg, #F6F6F6 0%, #FCEAF9 100%)'];
+// Each is a few wide radial washes over a base, so the colours melt into each other with no visible edge
+const SOFT = [
+  'radial-gradient(120% 90% at 20% 15%, rgba(249,214,244,.9) 0%, rgba(249,214,244,0) 70%), radial-gradient(110% 100% at 85% 90%, rgba(236,236,236,.9) 0%, rgba(236,236,236,0) 75%), #FFF8FE',
+  'radial-gradient(130% 100% at 80% 10%, rgba(252,228,249,.85) 0%, rgba(252,228,249,0) 72%), radial-gradient(120% 110% at 10% 95%, rgba(240,240,240,1) 0%, rgba(240,240,240,0) 70%), #FFFFFF',
+  'radial-gradient(140% 110% at 50% 0%, rgba(246,205,240,.7) 0%, rgba(246,205,240,0) 70%), radial-gradient(100% 90% at 50% 110%, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 70%), #F8F2F7',
+  'radial-gradient(120% 100% at 15% 80%, rgba(250,222,246,.85) 0%, rgba(250,222,246,0) 72%), radial-gradient(120% 100% at 90% 15%, rgba(244,244,244,1) 0%, rgba(244,244,244,0) 70%), #FDFAFC'
+];
 const FILL = ['#000000', '#FBE4F8', '#FFFFFF'];
 function Img({ b, k, className, logo }: { b: Brand; k: number; className?: string; logo?: boolean }) {
   const u = pic(b, k);
