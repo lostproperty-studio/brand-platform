@@ -3561,3 +3561,11 @@ a.gi-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .pt-main:has(.dr-ed) { height: 100vh; height: 100dvh; display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden; }
 .pt-main:has(.dr-ed) .dock.ak:not(.open) { display: none; }
 .pt-main:has(.dr-ed) .dr-app-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* Studio sections that need a big screen (the guidelines editor, Voice, Resources): hidden on phones */
+.mob-only { display: none; }
+@media (max-width: 760px) {
+  .desk-only { display: none !important; }
+  .mob-only { display: flex; }
+  .pj-desk-note { flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; }
+  .pj-desk-note p { margin: 0; line-height: 1.5; }
+}

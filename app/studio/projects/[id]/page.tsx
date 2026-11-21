@@ -1,7 +1,7 @@
 import { publishedSnapshot } from '@/lib/projects/snapshot';
 import { signMany, signOne } from '@/lib/storage/signed';
 import { ProjectTabs } from '@/components/ProjectTabs';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Monitor } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
@@ -55,6 +55,8 @@ import { PortalAddress } from '@/components/PortalAddress';
 import { env } from '@/lib/env';
 import { teamGate, teamRole } from '@/lib/studioTeam';
 
+// Sections that need a big screen: on a phone they're hidden from the tabs, and opening one by link says so
+const DESK_ONLY = ['guidelines', 'voice', 'resources'];
 const TABS = [['overview', 'Overview'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['pdf', 'PDF'], ['client', 'Client']] as const;
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
@@ -323,10 +325,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <header className="pj-head">
         <div className="pj-bar"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn ic" href="/studio"><ArrowLeft size={15} strokeWidth={1.75} aria-hidden />Projects</Link></div>
         <h1 className="pj-title">{p.client}</h1>
-        <div className="pj-nav"><ProjectTabs id={id} tabs={TABS} current={tab} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
+        <div className="pj-nav"><ProjectTabs id={id} tabs={TABS} current={tab} deskOnly={DESK_ONLY} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
       </header>
       {myRole === 'viewer' ? <p className="ov-viewer" role="note">You’re a viewer on this project, so changes you try to make won’t be saved.</p> : null}
-      <div id="pj-panel" role="tabpanel" aria-label={TABS.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>{body}</div>
+      <div id="pj-panel" role="tabpanel" aria-label={TABS.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>{DESK_ONLY.includes(tab) ? <>
+        <div className="mob-only pj-desk-note" role="note"><Monitor size={22} strokeWidth={1.5} aria-hidden /><p><strong>{TABS.find(([k]) => k === tab)?.[1]} needs a bigger screen.</strong> Open this project on a laptop or desktop to work on it.</p><span className="row"><Link className="btn" href={`/studio/projects/${id}?tab=overview`}>Back to Overview</Link><a className="btn" href={`/p/${p.slug}`}>Preview as client</a></span></div>
+        <div className="desk-only">{body}</div>
+      </> : body}</div>
     </div>
   );
 }

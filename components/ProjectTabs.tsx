@@ -8,7 +8,7 @@ const ICONS: Record<string, LucideIcon> = { overview: LayoutDashboard, review: L
 
 // The project's sections. They switch like tabs: one is selected, the arrow keys (and Home/End) move between them,
 // and the page keeps its place in the header while the content below changes.
-export function ProjectTabs({ id, tabs, current }: { id: string; tabs: readonly (readonly [string, string])[]; current: string }) {
+export function ProjectTabs({ id, tabs, current, deskOnly = [] }: { id: string; tabs: readonly (readonly [string, string])[]; current: string; deskOnly?: string[] }) {
   const router = useRouter();
   const refs = useRef<(HTMLAnchorElement | null)[]>([]);
   // The tab you pick is selected straight away and the panel fades while it loads, so switching never feels stuck
@@ -30,7 +30,7 @@ export function ProjectTabs({ id, tabs, current }: { id: string; tabs: readonly 
     }}>
       {tabs.map(([k, l], i) => { const Ic = ICONS[k]; const on = k === want; return (
         <Link key={k} ref={(el) => { refs.current[i] = el; }} role="tab" aria-selected={on} aria-controls="pj-panel" tabIndex={on ? 0 : -1} scroll={false}
-          className={'pj-tab' + (on ? ' on' : '')} href={`/studio/projects/${id}?tab=${k}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); if (k !== want) open(k); }}>
+          className={'pj-tab' + (on ? ' on' : '') + (deskOnly.includes(k) ? ' desk-only' : '')} href={`/studio/projects/${id}?tab=${k}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); if (k !== want) open(k); }}>
           {Ic ? <Ic size={16} strokeWidth={1.75} aria-hidden /> : null}{l}
         </Link>); })}
     </div>
