@@ -13,6 +13,7 @@ import { defaultIntro } from '@/lib/portal/home';
 import { systemCss, systemFor } from '@/lib/guideSystem';
 import { portalV2 } from '@/lib/portalVersion';
 import { HomeV2 } from '@/components/portal/v2/HomeV2';
+import { readSwitches } from '@/lib/portal/switches';
 
 
 // Portal home: the showcase hero, the brand and its version, a welcome, the chapters and the apps you've used.
@@ -34,7 +35,7 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
   const version = ctx.preview ? kv?.kit_version : v?.version;
 
   // Hero: the showcase rows that have something in them
-  const rows = (ctx.snap?.showcase?.rows || []).filter((r) => r.frames.some((f) => f.kind !== 'empty'));
+  const rows = (readSwitches(ctx.project.content).showcase ? ctx.snap?.showcase?.rows || [] : []).filter((r) => r.frames.some((f) => f.kind !== 'empty'));
   const urls = await signFrames([...new Set([...(guide ? coverPaths(guide) : []), ...(ctx.snap?.showcase ? showcasePaths(ctx.snap.showcase) : [])])]);
 
   // Apps: the ones this person used most recently, or all of them if they haven't used any yet

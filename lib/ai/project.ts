@@ -21,8 +21,15 @@ export async function clientAnthropic(projectId: string) {
  *  on Lost Property's own key, so Ask and the AI tools work before the client has connected theirs, and the
  *  studio's testing never lands on the client's bill. Clients always run on their own key. */
 export async function portalAnthropic(projectId: string, staff: boolean): Promise<{ ai: Anthropic; studio: boolean }> {
-  if (staff) { const { studioAnthropic } = await import('@/lib/ai/studio'); return { ai: studioAnthropic(), studio: true }; }
+  if (staff || await studioAiProject(projectId)) { const { studioAnthropic } = await import('@/lib/ai/studio'); return { ai: studioAnthropic(), studio: true }; }
   return { ai: await clientAnthropic(projectId), studio: false };
+}
+
+/** The studio's own projects (Lost Property Studio) run on the studio's Claude for everyone on them */
+async function studioAiProject(projectId: string) {
+  const { data } = await adminClient().from('projects').select('content').eq('id', projectId).maybeSingle();
+  const { usesStudioAi } = await import('@/lib/portal/switches');
+  return usesStudioAi(data?.content);
 }
 
 /** Checks a key works before saving it (cheapest possible call). */

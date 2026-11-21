@@ -1,3 +1,4 @@
+import { readSwitches } from '@/lib/portal/switches';
 import { notFound } from 'next/navigation';
 import { portalContext } from '@/lib/portal/context';
 import { canSee, projectStages } from '@/lib/features';
@@ -11,6 +12,7 @@ export default async function PhotographerPage({ params }: { params: Promise<{ s
   const { slug } = await params;
   if (!portalV2()) notFound();
   const ctx = await portalContext(slug);
+  if (ctx && !readSwitches(ctx.project.content).photographer) notFound();
   if (!ctx?.snap) notFound();
   const stage = (await projectStages(ctx.project.id)).photographer;
   if (!canSee(stage, ctx.preview)) notFound();

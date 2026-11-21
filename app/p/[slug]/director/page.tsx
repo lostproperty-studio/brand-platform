@@ -1,3 +1,4 @@
+import { readSwitches } from '@/lib/portal/switches';
 import { notFound } from 'next/navigation';
 import { portalContext } from '@/lib/portal/context';
 import { canSee, projectStages, stageBadge } from '@/lib/features';
@@ -14,6 +15,7 @@ import { portalPackages } from '@/lib/portal/packages';
 export default async function DirectorPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const ctx = await portalContext(slug);
+  if (ctx && !readSwitches(ctx.project.content).director) notFound();
   if (!ctx?.snap) notFound();
   const stage = (await projectStages(ctx.project.id)).director;
   if (!canSee(stage, ctx.preview)) notFound();

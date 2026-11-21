@@ -17,6 +17,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const { figmaUrl, tier, content, sources, ...rest } = b.data;
+  // Running a project on the studio's own Claude puts its use on the studio's bill: admins only
+  if (content && 'studioAi' in content && st.role !== 'admin') return NextResponse.json({ error: 'Only studio admins can change which Claude a project runs on.' }, { status: 403 });
   const { slug, ...fields } = rest;
   const update: Record<string, unknown> = { ...fields };
   // The portal address: platform.lostproperty.studio/<slug>

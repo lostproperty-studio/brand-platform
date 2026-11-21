@@ -54,6 +54,8 @@ import type { KitFileRow } from '@/lib/portal/context';
 import { tierLabel, tierOf } from '@/lib/playbook';
 import { Overview, type OverviewData } from '@/components/Overview';
 import { portalShot } from '@/lib/projects/overview';
+import { SwitchesSetting } from '@/components/SwitchesSetting';
+import { readSwitches, usesStudioAi } from '@/lib/portal/switches';
 import { logoThumbs } from '@/lib/projects/logoThumb';
 import { portalUrl } from '@/lib/domain';
 import { PortalAddress } from '@/components/PortalAddress';
@@ -79,10 +81,14 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // The old Review tab is now the creative director, inside the guidelines editor
   // Portal v2 (staging): a Motion tab, for the brand's logo and type motion
   const tabs = portalV2() ? [...TABS.slice(0, 5), ['motion', 'Motion'] as const, ...TABS.slice(5)] : [...TABS];
-  const tab = asked === 'review' ? 'guidelines' : tabs.some(([k]) => k === asked) ? asked! : 'overview';
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, figma_page_id, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
+  // Sections switched off for this project drop out of the studio too
+  const on = readSwitches(p.content);
+  const studioAi = usesStudioAi(p.content);
+  if (!on.showcase) { const i = tabs.findIndex(([k]) => k === 'showcase'); if (i >= 0) tabs.splice(i, 1); }
+  const tab = asked === 'review' ? 'guidelines' : tabs.some(([k]) => k === asked) ? asked! : 'overview';
   // The studio team: people not on a project's team can't open it; viewers see it read-only
   const me = st;
   const myRole = me instanceof Response ? null : await teamRole(id, me);
@@ -168,10 +174,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           return [
             { ok: chapters > 0, text: chapters ? `Guidelines: ${chapters} chapter${chapters === 1 ? '' : 's'}` : 'No guidelines yet' },
             { ok: (logos || 0) > 0, text: logos ? `Downloads: ${logos} logo files, colours, fonts${fonts.some((f) => fontsNeedingLicence([f]).length) ? ' (once licensed)' : ''} and the rest of Resources` : 'Downloads: no logo files yet; build the kit' },
-            { ok: hasShowcase(readShowcase(content)), text: hasShowcase(readShowcase(content)) ? 'Showcase: the brand at work' : 'No showcase (the page is hidden until it has pictures)' },
-            { ok: !!v.writer && voiceReady(v), text: v.writer && voiceReady(v) ? 'Writer: copy in the brand voice' : 'Writer is off' },
+            ...(on.showcase ? [] : [{ ok: true, text: 'Showcase: switched off for this project' }]),
+            ...(!on.showcase ? [] : [{ ok: hasShowcase(readShowcase(content)), text: hasShowcase(readShowcase(content)) ? 'Showcase: the brand at work' : 'No showcase (the page is hidden until it has pictures)' }]),
+            ...(on.writer ? [{ ok: !!v.writer && voiceReady(v), text: v.writer && voiceReady(v) ? 'Writer: copy in the brand voice' : 'Writer is off' }] : []),
             { ok: (apps || 0) > 0, text: apps ? `${apps} app${apps === 1 ? '' : 's'} in Resources` : 'No apps' },
-            { ok: !!p.ai_key_hint, text: p.ai_key_hint ? 'AI (Ask, Writer and apps): connected with their key' : 'AI needs the client’s own key: their admin adds it after joining, until then Ask and the Writer are off' }
+            { ok: !!p.ai_key_hint || studioAi, text: studioAi ? 'AI (Ask, Writer and apps): runs on Lost Property’s Claude' : p.ai_key_hint ? 'AI (Ask, Writer and apps): connected with their key' : 'AI needs the client’s own key: their admin adds it after joining, until then Ask and the Writer are off' }
           ];
         })()
       }
@@ -182,6 +189,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <div className="ov-settings">
       <PortalAddress projectId={p.id} host={data.portalUrl.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />
       <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
+      <SwitchesSetting projectId={p.id} switches={on} studioAi={studioAi} admin={me.role === 'admin'} />
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
       <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
       </div>

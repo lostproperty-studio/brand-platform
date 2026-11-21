@@ -1,3 +1,5 @@
+import { readSwitches } from '@/lib/portal/switches';
+import { notFound } from 'next/navigation';
 import { ProtectImages } from '@/components/portal/ImageRights';
 import { portalContext, signFrames } from '@/lib/portal/context';
 import { hasShowcase, showcasePaths } from '@/lib/showcase';
@@ -7,6 +9,7 @@ import { ShowcaseMedia } from '@/components/portal/ShowcaseFrame';
 export default async function ShowcasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const ctx = (await portalContext(slug))!;
+  if (!readSwitches(ctx.project.content).showcase) notFound();
   const s = ctx.snap?.showcase;
   const urls = s ? await signFrames(showcasePaths(s)) : {};
   return (

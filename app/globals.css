@@ -5406,3 +5406,17 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .tp-star:hover { background: #f0f0f0; color: #555; }
 .tp-star.on { color: #e0a800; }
 .co-ta.tip::placeholder { color: #c9b7d3; }
+
+/* Project overview: sections and apps on/off */
+.psw { display: flex; flex-direction: column; gap: 10px; }
+.psw-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.psw-list > li + li { border-top: 1px solid var(--line); }
+.psw-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; cursor: pointer; }
+.psw-row > span { display: flex; flex-direction: column; gap: 2px; }
+.psw-name { font-size: 15px; }
+.psw-about { font-size: 12px; line-height: 1.4; }
+.psw-tog { appearance: none; flex: none; width: 36px; height: 20px; border-radius: 10px; background: #d9d9d9; position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+.psw-tog::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s; }
+.psw-tog:checked { background: #000; }
+.psw-tog:checked::after { transform: translateX(16px); }
+.psw-tog:focus-visible { outline: 2px solid #000; outline-offset: 2px; }

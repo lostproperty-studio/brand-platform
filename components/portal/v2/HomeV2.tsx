@@ -6,6 +6,7 @@ import { showcasePaths } from '@/lib/showcase';
 import { systemCss, systemFor } from '@/lib/guideSystem';
 import { recentFiles } from '@/lib/apps/server';
 import { APPS, type AppKey } from '@/lib/portalVersion';
+import { readSwitches } from '@/lib/portal/switches';
 import type { GreetingSet } from '@/lib/portal/greetings';
 import { AppIcon } from '@/components/portal/AppIcon';
 import { nameOf } from '@/lib/guideVersions';
@@ -36,16 +37,17 @@ export async function HomeV2({ ctx, slug }: { ctx: PortalCtx; slug: string }) {
   const guide = ctx.snap?.guide;
   const chapters = guide?.chapters || [];
   const base = `/p/${slug}`;
-  const rows = (ctx.snap?.showcase?.rows || []).filter((r) => r.frames.some((f) => f.kind !== 'empty'));
+  const on = readSwitches(ctx.project.content);
+  const rows = (on.showcase ? ctx.snap?.showcase?.rows || [] : []).filter((r) => r.frames.some((f) => f.kind !== 'empty'));
   const items = rows.flatMap((r) => r.frames.filter((f) => f.kind !== 'empty').map((f) => ({ f, wide: r.layout === 'full' })));
   const urls = await signFrames([...new Set([...(guide ? coverPaths(guide) : []), ...(ctx.snap?.showcase ? showcasePaths(ctx.snap.showcase) : [])])]);
-  const recent = await recentFiles(ctx.project.id, 8);
+  const recent = (await recentFiles(ctx.project.id, 8)).filter((f) => on[f.app as keyof typeof on] !== false);
   const firstName = nameOf(ctx.access.user).split(/\s+/)[0] || '';
   const greetings = (ctx.project.content as { portalGreetings?: GreetingSet } | null)?.portalGreetings;
   return (
     <div className="pt-page wide h2 gsys">
       <style dangerouslySetInnerHTML={{ __html: systemCss(systemFor(ctx.snap?.guide?.system, { typeScale: (ctx.project.content as { typeScale?: never })?.typeScale, profile: (ctx.project.content as { dsProfile?: never })?.dsProfile, fonts: ctx.fonts.filter((f) => f.files.length) })) }} />
-      <HomeTop slug={slug} client={ctx.project.client} firstName={firstName} greetings={greetings} apps={APPS.map((a) => ({ key: a.key, name: a.name, ready: a.ready }))} studio={ctx.preview} />
+      <HomeTop slug={slug} client={ctx.project.client} firstName={firstName} greetings={greetings} apps={APPS.filter((a) => on[a.key as keyof typeof on] !== false).map((a) => ({ key: a.key, name: a.name, ready: a.ready }))} studio={ctx.preview} />
 
       {recent.length ? <section aria-labelledby="h2-cc">
         <div className="h2-row"><h2 id="h2-cc" className="pt-h2">Continue creating</h2></div>

@@ -1,3 +1,4 @@
+import { readSwitches } from '@/lib/portal/switches';
 import { notFound } from 'next/navigation';
 import { portalContext } from '@/lib/portal/context';
 import { Writer } from '@/components/portal/Writer';
@@ -11,6 +12,7 @@ import { canSee, projectStages } from '@/lib/features';
 export default async function WriterPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const ctx = await portalContext(slug);
+  if (ctx && !readSwitches(ctx.project.content).writer) notFound();
   if (!ctx?.snap) notFound();
   const v = ctx.snap.voice;
   const ready = !!v && voiceReady(v);
