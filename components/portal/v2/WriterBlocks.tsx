@@ -55,9 +55,9 @@ const MENU: Item[] = [
 ];
 const SHORT: [RegExp, BlockType][] = [[/^#\s$/, 'h1'], [/^##\s$/, 'h2'], [/^\[\]\s$/, 'todo'], [/^[-*]\s$/, 'bullet'], [/^>\s$/, 'quote'], [/^---$/, 'divider']];
 
-export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePiece, renderPiece, readOnly }: {
+export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePiece, restorePiece, renderPiece, readOnly }: {
   blocks: Block[]; setBlocks: (fn: (b: Block[]) => Block[]) => void; slug: string; facts: boolean;
-  addPiece: (template: string) => string; removePiece: (id: string) => void; renderPiece: (pieceId: string, n: number) => ReactNode; readOnly?: boolean;
+  addPiece: (template: string) => string; removePiece: (id: string) => unknown; restorePiece: (p: unknown) => void; renderPiece: (pieceId: string, n: number) => ReactNode; readOnly?: boolean;
 }) {
   const refs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [focusId, setFocusId] = useState<{ id: string; end?: boolean } | null>(null);
@@ -105,7 +105,13 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
     if (at && at.type === 'text' && !(at.text || '').replace(/^\//, '').trim()) setBlocks((bs) => bs.map((x) => (x.id === at.id ? { ...b, id: at.id } : x)));
     else insertAfter(at?.id || null, b);
   };
-  const del = (b: Block) => { if (b.type === 'piece') { if (!confirm('Delete this piece?')) return; removePiece(b.pieceId!); } remove(b.id); };
+  // Deleting is instant, with an Undo for a few seconds (no "are you sure?" pop-up)
+  const [gone, setGone] = useState<{ b: Block; at: number; piece?: unknown } | null>(null);
+  useEffect(() => { if (!gone) return; const t = setTimeout(() => setGone(null), 7000); return () => clearTimeout(t); }, [gone]);
+  const del = (b: Block) => { const at = blocks.findIndex((x) => x.id === b.id); const piece = b.type === 'piece' ? removePiece(b.pieceId!) : undefined; remove(b.id); setGone({ b, at, piece }); };
+  const undoDel = () => { if (!gone) return; if (gone.piece) restorePiece(gone.piece); const g = gone; setBlocks((bs) => { const n = bs.filter((x) => x.id !== g.b.id); n.splice(Math.min(g.at, n.length), 0, g.b); return n; }); setGone(null); };
+  // The bin on a piece's own card asks the canvas to delete it, so it gets the same Undo
+  useEffect(() => { const f = (e: Event) => { const id = (e as CustomEvent<string>).detail; const b = blocks.find((x) => x.pieceId === id); if (b) del(b); }; addEventListener('wb-del-piece', f); return () => removeEventListener('wb-del-piece', f); });
   const placeFact = (tab: string, key: string) => {
     const at = blocks.find((b) => b.id === factPick); setFactPick(null);
     const b: Block = { id: uid(), type: 'fact', fact: { tab, key } };
@@ -197,6 +203,7 @@ export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePi
         </div>
       </Fragment>;
     })}
+    {gone ? <div className="wb-undo" role="status">{gone.b.type === 'piece' ? 'Piece deleted' : 'Deleted'}<button type="button" onClick={undoDel}>Undo</button></div> : null}
     {!readOnly ? <button type="button" className="wb-end" onClick={() => { const last = blocks[blocks.length - 1]; if (last?.type === 'text' && !last.text) { setFocusId({ id: last.id }); return; } const nb: Block = { id: uid(), type: 'text', text: '' }; insertAfter(null, nb); setFocusId({ id: nb.id }); }} aria-label="Add a line at the end" /> : null}
   </div>;
 }

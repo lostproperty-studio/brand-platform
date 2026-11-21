@@ -188,7 +188,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   const setBlocks = useCallback((fn: (b: Block[]) => Block[]) => setDoc((d) => ({ ...d, blocks: fn(blocksOf(d.blocks, d.pieces)) })), []);
   const outline = blocks.filter((b) => b.type === 'h1' || b.type === 'h2' || b.type === 'piece');
   const jump = (id: string) => document.querySelector(`[data-block="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  const delPiece = (id: string) => { if (!confirm('Delete this piece?')) return; setDoc((d) => ({ ...d, pieces: d.pieces.filter((x) => x.id !== id) })); };
+  const delPiece = (id: string) => { dispatchEvent(new CustomEvent('wb-del-piece', { detail: id })); };
   const piece = doc.pieces.find((p) => p.id === active) || doc.pieces[0];
   const pi = piece ? doc.pieces.indexOf(piece) : -1;
   const signed = doc.pieces.filter((p) => p.status === 'signed').length;
@@ -273,7 +273,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
           <input className="w2-h1" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Doc name" />
           <textarea className="w2-intro" value={doc.intro || ''} onChange={(e) => setDoc((d) => ({ ...d, intro: e.target.value }))} placeholder="What’s this doc for? A line or two about the campaign or project." rows={2} />
           <DocDetails props={doc.props || {}} people={people} audiences={audiences} signed={signed} total={doc.pieces.length} set={(x) => setDoc((d) => ({ ...d, props: { ...(d.props || {}), ...x } }))} />
-          <BlockCanvas blocks={blocks} setBlocks={setBlocks} slug={slug} facts={facts} addPiece={addPiece} removePiece={(id) => setDoc((d) => ({ ...d, pieces: d.pieces.filter((x) => x.id !== id) }))}
+          <BlockCanvas blocks={blocks} setBlocks={setBlocks} slug={slug} facts={facts} addPiece={addPiece} removePiece={(id) => { const p = doc.pieces.find((x) => x.id === id); setDoc((d) => ({ ...d, pieces: d.pieces.filter((x) => x.id !== id) })); return p; }} restorePiece={(p) => setDoc((d) => ({ ...d, pieces: [...d.pieces, p as Piece] }))}
             renderPiece={(id, n) => { const p = doc.pieces.find((x) => x.id === id); return p ? <PieceBlock others={doc.pieces.filter((x) => x.id !== p.id && x.status !== 'draft' || (x.id !== p.id && (x.text.trim() || x.parts))).map((x) => `${templateById(x.templates[0]).label}:\n${x.parts ? partsText(x.templates[0], x.parts) : allText(x)}`).filter((x) => x.split('\n')[1]?.trim()).join('\n\n')} factsOn={facts} brief={[doc.intro || '', contextFor(blocks, p.id)].filter((x) => x.trim()).join('\n') || p.name} tone={tone} n={n} p={p} on={p.id === piece?.id} me={me} myId={myId} showDone={showDone} say={say} slug={slug} docId={file.id} people={people} onFocus={() => setActive(p.id)} set={(x) => setPiece(p.id, x)} onDelete={() => delPiece(p.id)} /> : null; }} />
         </article>
         <div className="w3-dock">
@@ -342,6 +342,7 @@ function PieceBlock({ n, p, on, me, myId, showDone, say, slug, docId, people, on
       {p.status === 'draft' ? <><span className={ST.draft[1]}>Draft</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); setBox('handoff'); }} disabled={!p.text.trim() && !p.out}>Request review</button></> : null}
       {p.status === 'review' ? <><span className={ST.review[1]}>{nameOfId(p.reviewer) ? <><Face p={people.find((x) => x.id === p.reviewer)} size={14} />With {nameOfId(p.reviewer)!.split(' ')[0]}</> : 'In review'}</span><button className="btn sm" onClick={(e) => { e.stopPropagation(); setBox('changes'); }}>Request changes</button><button className="btn sm solid" onClick={signOff}>Sign off</button></> : null}
       {p.status === 'signed' ? <span className="w2-lock"><Lock size={12} aria-hidden />Signed off</span> : null}
+      <button className="w2-ic pc-del" onClick={(e) => { e.stopPropagation(); onDelete(); }} aria-label="Delete this piece" title="Delete this piece"><Trash2 {...I} /></button>
       <span className="w2-menu-wrap">
         <button className="w2-ic" onClick={(e) => { e.stopPropagation(); setMenu(!menu); }} aria-label="Piece details and actions" aria-expanded={menu}><MoreHorizontal {...I} /></button>
         {menu ? <div className="w2-menu" role="menu" ref={menuRef}>
