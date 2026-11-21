@@ -5455,3 +5455,7 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 @media (max-width: 720px) { .wsh-pop { width: auto; } .lv-face { width: 24px; height: 24px; } }
 
 .ak-modes { flex: none; }
+
+.wr-note-one { display: flex; align-items: center; gap: 6px; max-width: 100%; width: fit-content; }
+.wr-note-one > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-note-one > svg { flex: none; }
