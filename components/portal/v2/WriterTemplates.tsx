@@ -117,18 +117,25 @@ export function TemplateFields({ template, parts, legacy, setParts, slug, brief,
     {fs.map((x) => {
       const multi = !!(x.count && x.count > 1);
       const vs = multi ? list(vals[x.key]) : [typeof vals[x.key] === 'string' ? vals[x.key] as string : list(vals[x.key]).join('\n')];
-      const shown = multi ? Math.max(Math.min(3, x.count!), vs.filter((v) => v.trim()).length + (vs.length < x.count! ? 1 : 0)) : 1;
       const setAt = (i: number, v: string) => { if (!multi) { put(x.key, v); return; } const n = [...vs]; while (n.length <= i) n.push(''); n[i] = v; put(x.key, n); };
+      // A part with several (scenes, headlines): one free text, one per line. A new line is a new one.
+      if (multi) {
+        const lines = vs.filter((v) => v.trim()); const one = x.label.toLowerCase().replace(/s$/, '');
+        const over = x.limit ? vs.map((v, i) => [i, countOf(v, x.unit)] as const).filter(([i, n]) => vs[i].trim() && n > x.limit!) : [];
+        return <div key={x.key} className="tf-f long multi">
+          <div className="tf-h"><span className="tf-l" title={x.hint || undefined}>{x.label}</span><span className="tf-n">{lines.length ? `${lines.length} ${lines.length === 1 ? one : x.label.toLowerCase()}` : `One ${one} per line`}{x.limit ? ` · up to ${x.limit}${x.unit === 'words' ? ' words' : ''} each` : ''}</span></div>
+          <CoText value={vs.join('\n')} onChange={(v) => put(x.key, v.split('\n'))} slug={slug} brief={brief} tone={tone} template={`${t.label}, ${x.label} (one per line)`} say={say} placeholder={`One ${one} per line…`} />
+          {over.length ? <p className={'tf-warn' + (x.soft ? '' : ' over')}>{over.map(([i, n]) => `Line ${i + 1} is ${n}/${x.limit}`).join(' · ')}</p> : null}
+          {lines.length > x.count! ? <p className="tf-warn">Only the first {x.count} are used here.</p> : null}
+        </div>;
+      }
       const long = !!x.body || (x.limit || 0) > 200;
       return <div key={x.key} className={'tf-f' + (long ? ' long' : '')}>
-        <div className="tf-h"><span className="tf-l" title={x.hint || undefined}>{x.label}</span>{!multi ? <Count v={vs[0] || ''} x={x} /> : null}</div>
-        {Array.from({ length: shown }, (_, i) => <div key={i} className="tf-row">
-          {multi ? <span className="tf-i">{i + 1}</span> : null}
-          {long ? <CoText value={vs[i] || ''} onChange={(v) => setAt(i, v)} slug={slug} brief={brief} tone={tone} template={`${t.label}, ${x.label}`} say={say} placeholder={`Write the ${x.label.toLowerCase()}…`} />
-            : <Short value={vs[i] || ''} onChange={(v) => setAt(i, v)} x={x} slug={slug} brief={brief} tone={tone} template={t.label} placeholder={multi ? `${x.label.replace(/s$/, '')} ${i + 1}` : x.label} />}
-          {multi ? <Count v={vs[i] || ''} x={x} /> : null}
-        </div>)}
-        {multi && shown < x.count! ? <button type="button" className="tf-more" onClick={() => setAt(shown, '')}><Plus size={12} aria-hidden />Add another {x.label.toLowerCase().replace(/s$/, '')}</button> : null}
+        <div className="tf-h"><span className="tf-l" title={x.hint || undefined}>{x.label}</span><Count v={vs[0] || ''} x={x} /></div>
+        <div className="tf-row">
+          {long ? <CoText value={vs[0] || ''} onChange={(v) => setAt(0, v)} slug={slug} brief={brief} tone={tone} template={`${t.label}, ${x.label}`} say={say} placeholder={`Write the ${x.label.toLowerCase()}…`} />
+            : <Short value={vs[0] || ''} onChange={(v) => setAt(0, v)} x={x} slug={slug} brief={brief} tone={tone} template={t.label} placeholder={x.label} />}
+        </div>
       </div>;
     })}
   </div>;

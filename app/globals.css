@@ -5372,3 +5372,16 @@ html.in-app body { -webkit-tap-highlight-color: transparent; overscroll-behavior
 body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
 .wb-b.dragging { opacity: .35; }
 .wb-b.drop-before::before, .wb-b.drop-after::after { z-index: 6; }
+/* Looser fields: writing on the page, not in boxes */
+.tf { gap: 22px; }
+.tf-f.long .co { padding: 2px 0; background: none; box-shadow: none; border-radius: 0; }
+.tf-f.long .co:focus-within { background: none; box-shadow: none; }
+.tf-f.long .co-ta, .tf-f.long .co-mirror { min-height: 4lh; }
+.tf-f.multi .co-ta, .tf-f.multi .co-mirror { min-height: 6lh; }
+.tf-in { background: none; box-shadow: none; padding: 4px 34px 4px 0; border-radius: 0; font-size: 16px; }
+.tf-in:focus { background: none; box-shadow: none; }
+.tf-f { padding-top: 14px; border-top: 1px solid #f2f2f2; }
+.tf-f:first-of-type, .tf-fill + .tf-f, .tf-again + .tf-f { border-top: 0; padding-top: 0; }
+.tf-ai { top: 2px; }
+.tf-warn { margin: 2px 0 0; font-size: 12px; color: #b07a00; }
+.tf-warn.over { color: #c4314b; }

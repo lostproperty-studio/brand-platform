@@ -64,7 +64,7 @@ export function pieceBits(p: Piece): { label: string; text: string }[] {
   if (p.parts && Object.keys(p.parts).length) {
     const labels = new Map<string, string>();
     p.templates.forEach((t) => templateById(t).parts.forEach((x) => labels.set(x.key, `${templateById(t).label} · ${x.label}`)));
-    return Object.entries(p.parts).filter(([, v]) => asList(v).length).map(([k, v]) => ({ label: labels.get(k) || k, text: asList(v).join('\n') }));
+    return Object.entries(p.parts).filter(([, v]) => asList(v).some((x) => x.trim())).map(([k, v]) => ({ label: labels.get(k) || k, text: asList(v).filter((x) => x.trim()).join('\n') }));
   }
   return p.text.trim() ? [{ label: p.templates.map((t) => templateById(t).label).join(' · ') || 'Copy', text: p.text.trim() }] : [];
 }
