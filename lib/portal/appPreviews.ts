@@ -43,71 +43,71 @@ export const EXPERT: Record<AppKey, string> = { photographer: 'Art director', di
 
 export const APP_PREVIEWS: AppPreviews = {
   photographer: {
-    teaser: 'The right image every time, with an art director on hand',
-    headline: 'The right image, every time',
-    line: 'Approved photography your whole team can use with confidence, and expert art direction whenever you want a second eye.',
+    teaser: 'Store, find and use your approved brand images',
+    headline: 'All your approved brand images in one place',
+    line: 'Store, search, crop and use your brand photography, with feedback from an art director when you need it.',
     features: [
-      { title: 'Approved collections', text: 'Every image you’re cleared to use, by campaign, place or season.', ui: 'collection' },
-      { title: 'Art direction, built in', text: 'See how well each image fits your brand, and why.', ui: 'rating' },
-      { title: 'Your brand’s effects', text: 'Treatments made for your brand, on any image in a click.', ui: 'effects' },
-      { title: 'Brief a shoot', text: 'Turn a few lines into a shot list and moodboard from an art director.', ui: 'request', expert: true },
-      { title: 'Retouching on request', text: 'Send an image for expert retouching and get it back in your collection.', ui: 'retouch', expert: true },
-      { title: 'Search by feeling', text: 'Find “warm, people, evening” without tagging a thing.', ui: 'search' },
-      { title: 'Rights at a glance', text: 'Know where every image can run, and when its licence ends.', ui: 'rights' },
-      { title: 'A crop for every place', text: 'Stories, posts and banners, with the subject kept in frame.', ui: 'crops' },
-      { title: 'Picks every month', text: 'Your strongest images, chosen by an art director for what’s next.', ui: 'picks', expert: true },
-      { title: 'Sign off together', text: 'Choose and approve images with your team in one place.', ui: 'approve' }
+      { title: 'Organise images into collections', text: 'Group your approved images by campaign, location or season.', ui: 'collection' },
+      { title: 'Brand fit score for every image', text: 'Each image is scored against your photography guidelines, with notes on why.', ui: 'rating' },
+      { title: 'Add preset effects', text: 'Apply your brand’s filters and treatments to any image in one click.', ui: 'effects' },
+      { title: 'Request a photo shoot brief', text: 'Get a shot list and moodboard from an art director.', ui: 'request', expert: true },
+      { title: 'Request retouching', text: 'Send an image to be retouched and it comes back to your collection.', ui: 'retouch', expert: true },
+      { title: 'Search images by description', text: 'Type what you’re looking for, like “people outdoors in the evening”.', ui: 'search' },
+      { title: 'See usage rights', text: 'Check where each image can be used and when its licence ends.', ui: 'rights' },
+      { title: 'Crop for any format', text: 'Get stories, posts and banners from one image, with the subject kept in frame.', ui: 'crops' },
+      { title: 'Monthly image picks', text: 'An art director recommends your best images each month.', ui: 'picks', expert: true },
+      { title: 'Approve images with your team', text: 'Comment on and sign off images together.', ui: 'approve' }
     ]
   },
   director: {
-    teaser: 'Short-form video that looks finished, with a motion director on hand',
-    headline: 'Video that looks finished, in minutes',
-    line: 'Your team makes the everyday edits with your brand’s motion built in, and gets expert direction on the films that matter.',
+    teaser: 'Make short videos with your brand’s animations built in',
+    headline: 'Make short videos with your brand built in',
+    line: 'Edit social videos with your logo animations, end boards and captions ready to use, and get feedback from a motion director.',
     features: [
-      { title: 'End boards in a click', text: 'Finish any edit with your brand’s own end board.', ui: 'endboard' },
-      { title: 'Every size from one edit', text: 'Vertical, square and wide, with your logo kept in place.', ui: 'cutdown' },
-      { title: 'Your brand in motion', text: 'Logo reveals, type and transitions, ready to drop in.', ui: 'motion' },
-      { title: 'Captions in your type', text: 'Subtitles in your typeface, timed to the words.', ui: 'captions' },
-      { title: 'Direction on the big ones', text: 'Expert direction on the films that matter, from script to final cut.', ui: 'request', expert: true },
-      { title: 'Notes on the frame', text: 'A motion director reviews your edit, with notes pinned to the moment.', ui: 'timecode', expert: true },
-      { title: 'Storyboards from a script', text: 'See the film frame by frame before anyone picks up a camera.', ui: 'storyboard' },
-      { title: 'Music that suits you', text: 'Tracks chosen for your brand, cleared for where you post.', ui: 'music' },
-      { title: 'A finishing touch', text: 'Get the grade, sound and polish of a finished film.', ui: 'handoff', expert: true },
-      { title: 'Sign off together', text: 'Share a cut, gather comments and approve it in one place.', ui: 'approve' }
+      { title: 'Easy access to animated assets', text: 'Your logo animations and end boards, ready to drop into any video.', ui: 'endboard' },
+      { title: 'Resize for every platform', text: 'Export vertical, square and landscape versions from one edit.', ui: 'cutdown' },
+      { title: 'Animated logo and type', text: 'Add logo reveals, animated text and transitions.', ui: 'motion' },
+      { title: 'Automatic captions', text: 'Subtitles in your brand typeface, timed to the speech.', ui: 'captions' },
+      { title: 'Request a video from a motion director', text: 'Get help with bigger videos, from script to final edit.', ui: 'request', expert: true },
+      { title: 'Feedback on your edits', text: 'A motion director leaves notes at exact moments in your video.', ui: 'timecode', expert: true },
+      { title: 'Turn a script into a storyboard', text: 'See your video frame by frame before you film it.', ui: 'storyboard' },
+      { title: 'Licensed music library', text: 'Tracks picked for your brand and cleared to use on social.', ui: 'music' },
+      { title: 'Professional finishing', text: 'Send your edit for colour grading, sound and final polish.', ui: 'handoff', expert: true },
+      { title: 'Approve videos with your team', text: 'Share a cut, collect comments and sign it off.', ui: 'approve' }
     ]
   },
   writer: {
-    teaser: 'Copy that sounds like you, everywhere it goes',
-    headline: 'Copy that sounds like you, everywhere',
-    line: 'Everyone on your team writes in your voice, with a co-writer on the page and an expert writer when it has to be just right.',
+    teaser: 'Write copy in your brand’s tone of voice',
+    headline: 'Write copy in your brand’s tone of voice',
+    line: 'Templates, an AI co-writer and tone of voice checks keep your copy consistent, with an expert writer when you need one.',
     features: [
-      { title: 'A piece for every place', text: 'Each piece knows its fields and lengths, so copy pastes straight in.', ui: 'pieces' },
-      { title: 'A co-writer on the page', text: 'The next line as you write, and other ways to say it, in your voice.', ui: 'cowriter' },
-      { title: 'Check it against your voice', text: 'What’s working and what to change, line by line.', ui: 'voicecheck' },
-      { title: 'An expert writer on call', text: 'Get a professional writer on a piece when it has to land.', ui: 'request', expert: true },
-      { title: 'Expert sign-off', text: 'The copy that matters most, reviewed before it goes out.', ui: 'review', expert: true },
-      { title: 'The facts, always right', text: 'Names, dates and prices checked as you write.', ui: 'facts' },
-      { title: 'One idea, every place', text: 'Fit a line to Instagram, email and a poster at once.', ui: 'places' },
-      { title: 'Press releases', text: 'Your news in the format journalists expect.', ui: 'press' },
-      { title: 'Write together', text: 'See who’s in the doc, and their edits as they happen.', ui: 'together' },
-      { title: 'Comments and approvals', text: 'Pass pieces round the team and sign them off.', ui: 'comments' }
+      { title: 'Templates for every format', text: 'Instagram, email, posters and more, with the right fields and character counts.', ui: 'pieces' },
+      { title: 'AI co-writer', text: 'Suggests the next line and alternative wording as you type.', ui: 'cowriter' },
+      { title: 'Custom tone of voice', text: 'Checks your copy against your brand voice to keep it consistent.', ui: 'voicecheck' },
+      { title: 'Request an expert writer', text: 'Get a professional writer to write or edit a piece.', ui: 'request', expert: true },
+      { title: 'Expert copy review', text: 'Important copy is checked by a senior writer before it goes out.', ui: 'review', expert: true },
+      { title: 'Fact checking', text: 'Names, dates and prices are checked against your fact sheet.', ui: 'facts' },
+      { title: 'Adapt copy for each channel', text: 'Rewrite one message for Instagram, email and print at once.', ui: 'places' },
+      { title: 'Press release template', text: 'Write press releases in the standard format.', ui: 'press' },
+      { title: 'Write together in real time', text: 'Edit the same doc with your team and see changes live.', ui: 'together' },
+      { title: 'Comments and approvals', text: 'Leave feedback and sign off copy with your team.', ui: 'comments' }
     ]
   },
   designer: {
-    teaser: 'Graphics that look designed, in every size',
-    headline: 'Graphics that look designed, in every size',
-    line: 'Your team makes on-brand graphics from expertly built layouts, with a designer’s eye whenever it needs one.',
+    teaser: 'Make on-brand social graphics and slides',
+    headline: 'Make on-brand graphics in every size',
+    line: 'Ready-made brand templates for social and slides, with help from an expert designer when you need it.',
     features: [
-      { title: 'Every size at once', text: 'Make it once for stories, posts, banners and slides.', ui: 'sizes' },
-      { title: 'Layouts made for your brand', text: 'Templates designed from your guidelines, ready to fill.', ui: 'templates' },
-      { title: 'Always on brand', text: 'Colours, type and logo stay right, whoever’s designing.', ui: 'onbrand' },
-      { title: 'A designer on call', text: 'Brief an expert designer for anything beyond a template.', ui: 'request', expert: true },
-      { title: 'The finishing touch', text: 'Hand over a design for the last ten percent of polish.', ui: 'handoff', expert: true },
-      { title: 'Layouts that adapt', text: 'Change the words or the image and the layout rebalances.', ui: 'layout' },
-      { title: 'Design notes', text: 'An expert’s notes, pinned exactly where they matter.', ui: 'review', expert: true },
-      { title: 'Ready to export', text: 'PNG, PDF and video, sized and named for where they’re going.', ui: 'export' },
-      { title: 'Comments and approvals', text: 'Gather feedback and sign off with your team.', ui: 'comments' },
-      { title: 'Every version in one place', text: 'See each version and who approved it.', ui: 'approve' }
+      { title: 'Resize to every format', text: 'Create one design and get it for stories, posts, banners and slides.', ui: 'sizes' },
+      { title: 'Brand templates', text: 'Layouts built from your guidelines, ready to fill in.', ui: 'templates' },
+      { title: 'Brand colours, fonts and logos built in', text: 'Only your approved colours, typefaces and logos are available.', ui: 'onbrand' },
+      { title: 'Request a designer', text: 'Brief an expert designer for anything a template can’t do.', ui: 'request', expert: true },
+      { title: 'Professional finishing', text: 'Send a design to be polished by a senior designer.', ui: 'handoff', expert: true },
+      { title: 'Smart layouts', text: 'Layouts adjust automatically when you change the text or image.', ui: 'layout' },
+      { title: 'Design feedback', text: 'A senior designer leaves notes directly on your design.', ui: 'review', expert: true },
+      { title: 'Export in any format', text: 'Download PNG, PDF and video, sized for where they’re going.', ui: 'export' },
+      { title: 'Comments and approvals', text: 'Collect feedback and sign off designs with your team.', ui: 'comments' },
+      { title: 'Version history', text: 'See every version and who approved it.', ui: 'approve' }
     ]
   }
 };
