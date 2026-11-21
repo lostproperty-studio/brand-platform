@@ -164,33 +164,33 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
   };
   useEffect(() => { if (!menu) return; const k = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false); addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [menu]);
 
-  return <div className="mk">
-    <header className="mk-top">
-      <strong>Motion</strong><span className="mute">/</span><span className="mk-crumb">{sel.kind === 'type' ? font?.name || 'Type' : logo?.name || 'Motion'}</span>
+  return <div className="mm">
+    <header className="mm-top">
+      <strong>Motion</strong><span className="mute">/</span><span className="mm-crumb">{sel.kind === 'type' ? font?.name || 'Type' : logo?.name || 'Motion'}</span>
       <span className={'mo-pill' + (isLive ? ' live' : '')}>{live ? (isLive ? `Live · version ${live.version}` : `Draft · version ${live.version} is live`) : 'Draft'}</span>
       {status ? <span className="mute mo-status" role="status">{status}</span> : null}
       <span className="mo-sp" />
       <button className="btn mo-ic" onClick={() => { setM(undo[0]); setUndo((u) => u.slice(1)); }} disabled={!undo.length} aria-label="Undo" title="Undo"><Undo2 {...I} /></button>
       <button className="btn" onClick={() => setImporting(true)}><Upload {...I} />Import</button>
-      <span className="mk-exp">
+      <span className="mm-exp">
         <button className="btn solid" onClick={() => setMenu(!menu)} aria-expanded={menu} disabled={!!exp}>{exp ? <Loader2 size={14} className="spin" aria-hidden /> : <Package {...I} />}Export<ChevronDown size={13} aria-hidden /></button>
-        {menu ? <div className="mk-menu" role="menu" onMouseLeave={() => setMenu(false)}>
-          <p className="mk-mh">Add to {client}’s Motion logos</p>
+        {menu ? <div className="mm-menu" role="menu" onMouseLeave={() => setMenu(false)}>
+          <p className="mm-mh">Add to {client}’s Motion logos</p>
           <button role="menuitem" onClick={() => logo && toPackage([logo])} disabled={!logo}><Package {...I} /><span><b>{logo ? logo.name : 'This logo'}</b><span className="mute">{logo ? 'MP4, transparent video, Lottie and SVG, in Resources' : 'Pick a logo on the left'}</span></span></button>
           <button role="menuitem" onClick={() => toPackage(logos)} disabled={!logos.length}><Layers {...I} /><span><b>Every logo</b><span className="mute">{logos.length} logo{logos.length === 1 ? '' : 's'}, each in its own motion</span></span></button>
-          <p className="mk-mh">Download a draft</p>
+          <p className="mm-mh">Download a draft</p>
           <button role="menuitem" onClick={() => draft('mp4')} disabled={!logo || !art}><Film {...I} /><span><b>MP4</b><span className="mute">This logo, on the stage colour</span></span></button>
           <button role="menuitem" onClick={() => draft('lottie')} disabled={!logo || !art}><Download {...I} /><span><b>Lottie</b><span className="mute">This logo</span></span></button>
           <button role="menuitem" onClick={() => draft('page')} disabled={!logos.length}><FileCode2 {...I} /><span><b>Review page</b><span className="mute">Every logo moving, to share</span></span></button>
-          <p className="mk-mh">Make it the brand’s motion</p>
+          <p className="mm-mh">Make it the brand’s motion</p>
           <button role="menuitem" onClick={() => { setMenu(false); setPublishing(true); }}><Send {...I} /><span><b>{live ? `Publish version ${live.version + 1}` : 'Publish'}</b><span className="mute">Package, guidelines chapter, design tokens and AI{canSubmit ? '' : ' · leads only'}</span></span></button>
         </div> : null}
       </span>
     </header>
-    {exp ? <div className="mk-prog"><i style={{ width: `${Math.round(exp.p * 100)}%` }} /></div> : null}
+    {exp ? <div className="mm-prog"><i style={{ width: `${Math.round(exp.p * 100)}%` }} /></div> : null}
 
-    <div className="mk-body">
-      <aside className="mk-side" aria-label="What moves">
+    <div className="mm-body">
+      <aside className="mm-side" aria-label="What moves">
         <p className="mo-h">Logos</p>
         {!logos.length ? <p className="mute mo-none">No SVG logos yet. Add them in Resources → Logos.</p> : null}
         {logos.map((l) => <button key={l.path} className={'mo-it' + (sel.kind === 'logo' && sel.path === l.path ? ' on' : '')} onClick={() => setSel({ kind: 'logo', path: l.path })}>
@@ -200,10 +200,10 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
         {fonts.map((f) => <button key={f.role} className={'mo-it' + (sel.kind === 'type' && sel.role === f.role ? ' on' : '')} onClick={() => setSel({ kind: 'type', role: f.role })}><span className="mo-th mo-th-t" style={{ fontFamily: f.css }}>Aa</span><span className="mo-it-t">{f.name}<span className="mute"> · {f.label}</span></span>{m.typeBy?.[f.role] && Object.keys(m.typeBy[f.role]).length ? <span className="mo-dot" title="Has its own changes" /> : null}</button>)}
       </aside>
 
-      <section className="mk-main">
-        <div className={'mk-stage' + (bg ? '' : ' clear')} style={{ background: bg || undefined }}>
+      <section className="mm-main">
+        <div className={'mm-stage' + (bg ? '' : ' clear')} style={{ background: bg || undefined }}>
           {sel.kind === 'logo' ? (artErr ? <p className="mo-err">{artErr}</p> : <canvas ref={cv} />) : <div className="mo-type"><TypeStage text={sample} P={P as TypePreset} t={t} font={font?.css} colour={bg && lum(bg) < 0.5 ? pair.light : pair.dark} size={56} /></div>}
-          {busy ? <span className="mk-busy"><Loader2 size={13} className="spin" aria-hidden />{mode === 'new' ? 'Finding directions' : 'Changing the motion'}</span> : null}
+          {busy ? <span className="mm-busy"><Loader2 size={13} className="spin" aria-hidden />{mode === 'new' ? 'Finding directions' : 'Changing the motion'}</span> : null}
         </div>
         <div className="mo-transport">
           <button className="btn solid mo-ic" onClick={() => { if (!playing && t >= T) setT(0); setPlaying(!playing); }} aria-label={playing ? 'Pause' : 'Play'}>{playing ? <Pause {...I} /> : <Play {...I} />}</button>
@@ -218,21 +218,21 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
         </div>
         {sel.kind === 'type' ? <label className="mo-sample"><span className="mute">Sample</span><input value={sample} onChange={(e) => setSample(e.target.value)} /></label> : null}
 
-        {dirs.length ? <div className="mk-dirs">{dirs.map((d, i) => <button key={d.name + i} className="mk-dir" onClick={() => pickDir(d)}>
+        {dirs.length ? <div className="mm-dirs">{dirs.map((d, i) => <button key={d.name + i} className="mm-dir" onClick={() => pickDir(d)}>
           <Mini logo={logos[0]} font={logos[0] ? undefined : fonts[0]} P={d.logo} T={d.type} pair={pair} label={`Welcome to ${client}`} />
           <strong>{d.name}</strong><span className="mute">{d.about}</span></button>)}
-          <button className="mo-x mk-dirs-x" onClick={() => setDirs([])} aria-label="Close directions"><X size={13} aria-hidden /></button></div> : null}
+          <button className="mo-x mm-dirs-x" onClick={() => setDirs([])} aria-label="Close directions"><X size={13} aria-hidden /></button></div> : null}
 
-        <form className="mk-prompt" onSubmit={(e) => { e.preventDefault(); generate(prompt); }}>
-          {lastReply && !busy ? <p className="mk-reply"><Sparkles size={12} aria-hidden />{lastReply.text}</p> : null}
-          <div className="mk-in">
+        <form className="mm-prompt" onSubmit={(e) => { e.preventDefault(); generate(prompt); }}>
+          {lastReply && !busy ? <p className="mm-reply"><Sparkles size={12} aria-hidden />{lastReply.text}</p> : null}
+          <div className="mm-in">
             <Wand2 {...I} />
             <textarea rows={1} value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={busy}
               placeholder={mode === 'new' ? `Describe how ${client} should move, and Claude will make three directions` : `Say what to change on ${sel.kind === 'type' ? 'this typeface' : own ? 'this logo' : 'every logo'}, e.g. “the build feels rushed”`}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); generate(prompt); } }} />
             <button className="btn solid mo-ic" disabled={busy || !prompt.trim()} aria-label="Generate">{busy ? <Loader2 size={14} className="spin" aria-hidden /> : <ArrowUp {...I} />}</button>
           </div>
-          <div className="mk-pb">
+          <div className="mm-pb">
             <div className="mo-seg" role="radiogroup" aria-label="Prompt makes">
               <button type="button" role="radio" aria-checked={mode === 'refine'} onClick={() => setMode('refine')}>Refine this</button>
               <button type="button" role="radio" aria-checked={mode === 'new'} onClick={() => setMode('new')}>New directions</button>
@@ -247,7 +247,7 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
         </div> : <p className="mute mo-fit">{describe(P)}</p>}
       </section>
 
-      <aside className="mk-panel" aria-label="Settings">
+      <aside className="mm-panel" aria-label="Settings">
         {(sel.kind === 'logo' || fonts.length > 1) ? <div className="mo-sec"><div className="mo-seg" role="radiogroup" aria-label="Changes apply to">
           <button role="radio" aria-checked={!own} onClick={() => setOwn(false)}>{sel.kind === 'logo' ? 'All logos' : 'All type'}</button>
           <button role="radio" aria-checked={own} onClick={() => setOwn(true)}>{sel.kind === 'logo' ? 'Just this logo' : 'Just this typeface'}</button>
@@ -256,10 +256,10 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
       </aside>
     </div>
 
-    {toast ? <div className="mk-toast" role="status"><Check size={14} aria-hidden /><span>{toast}</span><button className="mo-x" onClick={() => setToast('')} aria-label="Close"><X size={12} aria-hidden /></button></div> : null}
+    {toast ? <div className="mm-toast" role="status"><Check size={14} aria-hidden /><span>{toast}</span><button className="mo-x" onClick={() => setToast('')} aria-label="Close"><X size={12} aria-hidden /></button></div> : null}
 
     {publishing ? <div className="mo-modal" role="dialog" aria-modal="true" aria-label="Publish motion" onClick={(e) => { if (e.target === e.currentTarget) setPublishing(false); }}>
-      <div className="mo-modal-b mk-pub"><Submit projectId={projectId} client={client} m={m} saveNow={saveNow} logos={logos} fonts={fonts} pair={pair} live={live} canSubmit={canSubmit} onBack={() => setPublishing(false)}
+      <div className="mo-modal-b mm-pub"><Submit projectId={projectId} client={client} m={m} saveNow={saveNow} logos={logos} fonts={fonts} pair={pair} live={live} canSubmit={canSubmit} onBack={() => setPublishing(false)}
         setM={(x) => { savedJson.current = JSON.stringify(x); setM(x); setLive({ version: x.version || 1, submittedAt: x.submittedAt, submittedBy: x.submittedBy }); }} /></div>
     </div> : null}
     {importing ? <Import projectId={projectId} logos={logos} fonts={fonts} onClose={() => setImporting(false)}
