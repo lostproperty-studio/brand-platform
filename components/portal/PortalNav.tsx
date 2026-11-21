@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AppIcon } from '@/components/portal/AppIcon';
 import type { AppKey } from '@/lib/portalVersion';
-import { BookOpen, Clapperboard, FolderDown, GalleryHorizontalEnd, House, LayoutGrid, PanelLeftClose, PanelLeftOpen, PenLine, Settings, X } from 'lucide-react';
+import { BookOpen, ChevronLeft, Clapperboard, FolderDown, GalleryHorizontalEnd, House, LayoutGrid, PanelLeftClose, PanelLeftOpen, PenLine, Settings, Share, Sparkles, SquarePlus, X } from 'lucide-react';
 
 // Portal navigation: Home, Guidelines (with its chapters), Showcase, Resources, Settings, each with an icon.
 // Open, it shows the full logo, icons and names; closed, the small logo (or the social avatar) and the icons only.
@@ -22,8 +22,20 @@ export type NavApp = { key: AppKey; name: string; ready: boolean };
 export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettings, showShowcase, showWriter, showcaseName, features = [], apps = [], rail = false }: { rail?: boolean; apps?: NavApp[]; features?: NavFeature[]; showcaseName?: string; slug: string; client: string; logoUrl: string | null; miniUrl?: string | null; chapters: { id: string; title: string }[]; showSettings: boolean; showShowcase: boolean; showWriter?: boolean }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
-  const [appsOpen, setAppsOpen] = useState(false);
-  useEffect(() => { setOpen(false); setAppsOpen(false); }, [path]);
+  const [more, setMore] = useState(false);
+  const [min, setMin] = useState(false);
+  const [how, setHow] = useState(false);
+  const [canInstall, setCanInstall] = useState(false);
+  useEffect(() => { setOpen(false); setMore(false); setMin(false); }, [path]);
+  // iPhone Safari, not yet on the Home Screen: offer the steps to install it
+  useEffect(() => { const ios = /iPhone|iPad|iPod/.test(navigator.userAgent); const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone; setCanInstall(ios && !standalone); }, []);
+  // The tab bar shrinks to the current tab while scrolling down, and comes back on the way up (like iOS)
+  useEffect(() => {
+    let last = scrollY;
+    const f = () => { const y = scrollY; if (Math.abs(y - last) < 6) return; setMin(y > last && y > 120); last = y; };
+    addEventListener('scroll', f, { passive: true }); return () => removeEventListener('scroll', f);
+  }, []);
+  useEffect(() => { document.documentElement.classList.toggle('gx-more', more); }, [more]);
   const [folded, setClosed] = useState(false);
   useEffect(() => { try { setClosed(localStorage.getItem(KEY) === '1'); } catch { /* storage blocked */ } }, []);
   const fold = (v: boolean) => { setClosed(v); try { localStorage.setItem(KEY, v ? '1' : '0'); } catch { /* storage blocked */ } };
@@ -67,23 +79,38 @@ export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettin
           <span className="pt-credit-lp"><img src="/lp-logo.svg" alt="" /><span>Lost Property Studio</span></span>
         </a>
       </div>
-      {/* Phones (and the iOS app): a tab bar along the bottom, like a native app */}
-      <nav className="pt-tabs" aria-label="Sections">
-        {([['Home', base, House], ['Guidelines', `${base}/guidelines`, BookOpen], ['Resources', `${base}/resources`, FolderDown]] as const).map(([label, href, Ic]) =>
-          <Link key={href} href={href} className={'pt-tab' + (isOn(href) ? ' on' : '')} aria-current={isOn(href) ? 'page' : undefined}><Ic size={22} strokeWidth={1.6} aria-hidden /><span>{label}</span></Link>)}
-        {apps.some((a) => a.ready)
-          ? <button type="button" className={'pt-tab' + (appsOpen || apps.some((a) => path.startsWith(`${base}/${a.key}`)) ? ' on' : '')} onClick={() => setAppsOpen(!appsOpen)} aria-expanded={appsOpen}><LayoutGrid size={22} strokeWidth={1.6} aria-hidden /><span>Apps</span></button>
-          : showSettings ? <Link href={`${base}/settings`} className={'pt-tab' + (isOn(`${base}/settings`) ? ' on' : '')}><Settings size={22} strokeWidth={1.6} aria-hidden /><span>Settings</span></Link> : null}
-      </nav>
-      {appsOpen ? <>
-        <div className="pt-scrim" onClick={() => setAppsOpen(false)} />
-        <div className="pt-appsheet" role="dialog" aria-label="Apps">
-          <div className="pt-appsheet-h"><strong>Apps</strong><button type="button" className="pt-x" onClick={() => setAppsOpen(false)} aria-label="Close"><X size={18} aria-hidden /></button></div>
-          <div className="pt-appgrid">{apps.map((a) => a.ready
-            ? <Link key={a.key} href={`${base}/${a.key}`} className="pt-appc"><span className="pt-appc-i"><AppIcon app={a.key} size={26} still /></span><span>{a.name}</span></Link>
-            : <span key={a.key} className="pt-appc off"><span className="pt-appc-i"><AppIcon app={a.key} size={26} still /></span><span>{a.name}</span><span className="mute">Coming next</span></span>)}</div>
-        </div>
-      </> : null}
+      {/* Phones and the installed app: a floating glass tab bar. "More" grows it into a card with everything else;
+          the round button beside it opens Ask. It shrinks to the current tab while you scroll down. */}
+      <div className={'gx' + (more ? ' open' : '') + (min && !more ? ' min' : '')} onClick={() => { if (min) setMin(false); }}>
+        {more ? <div className="gx-card" role="dialog" aria-label="More">
+          <div className="gx-head">
+            <span className="gx-logo">{logoUrl ? <img src={logoUrl} alt={client} /> : <strong>{client}</strong>}</span>
+            <button type="button" className="gx-x" onClick={() => setMore(false)} aria-label="Close"><X size={17} strokeWidth={1.8} aria-hidden /></button>
+          </div>
+          <div className="gx-scroll">
+            {apps.length ? <section><p className="gx-h">Apps</p><div className="gx-apps">{apps.map((a) => a.ready
+              ? <Link key={a.key} href={`${base}/${a.key}`} className="gx-app"><span className="gx-app-i"><AppIcon app={a.key} size={26} still /></span><span>{a.name}</span></Link>
+              : <span key={a.key} className="gx-app off"><span className="gx-app-i"><AppIcon app={a.key} size={26} still /></span><span>{a.name}</span></span>)}</div></section> : null}
+            {chapters.length ? <section><p className="gx-h">Guidelines</p><div className="gx-list">{chapters.map((c, k) => { const h = `${base}/guidelines/${c.id.replace(/[:;]/g, '-')}`; return <Link key={c.id} href={h} className={'gx-row' + (path === h ? ' on' : '')}><span className="gx-n">{String(k + 1).padStart(2, '0')}</span>{c.title}</Link>; })}</div></section> : null}
+            <section><div className="gx-list">
+              {showShowcase ? <Link href={`${base}/showcase`} className={'gx-row' + (isOn(`${base}/showcase`) ? ' on' : '')}><GalleryHorizontalEnd size={18} strokeWidth={1.6} aria-hidden />{showcaseName || 'Showcase'}</Link> : null}
+              {features.map((f) => { const Ic = ICONS[f.label]; return <Link key={f.path} href={`${base}/${f.path}`} className="gx-row"><Ic size={18} strokeWidth={1.6} aria-hidden />{f.label}{f.badge ? <span className={'pt-badge ' + f.badge.toLowerCase()}>{f.badge}</span> : null}</Link>; })}
+              {showSettings ? <Link href={`${base}/settings`} className={'gx-row' + (isOn(`${base}/settings`) ? ' on' : '')}><Settings size={18} strokeWidth={1.6} aria-hidden />Settings</Link> : null}
+              {canInstall ? <button type="button" className="gx-row" onClick={() => setHow(!how)}><SquarePlus size={18} strokeWidth={1.6} aria-hidden />Add {client} to your Home Screen</button> : null}
+              {how ? <p className="gx-how">Tap <Share size={14} aria-label="Share" /> in Safari’s toolbar, then <b>Add to Home Screen</b>. It opens full screen, like an app.</p> : null}
+            </div></section>
+          </div>
+        </div> : null}
+        <nav className="gx-tabs" aria-label="Sections">
+          {([['Home', base, House], ['Guidelines', `${base}/guidelines`, BookOpen], ['Resources', `${base}/resources`, FolderDown]] as const).map(([label, href, Ic]) =>
+            <Link key={href} href={href} className={'gx-tab' + (!more && isOn(href) ? ' on' : '')} aria-current={isOn(href) ? 'page' : undefined}><Ic size={22} strokeWidth={1.6} aria-hidden /><span>{label}</span></Link>)}
+          <button type="button" className={'gx-tab' + (more || (!['', '/guidelines', '/resources'].some((x) => x ? path.startsWith(base + x) : path === base)) ? ' on' : '')} onClick={(e) => { e.stopPropagation(); setMore(!more); }} aria-expanded={more}><LayoutGrid size={22} strokeWidth={1.6} aria-hidden /><span>More</span></button>
+        </nav>
+      </div>
+      <button type="button" className={'gx-ask' + (min && !more ? ' min' : '')} onClick={() => { setMore(false); window.dispatchEvent(new CustomEvent('lp-ask', { detail: '' })); }} aria-label={`Ask about ${client}`}><Sparkles size={22} strokeWidth={1.6} aria-hidden /></button>
+      {more ? <div className="gx-scrim" onClick={() => setMore(false)} /> : null}
+      {/* Inside an app (Writer and the rest) on a phone: a slim bar back to the portal */}
+      <Link href={base} className="gx-back"><ChevronLeft size={22} strokeWidth={1.8} aria-hidden />{logoUrl ? <img src={logoUrl} alt={client} /> : client}</Link>
     </aside>
   );
 }

@@ -8,6 +8,8 @@ type Cap = { isNativePlatform?: () => boolean; Plugins: Record<string, Plugin | 
 const cap = () => (globalThis as { Capacitor?: Cap }).Capacitor;
 
 export function NativeBridge() {
+  // Installed from Safari: a light service worker for the offline screen
+  useEffect(() => { if (!cap()?.isNativePlatform?.() && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {}); }, []);
   useEffect(() => {
     const C = cap(); if (!C?.isNativePlatform?.()) return;
     const { App, Browser, PushNotifications, Haptics } = C.Plugins;

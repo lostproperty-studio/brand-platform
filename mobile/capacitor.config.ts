@@ -10,7 +10,7 @@ const host = new URL(url).host;
 
 const config: CapacitorConfig = {
   appId: 'studio.lostproperty.platform',
-  appName: 'LP Platform',
+  appName: 'Platform',
   webDir: 'www',
   server: { url, allowNavigation: [host, '*.supabase.co'], errorPath: 'offline.html' },
   ios: {
