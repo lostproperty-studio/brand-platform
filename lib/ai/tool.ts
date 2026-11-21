@@ -5,7 +5,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 // it's asked once more.
 type Params = Anthropic.MessageCreateParamsNonStreaming;
 
-export async function callTool<T>(ai: Anthropic, params: Omit<Params, 'tool_choice' | 'tools'> & { tool: Anthropic.Tool }): Promise<{ input: T | null; usage: Anthropic.Usage }> {
+export async function callTool<T>(ai: Anthropic, params: Omit<Params, 'tool_choice' | 'tools'> & { tool: Anthropic.Tool }): Promise<{ input: T | null; usage: Anthropic.Usage; text?: string }> {
   const { tool, ...rest } = params;
   const ask = `\n\nAnswer only by calling the ${tool.name} tool, once, with everything filled in.`;
   const system = typeof rest.system === 'string' || !rest.system ? (rest.system || '') + ask : [...rest.system, { type: 'text' as const, text: ask }];
@@ -16,5 +16,6 @@ export async function callTool<T>(ai: Anthropic, params: Omit<Params, 'tool_choi
   const again = await ai.messages.create({ ...rest, system, tools: [tool], tool_choice: { type: 'auto' },
     messages: [...rest.messages, { role: 'assistant', content: first.content }, { role: 'user', content: `Please give that by calling the ${tool.name} tool.` }] });
   const g2 = again.content.find((c) => c.type === 'tool_use');
-  return { input: g2 && g2.type === 'tool_use' ? (g2.input as T) : null, usage: { ...again.usage, input_tokens: again.usage.input_tokens + first.usage.input_tokens, output_tokens: again.usage.output_tokens + first.usage.output_tokens } };
+  const said = [...first.content, ...again.content].filter((c) => c.type === 'text').map((c) => (c as Anthropic.TextBlock).text).join(' ').slice(0, 600);
+  return { text: said, input: g2 && g2.type === 'tool_use' ? (g2.input as T) : null, usage: { ...again.usage, input_tokens: again.usage.input_tokens + first.usage.input_tokens, output_tokens: again.usage.output_tokens + first.usage.output_tokens } };
 }

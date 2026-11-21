@@ -114,7 +114,8 @@ ${VOICE_GUARD(snap.client)}
         tool: { name: 'lines', description: 'The suggested lines', input_schema: { type: 'object', properties: { lines: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' }, why: { type: 'string', description: '2 to 6 words: the move' } }, required: ['text', 'why'] } } }, required: ['lines'] } } });
       if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
       if (!acc.staff) await logActivity(p.id, acc.user.id, 'tool', `Writer · ${act === 'open' ? 'openings' : 'line'}`);
-      return NextResponse.json({ lines: (res.input?.lines || []).slice(0, 3) });
+      if (!res.input?.lines?.length) console.error('Writer coach: no lines', act, JSON.stringify(res.input), res.text);
+      return NextResponse.json({ lines: (res.input?.lines || []).slice(0, 3), ...(res.input?.lines?.length ? {} : { debug: { input: res.input, said: res.text } }) });
     }
     if (q.mode === 'ideas') {
       // Ideas: distinct angles on the brief, each with its core line and a taste of how it reads in each place
