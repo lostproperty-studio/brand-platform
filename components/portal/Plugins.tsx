@@ -165,6 +165,9 @@ function Connect({ p, slug, client, lead, staff, onClose, onMsg, onPreview }: { 
             <Row title="Word, PowerPoint, Excel">{lead ? <a className="btn solid" href={`/api/p/${slug}/plugins/office/manifest?kind=documents`} download><Download {...I} />Add-in</a> : null}</Row>
             <Row title="Outlook">{lead ? <a className="btn" href={`/api/p/${slug}/plugins/office/manifest?kind=mail`} download><Download {...I} />Add-in</a> : null}</Row>
           </>
+          : host === 'figma' ? <Row title="Figma and FigJam" sub="For everyone on the team">
+            <a className="btn solid" href={`/api/p/${slug}/plugins/figma/plugin`} download><Download {...I} />Plugin</a>
+          </Row>
           : host === 'google' ? <Row title="Docs, Slides, Sheets" sub={p.marketplace ? undefined : 'Not listed yet'}>
             {p.marketplace ? <a className="btn solid" href={p.marketplace} target="_blank" rel="noopener">Install</a> : null}
           </Row> : null) : null}
@@ -223,6 +226,10 @@ function Setup({ host, client, needs }: { host: string; client: string; needs: s
     <>Your Microsoft 365 admin uploads them in <strong>Admin centre → Settings → Integrated apps → Upload custom apps</strong>.</>,
     <>A <strong>Brand</strong> button appears on the Home tab, and in Outlook when writing. It can take a few hours.</>,
     <>Press it and sign in with your portal email.</>
+  ] : host === 'figma' ? [
+    <>Download the plugin above and unzip it somewhere you’ll keep it.</>,
+    <>In the Figma desktop app, open any file and go to <strong>Menu → Plugins → Development → Import plugin from manifest…</strong>, then choose <strong>manifest.json</strong>.</>,
+    <>Run it from <strong>Plugins → Development → Brand panel by Lost Property</strong>, and sign in with your portal email.</>
   ] : [
     <>Your Google Workspace admin installs the add-on for your organisation from the Marketplace link.</>,
     <>In a doc, deck or sheet: <strong>Extensions → Brand panel by Lost Property</strong>.</>,

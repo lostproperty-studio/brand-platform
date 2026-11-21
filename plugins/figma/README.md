@@ -3,7 +3,7 @@
 This is the Lost Property brand panel as a Figma plugin. It works in Figma design files and FigJam.
 
 - **The panel** is a page on the platform (`/panel/figma`), the same panel as in Canva, Office and Google. The plugin opens it as its window.
-- **`code.js`** places things in the file when the panel asks:
+- **`code.js`** (written in `lib/plugins/figma.ts`) places things in the file when the panel asks:
   - logos as vectors;
   - photos as image fills;
   - text in the brand's typeface if it's installed (Inter if not);
@@ -12,13 +12,17 @@ This is the Lost Property brand panel as a Figma plugin. It works in Figma desig
   It also keeps the panel's sign-in in Figma's storage for the plugin.
 - **Sign-in:** by link, like Office and Google. The panel shows a short code and opens a page on the platform, where you sign in, check the code and choose the brand.
 
-## Try it (Figma desktop app)
+## Where the code is
 
-1. In Figma, open any design file.
-2. Go to **Menu → Plugins → Development → Import plugin from manifest…** and choose `manifest.json` in this folder.
+`lib/plugins/figma.ts` builds the plugin: `manifest.json`, `code.js` and a README, zipped. Anyone on a portal downloads it from **Resources → Plug-ins → Figma** (`/api/p/<portal>/plugins/figma/plugin`). Each download:
+- points at the platform it came from, staging or live;
+- signs in to that portal's brand first.
+
+## Add it (Figma desktop app)
+
+1. Unzip the download.
+2. In any Figma file, go to **Menu → Plugins → Development → Import plugin from manifest…** and choose `manifest.json`.
 3. Run it from **Plugins → Development → Brand panel by Lost Property**.
-
-`PLATFORM` in `code.js` points at staging. Change it to the live address when the panel is released.
 
 ## Publish it
 

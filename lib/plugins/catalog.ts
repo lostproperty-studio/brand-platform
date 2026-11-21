@@ -52,9 +52,9 @@ export const PLUGINS: PluginDef[] = [
   {
     id: 'figma', name: 'Figma', group: 'apps',
     line: 'The brand on the canvas, and as a team library.',
-    panel: { host: 'figma', where: 'In Figma, under Plugins', needs: 'Kept private to your team on Figma’s Organization or Enterprise plan. On other plans, Lost Property publishes it to the Figma Community and it signs in to your portal like the others.', status: 'soon' },
+    panel: { host: 'figma', where: 'In Figma and FigJam, under Plugins', needs: 'Each designer downloads the plugin here and adds it in the Figma desktop app. No admin is needed. Later it will also be on the Figma Community.', status: 'ready' },
     account: { action: 'Make a brand library', about: 'The plugin builds a library file in your Figma: colour styles and variables, text styles and logo components, from the guidelines. Publish it once and your whole team has it.', status: 'soon' },
-    can: ['Place logos and approved images on the canvas', 'Colours, approved copy and Ask, as in every panel', 'Build a library file of colour variables, text styles and logo components, ready to publish to your team'],
+    can: ['Place logos as vectors and approved images on the canvas', 'Fill what’s selected with a brand colour', 'Add approved copy in the brand typeface, and Ask, as in every panel', 'Build a library file of colour variables, text styles and logo components, ready to publish to your team (coming)'],
     cant: ['Install the brand typefaces: each designer installs them, or your Figma admin shares them across the organisation'],
     settings: []
   },

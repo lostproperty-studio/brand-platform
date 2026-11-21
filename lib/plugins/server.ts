@@ -25,6 +25,7 @@ export function configured(id: PluginId) {
   switch (id) {
     case 'canva': return { panel: true, account: !!(e.CANVA_CLIENT_ID && e.CANVA_CLIENT_SECRET) };
     case 'office': return { panel: true, account: false };
+    case 'figma': return { panel: true, account: false };
     // The Google add-on's Marketplace listing, once Lost Property has published it (see plugins/google/README.md)
     case 'google': return { panel: !!e.GOOGLE_ADDON_URL, account: false };
     default: return { panel: false, account: false };
