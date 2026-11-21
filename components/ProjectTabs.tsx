@@ -2,9 +2,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { BookOpen, GalleryHorizontalEnd, LayoutDashboard, ListChecks, Package, Type, MessageSquareQuote, Users, type LucideIcon } from 'lucide-react';
+import { BookOpen, FileText, GalleryHorizontalEnd, LayoutDashboard, ListChecks, Package, Spline, Type, MessageSquareQuote, Users, type LucideIcon } from 'lucide-react';
 
-const ICONS: Record<string, LucideIcon> = { overview: LayoutDashboard, review: ListChecks, guidelines: BookOpen, showcase: GalleryHorizontalEnd, typefaces: Type, voice: MessageSquareQuote, resources: Package, client: Users };
+const ICONS: Record<string, LucideIcon> = { overview: LayoutDashboard, review: ListChecks, guidelines: BookOpen, showcase: GalleryHorizontalEnd, typefaces: Type, voice: MessageSquareQuote, resources: Package, motion: Spline, pdf: FileText, client: Users };
 
 // The project's sections. They switch like tabs: one is selected, the arrow keys (and Home/End) move between them,
 // and the page keeps its place in the header while the content below changes.
