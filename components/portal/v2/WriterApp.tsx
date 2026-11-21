@@ -4,6 +4,7 @@ import { ArrowLeft, BookOpen, Brain, Check, ChevronDown, Copy, Heart, Loader2, L
 import { AppIcon } from '@/components/portal/AppIcon';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, templateById, type WriterPart, type WriterTemplate } from '@/lib/writerTemplates';
 import { KIND_LABEL, type KnowledgeEntry } from '@/lib/voiceKnowledge';
+import { FactButton } from '@/components/portal/v2/FactSheet';
 
 // Portal v2 Writer: Docs first (one per campaign or project), then a doc of pieces. Each piece is written for one
 // or more places (Instagram, email, a poster…), gets options from the Writer in the brand's voice, and moves
@@ -70,7 +71,7 @@ function api(slug: string) {
   };
 }
 
-export function WriterApp({ slug, client, audiences, me, note, brand }: { slug: string; client: string; audiences: string[]; me: string; note?: string; brand: BrandLook }) {
+export function WriterApp({ slug, client, audiences, me, note, brand, facts = false }: { facts?: boolean; slug: string; client: string; audiences: string[]; me: string; note?: string; brand: BrandLook }) {
   const A = useMemo(() => api(slug), [slug]);
   const [files, setFiles] = useState<FileRow[] | null>(null);
   const [err, setErr] = useState('');
@@ -88,16 +89,16 @@ export function WriterApp({ slug, client, audiences, me, note, brand }: { slug: 
   }, [go]);
 
   if (open && deliver) return <Delivery file={open} client={client} brand={brand} onBack={() => go(open.id, false)} />;
-  if (open) return <DocEditor key={open.id} slug={slug} client={client} audiences={audiences} me={me} brand={brand} file={open} onBack={() => go(null)} onDeliver={() => go(open.id, true)} />;
+  if (open) return <DocEditor facts={facts} key={open.id} slug={slug} client={client} audiences={audiences} me={me} brand={brand} file={open} onBack={() => go(null)} onDeliver={() => go(open.id, true)} />;
 
   const create = async () => {
     try { const { id } = await A.create('Untitled doc', { intro: '', pieces: [newPiece('First piece')] }); go(id); } catch (e) { setErr((e as Error).message); }
   };
-  return <Browser files={files} err={err} note={note} onOpen={(id) => go(id)} onNew={create} onDelete={async (f) => { if (!confirm(`Delete “${f.title}”? This can’t be undone.`)) return; await A.remove(f.id).catch(() => {}); refresh(); }} />;
+  return <Browser slug={slug} facts={facts} files={files} err={err} note={note} onOpen={(id) => go(id)} onNew={create} onDelete={async (f) => { if (!confirm(`Delete “${f.title}”? This can’t be undone.`)) return; await A.remove(f.id).catch(() => {}); refresh(); }} />;
 }
 
 // ---------- Docs: the first screen
-function Browser({ files, err, note, onOpen, onNew, onDelete }: { files: FileRow[] | null; err: string; note?: string; onOpen: (id: string) => void; onNew: () => void; onDelete: (f: FileRow) => void }) {
+function Browser({ slug, facts, files, err, note, onOpen, onNew, onDelete }: { slug: string; facts: boolean; files: FileRow[] | null; err: string; note?: string; onOpen: (id: string) => void; onNew: () => void; onDelete: (f: FileRow) => void }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | Status>('all');
   const list = (files || []).filter((f) => (filter === 'all' || f.status === filter) && (!q || f.title.toLowerCase().includes(q.toLowerCase())));
@@ -106,6 +107,7 @@ function Browser({ files, err, note, onOpen, onNew, onDelete }: { files: FileRow
       <AppIcon app="writer" size={18} play /><strong>Writer</strong><span className="mute">/</span><span>Docs</span>
       <span className="fb-sp" />
       <label className="fb-search"><Search {...I} /><span className="sr">Search docs</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search docs" /></label>
+      {facts ? <FactButton slug={slug} /> : null}
       <button className="btn solid" onClick={onNew}><Plus {...I} />New doc</button>
     </header>
     <div className="fb-body">
@@ -138,7 +140,7 @@ const TONES: [number, string][] = [[10, 'Functional'], [30, 'Mostly functional']
 const LENGTHS: [Length, string][] = [['line', 'A line'], ['short', 'Short'], ['medium', 'A paragraph'], ['long', 'Long']];
 type Cmd = { kind: 'ideas' | 'fit'; n: number };
 
-function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver }: { slug: string; client: string; audiences: string[]; me: string; brand: BrandLook; file: FileRow; onBack: () => void; onDeliver: () => void }) {
+function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver, facts }: { facts: boolean; slug: string; client: string; audiences: string[]; me: string; brand: BrandLook; file: FileRow; onBack: () => void; onDeliver: () => void }) {
   const A = useMemo(() => api(slug), [slug]);
   const [title, setTitle] = useState(file.title);
   const [doc, setDoc] = useState<DocData>(file.data);
@@ -208,6 +210,7 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
       <Faces people={people} ids={[doc.props?.owner, ...(doc.props?.reviewers || [])]} />
       <span className="w3-know-wrap"><button className="w2-ic" onClick={() => setKnow(!know)} aria-expanded={know} aria-label="Writer’s knowledge" title="Writer’s knowledge"><Brain {...I} /></button>
         {know ? <Knowledge slug={slug} client={client} onClose={() => setKnow(false)} /> : null}</span>
+      {facts ? <FactButton slug={slug} /> : null}
       <button className={'w2-ic w3-cm' + (showDone ? ' on' : '')} onClick={() => setShowDone(!showDone)} aria-pressed={showDone} aria-label={showDone ? 'Hide resolved comments' : 'Show resolved comments too'} title={`${openComments} open comment${openComments === 1 ? '' : 's'} · ${showDone ? 'hide' : 'show'} resolved`}><MessageSquare {...I} />{openComments ? <i>{openComments}</i> : null}</button>
       <span className="w3-know-wrap"><button className="btn" onClick={() => setSending(!sending)} disabled={!ready.length} title={ready.length ? `Send ${ready.length} piece${ready.length === 1 ? '' : 's'} to someone to approve` : 'Write a piece first'}>Send for approval</button>
         {sending ? <div className="w3-know w3-send"><HandOff people={people} myId={myId} title={`Send ${ready.length} piece${ready.length === 1 ? '' : 's'} for approval`} onSend={sendAll} onCancel={() => setSending(false)} /></div> : null}</span>
