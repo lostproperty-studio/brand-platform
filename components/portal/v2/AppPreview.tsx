@@ -6,7 +6,7 @@ import { AppIcon } from '@/components/portal/AppIcon';
 import type { AppKey } from '@/lib/portalVersion';
 import type { AppPreview as Preview, Feature, Fragment } from '@/lib/portal/appPreviews';
 
-// The coming-soon page for an app, in the manner of a product launch page: black, big type, and two rows of small
+// The coming-soon page for an app, in the manner of a product launch page: white, big type, and one row of small
 // feature cards drifting past, each with a glimpse of the interface. Lost Property's palette only (black, white,
 // pink and neutral greys); the client's own logo and pictures appear inside the glimpses so it feels like theirs.
 
@@ -16,8 +16,7 @@ export function AppPreview({ app, name, preview, client, logo, images, studioOpe
   app: AppKey; name: string; preview: Preview; client: string; logo: string | null; colours?: unknown; images: string[]; studioOpen: string | null; back: string;
 }) {
   const b: Brand = { client, logo, images };
-  const half = Math.ceil(preview.features.length / 2);
-  const rows = [preview.features.slice(0, half), preview.features.slice(half)];
+  const rows = [preview.features];
   return <div className="apv">
     <div className="apv-glow" aria-hidden />
     <Link href={back} className="apv-back"><ArrowLeft size={14} aria-hidden />Home</Link>
@@ -58,7 +57,7 @@ function Card({ f, b, copy }: { f: Feature; b: Brand; copy: boolean }) {
 // ---------- The glimpses
 
 const pic = (b: Brand, k: number) => (b.images.length ? b.images[k % b.images.length] : null);
-const SHADES = ['#000', '#F28EE8', '#8A8A8A', '#F2F2F2'];
+const SHADES = ['#000', '#F28EE8', '#8A8A8A', '#FFFFFF'];
 function Img({ b, k, className, style }: { b: Brand; k: number; className?: string; style?: CSSProperties }) {
   const u = pic(b, k);
   if (u) return <span className={'apv-img ' + (className || '')} style={{ backgroundImage: `url("${u}")`, ...style }} />;
