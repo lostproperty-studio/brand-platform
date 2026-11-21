@@ -7,12 +7,13 @@ import { FACT_INTRO, isCheck, openChecks, type FactSheet as Sheet } from '@/lib/
 const I = { size: 15, strokeWidth: 1.75, 'aria-hidden': true } as const;
 
 /** The header button: opens the sheet, with a count of questions still waiting on the client */
-export function FactButton({ slug }: { slug: string }) {
+export function FactButton({ slug, asItem }: { slug: string; asItem?: boolean }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState<number | null>(null);
   useEffect(() => { fetch(`/api/p/${slug}/facts`).then((r) => (r.ok ? r.json() : null)).then((j) => j && setQ(openChecks(j.facts))).catch(() => {}); }, [slug, open]);
   return <>
-    <button className="btn fct-btn" onClick={() => setOpen(true)} title={q ? `${q} question${q === 1 ? '' : 's'} waiting for an answer` : 'The facts the Writer works from'}><ClipboardList {...I} />Fact sheet{q ? <i>{q}</i> : null}</button>
+    {asItem ? <button role="menuitem" onClick={() => setOpen(true)}><ClipboardList {...I} />Fact sheet{q ? <span className="mute"> · {q} question{q === 1 ? '' : 's'}</span> : null}</button> :
+    <button className="btn fct-btn" onClick={() => setOpen(true)} title={q ? `${q} question${q === 1 ? '' : 's'} waiting for an answer` : 'The facts the Writer works from'}><ClipboardList {...I} /><span className="fct-btn-t">Fact sheet</span>{q ? <i>{q}</i> : null}</button>}
     {open ? <FactSheet slug={slug} onClose={() => setOpen(false)} /> : null}
   </>;
 }

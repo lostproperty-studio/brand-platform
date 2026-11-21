@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, Brain, Check, ChevronDown, Copy, Heart, Loader2, Lock, MessageSquare, MessageSquarePlus, MoreHorizontal, Plus, Redo2, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Brain, Check, ChevronDown, Layers, Copy, Heart, Loader2, Lock, MessageSquare, MessageSquarePlus, MoreHorizontal, Plus, Redo2, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Undo2, X } from 'lucide-react';
 import { AppIcon } from '@/components/portal/AppIcon';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, templateById, type WriterPart, type WriterTemplate } from '@/lib/writerTemplates';
 import { KIND_LABEL, type KnowledgeEntry } from '@/lib/voiceKnowledge';
@@ -37,6 +37,12 @@ export type BrandLook = { name: string; handle: string; dark: string; light: str
 type FileRow = { id: string; title: string; status: Status; data: DocData; updated_at: string };
 
 const I = { size: 15, strokeWidth: 1.75, 'aria-hidden': true } as const;
+/** True on a phone-width screen: the Writer becomes one column, with the cards in a sheet that slides up */
+function useNarrow() {
+  const [n, setN] = useState(false);
+  useEffect(() => { const q = matchMedia('(max-width: 760px)'); const f = () => setN(q.matches); f(); q.addEventListener('change', f); return () => q.removeEventListener('change', f); }, []);
+  return n;
+}
 const uid = () => Math.random().toString(36).slice(2, 9);
 const ST: Record<Status, [string, string]> = { draft: ['Draft', 'w2-st draft'], review: ['In review', 'w2-st review'], signed: ['Signed off', 'w2-st signed'] };
 const ago = (iso: string) => { const m = (Date.now() - new Date(iso).getTime()) / 60000; return m < 1 ? 'just now' : m < 60 ? `${Math.round(m)}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`; };
@@ -104,14 +110,15 @@ function Browser({ slug, facts, files, err, note, onOpen, onNew, onDelete }: { s
   const list = (files || []).filter((f) => (filter === 'all' || f.status === filter) && (!q || f.title.toLowerCase().includes(q.toLowerCase())));
   return <div className="fb">
     <header className="fb-top">
-      <AppIcon app="writer" size={18} play /><strong>Writer</strong><span className="mute">/</span><span>Docs</span>
+      <AppIcon app="writer" size={18} play /><strong>Writer</strong><span className="mute fb-crumb">/</span><span className="fb-crumb">Docs</span>
       <span className="fb-sp" />
       <label className="fb-search"><Search {...I} /><span className="sr">Search docs</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search docs" /></label>
       {facts ? <FactButton slug={slug} /> : null}
-      <button className="btn solid" onClick={onNew}><Plus {...I} />New doc</button>
+      <button className="btn solid fb-newb" onClick={onNew} aria-label="New doc"><Plus {...I} /><span>New doc</span></button>
     </header>
     <div className="fb-body">
       {note ? <p className="wr-note-studio" role="note">{note}</p> : null}
+      <label className="fb-search fb-search-m"><Search {...I} /><span className="sr">Search docs</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search docs" /></label>
       <div className="fb-bar"><h1>Docs</h1><span className="mute">{files ? `${files.length} doc${files.length === 1 ? '' : 's'}` : ''}</span><span className="fb-sp" />
         {(['all', 'draft', 'review', 'signed'] as const).map((k) => <button key={k} className={'fb-chip' + (filter === k ? ' on' : '')} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === 'all' ? 'All' : ST[k][0]}</button>)}
       </div>
@@ -154,6 +161,9 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
   const [showDone, setShowDone] = useState(false);
   const [checking, setChecking] = useState('');
   const [flash, setFlash] = useState('');
+  const narrow = useNarrow();
+  const [sheet, setSheet] = useState(false);
+  const [more, setMore] = useState(false);
   const say = (t: string) => { setFlash(t); setTimeout(() => setFlash(''), 3500); };
   const first = useRef(true);
   // Saves a moment after the last change
@@ -204,19 +214,34 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
       <button className="w2-ic" onClick={onBack} aria-label="Back to Docs" title="Back to Docs"><ArrowLeft {...I} /></button>
       <AppIcon app="writer" size={18} play /><button className="w2-crumb" onClick={onBack}>Writer</button><span className="mute">/</span>
       <input className="w2-title" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Doc name" />
-      <span className={ST[docStatus(doc)][1]}>{ST[docStatus(doc)][0]}</span>
-      <span className="mute w2-saved" role="status">{saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : 'Saved'}</span>
+      <span className={ST[docStatus(doc)][1] + ' w2-hide-m'}>{ST[docStatus(doc)][0]}</span>
+      <span className="mute w2-saved w2-hide-m" role="status">{saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : 'Saved'}</span>
       <span className="fb-sp" />
+      {narrow ? <span className="w3-know-wrap"><button className="w2-ic" onClick={() => setMore(!more)} aria-expanded={more} aria-label="More" title="More"><MoreHorizontal {...I} />{openComments ? <i className="w2-dot" /> : null}</button>
+        {more ? <><div className="w2-scrim" onClick={() => setMore(false)} /><div className="w2-menu w2-more" role="menu">
+          <div className="w2-kv"><span className="mute">Status</span><span><span className={ST[docStatus(doc)][1]}>{ST[docStatus(doc)][0]}</span> <span className="mute">{saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : 'Saved'}</span></span></div>
+          <hr />
+          {facts ? <FactButton slug={slug} asItem /> : null}
+          <button role="menuitem" onClick={() => { setMore(false); setKnow(true); }}><Brain {...I} />Writer’s knowledge</button>
+          <button role="menuitem" onClick={() => { setShowDone(!showDone); }}><MessageSquare {...I} />{showDone ? 'Hide resolved comments' : 'Show resolved comments'}{openComments ? <span className="mute"> · {openComments} open</span> : null}</button>
+          <button role="menuitem" disabled={!ready.length} onClick={() => { setMore(false); setSending(true); }}><Sparkles {...I} />Send {ready.length || ''} for approval</button>
+        </div></>: null}
+        {know ? <><div className="w2-scrim" onClick={() => setKnow(false)} /><Knowledge slug={slug} client={client} onClose={() => setKnow(false)} /></> : null}
+        {sending ? <><div className="w2-scrim" onClick={() => setSending(false)} /><div className="w3-know w3-send"><HandOff people={people} myId={myId} title={`Send ${ready.length} piece${ready.length === 1 ? '' : 's'} for approval`} onSend={sendAll} onCancel={() => setSending(false)} /></div></> : null}
+      </span> : <>
       <Faces people={people} ids={[doc.props?.owner, ...(doc.props?.reviewers || [])]} />
       <span className="w3-know-wrap"><button className="w2-ic" onClick={() => setKnow(!know)} aria-expanded={know} aria-label="Writer’s knowledge" title="Writer’s knowledge"><Brain {...I} /></button>
         {know ? <Knowledge slug={slug} client={client} onClose={() => setKnow(false)} /> : null}</span>
       {facts ? <FactButton slug={slug} /> : null}
       <button className={'w2-ic w3-cm' + (showDone ? ' on' : '')} onClick={() => setShowDone(!showDone)} aria-pressed={showDone} aria-label={showDone ? 'Hide resolved comments' : 'Show resolved comments too'} title={`${openComments} open comment${openComments === 1 ? '' : 's'} · ${showDone ? 'hide' : 'show'} resolved`}><MessageSquare {...I} />{openComments ? <i>{openComments}</i> : null}</button>
       <span className="w3-know-wrap"><button className="btn" onClick={() => setSending(!sending)} disabled={!ready.length} title={ready.length ? `Send ${ready.length} piece${ready.length === 1 ? '' : 's'} to someone to approve` : 'Write a piece first'}>Send for approval</button>
-        {sending ? <div className="w3-know w3-send"><HandOff people={people} myId={myId} title={`Send ${ready.length} piece${ready.length === 1 ? '' : 's'} for approval`} onSend={sendAll} onCancel={() => setSending(false)} /></div> : null}</span>
+        {sending ? <div className="w3-know w3-send"><HandOff people={people} myId={myId} title={`Send ${ready.length} piece${ready.length === 1 ? '' : 's'} for approval`} onSend={sendAll} onCancel={() => setSending(false)} /></div> : null}</span></>}
       <button className="btn solid" onClick={onDeliver} disabled={!signed} title={signed ? 'The signed-off text, ready to copy and share' : 'Sign off a piece first'}>Deliver{signed ? ` · ${signed}` : ''}</button>
     </header>
-    <div className="w2-body" style={{ gridTemplateColumns: `240px minmax(0, 1fr) ${cardsW}px` }}>
+    {narrow ? <nav className="w2-strip" aria-label="Pieces">{doc.pieces.map((p, i) => <button key={p.id} className={'w2-sp' + (p.id === piece?.id ? ' on' : '')} onClick={() => { setActive(p.id); document.getElementById(`pc-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
+      <span className="mute">{i + 1}</span>{p.name}{p.status === 'signed' ? <Check size={11} aria-hidden /> : p.status === 'review' ? <i className="w2-sp-dot" /> : null}</button>)}
+      <button className="w2-sp add" onClick={addPiece} aria-label="New piece"><Plus size={13} aria-hidden /></button></nav> : null}
+    <div className="w2-body" style={narrow ? undefined : { gridTemplateColumns: `240px minmax(0, 1fr) ${cardsW}px` }}>
       <aside className="w2-side" aria-label="Pieces">
         <div className="w2-side-h"><strong>Pieces</strong><span className="mute">{doc.pieces.length}</span></div>
         <a className="w3-voice" href={`/p/${slug}/guidelines`}><BookOpen size={14} strokeWidth={1.6} aria-hidden /><span>Voice from Guidelines</span><span className="w3-tag ok">In sync</span></a>
@@ -244,14 +269,17 @@ function DocEditor({ slug, client, audiences, me, brand, file, onBack, onDeliver
         {flash ? <p className="w3-flash" role="status">{flash}</p> : null}
         {piece && piece.status !== 'signed' ? <div className="w3-bar">
           <span className="w3-bar-n">{piece.name}</span>
-          <button className="btn pink" onClick={() => setCmd({ kind: 'ideas', n: cmd.n + 1 })}><Sparkles size={14} aria-hidden />Write 3 options</button>
-          <button className="btn" onClick={() => setCmd({ kind: 'fit', n: cmd.n + 1 })}>Fit to templates</button>
-          <button className="btn" onClick={() => checkVoice(piece)} disabled={!!checking} title="The Writer reads it against the voice and comments on anything off brand">{checking ? <Loader2 size={14} className="spin" aria-hidden /> : <ShieldCheck size={14} aria-hidden />}Check voice</button>
-        </div> : null}
+          <button className="btn pink" onClick={() => { setCmd({ kind: 'ideas', n: cmd.n + 1 }); if (narrow) setSheet(true); }}><Sparkles size={14} aria-hidden />{narrow ? 'Write' : 'Write 3 options'}</button>
+          <button className="btn" onClick={() => { setCmd({ kind: 'fit', n: cmd.n + 1 }); if (narrow) setSheet(true); }}>{narrow ? 'Fit' : 'Fit to templates'}</button>
+          <button className="btn" onClick={() => checkVoice(piece)} disabled={!!checking} title="The Writer reads it against the voice and comments on anything off brand">{checking ? <Loader2 size={14} className="spin" aria-hidden /> : <ShieldCheck size={14} aria-hidden />}{narrow ? 'Check' : 'Check voice'}</button>
+          {narrow ? <button className="btn w3-optb" onClick={() => setSheet(true)} aria-label="Options and places"><Layers size={14} aria-hidden />{piece.ideas?.length || (piece.out ? Object.keys(piece.out).length : 0) || ''}</button> : null}
+        </div> : narrow && piece ? <div className="w3-bar"><span className="w3-bar-n">{piece.name}</span><button className="btn" onClick={() => setSheet(true)}><Layers size={14} aria-hidden />Options and places</button></div> : null}
         </div>
       </section>
-      <aside className="w2-cards" aria-label="Cards for this piece">
-        <span className="w2-grip" role="separator" aria-orientation="vertical" aria-label="Resize" onMouseDown={resize}><i /></span>
+      {narrow && sheet ? <div className="w2-scrim sheet" onClick={() => setSheet(false)} /> : null}
+      <aside className={'w2-cards' + (narrow ? ' sheet' + (sheet ? ' open' : '') : '')} aria-label="Cards for this piece" aria-hidden={narrow && !sheet ? true : undefined}>
+        {narrow ? <div className="w2-sheet-h"><span className="w2-grab" /><button className="w2-ic" onClick={() => setSheet(false)} aria-label="Close"><X {...I} /></button></div>
+          : <span className="w2-grip" role="separator" aria-orientation="vertical" aria-label="Resize" onMouseDown={resize}><i /></span>}
         {piece ? <Cards key={piece.id} slug={slug} audiences={audiences} brand={brand} n={pi + 1} piece={piece} intro={doc.intro || ''} tone={tone} cmd={cmd} set={(x) => setPiece(piece.id, x)} /> : <p className="mute" style={{ padding: 16 }}>Add a piece to start.</p>}
       </aside>
     </div>
