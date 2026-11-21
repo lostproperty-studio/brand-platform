@@ -8,7 +8,7 @@ import { systemCss, systemFor } from '@/lib/guideSystem';
 import { recentFiles, viewerOf } from '@/lib/apps/server';
 import { APPS, type AppKey } from '@/lib/portalVersion';
 import { readStates, readSwitches } from '@/lib/portal/switches';
-import { APP_PREVIEWS } from '@/lib/portal/appPreviews';
+import { getAppPreviews } from '@/lib/portal/appPreviewsServer';
 import type { GreetingSet } from '@/lib/portal/greetings';
 import { AppIcon } from '@/components/portal/AppIcon';
 import { nameOf } from '@/lib/guideVersions';
@@ -41,6 +41,7 @@ export async function HomeV2({ ctx, slug }: { ctx: PortalCtx; slug: string }) {
   const base = `/p/${slug}`;
   const on = readSwitches(ctx.project.content);
   const st = readStates(ctx.project.content);
+  const previews = await getAppPreviews();
   const photoOn = canSee((await projectStages(ctx.project.id)).photographer, ctx.preview);
   const rows = (on.showcase ? ctx.snap?.showcase?.rows || [] : []).filter((r) => r.frames.some((f) => f.kind !== 'empty'));
   const items = rows.flatMap((r) => r.frames.filter((f) => f.kind !== 'empty').map((f) => ({ f, wide: r.layout === 'full' })));
@@ -51,7 +52,7 @@ export async function HomeV2({ ctx, slug }: { ctx: PortalCtx; slug: string }) {
   return (
     <div className="pt-page wide h2 gsys">
       <style dangerouslySetInnerHTML={{ __html: systemCss(systemFor(ctx.snap?.guide?.system, { typeScale: (ctx.project.content as { typeScale?: never })?.typeScale, profile: (ctx.project.content as { dsProfile?: never })?.dsProfile, fonts: ctx.fonts.filter((f) => f.files.length) })) }} />
-      <HomeTop slug={slug} client={ctx.project.client} firstName={firstName} greetings={greetings} apps={APPS.filter((a) => on[a.key as keyof typeof on] !== false).map((a) => ({ key: a.key, name: a.name, teaser: APP_PREVIEWS[a.key].teaser, ready: st[a.key] === 'on' && (a.ready || (a.key === 'photographer' && photoOn)) }))} studio={ctx.preview} />
+      <HomeTop slug={slug} client={ctx.project.client} firstName={firstName} greetings={greetings} apps={APPS.filter((a) => on[a.key as keyof typeof on] !== false).map((a) => ({ key: a.key, name: a.name, teaser: previews[a.key].teaser, ready: st[a.key] === 'on' && (a.ready || (a.key === 'photographer' && photoOn)) }))} studio={ctx.preview} />
 
       {recent.length ? <section aria-labelledby="h2-cc">
         <div className="h2-row"><h2 id="h2-cc" className="pt-h2">Continue creating</h2></div>

@@ -1,6 +1,7 @@
 'use client';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ExternalLink, Images, Loader2, Plus, RefreshCw, Search, Sparkles, Trash2, Upload, Wand2, X } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, Images, Loader2, Plus, RefreshCw, Search, Sparkles, Trash2, Upload, Wand2, X, Info } from 'lucide-react';
 import { AppIcon } from '@/components/portal/AppIcon';
 import { PhotoEditor } from '@/components/portal/v2/PhotoEditor';
 import { VERDICT, strip, type Collection, type Photo, type Review } from '@/lib/photographer/model';
@@ -72,6 +73,7 @@ export function PhotographerApp({ slug, client, staff, labs, me }: { slug: strin
       <AppIcon app="photographer" size={18} /><strong>Photographer</strong><span className="mute">/</span><span>Collections</span>
       <span className="fb-sp" />
       <label className="fb-search"><Search {...I} /><span className="sr">Search collections</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search collections" /></label>
+      <Link className="btn fb-about" href={`/p/${slug}/preview/photographer`} title="What Photographer does"><Info {...I} /><span>About</span></Link>
       <button className="btn solid" onClick={create}><Plus {...I} />New collection</button>
     </header>
     <div className="fb-body">

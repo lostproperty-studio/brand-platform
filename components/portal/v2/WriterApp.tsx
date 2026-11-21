@@ -1,6 +1,7 @@
 'use client';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, CircleCheck, Flag, Link2, MapPin, Tag, UserRound, Users } from 'lucide-react';
+import { CalendarDays, CircleCheck, Flag, Link2, MapPin, Tag, UserRound, Users, Info } from 'lucide-react';
 import { ArrowLeft, BookOpen, Brain, Check, ChevronDown, Layers, Copy, Heart, Loader2, Lock, MessageSquare, MessageSquarePlus, MoreHorizontal, Plus, Redo2, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Undo2, X } from 'lucide-react';
 import { AppIcon } from '@/components/portal/AppIcon';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, templateById, type WriterPart, type WriterTemplate } from '@/lib/writerTemplates';
@@ -124,6 +125,7 @@ function Browser({ slug, client, facts, files, err, note, myId, studio, onOpen, 
       <AppIcon app="writer" size={18} play /><strong>Writer</strong><span className="mute fb-crumb">/</span><span className="fb-crumb">Docs</span>
       <span className="fb-sp" />
       <label className="fb-search"><Search {...I} /><span className="sr">Search docs</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search docs" /></label>
+      <Link className="btn fb-about" href={`/p/${slug}/preview/writer`} title="What Writer does"><Info {...I} /><span>About</span></Link>
       <KnowsButton slug={slug} client={client} facts={facts} />
       <button className="btn solid fb-newb" onClick={onNew} aria-label="New doc"><Plus {...I} /><span>New doc</span></button>
     </header>

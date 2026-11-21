@@ -1,8 +1,9 @@
 import type { AppKey } from '@/lib/portalVersion';
 
-// What each app will do, for when it's coming soon: a teaser (shown on hover), the promise on the preview page,
-// and its features, each with a small piece of the interface. Written for client teams who make things every day
-// and lean on Lost Property's designers, writers and directors when it matters. Safe for client components.
+// What each app does, for its About page (and the preview while it's coming soon): a teaser for hover, a headline
+// and a line about what the client gets, and the features, each with a small illustration of the interface.
+// These are the defaults; the studio edits them in Admin settings → App previews (stored in studio_settings).
+// Safe for client components.
 
 export type Fragment =
   | 'collection' | 'rating' | 'effects' | 'search' | 'rights' | 'crops' | 'picks' | 'retouch'
@@ -10,77 +11,114 @@ export type Fragment =
   | 'pieces' | 'cowriter' | 'voicecheck' | 'facts' | 'together' | 'press' | 'places'
   | 'sizes' | 'templates' | 'onbrand' | 'layout' | 'export'
   | 'request' | 'review' | 'handoff' | 'comments' | 'approve';
-/** `studio`: something Lost Property's people do with you, not only the software */
-export type Feature = { title: string; text: string; ui: Fragment; studio?: boolean };
+/** `expert`: expert direction from Lost Property's people, not only the software. `off`: kept but not shown. */
+export type Feature = { title: string; text: string; ui: Fragment; expert?: boolean; off?: boolean };
 export type AppPreview = { teaser: string; headline: string; line: string; features: Feature[] };
+export type AppPreviews = Record<AppKey, AppPreview>;
 
-export const APP_PREVIEWS: Record<AppKey, AppPreview> = {
+/** The illustrations the studio can pick from, by name, grouped for the editor */
+export const FRAGMENTS: { id: Fragment; name: string; group: string }[] = [
+  { id: 'collection', name: 'Image collection', group: 'Images' }, { id: 'rating', name: 'Art direction score', group: 'Images' },
+  { id: 'effects', name: 'Effect, before and after', group: 'Images' }, { id: 'search', name: 'Search', group: 'Images' },
+  { id: 'rights', name: 'Usage rights', group: 'Images' }, { id: 'crops', name: 'Crops in three sizes', group: 'Images' },
+  { id: 'picks', name: 'Monthly picks', group: 'Images' }, { id: 'retouch', name: 'Retouching progress', group: 'Images' },
+  { id: 'endboard', name: 'End board on a phone', group: 'Video' }, { id: 'cutdown', name: 'Video in three sizes', group: 'Video' },
+  { id: 'motion', name: 'Logo in motion', group: 'Video' }, { id: 'captions', name: 'Captions', group: 'Video' },
+  { id: 'music', name: 'Music list', group: 'Video' }, { id: 'timecode', name: 'Note pinned to a frame', group: 'Video' },
+  { id: 'storyboard', name: 'Storyboard', group: 'Video' },
+  { id: 'pieces', name: 'Pieces with character counts', group: 'Words' }, { id: 'cowriter', name: 'Co-writer suggestion', group: 'Words' },
+  { id: 'voicecheck', name: 'Voice check', group: 'Words' }, { id: 'facts', name: 'Fact check', group: 'Words' },
+  { id: 'together', name: 'Writing together', group: 'Words' }, { id: 'press', name: 'Press release', group: 'Words' },
+  { id: 'places', name: 'One line, three places', group: 'Words' },
+  { id: 'sizes', name: 'Design in three sizes', group: 'Design' }, { id: 'templates', name: 'Templates', group: 'Design' },
+  { id: 'onbrand', name: 'Palette, type and logo', group: 'Design' }, { id: 'layout', name: 'Layout that adapts', group: 'Design' },
+  { id: 'export', name: 'Exports', group: 'Design' },
+  { id: 'request', name: 'Message to an expert', group: 'Expert direction' }, { id: 'review', name: 'Expert review', group: 'Expert direction' },
+  { id: 'handoff', name: 'Handed to an expert', group: 'Expert direction' }, { id: 'comments', name: 'Comments', group: 'Expert direction' },
+  { id: 'approve', name: 'Sign-off', group: 'Expert direction' }
+];
+
+/** Who the expert is in each app's illustrations */
+export const EXPERT: Record<AppKey, string> = { photographer: 'Art director', director: 'Motion director', writer: 'Senior writer', designer: 'Senior designer' };
+
+export const APP_PREVIEWS: AppPreviews = {
   photographer: {
-    teaser: 'Collections of approved, on-brand images, ready to use',
-    headline: 'Every image on brand, with the studio’s eye on it',
-    line: 'Your team finds, crops and uses the right images every day. Lost Property’s art directors are a message away when it needs more.',
+    teaser: 'The right image every time, with an art director on hand',
+    headline: 'The right image, every time',
+    line: 'Approved photography your whole team can use with confidence, and expert art direction whenever you want a second eye.',
     features: [
       { title: 'Approved collections', text: 'Every image you’re cleared to use, by campaign, place or season.', ui: 'collection' },
-      { title: 'Art direction, built in', text: 'Each image is rated against your photography principles, with a note on why.', ui: 'rating' },
-      { title: 'Studio effects', text: 'Apply the treatments Lost Property made for your brand, to any image.', ui: 'effects' },
-      { title: 'Brief a shoot', text: 'Send Lost Property a shoot brief and get a shot list and moodboard back.', ui: 'request', studio: true },
-      { title: 'Send for retouching', text: 'Pass an image to the studio for retouching and get it back in the collection.', ui: 'retouch', studio: true },
-      { title: 'Search by feeling', text: 'Find “warm, people, outdoors, evening” without anyone tagging a thing.', ui: 'search' },
-      { title: 'Rights at a glance', text: 'Who shot it, where it can run and when the licence ends.', ui: 'rights' },
+      { title: 'Art direction, built in', text: 'See how well each image fits your brand, and why.', ui: 'rating' },
+      { title: 'Your brand’s effects', text: 'Treatments made for your brand, on any image in a click.', ui: 'effects' },
+      { title: 'Brief a shoot', text: 'Turn a few lines into a shot list and moodboard from an art director.', ui: 'request', expert: true },
+      { title: 'Retouching on request', text: 'Send an image for expert retouching and get it back in your collection.', ui: 'retouch', expert: true },
+      { title: 'Search by feeling', text: 'Find “warm, people, evening” without tagging a thing.', ui: 'search' },
+      { title: 'Rights at a glance', text: 'Know where every image can run, and when its licence ends.', ui: 'rights' },
       { title: 'A crop for every place', text: 'Stories, posts and banners, with the subject kept in frame.', ui: 'crops' },
-      { title: 'Picks from the studio', text: 'Lost Property’s art directors pick the strongest images each month.', ui: 'picks', studio: true },
-      { title: 'Signed off together', text: 'Comment, choose and sign off images with your team and ours.', ui: 'approve' }
+      { title: 'Picks every month', text: 'Your strongest images, chosen by an art director for what’s next.', ui: 'picks', expert: true },
+      { title: 'Sign off together', text: 'Choose and approve images with your team in one place.', ui: 'approve' }
     ]
   },
   director: {
-    teaser: 'Short-form video with your brand’s motion built in',
-    headline: 'Short-form video, finished like the studio would',
-    line: 'Your team cuts the everyday edits. Lost Property’s motion designers set the craft, and step in for the films that matter.',
+    teaser: 'Short-form video that looks finished, with a motion director on hand',
+    headline: 'Video that looks finished, in minutes',
+    line: 'Your team makes the everyday edits with your brand’s motion built in, and gets expert direction on the films that matter.',
     features: [
-      { title: 'End boards in a click', text: 'Add the motion assets Lost Property made for you to the end of any edit.', ui: 'endboard' },
-      { title: 'Every size from one edit', text: 'Vertical, square and wide, with the logo and type kept in place.', ui: 'cutdown' },
-      { title: 'Your brand in motion', text: 'Logo reveals, type in motion and transitions, ready to drop in.', ui: 'motion' },
-      { title: 'Captions in your type', text: 'Subtitles set in the brand typeface, timed to the words.', ui: 'captions' },
-      { title: 'Brief a film', text: 'Send Lost Property a brief for the bigger pieces and follow it from script to cut.', ui: 'request', studio: true },
-      { title: 'Studio review', text: 'A motion designer reviews your edit, with notes pinned to the frame.', ui: 'timecode', studio: true },
-      { title: 'Storyboards from a script', text: 'A script from Writer becomes frames you can rearrange before you shoot.', ui: 'storyboard' },
-      { title: 'Cleared music', text: 'Tracks chosen for the brand and cleared for the places you post.', ui: 'music' },
-      { title: 'Finished by the studio', text: 'Hand an edit to Lost Property for the grade, sound and final polish.', ui: 'handoff', studio: true },
-      { title: 'Signed off together', text: 'Share a cut, gather comments and sign it off in one place.', ui: 'approve' }
+      { title: 'End boards in a click', text: 'Finish any edit with your brand’s own end board.', ui: 'endboard' },
+      { title: 'Every size from one edit', text: 'Vertical, square and wide, with your logo kept in place.', ui: 'cutdown' },
+      { title: 'Your brand in motion', text: 'Logo reveals, type and transitions, ready to drop in.', ui: 'motion' },
+      { title: 'Captions in your type', text: 'Subtitles in your typeface, timed to the words.', ui: 'captions' },
+      { title: 'Direction on the big ones', text: 'Expert direction on the films that matter, from script to final cut.', ui: 'request', expert: true },
+      { title: 'Notes on the frame', text: 'A motion director reviews your edit, with notes pinned to the moment.', ui: 'timecode', expert: true },
+      { title: 'Storyboards from a script', text: 'See the film frame by frame before anyone picks up a camera.', ui: 'storyboard' },
+      { title: 'Music that suits you', text: 'Tracks chosen for your brand, cleared for where you post.', ui: 'music' },
+      { title: 'A finishing touch', text: 'Get the grade, sound and polish of a finished film.', ui: 'handoff', expert: true },
+      { title: 'Sign off together', text: 'Share a cut, gather comments and approve it in one place.', ui: 'approve' }
     ]
   },
   writer: {
-    teaser: 'On-brand copy for every place it’s going',
-    headline: 'Write in your voice, with the studio’s writers behind you',
-    line: 'Your team writes the everyday copy in your voice. Lost Property’s writers check it, sharpen it and take on the big pieces.',
+    teaser: 'Copy that sounds like you, everywhere it goes',
+    headline: 'Copy that sounds like you, everywhere',
+    line: 'Everyone on your team writes in your voice, with a co-writer on the page and an expert writer when it has to be just right.',
     features: [
-      { title: 'A piece for every place', text: 'Each piece knows its fields and lengths, so the copy pastes straight in.', ui: 'pieces' },
-      { title: 'A co-writer on the page', text: 'The next line as you write, and other ways to say a phrase, in your voice.', ui: 'cowriter' },
-      { title: 'A check against the voice', text: 'What’s working and what to change, line by line.', ui: 'voicecheck' },
-      { title: 'Ask a writer', text: 'Send a piece to a Lost Property writer when it has to be just right.', ui: 'request', studio: true },
-      { title: 'Studio sign-off', text: 'The studio reviews the copy that matters most before it goes out.', ui: 'review', studio: true },
-      { title: 'The facts, always right', text: 'Names, dates and prices from your fact sheet, checked as you write.', ui: 'facts' },
+      { title: 'A piece for every place', text: 'Each piece knows its fields and lengths, so copy pastes straight in.', ui: 'pieces' },
+      { title: 'A co-writer on the page', text: 'The next line as you write, and other ways to say it, in your voice.', ui: 'cowriter' },
+      { title: 'Check it against your voice', text: 'What’s working and what to change, line by line.', ui: 'voicecheck' },
+      { title: 'An expert writer on call', text: 'Get a professional writer on a piece when it has to land.', ui: 'request', expert: true },
+      { title: 'Expert sign-off', text: 'The copy that matters most, reviewed before it goes out.', ui: 'review', expert: true },
+      { title: 'The facts, always right', text: 'Names, dates and prices checked as you write.', ui: 'facts' },
       { title: 'One idea, every place', text: 'Fit a line to Instagram, email and a poster at once.', ui: 'places' },
-      { title: 'Press releases', text: 'News in the format journalists expect, in your voice.', ui: 'press' },
+      { title: 'Press releases', text: 'Your news in the format journalists expect.', ui: 'press' },
       { title: 'Write together', text: 'See who’s in the doc, and their edits as they happen.', ui: 'together' },
-      { title: 'Comments and approvals', text: 'Hand pieces round the team and to the studio, and sign them off.', ui: 'comments' }
+      { title: 'Comments and approvals', text: 'Pass pieces round the team and sign them off.', ui: 'comments' }
     ]
   },
   designer: {
-    teaser: 'Social graphics and slides, laid out on brand',
-    headline: 'Designs on brand from the start, with the studio on hand',
-    line: 'Your team makes the everyday graphics from layouts the studio built. Lost Property’s designers finish the ones that need a designer’s hand.',
+    teaser: 'Graphics that look designed, in every size',
+    headline: 'Graphics that look designed, in every size',
+    line: 'Your team makes on-brand graphics from expertly built layouts, with a designer’s eye whenever it needs one.',
     features: [
       { title: 'Every size at once', text: 'Make it once for stories, posts, banners and slides.', ui: 'sizes' },
-      { title: 'Templates from the studio', text: 'Layouts Lost Property built from your guidelines, ready to fill.', ui: 'templates' },
+      { title: 'Layouts made for your brand', text: 'Templates designed from your guidelines, ready to fill.', ui: 'templates' },
       { title: 'Always on brand', text: 'Colours, type and logo stay right, whoever’s designing.', ui: 'onbrand' },
-      { title: 'Ask a designer', text: 'Brief Lost Property for anything beyond a template, right from the file.', ui: 'request', studio: true },
-      { title: 'Studio finishing', text: 'Hand a design to the studio for the last ten percent.', ui: 'handoff', studio: true },
-      { title: 'Layouts that adapt', text: 'Change the words or the image and the layout rebalances itself.', ui: 'layout' },
-      { title: 'Studio review', text: 'A designer looks over your work, with notes pinned where they matter.', ui: 'review', studio: true },
-      { title: 'Ready to export', text: 'PNG, PDF and video, named and sized for where they’re going.', ui: 'export' },
-      { title: 'Comments and approvals', text: 'Gather feedback and sign off with your team and ours.', ui: 'comments' },
-      { title: 'Signed off together', text: 'One place for every version and who approved it.', ui: 'approve' }
+      { title: 'A designer on call', text: 'Brief an expert designer for anything beyond a template.', ui: 'request', expert: true },
+      { title: 'The finishing touch', text: 'Hand over a design for the last ten percent of polish.', ui: 'handoff', expert: true },
+      { title: 'Layouts that adapt', text: 'Change the words or the image and the layout rebalances.', ui: 'layout' },
+      { title: 'Design notes', text: 'An expert’s notes, pinned exactly where they matter.', ui: 'review', expert: true },
+      { title: 'Ready to export', text: 'PNG, PDF and video, sized and named for where they’re going.', ui: 'export' },
+      { title: 'Comments and approvals', text: 'Gather feedback and sign off with your team.', ui: 'comments' },
+      { title: 'Every version in one place', text: 'See each version and who approved it.', ui: 'approve' }
     ]
   }
 };
+
+/** Stored edits over the defaults: an app the studio has edited replaces its default wholesale */
+export function mergePreviews(stored: unknown): AppPreviews {
+  const s = (stored && typeof stored === 'object' ? stored : {}) as Partial<AppPreviews>;
+  const out = { ...APP_PREVIEWS };
+  for (const k of Object.keys(APP_PREVIEWS) as AppKey[]) {
+    const v = s[k];
+    if (v && typeof v.headline === 'string' && Array.isArray(v.features)) out[k] = { ...APP_PREVIEWS[k], ...v, features: v.features.filter((f) => f && f.title && FRAGMENTS.some((x) => x.id === f.ui)) };
+  }
+  return out;
+}

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { StudioBar } from '@/components/StudioBar';
-import { Sparkles, ArrowLeft, Globe, Mail, Rocket, Users } from 'lucide-react';
+import { Sparkles, ArrowLeft, Globe, LayoutGrid, Mail, Rocket, Users } from 'lucide-react';
 import { adminClient } from '@/lib/supabase/server';
 import { AdminEmail } from '@/components/AdminEmail';
 import { requireAdmin, listStaff } from '@/lib/admin';
@@ -10,6 +10,7 @@ import { AdminTeam } from '@/components/AdminTeam';
 import { AdminDomain } from '@/components/AdminDomain';
 import { AdminKrea } from '@/components/AdminKrea';
 import { AdminReleases } from '@/components/AdminReleases';
+import { AdminAppPreviews } from '@/components/AdminAppPreviews';
 
 // Admin settings for the studio: who's on the platform, releases and what clients see, and the domain
 export default async function Admin() {
@@ -33,6 +34,10 @@ export default async function Admin() {
         <section className="ov-card" aria-labelledby="adm-rel">
           <h2 id="adm-rel" className="ov-h"><Rocket size={16} strokeWidth={1.75} aria-hidden />Releases</h2>
           <AdminReleases />
+        </section>
+        <section className="ov-card" aria-labelledby="adm-apv">
+          <h2 id="adm-apv" className="ov-h"><LayoutGrid size={16} strokeWidth={1.75} aria-hidden />App previews</h2>
+          <AdminAppPreviews example={(projects || []).find((x) => x.slug === 'lost-property-studio')?.slug || projects?.[0]?.slug || null} />
         </section>
         <section className="ov-card" aria-labelledby="adm-domain">
           <h2 id="adm-domain" className="ov-h"><Globe size={16} strokeWidth={1.75} aria-hidden />Domain</h2>

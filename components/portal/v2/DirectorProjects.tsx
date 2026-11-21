@@ -1,6 +1,7 @@
 'use client';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Info } from 'lucide-react';
 import { AppIcon } from '@/components/portal/AppIcon';
 import { DirectorApp } from '@/components/director/DirectorApp';
 import { api as directorApi, type Tile } from '@/components/director/api';
@@ -71,6 +72,7 @@ export function DirectorProjects({ slug, kit, canGenerate, badge, labs }: { slug
       <AppIcon app="director" size={18} play /><strong>Director</strong><span className="mute">/</span><span>Projects</span>
       <span className="fb-sp" />
       <label className="fb-search"><Search {...I} /><span className="sr">Search projects</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search projects" /></label>
+      <Link className="btn fb-about" href={`/p/${slug}/preview/director`} title="What Director does"><Info {...I} /><span>About</span></Link>
       <button className="btn solid" onClick={create}><Plus {...I} />New project</button>
     </header>
     <div className="fb-body">
