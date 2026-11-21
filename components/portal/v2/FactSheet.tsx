@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { CircleHelp, ClipboardList, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Check, CircleHelp, ClipboardList, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { FACT_INTRO, isCheck, openChecks, type FactSheet as Sheet } from '@/lib/factSheet';
 
 // The fact sheet, opened from the Writer. Managers and admins edit it (it saves as they type); everyone else reads it.
@@ -21,7 +21,6 @@ export function FactSheet({ slug, onClose }: { slug: string; onClose: () => void
   const [f, setF] = useState<Sheet | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   const [tab, setTab] = useState('start');
-  const [only, setOnly] = useState(false);
   const [saved, setSaved] = useState<'' | 'saving' | 'saved' | 'error'>('');
   const [err, setErr] = useState('');
   const base = useRef<string | undefined>(undefined);
@@ -51,41 +50,78 @@ export function FactSheet({ slug, onClose }: { slug: string; onClose: () => void
 
   const t = f?.tabs.find((x) => x.id === tab);
   const total = f ? openChecks(f) : 0;
-  return <div className="fs" role="dialog" aria-modal aria-label="Fact sheet">
-    <header className="fs-top">
-      <ClipboardList {...I} /><strong>Fact sheet</strong>
-      <span className="mute fs-saved" role="status">{!canEdit && f ? 'View only · managers and admins can edit' : saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : saved === 'saved' ? 'Saved' : f?.updatedAt ? `Updated ${new Date(f.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}${f.updatedBy ? ` by ${f.updatedBy}` : ''}` : ''}</span>
-      <span className="fb-sp" />
-      <button className="w2-ic" onClick={onClose} aria-label="Close"><X {...I} /></button>
-    </header>
-    {!f ? <div className="fs-load">{err ? <p className="cd-err" role="alert">{err}</p> : <Loader2 className="spin" {...I} />}</div> : <div className="fs-body">
-      <nav className="fs-nav" aria-label="Fact sheet tabs">
-        <button className={'fs-tab' + (tab === 'start' ? ' on' : '')} onClick={() => setTab('start')}>Start here{total ? <i>{total}</i> : null}</button>
-        {f.tabs.map((x) => { const n = x.rows.filter(isCheck).length; return <button key={x.id} className={'fs-tab' + (tab === x.id ? ' on' : '')} onClick={() => setTab(x.id)}>{x.title}{n ? <i>{n}</i> : <span className="mute">{x.rows.length || ''}</span>}</button>; })}
-      </nav>
-      <main className="fs-main">
-        {err ? <p className="cd-err" role="alert">{err}</p> : null}
-        {tab === 'start' || !t ? <div className="fs-start">
-          <h1>The facts the Writer works from</h1>
-          <p>{FACT_INTRO.what}</p><p className="mute">{FACT_INTRO.how}</p>
-          <p className="fs-q"><CircleHelp {...I} /><span>{FACT_INTRO.check}{total ? ` There ${total === 1 ? 'is 1 question' : `are ${total} questions`} waiting.` : ''}</span></p>
-          <p className="mute">{FACT_INTRO.keep}</p>
-          <label className="fs-owner"><span>Sheet owner</span><input value={f.owner} disabled={!canEdit} placeholder="Name the person who keeps this up to date" onChange={(e) => edit((s) => ({ ...s, owner: e.target.value }))} /></label>
-          {total ? <button className="btn" onClick={() => { setOnly(true); setTab(f.tabs.find((x) => x.rows.some(isCheck))!.id); }}>Answer the questions</button> : null}
-        </div> : <div className="fs-sheet">
-          <div className="fs-h"><div><h2>{t.title}</h2><p className="mute">{t.about}</p></div><span className="fb-sp" />
-            {t.rows.some(isCheck) ? <button className={'fb-chip' + (only ? ' on' : '')} aria-pressed={only} onClick={() => setOnly(!only)}>Questions only</button> : null}</div>
-          <table className="fs-t">
-            <thead><tr>{t.columns.map((c) => <th key={c}>{c}</th>)}{canEdit ? <th aria-label="Actions" /> : null}</tr></thead>
-            <tbody>{t.rows.map((r, ri) => (only && !isCheck(r) ? null : <tr key={ri} className={isCheck(r) ? 'q' : ''}>
-              {r.map((c, ci) => <td key={ci}><textarea rows={1} value={c} disabled={!canEdit} aria-label={t.columns[ci]} onChange={(e) => setCell(t.id, ri, ci, e.target.value)} onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }} ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} /></td>)}
-              {canEdit ? <td className="fs-x"><button className="w2-ic" onClick={() => delRow(t.id, ri)} aria-label="Delete row" title="Delete row"><Trash2 size={13} aria-hidden /></button></td> : null}
-            </tr>))}</tbody>
-          </table>
-          {!t.rows.length ? <p className="mute fs-empty">Nothing here yet.</p> : null}
-          {canEdit ? <button className="btn fs-add" onClick={() => { setOnly(false); addRow(t.id); }}><Plus {...I} />Add a row</button> : null}
-        </div>}
-      </main>
-    </div>}
+  const rowsOf = (x: Sheet['tabs'][number]) => x.rows.filter((r) => r.some((c) => c.trim())).length;
+  // Answering a question: the answer goes in the row's main field, and the "Check:" note comes off
+  // (into the main field if that's empty, otherwise in place of the question)
+  const answer = (ti: string, ri: number, text: string) => edit((s) => ({ ...s, tabs: s.tabs.map((x) => (x.id !== ti ? x : { ...x, rows: x.rows.map((r, i) => {
+    if (i !== ri) return r; const v = text.trim(); const main = !r[1]?.trim() || CHECK.test(r[1]);
+    return r.map((c, j) => { if (main && j === 1 && v) return v; if (!CHECK.test(c)) return c; const k = stripCheck(c); return !main && v ? (k ? `${k}. ${v}` : v) : k; });
+  }) })) }));
+  return <div className="fs" role="dialog" aria-modal aria-label="Fact sheet" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fs-win">
+      <header className="fs-top">
+        <div className="fs-title"><strong>Fact sheet</strong><span className="mute">What the Writer knows. It only states facts that are here.</span></div>
+        <span className="fb-sp" />
+        <span className="mute fs-saved" role="status">{!canEdit && f ? 'View only' : saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : saved === 'saved' ? 'Saved' : ''}</span>
+        <button className="w2-ic" onClick={onClose} aria-label="Close"><X {...I} /></button>
+      </header>
+      {!f ? <div className="fs-load">{err ? <p className="cd-err" role="alert">{err}</p> : <Loader2 className="spin" {...I} />}</div> : <>
+        <nav className="fs-nav" aria-label="Sections">
+          <button className={'fs-tab' + (tab === 'start' ? ' on' : '')} onClick={() => setTab('start')}>Overview{total ? <i>{total}</i> : null}</button>
+          {f.tabs.map((x) => { const n = x.rows.filter(isCheck).length; return <button key={x.id} className={'fs-tab' + (tab === x.id ? ' on' : '')} onClick={() => setTab(x.id)}>{x.title}{n ? <i>{n}</i> : null}</button>; })}
+        </nav>
+        <main className="fs-main">
+          {err ? <p className="cd-err" role="alert">{err}</p> : null}
+          {tab === 'start' || !t ? <div className="fs-start">
+            <div className="fs-stats">
+              <div><b>{f.tabs.reduce((n, x) => n + rowsOf(x), 0)}</b><span className="mute">facts</span></div>
+              <div className={total ? 'q' : ''}><b>{total}</b><span className="mute">question{total === 1 ? '' : 's'} to answer</span></div>
+              <div><b>{f.updatedAt ? new Date(f.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '–'}</b><span className="mute">last updated{f.updatedBy ? ` by ${f.updatedBy}` : ''}</span></div>
+            </div>
+            {total ? <section className="fs-sec"><h3>Questions for you</h3><p className="mute">The Writer won’t use these until they’re answered.</p>
+              <div className="fs-qs">{f.tabs.flatMap((x) => x.rows.map((r, ri) => ({ x, r, ri })).filter(({ r }) => isCheck(r))).map(({ x, r, ri }) => <Question key={x.id + ri} tab={x} row={r} canEdit={canEdit} onAnswer={(v) => answer(x.id, ri, v)} where={x.title} />)}</div></section> : <p className="fs-ok"><Check {...I} />Everything’s confirmed. The Writer can use all of it.</p>}
+            <section className="fs-sec"><h3>Sections</h3>
+              <div className="fs-cards">{f.tabs.map((x) => <button key={x.id} className="fs-card" onClick={() => setTab(x.id)}><strong>{x.title}</strong><span className="mute">{x.about}</span><span className="fs-card-n">{rowsOf(x) ? `${rowsOf(x)} item${rowsOf(x) === 1 ? '' : 's'}` : 'Empty'}</span></button>)}</div></section>
+            <label className="fs-owner"><span>Who keeps this up to date?</span><input value={f.owner} disabled={!canEdit} placeholder="Name one person" onChange={(e) => edit((s) => ({ ...s, owner: e.target.value }))} /></label>
+            <p className="mute fs-foot">{FACT_INTRO.how}</p>
+          </div> : <div className="fs-sheet">
+            <div className="fs-h"><div><h2>{t.title}</h2><p className="mute">{t.about}</p></div></div>
+            {t.rows.some(isCheck) ? <section className="fs-sec"><h3>To answer</h3><div className="fs-qs">{t.rows.map((r, ri) => (isCheck(r) ? <Question key={ri} tab={t} row={r} canEdit={canEdit} onAnswer={(v) => answer(t.id, ri, v)} /> : null))}</div></section> : null}
+            <section className="fs-sec">{t.rows.some(isCheck) ? <h3>Confirmed</h3> : null}
+              <div className={'fs-rows' + (t.columns.length <= 3 ? ' simple' : '')}>{t.rows.map((r, ri) => (isCheck(r) ? null : <Row key={ri} cols={t.columns} row={r} canEdit={canEdit} set={(ci, v) => setCell(t.id, ri, ci, v)} del={() => delRow(t.id, ri)} />))}</div>
+              {!t.rows.filter((r) => !isCheck(r)).length ? <p className="mute fs-empty">Nothing here yet.</p> : null}
+              {canEdit ? <button className="btn fs-add" onClick={() => addRow(t.id)}><Plus {...I} />Add {ADD[t.id] || 'a row'}</button> : null}
+            </section>
+          </div>}
+        </main>
+      </>}
+    </div>
+  </div>;
+}
+
+const ADD: Record<string, string> = { key: 'a fact', people: 'a person', places: 'a place', times: 'a time or contact', prices: 'a price', residents: 'a business', events: 'an event' };
+const CHECK = /(^|[\s.;,(])check:\s*/i;
+/** The question in a row: the text after "Check:" */
+const questionOf = (row: string[]) => { const c = row.find((x) => CHECK.test(x)) || ''; return c.slice(c.search(CHECK)).replace(CHECK, '').trim(); };
+const stripCheck = (c: string) => (CHECK.test(c) ? c.slice(0, c.search(CHECK)).replace(/[\s.;,(]+$/, '') : c);
+
+function Question({ tab, row, canEdit, onAnswer, where }: { tab: Sheet['tabs'][number]; row: string[]; canEdit: boolean; onAnswer: (v: string) => void; where?: string }) {
+  const [v, setV] = useState('');
+  const known = row.slice(1).map((c, i) => [tab.columns[i + 1], stripCheck(c)]).filter(([, c]) => c.trim());
+  return <div className="fs-qc">
+    <div className="fs-qh"><CircleHelp {...I} /><div><span className="fs-qn">{row[0] || 'Untitled'}{where ? <span className="mute"> · {where}</span> : null}</span><p>{questionOf(row)}</p>
+      {known.length ? <p className="mute fs-qk">Now: {known.map(([k, c]) => `${k} ${c}`).join(' · ')}</p> : null}</div></div>
+    {canEdit ? <div className="fs-qa"><input value={v} onChange={(e) => setV(e.target.value)} placeholder="Type the answer" onKeyDown={(e) => { if (e.key === 'Enter') onAnswer(v); }} />
+      <button className="btn solid" onClick={() => onAnswer(v)}>{v.trim() ? 'Save answer' : 'It’s right as it is'}</button></div> : null}
+  </div>;
+}
+
+function Row({ cols, row, canEdit, set, del }: { cols: string[]; row: string[]; canEdit: boolean; set: (ci: number, v: string) => void; del: () => void }) {
+  const notes = cols.findIndex((c) => /^notes?$/i.test(c));
+  return <div className="fs-row">
+    <input className="fs-rt" value={row[0]} disabled={!canEdit} placeholder={cols[0]} aria-label={cols[0]} onChange={(e) => set(0, e.target.value)} />
+    <div className="fs-rf">{cols.slice(1).map((c, j) => { const ci = j + 1; return <label key={c} className={ci === notes ? 'n' : ''}><span>{c}</span>
+      <textarea rows={1} value={row[ci]} disabled={!canEdit} placeholder="–" onChange={(e) => set(ci, e.target.value)} ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }} /></label>; })}</div>
+    {canEdit ? <button className="w2-ic fs-del" onClick={del} aria-label="Delete" title="Delete"><Trash2 size={13} aria-hidden /></button> : null}
   </div>;
 }
