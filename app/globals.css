@@ -4903,3 +4903,41 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
   .dv-place { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 760px) and (prefers-reduced-motion: reduce) { .w2-cards.sheet { transition: none; } }
+
+/* ---------- Phones and the iOS app: a tab bar along the bottom, an apps sheet, safe areas */
+.pt-tabs, .pt-appsheet, .pt-scrim { display: none; }
+@media (max-width: 760px) {
+  .pt-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; height: calc(58px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: rgba(255,255,255,.94); -webkit-backdrop-filter: saturate(1.6) blur(18px); backdrop-filter: saturate(1.6) blur(18px); border-top: 1px solid var(--line); }
+  .pt-tab { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10.5px; color: #8a8a8a; -webkit-tap-highlight-color: transparent; }
+  .pt-tab.on { color: #000; }
+  .pt-tab:active { opacity: .6; }
+  .pt-main { padding-bottom: calc(140px + env(safe-area-inset-bottom)); }
+  .dock { bottom: calc(58px + env(safe-area-inset-bottom)); padding-bottom: 10px; }
+  .pt:has(.v2-app) .pt-tabs, .pt:has(.dr-ed) .pt-tabs, .pt:has(.tl-full) .pt-tabs { display: none; }
+  .pt:has(.v2-app) .dock, .pt:has(.dr-ed) .dock { bottom: 0; }
+  .pt-scrim { display: block; position: fixed; inset: 0; z-index: 36; background: rgba(0,0,0,.25); }
+  .pt-appsheet { display: flex; flex-direction: column; gap: 14px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 37; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); background: #fff; border-radius: 20px 20px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.16); animation: pt-up .26s cubic-bezier(.2,.8,.2,1); }
+  .pt:has(.pt-appsheet) .dock { display: none; }
+  .pt-side.mini .pt-brand { justify-content: space-between; padding: 0 2px 0 4px; }
+  .pt-appsheet-h { display: flex; justify-content: space-between; align-items: center; font-size: 17px; }
+  .pt-appsheet-h strong { font-weight: 500; }
+  .pt-x { all: unset; cursor: pointer; width: 32px; height: 32px; border-radius: 999px; background: var(--fill-2); display: grid; place-items: center; }
+  .pt-appgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 8px; }
+  .pt-appc { display: flex; flex-direction: column; align-items: center; gap: 6px; text-decoration: none; font-size: 12px; text-align: center; color: inherit; }
+  .pt-appc .mute { font-size: 10px; margin-top: -4px; }
+  .pt-appc.off { opacity: .45; }
+  .pt-appc-i { width: 60px; height: 60px; border-radius: 15px; background: var(--fill); display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); }
+  /* The top bar: the burger's menu opens as a full list under it */
+  .pt-side.open .pt-nav { max-height: calc(100dvh - 140px); }
+  .pt-it { min-height: 46px; font-size: 15px; }
+}
+@keyframes pt-up { from { transform: translateY(100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pt-appsheet { animation: none; } }
+/* Inside the iOS app: clear the status bar and the home indicator, no tap flashes, no text-size bumps */
+html.in-app { -webkit-text-size-adjust: 100%; }
+html.in-app body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+@media (max-width: 760px) {
+  html.in-app .pt-side { padding-top: calc(8px + env(safe-area-inset-top)); }
+  html.in-app .pt-main:has(.v2-app) { height: calc(100dvh - 49px - env(safe-area-inset-top)); }
+  html.in-app .pt-preview { display: none; }
+}
