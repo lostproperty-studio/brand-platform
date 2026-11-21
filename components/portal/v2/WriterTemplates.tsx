@@ -121,14 +121,14 @@ export function TemplateFields({ template, parts, legacy, setParts, slug, brief,
       const setAt = (i: number, v: string) => { if (!multi) { put(x.key, v); return; } const n = [...vs]; while (n.length <= i) n.push(''); n[i] = v; put(x.key, n); };
       const long = !!x.body || (x.limit || 0) > 200;
       return <div key={x.key} className={'tf-f' + (long ? ' long' : '')}>
-        <div className="tf-h"><span className="tf-l">{x.label}{multi ? <span className="tf-c">{vs.filter((v) => v.trim()).length} of up to {x.count}</span> : null}</span>{x.hint ? <span className="tf-hint">{x.hint}</span> : null}{!multi ? <Count v={vs[0] || ''} x={x} /> : null}</div>
+        <div className="tf-h"><span className="tf-l" title={x.hint || undefined}>{x.label}</span>{!multi ? <Count v={vs[0] || ''} x={x} /> : null}</div>
         {Array.from({ length: shown }, (_, i) => <div key={i} className="tf-row">
           {multi ? <span className="tf-i">{i + 1}</span> : null}
-          {long ? <CoText value={vs[i] || ''} onChange={(v) => setAt(i, v)} slug={slug} brief={brief} tone={tone} template={`${t.label}, ${x.label}`} say={say} placeholder={x.hint ? `${x.hint}…` : `Write the ${x.label.toLowerCase()}…`} />
+          {long ? <CoText value={vs[i] || ''} onChange={(v) => setAt(i, v)} slug={slug} brief={brief} tone={tone} template={`${t.label}, ${x.label}`} say={say} placeholder={`Write the ${x.label.toLowerCase()}…`} />
             : <Short value={vs[i] || ''} onChange={(v) => setAt(i, v)} x={x} slug={slug} brief={brief} tone={tone} template={t.label} placeholder={multi ? `${x.label.replace(/s$/, '')} ${i + 1}` : x.label} />}
           {multi ? <Count v={vs[i] || ''} x={x} /> : null}
         </div>)}
-        {multi && shown < x.count! ? <button type="button" className="tf-more" onClick={() => setAt(shown, '')}><Plus size={12} aria-hidden />Add another</button> : null}
+        {multi && shown < x.count! ? <button type="button" className="tf-more" onClick={() => setAt(shown, '')}><Plus size={12} aria-hidden />Add another {x.label.toLowerCase().replace(/s$/, '')}</button> : null}
       </div>;
     })}
   </div>;
