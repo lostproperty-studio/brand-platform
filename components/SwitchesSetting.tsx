@@ -1,11 +1,11 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { SWITCHES, type SwitchKey, type Switches } from '@/lib/portal/switches';
+import { SWITCHES, type AppState, type SwitchKey } from '@/lib/portal/switches';
 
 // On the project overview: which sections and apps this project has, for the client and the studio team alike,
 // and (admins only) whether it runs on Lost Property's own Claude instead of the client's key.
-export function SwitchesSetting({ projectId, switches: initial, studioAi: initialAi, admin }: { projectId: string; switches: Switches; studioAi: boolean; admin: boolean }) {
+export function SwitchesSetting({ projectId, switches: initial, studioAi: initialAi, admin }: { projectId: string; switches: Record<SwitchKey, AppState>; studioAi: boolean; admin: boolean }) {
   const router = useRouter();
   const [on, setOn] = useState(initial);
   const [ai, setAi] = useState(initialAi);
@@ -18,10 +18,11 @@ export function SwitchesSetting({ projectId, switches: initial, studioAi: initia
     router.refresh();
     return r.ok;
   }
-  async function flip(k: SwitchKey) {
-    const next = { ...on, [k]: !on[k] };
+  const stored = (v: AppState) => (v === 'on' ? true : v === 'off' ? false : 'soon');
+  async function set(k: SwitchKey, v: AppState) {
+    const next = { ...on, [k]: v };
     setOn(next);
-    if (!(await save({ switches: next }))) setOn(on);
+    if (!(await save({ switches: Object.fromEntries(Object.entries(next).map(([a, b]) => [a, stored(b)])) }))) setOn(on);
   }
   async function flipAi() {
     const next = !ai; setAi(next);
@@ -29,13 +30,17 @@ export function SwitchesSetting({ projectId, switches: initial, studioAi: initia
   }
   return (
     <div className="card psw">
-      <div><p style={{ margin: 0 }}>Sections and apps</p><p className="mute" style={{ margin: 0 }}>Switch off anything this project doesn’t need. It disappears from the portal for the client and for the studio team.</p></div>
+      <div><p style={{ margin: 0 }}>Sections and apps</p><p className="mute" style={{ margin: 0 }}>Switch off anything this project doesn’t need: it disappears for the client and the studio team. Coming soon shows the app greyed, with a preview of what it will do.</p></div>
       <ul className="psw-list">
         {SWITCHES.map((s) => <li key={s.key}>
-          <label className="psw-row">
+          {s.key === 'showcase' ? <label className="psw-row">
             <span><span className="psw-name">{s.name}</span><span className="mute psw-about">{s.about}</span></span>
-            <input type="checkbox" role="switch" className="psw-tog" checked={on[s.key]} onChange={() => flip(s.key)} aria-label={s.name} />
-          </label>
+            <input type="checkbox" role="switch" className="psw-tog" checked={on[s.key] !== 'off'} onChange={() => set(s.key, on[s.key] === 'off' ? 'on' : 'off')} aria-label={s.name} />
+          </label> : <div className="psw-row">
+            <span><span className="psw-name">{s.name}</span><span className="mute psw-about">{on[s.key] === 'soon' ? 'Shown greyed, with a preview of what it will do' : s.about}</span></span>
+            <span className="psw-seg" role="radiogroup" aria-label={s.name}>{(['on', 'soon', 'off'] as const).map((v) =>
+              <button key={v} type="button" role="radio" aria-checked={on[s.key] === v} className={on[s.key] === v ? 'on' : ''} onClick={() => set(s.key, v)}>{v === 'on' ? 'On' : v === 'soon' ? 'Coming soon' : 'Off'}</button>)}</span>
+          </div>}
         </li>)}
         {admin ? <li>
           <label className="psw-row">

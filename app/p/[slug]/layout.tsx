@@ -9,7 +9,8 @@ import { PreviewComments } from '@/components/portal/PreviewComments';
 import { canSee, projectStages, stageBadge } from '@/lib/features';
 import { APPS, portalV2 } from '@/lib/portalVersion';
 import { GuideShell } from '@/components/portal/v2/GuideShell';
-import { readSwitches, usesStudioAi } from '@/lib/portal/switches';
+import { readStates, readSwitches, usesStudioAi } from '@/lib/portal/switches';
+import { APP_PREVIEWS } from '@/lib/portal/appPreviews';
 
 // The client portal: an online version of the brand guidelines, with the kit, Canvas and Ask alongside.
 export default async function PortalLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
@@ -29,7 +30,9 @@ export default async function PortalLayout({ children, params }: { children: Rea
   // Portal v2 (staging): the apps get their own section; the old Writer and Director entries drop out of the pages
   const v2 = portalV2();
   // Photographer opens once it's at a stage this person can see (Admin settings → Releases); studio-only to start
-  const apps = v2 ? APPS.filter((x) => on[x.key]).map((x) => ({ key: x.key, name: x.name, ready: x.ready || (x.key === 'photographer' && canSee(stages.photographer, preview)) })) : [];
+  // Apps that are on and built open; ones coming soon (or not built yet) are greyed and open a preview of what they'll do
+  const st = readStates(project.content);
+  const apps = v2 ? APPS.filter((x) => on[x.key]).map((x) => ({ key: x.key, name: x.name, teaser: APP_PREVIEWS[x.key].teaser, ready: st[x.key] === 'on' && (x.ready || (x.key === 'photographer' && canSee(stages.photographer, preview))) })) : [];
   const css = fontCss + `\n.pt { ${display ? `--pt-display: var(--font-${display.role});` : ''} ${body ? `--pt-body: var(--font-${body.role});` : ''} }`;
   return (
     <div className="pt">

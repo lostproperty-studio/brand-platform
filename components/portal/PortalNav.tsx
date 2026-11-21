@@ -17,7 +17,7 @@ const I = { size: 18, strokeWidth: 1.6, 'aria-hidden': true } as const;
 
 export type NavFeature = { label: keyof typeof ICONS; path: string; badge: string | null };
 /** Portal v2: the apps, in their own section under the portal's pages */
-export type NavApp = { key: AppKey; name: string; ready: boolean };
+export type NavApp = { key: AppKey; name: string; ready: boolean; teaser?: string };
 
 export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettings, showShowcase, showWriter, showcaseName, features = [], apps = [], rail = false }: { rail?: boolean; apps?: NavApp[]; features?: NavFeature[]; showcaseName?: string; slug: string; client: string; logoUrl: string | null; miniUrl?: string | null; chapters: { id: string; title: string }[]; showSettings: boolean; showShowcase: boolean; showWriter?: boolean }) {
   const path = usePathname();
@@ -69,7 +69,7 @@ export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettin
           {apps.map((a) => { const href = `${base}/${a.key}`; const on = a.ready && path.startsWith(href);
             return a.ready
               ? <Link key={a.key} href={href} className={'pt-it pt-app' + (on ? ' on' : '')} aria-current={on ? 'page' : undefined} onClick={() => setOpen(false)} data-tip={tips ? a.name : undefined} aria-label={closed ? a.name : undefined}><AppIcon app={a.key} size={18} /><span className="pt-it-t">{a.name}</span></Link>
-              : <span key={a.key} className="pt-it pt-app off" data-tip={tips ? `${a.name}: coming next` : undefined} aria-disabled><AppIcon app={a.key} size={18} still /><span className="pt-it-t">{a.name}</span><span className="pt-badge">Next</span></span>; })}
+              : <Link key={a.key} href={`${base}/preview/${a.key}`} className={'pt-it pt-app off' + (path.startsWith(`${base}/preview/${a.key}`) ? ' on' : '')} onClick={() => setOpen(false)} data-tip={tips ? `${a.name}, coming soon: ${a.teaser || ''}` : undefined} title={tips ? undefined : a.teaser} aria-label={`${a.name}, coming soon`}><AppIcon app={a.key} size={18} still /><span className="pt-it-t">{a.name}</span><span className="pt-badge">Soon</span></Link>; })}
         </> : null}
       </nav>
       <div className="pt-foot">
@@ -90,7 +90,7 @@ export function PortalNav({ slug, client, logoUrl, miniUrl, chapters, showSettin
           <div className="gx-scroll">
             {apps.length ? <section><p className="gx-h">Apps</p><div className="gx-apps">{apps.map((a) => a.ready
               ? <Link key={a.key} href={`${base}/${a.key}`} className="gx-app"><span className="gx-app-i"><AppIcon app={a.key} size={26} still /></span><span>{a.name}</span></Link>
-              : <span key={a.key} className="gx-app off"><span className="gx-app-i"><AppIcon app={a.key} size={26} still /></span><span>{a.name}</span></span>)}</div></section> : null}
+              : <Link key={a.key} href={`${base}/preview/${a.key}`} className="gx-app off" onClick={() => setMore(false)} aria-label={`${a.name}, coming soon`}><span className="gx-app-i"><AppIcon app={a.key} size={26} still /></span><span>{a.name}</span></Link>)}</div></section> : null}
             {chapters.length ? <section><p className="gx-h">Guidelines</p><div className="gx-list">{chapters.map((c, k) => { const h = `${base}/guidelines/${c.id.replace(/[:;]/g, '-')}`; return <Link key={c.id} href={h} className={'gx-row' + (path === h ? ' on' : '')}><span className="gx-n">{String(k + 1).padStart(2, '0')}</span>{c.title}</Link>; })}</div></section> : null}
             <section><div className="gx-list">
               {showShowcase ? <Link href={`${base}/showcase`} className={'gx-row' + (isOn(`${base}/showcase`) ? ' on' : '')}><GalleryHorizontalEnd size={18} strokeWidth={1.6} aria-hidden />{showcaseName || 'Showcase'}</Link> : null}

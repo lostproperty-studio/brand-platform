@@ -9,7 +9,7 @@ import type { AppKey } from '@/lib/portalVersion';
 
 // Portal v2 home, top: a greeting for the time of day in the brand's voice, the Ask bar, and the apps.
 // The Ask bar hands the question to Ask (the dock at the bottom of every page), which answers in place.
-export function HomeTop({ slug, client, firstName, greetings, apps, studio }: { slug: string; client: string; firstName: string; greetings?: GreetingSet; apps: { key: AppKey; name: string; ready: boolean }[]; studio: boolean }) {
+export function HomeTop({ slug, client, firstName, greetings, apps, studio }: { slug: string; client: string; firstName: string; greetings?: GreetingSet; apps: { key: AppKey; name: string; ready: boolean; teaser?: string }[]; studio: boolean }) {
   const [line, setLine] = useState<[string, string] | null>(null);
   const [set, setSet] = useState<GreetingSet | undefined>(greetings);
   const [q, setQ] = useState('');
@@ -39,7 +39,7 @@ export function HomeTop({ slug, client, firstName, greetings, apps, studio }: { 
     <nav className="h2-apps" aria-label="Apps">
       {apps.map((a) => a.ready
         ? <Link key={a.key} href={`/p/${slug}/${a.key}`} className="h2-app"><span className="h2-app-tile"><AppIcon app={a.key} size={34} play /></span><span>{a.name}</span></Link>
-        : <span key={a.key} className="h2-app off" aria-disabled><span className="h2-app-tile"><AppIcon app={a.key} size={34} still /></span><span>{a.name}</span><span className="mute h2-next">Coming next</span></span>)}
+        : <Link key={a.key} href={`/p/${slug}/preview/${a.key}`} className="h2-app soon" aria-label={`${a.name}, coming soon. ${a.teaser || ''}`}><span className="h2-app-tile"><AppIcon app={a.key} size={34} still /></span><span>{a.name}</span><span className="mute h2-next">Coming soon</span>{a.teaser ? <span className="h2-tip" aria-hidden>{a.teaser}</span> : null}</Link>)}
     </nav>
   </section>;
 }

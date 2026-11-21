@@ -10,9 +10,22 @@ export const SWITCHES: { key: SwitchKey; name: string; about: string }[] = [
   { key: 'photographer', name: 'Photographer', about: 'Collections of on-brand images' }
 ];
 export type Switches = Record<SwitchKey, boolean>;
+/** An app can also be shown as coming soon: its icon is there, greyed, and opens a preview of what it will do */
+export type AppState = 'on' | 'soon' | 'off';
+export const APP_KEYS = ['writer', 'director', 'designer', 'photographer'] as const;
+type Raw = Partial<Record<SwitchKey, boolean | 'soon'>>;
+const raw = (content: unknown): Raw => ((content as { switches?: Raw } | null)?.switches) || {};
+/** Shown at all (on, or coming soon). Off means gone for everyone. */
 export function readSwitches(content: unknown): Switches {
-  const s = ((content as { switches?: Partial<Switches> } | null)?.switches) || {};
+  const s = raw(content);
   return Object.fromEntries(SWITCHES.map((x) => [x.key, s[x.key] !== false])) as Switches;
 }
+/** Each switch as on, coming soon or off */
+export function readStates(content: unknown): Record<SwitchKey, AppState> {
+  const s = raw(content);
+  return Object.fromEntries(SWITCHES.map((x) => [x.key, s[x.key] === false ? 'off' : s[x.key] === 'soon' ? 'soon' : 'on'])) as Record<SwitchKey, AppState>;
+}
+export const isSoon = (content: unknown, k: SwitchKey) => raw(content)[k] === 'soon';
+
 /** The studio's own projects (Lost Property Studio) run on the studio's Claude, for everyone on them */
 export const usesStudioAi = (content: unknown) => !!(content as { studioAi?: boolean } | null)?.studioAi;

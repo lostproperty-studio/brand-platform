@@ -1,5 +1,5 @@
-import { readSwitches } from '@/lib/portal/switches';
-import { notFound } from 'next/navigation';
+import { isSoon, readSwitches } from '@/lib/portal/switches';
+import { notFound, redirect } from 'next/navigation';
 import { portalContext } from '@/lib/portal/context';
 import { canSee, projectStages, stageBadge } from '@/lib/features';
 import { signMany } from '@/lib/storage/signed';
@@ -16,6 +16,8 @@ export default async function DirectorPage({ params }: { params: Promise<{ slug:
   const { slug } = await params;
   const ctx = await portalContext(slug);
   if (ctx && !readSwitches(ctx.project.content).director) notFound();
+  // Coming soon: clients see the preview of what it will do; the studio can still open it
+  if (ctx && isSoon(ctx.project.content, 'director') && !ctx.access.staff) redirect(`/p/${slug}/preview/director`);
   if (!ctx?.snap) notFound();
   const stage = (await projectStages(ctx.project.id)).director;
   if (!canSee(stage, ctx.preview)) notFound();

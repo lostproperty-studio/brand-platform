@@ -1,5 +1,5 @@
-import { readSwitches } from '@/lib/portal/switches';
-import { notFound } from 'next/navigation';
+import { isSoon, readSwitches } from '@/lib/portal/switches';
+import { notFound, redirect } from 'next/navigation';
 import { portalContext } from '@/lib/portal/context';
 import { Writer } from '@/components/portal/Writer';
 import { voiceHas, voiceMissing, voiceReady } from '@/lib/voice';
@@ -13,6 +13,8 @@ export default async function WriterPage({ params }: { params: Promise<{ slug: s
   const { slug } = await params;
   const ctx = await portalContext(slug);
   if (ctx && !readSwitches(ctx.project.content).writer) notFound();
+  // Coming soon: clients see the preview of what it will do; the studio can still open it
+  if (ctx && isSoon(ctx.project.content, 'writer') && !ctx.access.staff) redirect(`/p/${slug}/preview/writer`);
   if (!ctx?.snap) notFound();
   const v = ctx.snap.voice;
   const ready = !!v && voiceReady(v);

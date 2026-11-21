@@ -55,7 +55,7 @@ import { tierLabel, tierOf } from '@/lib/playbook';
 import { Overview, type OverviewData } from '@/components/Overview';
 import { portalShot } from '@/lib/projects/overview';
 import { SwitchesSetting } from '@/components/SwitchesSetting';
-import { readSwitches, usesStudioAi } from '@/lib/portal/switches';
+import { readStates, readSwitches, usesStudioAi } from '@/lib/portal/switches';
 import { logoThumbs } from '@/lib/projects/logoThumb';
 import { portalUrl } from '@/lib/domain';
 import { PortalAddress } from '@/components/PortalAddress';
@@ -189,7 +189,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <div className="ov-settings">
       <PortalAddress projectId={p.id} host={data.portalUrl.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />
       <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
-      <SwitchesSetting projectId={p.id} switches={on} studioAi={studioAi} admin={me.role === 'admin'} />
+      <SwitchesSetting projectId={p.id} switches={readStates(p.content)} studioAi={studioAi} admin={me.role === 'admin'} />
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
       <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
       </div>
