@@ -1,3 +1,4 @@
+import { usesStudioAi } from '@/lib/portal/switches';
 import { notFound } from 'next/navigation';
 import { adminClient } from '@/lib/supabase/server';
 import { portalContext } from '@/lib/portal/context';
@@ -29,7 +30,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
     <div className="pt-page rs">
       <header className="pt-chhead"><p className="mute">{ctx.access.clientAdmin ? 'For admins' : 'For managers'}</p><h1 className="pt-display">Settings</h1><p className="pt-lede">Your team, your AI and how the platform connects to the rest of your organisation.</p></header>
       <JumpNav items={[{ id: 'team', label: 'Team' }, ...(ctx.access.clientAdmin ? [{ id: 'ai', label: 'AI' }, { id: 'claude', label: 'Your own Claude' }] : []), ...(storage ? [{ id: 'storage', label: 'Storage' }] : []), ...(ctx.access.clientAdmin ? [{ id: 'requests', label: support ? 'Lost Property' : 'Requests' }] : [])]} />
-      <PortalSettings slug={slug} hint={ctx.project.ai_key_hint} rejected={!!(ctx.project.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt} isAdmin={ctx.access.clientAdmin} usage={usage} support={support}
+      <PortalSettings studioAi={usesStudioAi(ctx.project.content)} slug={slug} hint={ctx.project.ai_key_hint} rejected={!!(ctx.project.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt} isAdmin={ctx.access.clientAdmin} usage={usage} support={support}
         storage={storage ? { title: <>Storage{storage.badge ? <span className="beta-tag">{storage.badge}</span> : null}</>, body: <Plugins group="storage" slug={slug} client={ctx.project.client} lead={ctx.access.clientAdmin} staff={ctx.access.staff} items={storage.items} panel={storage.panel} preview={null} dbReady={storage.ready} flash={sp.plugin && sp.msg ? { plugin: sp.plugin, msg: sp.msg } : undefined} /> } : null} />
     </div>
   );

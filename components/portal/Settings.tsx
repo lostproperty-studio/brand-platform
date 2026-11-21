@@ -14,7 +14,7 @@ function Sec({ id, title, line, children }: { id: string; title: ReactNode; line
   </section>;
 }
 
-export function PortalSettings({ slug, hint, rejected, isAdmin, usage, storage, support }: { slug: string; hint: string | null; rejected?: boolean; isAdmin: boolean; usage: { requests: number; input: number; output: number } | null; storage?: { title: ReactNode; body: ReactNode } | null; support?: { badge: string | null } | null }) {
+export function PortalSettings({ slug, hint, rejected, isAdmin, usage, storage, support, studioAi = false }: { studioAi?: boolean; slug: string; hint: string | null; rejected?: boolean; isAdmin: boolean; usage: { requests: number; input: number; output: number } | null; storage?: { title: ReactNode; body: ReactNode } | null; support?: { badge: string | null } | null }) {
   const router = useRouter();
   const [key, setKey] = useState('');
   const [msg, setMsg] = useState('');
@@ -33,7 +33,9 @@ export function PortalSettings({ slug, hint, rejected, isAdmin, usage, storage, 
       <TeamManager slug={slug} />
     </Sec>
     {isAdmin ? <>
-      <Sec id="ai" title="AI" line="Ask and the AI tools run on your own Anthropic account, so usage is billed to you and you set the limit.">
+      {studioAi ? <Sec id="ai" title="AI" line="Ask and the AI tools run on Lost Property’s own Claude, so there’s no key to connect here.">
+        <div className="st-row"><div className="st-rowtxt"><p>Claude</p><p className="mute">Connected · Lost Property’s organisation</p></div></div>
+      </Sec> : <Sec id="ai" title="AI" line="Ask and the AI tools run on your own Anthropic account, so usage is billed to you and you set the limit.">
         {hint && rejected ? <p role="alert" className="st-alert">Anthropic rejected the key ending {hint}: it may have been revoked or deleted, so Ask and the AI tools aren’t working. Paste a new key below.</p> : null}
         <div className="st-row">
           <div className="st-rowtxt"><p>Anthropic API key</p><p className="mute">{hint ? `${rejected ? 'Saved' : 'Connected'} · key ending ${hint}` : 'Not connected yet'}</p></div>
@@ -50,7 +52,7 @@ export function PortalSettings({ slug, hint, rejected, isAdmin, usage, storage, 
           <li>Create an API key and choose one workspace for it.</li>
           <li>Paste it above. It’s checked, stored encrypted and never shown again.</li>
         </ol></details>
-      </Sec>
+      </Sec>}
       <Sec id="claude" title="Your own Claude" line="Add these guidelines to Claude as a custom connector, so it answers and designs on-brand wherever you use it.">
         <div className="st-row">
           <div className="st-rowtxt"><p>Connector link</p><p className="mute">{conn ? conn.note : 'Make a private link, then add it in Claude under Settings → Connectors.'}</p></div>
