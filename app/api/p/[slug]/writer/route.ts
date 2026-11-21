@@ -107,15 +107,19 @@ ${VOICE_GUARD(snap.client)}
         return NextResponse.json({ next: (res.input?.next || '').replace(/\s+$/, '').slice(0, 300) });
       }
       const ask = act === 'open'
-        ? `Suggest 3 different opening lines for this piece. Each a single line, each a different way in (not rewordings). They'll pick one and carry on writing themselves.`
+        ? (q.steer ? `Suggest 3 different options for ${q.steer}. Each one complete and ready to use on its own, written exactly for that (a title reads like a title), each a different way in.` : `Suggest 3 different opening lines for this piece. Each a single line, each a different way in (not rewordings). They'll pick one and carry on writing themselves.`)
         : `They want another way to say one line of their copy. Give 3 rewrites of THAT LINE only (not the whole piece), each a different move${q.steer ? `, all of them ${q.steer}` : ''}. Keep what it's for and how it fits the lines around it. Each roughly the same length as theirs unless asked otherwise.`;
-      const res = await callTool<{ lines?: { text: string; why: string }[] }>(ai, { model: 'claude-sonnet-5-5', max_tokens: 900, system,
+      const ask2 = (): Promise<{ input: { lines?: { text: string; why: string }[] } | null; usage: Parameters<typeof logUsage>[3]; text?: string }> => callTool<{ lines?: { text: string; why: string }[] }>(ai, { model: 'claude-sonnet-5-5', max_tokens: 900, system,
         messages: [{ role: 'user', content: `You're a co-writer and coach, not a replacement: ${ask} For each, a few words on the move you made, like a coach would say it (e.g. "Leads with the sound", "Cuts the warm-up"). No marketing clichés.\n\n${ctxt}\n\nTHEIR COPY${q.text ? `\n${q.text}` : ' (nothing yet)'}${act === 'alts' ? `\n\nTHE LINE TO REWORK\n${q.line || ''}` : ''}` }],
         tool: { name: 'lines', description: 'The suggested lines', input_schema: { type: 'object', properties: { lines: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' }, why: { type: 'string', description: '2 to 6 words: the move' } }, required: ['text', 'why'] } } }, required: ['lines'] } } });
+      let res = await ask2();
+      // Now and then the answer comes back without the lines: ask once more rather than show nothing
+      if (!res.input?.lines?.length) { if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage); res = await ask2(); }
       if (!studio) await logUsage(p.id, acc.user.id, 'writer', res.usage);
       if (!acc.staff) await logActivity(p.id, acc.user.id, 'tool', `Writer · ${act === 'open' ? 'openings' : 'line'}`);
-      if (!res.input?.lines?.length) console.error('Writer coach: no lines', act, JSON.stringify(res.input), res.text);
-      return NextResponse.json({ lines: (res.input?.lines || []).slice(0, 3), ...(res.input?.lines?.length ? {} : { debug: { input: res.input, said: res.text } }) });
+      const lines = (Array.isArray(res.input?.lines) ? res.input!.lines : []).filter((l) => l?.text?.trim()).slice(0, 3);
+      if (!lines.length) { console.error('Writer coach: no lines', act, JSON.stringify(res.input), res.text); return NextResponse.json({ error: 'The Writer didn’t come back with anything that time. Try again.' }, { status: 502 }); }
+      return NextResponse.json({ lines });
     }
     if (q.mode === 'ideas') {
       // Ideas: distinct angles on the brief, each with its core line and a taste of how it reads in each place

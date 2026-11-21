@@ -24,9 +24,10 @@ function sentenceAt(t: string, at: number): [number, number] {
   return [s, Math.max(s, e)];
 }
 
-export function CoText({ value, onChange, slug, brief, tone, template, placeholder, onSelectText, onPause, say }: {
+export function CoText({ value, onChange, slug, brief, tone, template, placeholder, onSelectText, onPause, say, tips }: {
   value: string; onChange: (v: string) => void; slug: string; brief: string; tone: number; template?: string; placeholder: string; onSelectText?: (t: string) => void;
   /** Called when you leave the text (the Writer reads it for facts then) */ onPause?: (text: string) => void; say?: (t: string) => void;
+  /** Tips that take turns in the empty field, faintly */ tips?: string[];
 }) {
   const [on] = useCoWriterOn();
   const ta = useRef<HTMLTextAreaElement>(null);
@@ -43,6 +44,9 @@ export function CoText({ value, onChange, slug, brief, tone, template, placehold
   const [cpos, setCpos] = useState<{ y: number } | null>(null);
   const [undo, setUndo] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
+  // An empty field: its prompt, then tips taking turns
+  const [tip, setTip] = useState(-1);
+  useEffect(() => { if (value || !tips?.length) { setTip(-1); return; } const t = setInterval(() => setTip((n) => (n + 1 >= tips.length ? -1 : n + 1)), 4200); return () => clearInterval(t); }, [value, tips]);
 
   const call = useCallback(async (body: Record<string, unknown>, signal?: AbortSignal) => {
     const r = await fetch(`/api/p/${slug}/writer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal, body: JSON.stringify({ mode: 'coach', brief: brief.trim() || 'A piece of copy', tone, template, ...body }) });
@@ -106,7 +110,7 @@ export function CoText({ value, onChange, slug, brief, tone, template, placehold
 
   return <div className="co" ref={box}>
     <div className="co-mirror w2-text" aria-hidden>{mirror}{'​'}</div>
-    <textarea ref={ta} className="co-ta w2-text" value={value} placeholder={placeholder} rows={1} spellCheck
+    <textarea ref={ta} className={'co-ta w2-text' + (tip >= 0 ? ' tip' : '')} value={value} placeholder={tip >= 0 && tips ? `Tip: ${tips[tip]}` : placeholder} rows={1} spellCheck
       onChange={(e) => { onChange(e.target.value); setUndo(null); setPop(null); }} onSelect={track} onKeyUp={track} onMouseUp={track}
       onFocus={() => { setFocus(true); track(); }} onBlur={() => { setTimeout(() => setFocus(false), 150); onPause?.(value); }}
       onKeyDown={(e) => {

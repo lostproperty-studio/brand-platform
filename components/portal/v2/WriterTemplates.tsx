@@ -27,6 +27,31 @@ export const TEMPLATE_FOR: Record<string, string> = {
   poster: 'Read in a few seconds', signage: 'Signs around a place', packaging: 'Front and back of pack', press: 'News for journalists',
   tagline: 'One short line', presentation: 'A slide’s words', custom: 'Your own fields'
 };
+/** Tips that cycle faintly in an empty field, on how to get going with that kind of piece */
+const TIPS: Record<string, string[]> = {
+  'video-script': ['Open on one image that tells the whole story', 'One scene per line: the shot, then | and any voiceover', 'Start with a sound or a moment, not the logo', 'End on one line people will remember'],
+  instagram: ['The first line is all most people see: make it the hook', 'Write it the way you’d say it to one person', 'Lead with the thing itself, not the build-up'],
+  'instagram-story': ['A few words, read in a second', 'Say the one thing, then where to go'],
+  linkedin: ['Open with something only you could say', 'Keep the first two lines short: that’s what shows'],
+  'google-search': ['Each headline has to work on its own', 'Put the place or the offer in at least one', 'Have a few under 15 characters'],
+  'google-pmax': ['Each line has to work alone, in any order', 'Mix short headlines with long ones'],
+  'meta-feed': ['The first sentence does the work', 'Say what’s in it for them'],
+  email: ['A subject line that reads like a person wrote it', 'Say the one thing in the first line', 'One button, one action'],
+  newsletter: ['Open with the best bit, not a hello', 'One idea per section'],
+  sms: ['Who it’s from, what it is, what to do', 'Keep it to one text'],
+  push: ['Say what’s new in the title', 'Give a reason to tap'],
+  hero: ['Say what it is before what it means', 'The button says exactly what happens next'],
+  'web-page': ['Answer the question the reader came with', 'Short paragraphs, one idea each'],
+  seo: ['Put the words people search for first', 'Write the description as a promise'],
+  poster: ['Seven words or fewer', 'Readable from across the street', 'One idea, said big'],
+  signage: ['Say where, not what', 'As few words as it takes'],
+  press: ['The news in the first sentence', 'Who, what, when, where, then why it matters'],
+  presentation: ['One idea per slide', 'Make the title the point, not the topic'],
+  tagline: ['Short enough to say in one breath', 'Something only this brand could say']
+};
+const GENERAL = ['Start with what you most want them to know', 'Write it plainly first, make it sing after', 'Select any words for other ways to say them'];
+export const tipsFor = (id: string) => TIPS[id] || GENERAL;
+
 export const iconFor = (id: string): Ic => TEMPLATE_ICON[id] || Sparkles;
 
 // Favourite and recently used templates (kept in this browser), shown first in the / menu
@@ -140,7 +165,7 @@ export function TemplateFields({ template, parts, legacy, setParts, slug, brief,
         const over = x.limit ? vs.map((v, i) => [i, countOf(v, x.unit)] as const).filter(([i, n]) => vs[i].trim() && n > x.limit!) : [];
         return <div key={x.key} className="tf-f long multi">
           <div className="tf-h"><span className="tf-l" title={x.hint || undefined}>{x.label}</span><span className="tf-n">{lines.length ? `${lines.length} ${lines.length === 1 ? one : x.label.toLowerCase()}` : `One ${one} per line`}{x.limit ? ` · up to ${x.limit}${x.unit === 'words' ? ' words' : ''} each` : ''}</span></div>
-          <CoText value={vs.join('\n')} onChange={(v) => put(x.key, v.split('\n'))} slug={slug} brief={brief} tone={tone} template={`${t.label}, ${x.label} (one per line)`} say={say} placeholder={`One ${one} per line…`} />
+          <CoText value={vs.join('\n')} onChange={(v) => put(x.key, v.split('\n'))} slug={slug} brief={brief} tone={tone} template={`${t.label}, ${x.label} (one per line)`} say={say} placeholder={template === 'video-script' ? 'Start writing the script…' : `Start writing: one ${one} per line…`} tips={tipsFor(template)} />
           {over.length ? <p className={'tf-warn' + (x.soft ? '' : ' over')}>{over.map(([i, n]) => `Line ${i + 1} is ${n}/${x.limit}`).join(' · ')}</p> : null}
           {lines.length > x.count! ? <p className="tf-warn">Only the first {x.count} are used here.</p> : null}
         </div>;
@@ -149,7 +174,7 @@ export function TemplateFields({ template, parts, legacy, setParts, slug, brief,
       return <div key={x.key} className={'tf-f' + (long ? ' long' : '')}>
         <div className="tf-h"><span className="tf-l" title={x.hint || undefined}>{x.label}</span><Count v={vs[0] || ''} x={x} /></div>
         <div className="tf-row">
-          {long ? <CoText value={vs[0] || ''} onChange={(v) => setAt(0, v)} slug={slug} brief={brief} tone={tone} template={`${t.label}, ${x.label}`} say={say} placeholder={`Write the ${x.label.toLowerCase()}…`} />
+          {long ? <CoText value={vs[0] || ''} onChange={(v) => setAt(0, v)} slug={slug} brief={brief} tone={tone} template={`${t.label}, ${x.label}`} say={say} placeholder={`Start writing the ${x.label.toLowerCase()}…`} tips={tipsFor(template)} />
             : <Short value={vs[0] || ''} onChange={(v) => setAt(0, v)} x={x} slug={slug} brief={brief} tone={tone} template={t.label} placeholder={x.label} />}
         </div>
       </div>;

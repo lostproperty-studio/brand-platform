@@ -5405,3 +5405,4 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .tp-r:hover .tp-star, .tp-star.on, .tp-star:focus-visible { opacity: 1; }
 .tp-star:hover { background: #f0f0f0; color: #555; }
 .tp-star.on { color: #e0a800; }
+.co-ta.tip::placeholder { color: #c9b7d3; }
