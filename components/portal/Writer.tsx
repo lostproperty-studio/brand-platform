@@ -27,7 +27,7 @@ export function Writer({ slug, client, audiences, aiConnected, canConnect, note 
   const [customLimit, setCustomLimit] = useState<number | ''>('');
   const [audience, setAudience] = useState('');
   const [tone, setTone] = useState(50);
-  const [length, setLength] = useState<(typeof LENGTHS)[number]['id']>('short');
+  const [length, setLength] = useState<(typeof LENGTHS)[number]['id'] | 'article'>('short');
   const [count, setCount] = useState(3);
   const [options, setOptions] = useState<Option[]>([]);
   const [review, setReview] = useState<{ summary: string; notes: Note[] } | null>(null);

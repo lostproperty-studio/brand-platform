@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
-import { AtSign, Bell, Clapperboard, FileText, Globe, Image, Instagram, Linkedin, Mail, Megaphone, MessageSquareText, Monitor, Music2, Newspaper, Package, PanelTop, Presentation, RectangleHorizontal, Search, ShoppingBag, Signpost, Smartphone, Sparkles, Type, Youtube, type LucideProps } from 'lucide-react';
+import { AtSign, Bell, BookOpenText, Clapperboard, FileText, Globe, Image, Instagram, Linkedin, Mail, Megaphone, MessageSquareText, Monitor, Music2, Newspaper, Package, PanelTop, Presentation, RectangleHorizontal, Search, ShoppingBag, Signpost, Smartphone, Sparkles, Type, Youtube, type LucideProps } from 'lucide-react';
 import { useFit } from '@/components/portal/v2/WriterBlocks';
 import { TEMPLATE_GROUPS, WRITER_TEMPLATES, countOf, templateById, type WriterPart } from '@/lib/writerTemplates';
 import { ArrowRight, Plus, RefreshCw, Star, X } from 'lucide-react';
@@ -15,7 +15,7 @@ export const TEMPLATE_ICON: Record<string, Ic> = {
   instagram: Instagram, 'instagram-story': Smartphone, linkedin: Linkedin, x: MessageSquareText, threads: AtSign, tiktok: Music2, 'video-script': Clapperboard, youtube: Youtube,
   email: Mail, newsletter: Newspaper, sms: MessageSquareText, push: Bell,
   hero: PanelTop, 'web-page': Globe, seo: Search, product: ShoppingBag, 'app-store': Smartphone,
-  poster: Image, signage: Signpost, packaging: Package, press: FileText,
+  poster: Image, signage: Signpost, packaging: Package, press: FileText, substack: BookOpenText,
   tagline: Type, presentation: Presentation, custom: Monitor
 };
 /** One line on what each template is for: no limits or parts, just the job */
@@ -24,7 +24,7 @@ export const TEMPLATE_FOR: Record<string, string> = {
   instagram: 'A feed post', 'instagram-story': 'Words over a story', linkedin: 'A post from the company page', x: 'A post on X', threads: 'A post on Threads', tiktok: 'Caption and on-screen words', 'video-script': 'A short film, scene by scene', youtube: 'Title and description',
   email: 'One email, subject to button', newsletter: 'A regular update', sms: 'One text message', push: 'A phone notification',
   hero: 'The top of a web page', 'web-page': 'A section of a web page', seo: 'How a page shows in search', product: 'A product page', 'app-store': 'An app’s store listing',
-  poster: 'Read in a few seconds', signage: 'Signs around a place', packaging: 'Front and back of pack', press: 'News for journalists',
+  poster: 'Read in a few seconds', signage: 'Signs around a place', packaging: 'Front and back of pack', press: 'News for journalists', substack: 'A first-person essay',
   tagline: 'One short line', presentation: 'A slide’s words', custom: 'Your own fields'
 };
 /** Tips that cycle faintly in an empty field, on how to get going with that kind of piece */
@@ -45,7 +45,8 @@ const TIPS: Record<string, string[]> = {
   seo: ['Put the words people search for first', 'Write the description as a promise'],
   poster: ['Seven words or fewer', 'Readable from across the street', 'One idea, said big'],
   signage: ['Say where, not what', 'As few words as it takes'],
-  press: ['The news in the first sentence', 'Who, what, when, where, then why it matters'],
+  press: ['The news in the first sentence', 'Who, what, when, where, then why it matters', 'One paragraph per part of the story', 'Name the materials, places and people'],
+  substack: ['Open on a scene, not a claim', 'What did you notice this week?', 'One film, album or brand that proves it', 'Say it the way you’d tell the team'],
   presentation: ['One idea per slide', 'Make the title the point, not the topic'],
   tagline: ['Short enough to say in one breath', 'Something only this brand could say']
 };
@@ -56,6 +57,7 @@ export const iconFor = (id: string): Ic => TEMPLATE_ICON[id] || Sparkles;
 
 // Favourite and recently used templates (kept in this browser), shown first in the / menu
 const FAV = 'lp-writer-favs', REC = 'lp-writer-recent';
+
 const read = (k: string): string[] => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
 const write = (k: string, v: string[]) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage off */ } dispatchEvent(new Event('lp-tpl')); };
 export const usedTemplate = (id: string) => write(REC, [id, ...read(REC).filter((x) => x !== id)].slice(0, 6));

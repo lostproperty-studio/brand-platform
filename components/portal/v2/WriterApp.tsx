@@ -22,7 +22,7 @@ type Val = string | string[];
 export type Idea = { id: string; angle: string; line: string; why: string; tastes: { place: string; text: string }[]; loved?: boolean };
 /** The finished copy for one place (a template), part by part */
 export type Out = Record<string, Val>;
-type Length = 'line' | 'short' | 'medium' | 'long';
+type Length = 'line' | 'short' | 'medium' | 'long' | 'article';
 export type Piece = { id: string; name: string; text: string; templates: string[]; status: Status; parts?: Record<string, Val>; signedBy?: string; signedAt?: string;
   ideas?: Idea[]; idea?: string; out?: Record<string, Out>; mode?: 'ideas' | 'refine'; length?: Length; audience?: string;
   owner?: string; reviewer?: string; due?: string; tags?: string[]; links?: Link[]; comments?: Comment[]; history?: Event[] };
