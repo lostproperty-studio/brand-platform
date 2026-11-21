@@ -4825,3 +4825,6 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 .mm-toast .mo-x { color: #fff; }
 .mm-pub { width: min(820px, 94vw); max-height: 90vh; overflow: auto; }
 @media (max-width: 1100px) { .mm-body { grid-template-columns: 1fr; } .mm-side { position: static; flex-direction: row; flex-wrap: wrap; } .mm-panel { position: static; max-height: none; } }
+
+.mm-canvas .mo-sw { display: flex; flex-wrap: wrap; gap: 6px; }
+.mm-hint { font-size: 11px; margin: 2px 0 0; line-height: 1.4; }

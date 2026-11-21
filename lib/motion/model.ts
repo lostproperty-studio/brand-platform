@@ -91,6 +91,9 @@ export type BrandMotion = {
   type: TypePreset;
   /** Changes for one typeface (by its role: display, body…) */
   typeBy?: Record<string, Partial<TypePreset>>;
+  /** How each asset sits on the maker's stage, by logo path or typeface role: its background (null for transparent)
+   *  and, for type, its size in px. A logo's size is its preset's scale. */
+  stage?: Record<string, { bg?: string | null; size?: number }>;
   /** What the team chose to give behaviours to: logo paths and typeface roles */
   assets?: { logos: string[]; fonts: string[] };
   /** How the team described it, in their words */

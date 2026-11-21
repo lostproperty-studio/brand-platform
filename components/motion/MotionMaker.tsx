@@ -30,7 +30,7 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
     const json = JSON.stringify(x); if (json === savedJson.current) return x;
     setStatus('Saving…');
     try {
-      const j = await post(`/api/projects/${projectId}/motion`, { logo: x.logo, type: x.type, perLogo: x.perLogo || {}, typeBy: x.typeBy || {}, assets: x.assets, brief: x.brief, note: x.note, controls: x.controls, source: x.source, builtAt: x.builtAt }, 'PUT');
+      const j = await post(`/api/projects/${projectId}/motion`, { logo: x.logo, type: x.type, perLogo: x.perLogo || {}, typeBy: x.typeBy || {}, assets: x.assets, brief: x.brief, note: x.note, controls: x.controls, source: x.source, builtAt: x.builtAt, stage: x.stage || {} }, 'PUT');
       savedJson.current = json; setStatus('Draft saved'); return j.motion as BrandMotion;
     } catch (e) { setStatus((e as Error).message); return x; }
   }, [projectId]);
@@ -44,7 +44,6 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
   const [own, setOwn] = useState(false);
   const [art, setArt] = useState<Artwork | null>(null);
   const [artErr, setArtErr] = useState('');
-  const [bg, setBg] = useState<string | null>(null);
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [loop, setLoop] = useState(true);
@@ -56,6 +55,13 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
   const hasOwn = !!(ownMap?.[key] && Object.keys(ownMap[key]).length);
   useEffect(() => { setOwn(hasOwn); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const P: MotionPreset | TypePreset = sel.kind === 'type' ? typeFor(m, sel.role) : presetFor(m, logo?.path);
+  // Each asset keeps its own background and (for type) size on the stage
+  const [tone, setTone] = useState<Record<string, 'dark' | 'light'>>({});
+  const bgFor = (k: string, kind: 'logo' | 'type') => { const v = m.stage?.[k]?.bg; return v !== undefined ? v : kind === 'type' ? pair.dark : tone[k] === 'dark' ? pair.light : pair.dark; };
+  const bg = bgFor(key, sel.kind);
+  const setStage = (x: { bg?: string | null; size?: number }) => edit((cur) => ({ ...cur, stage: { ...(cur.stage || {}), [key]: { ...(cur.stage?.[key] || {}), ...x } } }));
+  const setBg = (v: string | null) => setStage({ bg: v && !v.startsWith('#') ? `#${v}` : v });
+  const typeSize = m.stage?.[key]?.size ?? 56;
   const setP = (x: Patch) => edit((cur) => {
     if (sel.kind === 'type') return own && fonts.length > 1 ? { ...cur, typeBy: { ...cur.typeBy, [sel.role]: { ...(cur.typeBy?.[sel.role] || {}), ...x } as Partial<TypePreset> } } : { ...cur, type: { ...cur.type, ...x } as TypePreset };
     if (own && logo) return { ...cur, perLogo: { ...cur.perLogo, [logo.path]: { ...(cur.perLogo?.[logo.path] || {}), ...x } as Partial<MotionPreset> } };
@@ -64,10 +70,9 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
   useEffect(() => {
     if (!logo) { setArt(null); return; }
     let on = true; setArt(null); setArtErr('');
-    artworkOf(logo.url).then((a) => { if (on) { setArt(a); setBg(a.tone === 'dark' ? pair.light : pair.dark); } }).catch((e) => on && setArtErr(e.message));
+    artworkOf(logo.url).then((a) => { if (on) { setArt(a); setTone((x) => ({ ...x, [logo.path]: a.tone === 'dark' ? 'dark' : 'light' })); } }).catch((e) => on && setArtErr(e.message));
     return () => { on = false; };
   }, [logo?.url]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (sel.kind === 'type' && bg === null) setBg(pair.dark); }, [sel.kind]); // eslint-disable-line react-hooks/exhaustive-deps
   const tl = useMemo(() => (sel.kind === 'logo' && art ? buildTimeline(P, art.rects, art.w, art.h) : null), [art, P, sel.kind]);
   const T = tl?.T ?? P.length * 1000;
   const last = useRef(0);
@@ -138,7 +143,7 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
         await pk({ action: 'add', pkg: 'motion', name, path: s.path, bytes: blob.size, type: blob.type });
       };
       for (const l of list) {
-        const a = await artworkOf(l.url); const LP = presetFor(saved, l.path); const base = kebab(l.name); const on = a.tone === 'dark' ? pair.light : pair.dark;
+        const a = await artworkOf(l.url); const LP = presetFor(saved, l.path); const base = kebab(l.name); const on = saved.stage?.[l.path]?.bg || (a.tone === 'dark' ? pair.light : pair.dark);
         tick(`${l.name}: video`); await toPkg(`${base}.mp4`, await encodeMp4(a, LP, { W: 1920, H: 1080, fps: 30, bg: on, onProgress: (p) => tick(`${l.name}: video`, p) })); n++;
         tick(`${l.name}: transparent video`); await toPkg(`${base}-transparent.webm`, await encodeWebm(a, LP, { W: 1920, H: 1080, fps: 30, bg: null, onProgress: (p) => tick(`${l.name}: transparent video`, p) })); n++;
         tick(`${l.name}: Lottie`); await toPkg(`${base}.json`, new Blob([JSON.stringify(toLottie(a, LP, { frame: 'logo', bg: null, title: `${client} ${l.name}` }))], { type: 'application/json' })); n++;
@@ -151,7 +156,7 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
     setMenu(false); setExp({ p: 0.3, note: kind === 'page' ? 'Building the review page' : 'Rendering' });
     try {
       if (kind === 'page') {
-        const items = await Promise.all(logos.map(async (l) => { const a = await artworkOf(l.url); const on = a.tone === 'dark' ? pair.light : pair.dark; return `<figure style="background:${on}"><div>${toSVG(a, presetFor(m, l.path), { frame: 'logo', bg: null, loop: true, title: l.name })}</div><figcaption>${l.name}</figcaption></figure>`; }));
+        const items = await Promise.all(logos.map(async (l) => { const a = await artworkOf(l.url); const on = m.stage?.[l.path]?.bg || (a.tone === 'dark' ? pair.light : pair.dark); return `<figure style="background:${on}"><div>${toSVG(a, presetFor(m, l.path), { frame: 'logo', bg: null, loop: true, title: l.name })}</div><figcaption>${l.name}</figcaption></figure>`; }));
         const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${client} motion, for review</title><style>body{margin:0;padding:48px;font:14px/1.5 system-ui,sans-serif;background:#f4f3ef;color:#111}h1{font-size:28px;margin:0 0 6px}p{max-width:720px;color:#555}main{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;margin-top:32px}figure{margin:0;border-radius:10px;aspect-ratio:16/9;display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative}figure div{width:62%}figure svg{width:100%;height:auto;display:block}figcaption{position:absolute;left:12px;bottom:8px;font-size:11px;color:#888;text-transform:capitalize}</style></head><body><h1>${client} motion</h1><p>${(m.brief || '').replace(/</g, '&lt;')}</p><p><strong>Logos:</strong> ${describe(m.logo)}<br><strong>Type:</strong> ${describe(m.type)}<br><strong>Ease:</strong> ${easeName(m.logo.ease)}, cubic-bezier(${m.logo.ease.join(', ')})</p><p>Draft for review, ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. Lost Property Studio.</p><main>${items.join('')}</main></body></html>`;
         download(`${kebab(client)}-motion-review.html`, new Blob([html], { type: 'text/html' }));
       } else if (logo && art) {
@@ -202,7 +207,7 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
 
       <section className="mm-main">
         <div className={'mm-stage' + (bg ? '' : ' clear')} style={{ background: bg || undefined }}>
-          {sel.kind === 'logo' ? (artErr ? <p className="mo-err">{artErr}</p> : <canvas ref={cv} />) : <div className="mo-type"><TypeStage text={sample} P={P as TypePreset} t={t} font={font?.css} colour={bg && lum(bg) < 0.5 ? pair.light : pair.dark} size={56} /></div>}
+          {sel.kind === 'logo' ? (artErr ? <p className="mo-err">{artErr}</p> : <canvas ref={cv} />) : <div className="mo-type"><TypeStage text={sample} P={P as TypePreset} t={t} font={font?.css} colour={bg && lum(bg) < 0.5 ? pair.light : pair.dark} size={typeSize} /></div>}
           {busy ? <span className="mm-busy"><Loader2 size={13} className="spin" aria-hidden />{mode === 'new' ? 'Finding directions' : 'Changing the motion'}</span> : null}
         </div>
         <div className="mo-transport">
@@ -211,10 +216,6 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
           <input type="range" min={0} max={1000} value={Math.round(t / T * 1000)} onChange={(e) => { setPlaying(false); setT(Number(e.target.value) / 1000 * T); }} aria-label="Scrub" />
           <span className="mute mo-time">{(t / 1000).toFixed(2)} / {(T / 1000).toFixed(2)} s</span>
           <button className={'btn mo-ic' + (loop ? ' on' : '')} aria-pressed={loop} onClick={() => setLoop(!loop)} aria-label="Loop"><Repeat {...I} /></button>
-          <span className="mo-sw" role="group" aria-label="Background">
-            <button className={'mo-swb none' + (bg === null ? ' on' : '')} onClick={() => setBg(null)} title="Transparent" aria-label="Transparent" />
-            {[...new Set([pair.light, pair.dark, ...colours.map((c) => c.hex)])].slice(0, 7).map((h) => <button key={h} className={'mo-swb' + (bg === h ? ' on' : '')} style={{ background: h }} onClick={() => setBg(h)} title={colours.find((c) => c.hex === h)?.name || h} aria-label={colours.find((c) => c.hex === h)?.name || h} />)}
-          </span>
         </div>
         {sel.kind === 'type' ? <label className="mo-sample"><span className="mute">Sample</span><input value={sample} onChange={(e) => setSample(e.target.value)} /></label> : null}
 
@@ -252,7 +253,17 @@ export function MotionMaker({ projectId, client, logos, fonts, colours, motion: 
           <button role="radio" aria-checked={!own} onClick={() => setOwn(false)}>{sel.kind === 'logo' ? 'All logos' : 'All type'}</button>
           <button role="radio" aria-checked={own} onClick={() => setOwn(true)}>{sel.kind === 'logo' ? 'Just this logo' : 'Just this typeface'}</button>
         </div>{own && hasOwn ? <button className="mo-link" onClick={() => edit((x) => sel.kind === 'logo' ? { ...x, perLogo: Object.fromEntries(Object.entries(x.perLogo || {}).filter(([k]) => k !== key)) } : { ...x, typeBy: Object.fromEntries(Object.entries(x.typeBy || {}).filter(([k]) => k !== key)) })}>Go back to the brand’s</button> : null}</div> : null}
-        <Settings P={P} type={sel.kind === 'type'} set={(x) => { setP(x); }} controls={ALL} />
+        <div className="mo-sec mm-canvas"><p className="mo-sh">Canvas <span className="mute">{sel.kind === 'type' ? 'this typeface' : 'this logo'}</span></p>
+          <div className="mo-opt"><span className="mute">Background</span><span className="mo-sw" role="group" aria-label="Background">
+            <button className={'mo-swb none' + (bg === null ? ' on' : '')} onClick={() => setBg(null)} title="Transparent" aria-label="Transparent" />
+            {[...new Set(['#ffffff', '#000000', pair.light, pair.dark, ...colours.map((c) => c.hex)].map((h) => h.toLowerCase()))].slice(0, 9).map((h) => <button key={h} className={'mo-swb' + (bg?.toLowerCase() === h ? ' on' : '')} style={{ background: h }} onClick={() => setBg(h)} title={colours.find((c) => c.hex.toLowerCase() === h)?.name || h} aria-label={colours.find((c) => c.hex.toLowerCase() === h)?.name || h} />)}
+          </span></div>
+          {sel.kind === 'logo'
+            ? <label className="mo-slide"><span className="mute">Logo size</span><input type="range" min={8} max={100} step={1} value={(P as MotionPreset).scale} onChange={(e) => setP({ scale: Number(e.target.value) })} /><span className="mo-num">{(P as MotionPreset).scale}%</span></label>
+            : <label className="mo-slide"><span className="mute">Type size</span><input type="range" min={16} max={160} step={2} value={typeSize} onChange={(e) => setStage({ size: Number(e.target.value) })} /><span className="mo-num">{typeSize}px</span></label>}
+          {sel.kind === 'logo' ? <p className="mute mm-hint">Background is for this logo only. Size follows “{own ? 'Just this logo' : 'All logos'}” above, and goes into the exported files.</p> : null}
+        </div>
+        <Settings P={P} type={sel.kind === 'type'} set={(x) => { setP(x); }} controls={ALL.filter((c) => c !== 'size')} />
       </aside>
     </div>
 
