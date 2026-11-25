@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useId, useState } from 'react';
 import { ImagePlus, RotateCcw } from 'lucide-react';
-import type { Layout, Span } from '@/lib/pdf';
+import type { Span } from '@/lib/pdf';
 
 // Small, calm controls for the PDF inspector: a labelled row that shows when a slide differs from the document (with
 // a reset), segmented choices, colour swatches, numbers, grid column runs, picture pickers and a focal point.
@@ -9,11 +9,11 @@ import type { Layout, Span } from '@/lib/pdf';
 export const I = { size: 14, strokeWidth: 1.75, 'aria-hidden': true } as const;
 
 /** A labelled row. When `over` is set the slide differs from the document here, and Reset puts it back. */
-export function Row({ label, over, onReset, children, id }: { label: string; over?: boolean; onReset?: () => void; children: React.ReactNode; id?: string }) {
+export function Row({ label, over, onReset, children, id, from = 'the document’s' }: { label: string; over?: boolean; onReset?: () => void; children: React.ReactNode; id?: string; from?: string }) {
   return <div className={'pd2-r' + (over ? ' ov' : '')}>
     <span className="pd2-rl" id={id}>{label}</span>
     <div style={{ minWidth: 0 }}>{children}</div>
-    {over && onReset ? <button type="button" className="pd2-reset" onClick={onReset} aria-label={`Reset ${label.toLowerCase()} to the document’s`} title="Reset to the document’s"><RotateCcw {...I} size={13} /></button> : <span />}
+    {over && onReset ? <button type="button" className="pd2-reset" onClick={onReset} aria-label={`Reset ${label.toLowerCase()} to ${from}`} title={`Reset to ${from}`}><RotateCcw {...I} size={13} /></button> : <span />}
   </div>;
 }
 
@@ -80,20 +80,4 @@ export function Focus({ url, value, set }: { url: string; value: [number, number
   return <div className="pd2-focus" role="slider" tabIndex={0} aria-label="Focal point" aria-valuetext={`${value[0]}% across, ${value[1]}% down`} aria-valuenow={value[0]} onClick={at} onKeyDown={key}>
     <img src={url} alt="" /><i style={{ left: `${value[0]}%`, top: `${value[1]}%` }} />
   </div>;
-}
-
-/** A tiny drawing of each layout */
-export function LayoutIcon({ id }: { id: Layout }) {
-  const t = '#111', m = '#cfcfcf', p = '#F28EE8';
-  const lines = (x: number, y: number, w: number, n = 2) => Array.from({ length: n }, (_, i) => <rect key={i} x={x} y={y + i * 3} width={i === n - 1 ? w * 0.7 : w} height={1.4} rx={.7} fill={m} />);
-  const body: Record<Layout, React.ReactNode> = {
-    text: <><rect x={4} y={9} width={14} height={3} rx={1} fill={t} />{lines(22, 9, 14, 3)}</>,
-    'text-image': <><rect x={4} y={9} width={10} height={3} rx={1} fill={t} />{lines(4, 15, 10)}<rect x={22} y={0} width={18} height={22.5} fill={p} /></>,
-    'image-text': <><rect x={0} y={0} width={18} height={22.5} fill={p} /><rect x={24} y={9} width={12} height={3} rx={1} fill={t} />{lines(24, 15, 12)}</>,
-    image: <><rect x={0} y={0} width={40} height={22.5} fill={p} /><rect x={4} y={15} width={16} height={3} rx={1} fill="#fff" /></>,
-    statement: <><rect x={4} y={8} width={30} height={3.4} rx={1} fill={t} /><rect x={4} y={13} width={22} height={3.4} rx={1} fill={t} /></>,
-    grid: <><rect x={4} y={5} width={12} height={2.4} rx={1} fill={t} />{[4, 15, 26].map((x) => <rect key={x} x={x} y={10} width={10} height={8} fill={p} />)}</>,
-    swatches: <><rect x={4} y={5} width={12} height={2.4} rx={1} fill={t} />{[[4, '#111'], [12.5, p], [21, '#e6e6e6'], [29.5, '#9ad']].map(([x, c]) => <rect key={x} x={x as number} y={10} width={7.5} height={8} fill={c as string} />)}</>
-  };
-  return <svg viewBox="0 0 40 22.5" aria-hidden>{body[id]}</svg>;
 }
