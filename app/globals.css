@@ -5871,3 +5871,14 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .pv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .pv-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
 @media (max-width: 760px) { .pv-line { grid-template-columns: 1fr; } .ss { gap: 24px; } }
+
+/* The overview in the same centred column as Settings: modules stacked, each inside its own container */
+.ss.ov { gap: 32px; }
+.ss .ov-card { border-radius: 16px; padding: 16px 18px; }
+.ss .ov-hero { grid-template-columns: 1fr; gap: 16px; padding: 0; background: none; border-radius: 0; }
+.ss .ov-shot { width: 100%; }
+.ss .ov-stats { grid-template-columns: 1fr; gap: 0; }
+.ss .ov-stat { box-shadow: none; border-radius: 0; padding: 14px 0; }
+.ss .ov-stat + .ov-stat { border-top: 1px solid var(--line); }
+.ss .ov-stat-f { margin-top: 4px; }
+.ss .ov-ck > li:first-child, .ss .vs-row:first-child { padding-top: 0; }

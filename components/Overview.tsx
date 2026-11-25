@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import type { Delivery } from '@/components/DeliverPanel';
 import {
-  AlertCircle, ArrowUpRight, BookOpen, CheckCircle2, Clock, Download, ExternalLink, Eye, Figma, GitBranch, Github, Globe, Link2, MessageSquare,
-  History, PenLine, Send, Sparkles, UserPlus, Users, type LucideIcon
+  AlertCircle, ArrowUpRight, BookOpen, CheckCircle2, Clock, Download, ExternalLink, Eye, Figma, GitBranch, Github, Globe, MessageSquare,
+  PenLine, Send, Sparkles, UserPlus, type LucideIcon
 } from 'lucide-react';
 import { CopyLink } from '@/components/CopyLink';
 import { ProjectTeam } from '@/components/ProjectTeam';
@@ -68,12 +68,14 @@ function Spark({ days }: { days: number[] }) {
 export function Overview({ d, created, skipped }: { d: OverviewData; created?: boolean; skipped?: boolean }) {
   const shared = d.share.links > 0 || d.share.members > 0;
   const todo = d.checks.filter((c) => !c.ok);
+  // One centred column, like Settings: a label above each module, everything stacked inside it
+  const sec = (k: string, label: React.ReactNode, children: React.ReactNode, extra = '') => <section className={'ss-sec' + extra} id={k} aria-labelledby={`ovl-${k}`}><h2 className="ss-label" id={`ovl-${k}`}>{label}</h2><div className="ov-card">{children}</div></section>;
   return (
-    <div className="ov">
+    <div className="ss ov">
       {created ? <div className="ov-banner"><CheckCircle2 {...I} />Project created and kit built. The portal stays in draft until you publish it.{skipped ? ' You skipped the review; pick it up from the checklist.' : ''}</div> : null}
 
       {/* The portal: preview, status and link */}
-      <section className="ov-hero" aria-label="Client portal">
+      {sec('portal', 'Client portal', <div className="ov-hero">
         <a className="ov-shot" href={`/p/${d.slug}`} aria-label={`Open the ${d.client} portal`}>
           <LogoThumb t={d.thumb} size="lg" />
           <span className={'ov-pill ' + d.status}><span className="ov-pip" />{d.status === 'live' ? 'Live' : d.status === 'archived' ? 'Archived' : 'Draft'}</span>
@@ -85,12 +87,10 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
           {d.changedSince ? <p className="ov-flag"><AlertCircle size={14} strokeWidth={1.75} aria-hidden />There are changes the client can’t see yet. Use Publish, top right, to update the portal.</p> : null}
           <div className="ov-row"><a className="btn ic" href={`/p/${d.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Open portal</a><CopyLink url={d.portalUrl} /></div>
         </div>
-      </section>
-
+      </div>)}
 
       {/* Versions: what's waiting to go live, then each publish with what it changed. The latest is what clients see. */}
-      <section className="ov-card ov-vers" id="versions" aria-labelledby="ov-vh">
-        <h2 id="ov-vh" className="ov-h"><History {...I} />Changes and versions</h2>
+      {sec('versions', 'Changes and versions', <>
         <ul className="vs">
           {d.versions.pending.length || !d.versions.live ? <li className="vs-row pending">
             <span className="vs-ic" aria-hidden><span className="vs-dot" /></span>
@@ -107,10 +107,10 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
           </li>)}
         </ul>
         {d.versions.direct.length ? <p className="mute vs-direct">Also changed, and live straight away: {d.versions.direct.map((a) => a.label).join(', ')}.</p> : null}
-      </section>
+      </>, ' ov-vers')}
 
       {/* Status at a glance */}
-      <div className="ov-stats">
+      {sec('glance', 'At a glance', <div className="ov-stats">
         <Stat icon={Send} label="Shared with the client" tone={shared ? 'good' : 'warn'} foot={<Link href="?tab=client" className="ov-more">{shared ? 'Manage access' : 'Invite the client'} →</Link>}>
           {shared ? <><p className="ov-big">{d.share.members}<span> {d.share.members === 1 ? 'person' : 'people'}</span></p><p className="mute">{d.share.links ? `${d.share.links} invite link${d.share.links === 1 ? '' : 's'}, used ${d.share.linkUses} time${d.share.linkUses === 1 ? '' : 's'}` : 'Invited by email'}{d.share.firstAt ? ` · first shared ${ago(d.share.firstAt)}` : ''}</p></>
             : <><p className="ov-big">Not yet</p><p className="mute">No invite links or client accounts.</p></>}
@@ -122,48 +122,36 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
         <Stat icon={PenLine} label="Last edited" tone="quiet" foot={d.edits.length ? <ul className="ov-mini">{d.edits.slice(0, 3).map((e, k) => <li key={k}><span className="av sm" aria-hidden>{e.who.slice(0, 1).toUpperCase()}</span>{e.who} · {e.area}<span className="mute"> {ago(e.at)}</span></li>)}</ul> : null}>
           {d.edit ? <><p className="ov-big">{ago(d.edit.at)}</p><p className="mute">by {d.edit.who}</p></> : <><p className="ov-big">—</p><p className="mute">No studio edits recorded yet.</p></>}
         </Stat>
-      </div>
+      </div>)}
 
-      <div className="ov-cols">
-        <div className="ov-col">
-          {/* Before you publish */}
-          <section className="ov-card" aria-labelledby="ov-ck">
-            <h2 id="ov-ck" className="ov-h"><CheckCircle2 {...I} />{todo.length ? `Before you publish · ${todo.length} to do` : 'Ready to publish'}</h2>
+      {/* Before you publish */}
+      {sec('checks', todo.length ? `Before you publish · ${todo.length} to do` : 'Ready to publish', <>
             <ul className="ov-ck">{d.checks.map((c) => <li key={c.title} className={c.ok ? 'ok' : 'todo'}>
               {c.ok ? <CheckCircle2 size={18} strokeWidth={1.75} aria-label="Done" /> : <AlertCircle size={18} strokeWidth={1.75} aria-label="To do" />}
               <div><p>{c.title}</p>{c.note ? <p className="mute">{c.note}</p> : null}</div>
               {c.href ? <Link className="btn" href={c.href}>{c.cta}</Link> : null}
             </li>)}</ul>
-          </section>
+      </>)}
 
-
-          {/* Unfinished text: placeholders the client's Claude would otherwise read as rules */}
-          {d.gaps?.length ? <section className="ov-card" aria-labelledby="ov-gaps">
-            <h2 id="ov-gaps" className="ov-h"><AlertCircle {...I} />Unfinished text · {d.gaps.reduce((n, g) => n + g.points.length, 0)}</h2>
+      {/* Unfinished text: placeholders the client's Claude would otherwise read as rules */}
+      {d.gaps?.length ? sec('gaps', `Unfinished text · ${d.gaps.reduce((n, g) => n + g.points.length, 0)}`, <>
             <p className="mute">These points in the published guidelines still hold placeholder text. The client’s Claude is told they aren’t written yet. Fill them in with exact specs, then publish.</p>
             <ul className="ov-gaps">{d.gaps.map((g) => <li key={g.chapter}><b>{g.chapter}</b><span className="mute">{g.points.slice(0, 4).join(' · ')}{g.points.length > 4 ? ` · and ${g.points.length - 4} more` : ''}</span></li>)}</ul>
             <Link href="?tab=guidelines" className="ov-more">Open the guidelines →</Link>
-          </section> : null}
+      </>) : null}
 
-          {/* Client activity */}
-          <section className="ov-card" aria-labelledby="ov-act">
-            <h2 id="ov-act" className="ov-h"><Clock {...I} />Client activity</h2>
+      {/* Client activity */}
+      {sec('activity', 'Client activity', <>
             {d.views.recent.length ? <ul className="ov-feed">{d.views.recent.map((a, k) => { const Ic = ACT[a.kind] || Eye; return <li key={k}><span className="ov-ic sm"><Ic size={14} strokeWidth={1.75} aria-hidden /></span><span className="ov-feed-t"><b>{a.who}</b> {a.what}</span><span className="mute">{ago(a.at)}</span></li>; })}</ul>
               : <p className="mute">Nothing yet. Visits, downloads and questions show here once the client starts using the portal.</p>}
             <Link href="?tab=client" className="ov-more">All client activity →</Link>
-          </section>
-        </div>
+      </>)}
 
-        <div className="ov-col">
-          {/* Studio team */}
-          <section className="ov-card" aria-labelledby="ov-team">
-            <h2 id="ov-team" className="ov-h"><Users {...I} />Studio team</h2>
-            <ProjectTeam projectId={d.projectId} />
-          </section>
+      {/* Studio team */}
+      {sec('team', 'Studio team', <ProjectTeam projectId={d.projectId} />)}
 
-          {/* Files and links */}
-          <section className="ov-card" aria-labelledby="ov-links">
-            <h2 id="ov-links" className="ov-h"><Link2 {...I} />Files and links</h2>
+      {/* Files and links */}
+      {sec('links', 'Files and links', <>
             <div className="ov-links">
               <FigmaSources projectId={d.projectId} slug={d.slug} repo={d.repo?.name} assets={d.sources.assets} guidelines={d.sources.guidelines} thumb={d.figma?.thumb} report={d.sources.report} />
               {d.repo ? <a className="ov-link" href={`https://github.com/${d.repo.name}`} target="_blank" rel="noopener">
@@ -179,9 +167,7 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
                 <span className="ov-link-t"><b>Client AI</b><span className="mute">{d.ai ? (d.aiRejected ? `Key ending ${d.ai} was rejected by Anthropic; a client admin needs to paste a new one in the portal’s settings` : `Connected · key ending ${d.ai}`) : 'Not connected; the client adds their key in the portal’s settings'}</span></span>
               </div>
             </div>
-          </section>
-        </div>
-      </div>
+      </>)}
     </div>
   );
 }
