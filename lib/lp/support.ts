@@ -1,7 +1,6 @@
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { projectBySlug } from '@/lib/projects/snapshot';
 import { projectStages, canSee } from '@/lib/features';
-import { portalV2 } from '@/lib/portalVersion';
 import { nameOf } from '@/lib/guideVersions';
 import { slackPost, toSlack } from '@/lib/lp/slack';
 
@@ -12,8 +11,8 @@ export type Thread = { id: string; kind: string; title: string; status: string; 
 export type Message = { id: string; author: 'client' | 'lp'; name: string; body: string; created_at: string; mine: boolean };
 export const KINDS: Record<string, string> = { chat: 'Chat', edit: 'Change to the guidelines', asset: 'New or updated asset', feedback: 'Feedback on our work', session: 'Session', domain: 'Own domain', access: 'Access', other: 'Something else' };
 
+/** Who can talk to Lost Property here: anyone on the portal, once the 'support' release stage lets them see it */
 export async function supportAccess(slug: string) {
-  if (!portalV2()) return null;
   const p = await projectBySlug(slug); if (!p) return null;
   const acc = await requireProjectAccess(p.id); if (acc instanceof Response) return null;
   if (!canSee((await projectStages(p.id)).support, acc.staff)) return null;

@@ -5882,3 +5882,4 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .ss .ov-stat + .ov-stat { border-top: 1px solid var(--line); }
 .ss .ov-stat-f { margin-top: 4px; }
 .ss .ov-ck > li:first-child, .ss .vs-row:first-child { padding-top: 0; }
+.hm-ask { margin: 24px 0 0; max-width: 680px; }

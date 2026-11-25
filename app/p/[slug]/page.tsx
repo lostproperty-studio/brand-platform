@@ -1,3 +1,5 @@
+import { AskBar } from '@/components/portal/AskBar';
+import { canSee, projectStages } from '@/lib/features';
 import { textProps } from '@/lib/textStyle';
 import type { TextStyle } from '@/lib/figma/blocks';
 import Link from 'next/link';
@@ -44,6 +46,8 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
   const recent = order.map((n) => tools.find((t) => t.name === n || t.id === n)).filter(Boolean) as typeof tools;
   const apps = (recent.length ? recent : tools).slice(0, 4);
 
+  // The Ask bar from Portal 2, behind its release stage (Admin settings → Releases)
+  const askBar = !!ctx.snap && canSee((await projectStages(ctx.project.id)).askbar, ctx.preview);
   return (
     <div className="hm">
       {rows.length ? <HeroReel rows={rows} urls={urls} href={`${base}/showcase`} label={`${ctx.project.client} showcase`} /> : null}
@@ -53,6 +57,7 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
           <h1 {...hs('title', 'pt-display')}>{content.homeTitle || ctx.project.client}</h1>
           <p className="mute hm-ver">Brand hub{version ? ` · v${version}` : ''}{ctx.preview ? ' · working copy' : ''}</p>
           <p {...hs('lede', 'pt-lede hm-intro')}>{content.homeIntro || defaultIntro(ctx.project.client)}</p>
+          {askBar ? <AskBar className="hm-ask" /> : null}
         </header>
 
         {chapters.length ? <section aria-labelledby="h-ch">

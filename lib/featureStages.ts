@@ -12,9 +12,10 @@ export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<Stage, string> = { off: 'Off', studio: 'Studio only', beta: 'Client beta', live: 'Live' };
 
-export type FeatureKey = 'director' | 'photographer' | 'plugins' | 'support' | 'facts';
+export type FeatureKey = 'askbar' | 'director' | 'photographer' | 'plugins' | 'support' | 'facts';
 
 export const FEATURES: Record<FeatureKey, { name: string; about: string; default: Stage }> = {
+  askbar: { name: 'Ask bar on the home page', about: 'Portal 1: the Ask bar from the new portal at the top of the home page, under the title. (Portal 2 always has it.)', default: 'studio' },
   director: { name: 'Director', about: 'Plan, shoot and generate short-form video from the brand’s creative direction.', default: 'studio' },
   photographer: { name: 'Photographer', about: 'Collections of on-brand images: add, find, generate, check against the art direction and edit with effects.', default: 'studio' },
   plugins: { name: 'Plug-ins', about: 'The brand panel inside Canva, Microsoft Office and Google Workspace, and syncing to the client’s own file storage.', default: 'studio' },

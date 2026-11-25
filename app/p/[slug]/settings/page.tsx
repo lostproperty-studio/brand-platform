@@ -2,7 +2,6 @@ import { usesStudioAi } from '@/lib/portal/switches';
 import { notFound } from 'next/navigation';
 import { adminClient } from '@/lib/supabase/server';
 import { portalContext } from '@/lib/portal/context';
-import { portalV2 } from '@/lib/portalVersion';
 import { PortalSettings } from '@/components/portal/Settings';
 import { Plugins } from '@/components/portal/Plugins';
 import { pluginViews } from '@/lib/plugins/views';
@@ -24,7 +23,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
   // Storage (portal v2, behind the Plug-ins release stage): where the platform keeps the kit and the apps' files
   const storage = await pluginViews({ projectId: ctx.project.id, slug, content: ctx.project.content, preview: ctx.preview, staff: ctx.access.staff }, 'storage');
   // Working with Lost Property (behind its release stage): chat, tickets and sessions in place of the old request form
-  const supStage = portalV2() ? (await projectStages(ctx.project.id)).support : 'off';
+  const supStage = (await projectStages(ctx.project.id)).support;
   const support = canSee(supStage, ctx.preview) ? { badge: stageBadge(supStage) } : null;
   return (
     <div className="pt-page rs">

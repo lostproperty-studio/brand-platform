@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       const body = fromSlack(e.text);
       if (body) {
         await sb.from('request_messages').upsert({ request_id: r.id, author: 'lp', name: await slackName(e.user), body, slack_ts: e.ts }, { onConflict: 'slack_ts', ignoreDuplicates: true });
-        await sb.from('requests').update({ last_message_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(r.status === 'open' ? { status: 'in_progress' } : {}) }).eq('id', r.id);
+        await sb.from('requests').update({ reply: body, last_message_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(r.status === 'open' ? { status: 'in_progress' } : {}) }).eq('id', r.id);
       }
     }
   }
