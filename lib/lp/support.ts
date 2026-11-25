@@ -3,6 +3,7 @@ import { projectBySlug } from '@/lib/projects/snapshot';
 import { projectStages, canSee } from '@/lib/features';
 import { nameOf } from '@/lib/guideVersions';
 import { slackPost, toSlack } from '@/lib/lp/slack';
+import { notifyStudio } from '@/lib/email/studioNotify';
 
 // Working with Lost Property: conversations (requests with messages), each mirrored as a thread in the studio's
 // Slack. Everyone in a portal can talk to Lost Property; people see their own conversations, admins see all.
@@ -55,6 +56,7 @@ export async function startThread(a: Access, v: { kind: string; title: string; b
   await sb.from('request_messages').insert({ request_id: r.id, author: 'client', user_id: a.acc.user.id, name: a.name, body: v.body });
   const ts = await slackPost(`${slackHead(a, v.kind, v.title, v.origin, r.id)}\n>${toSlack(v.body).replace(/\n/g, '\n>')}`);
   if (ts) await sb.from('requests').update({ slack_ts: ts }).eq('id', r.id);
+  notifyStudio({ client: a.p.client, kind: KINDS[v.kind] || 'Request', title: v.title, body: v.body, from: a.name, url: `${v.origin}/studio/projects/${a.p.id}?tab=requests` });
   return r.id as string;
 }
 
@@ -64,6 +66,7 @@ export async function reply(a: Access, id: string, body: string, origin: string)
   const { data: r } = await sb.from('requests').select('slack_ts, status, title, kind').eq('id', id).single();
   await sb.from('request_messages').insert({ request_id: id, author: 'client', user_id: a.acc.user.id, name: a.name, body });
   await sb.from('requests').update({ last_message_at: new Date().toISOString(), ...(r?.status === 'done' ? { status: 'open' } : {}), updated_at: new Date().toISOString() }).eq('id', id);
+  notifyStudio({ client: a.p.client, kind: KINDS[r?.kind || 'chat'] || 'Request', title: r?.title || 'Conversation', body, from: a.name, url: `${origin}/studio/projects/${a.p.id}?tab=requests`, followUp: true });
   if (r?.slack_ts) await slackPost(`*${toSlack(a.name)}:* ${toSlack(body)}`, r.slack_ts);
   else { const ts = await slackPost(`${slackHead(a, r?.kind || 'chat', r?.title || 'Conversation', origin, id)}\n>${toSlack(body)}`); if (ts) await sb.from('requests').update({ slack_ts: ts }).eq('id', id); }
   return true;
