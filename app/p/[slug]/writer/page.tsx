@@ -3,7 +3,6 @@ import { notFound, redirect } from 'next/navigation';
 import { portalContext } from '@/lib/portal/context';
 import { Writer } from '@/components/portal/Writer';
 import { voiceHas, voiceMissing, voiceReady } from '@/lib/voice';
-import { portalV2 } from '@/lib/portalVersion';
 import { WriterApp } from '@/components/portal/v2/WriterApp';
 import { nameOf } from '@/lib/guideVersions';
 import { canSee, projectStages } from '@/lib/features';
@@ -27,7 +26,7 @@ export default async function WriterPage({ params }: { params: Promise<{ slug: s
   // Audiences from the voice, by name ("Regulars: warm…" → "Regulars")
   const audiences = (v!.fields?.audiences || '').split(/\n+/).map((l) => l.replace(/^[-•*]\s*/, '').split(/[:–—]| - /)[0].trim()).filter((x) => x && x.length < 60).slice(0, 12);
   // Portal v2 (staging): Docs first, then a doc of pieces
-  if (portalV2()) {
+  if (ctx.v2) {
     // The brand's darkest and lightest colours, for previews of where the copy is going
     const lum = (h: string) => { const n = parseInt(h.replace('#', '').slice(0, 6).padEnd(6, '0'), 16); return 0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255); };
     const cols = (ctx.snap.colours || []).map((c) => c.hex).filter((h) => /^#?[0-9a-f]{6}/i.test(h)).map((h) => (h.startsWith('#') ? h : `#${h}`)).sort((a, b) => lum(a) - lum(b));

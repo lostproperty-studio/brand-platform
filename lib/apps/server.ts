@@ -1,14 +1,15 @@
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { projectBySlug } from '@/lib/projects/snapshot';
-import { APPS, portalV2, type AppKey } from '@/lib/portalVersion';
+import { APPS, type AppKey } from '@/lib/portalVersion';
+import { portalV2Studio } from '@/lib/portalVersionServer';
 
-// Portal v2 apps: who can use them, and their files (the app_files table). Only on the staging site for now
-// (PORTAL_V2=1); anywhere else the routes answer Not found, so nothing changes for clients.
+// Portal v2 apps: who can use them, and their files (the app_files table). Open on the staging site, and on any
+// project whose 'portal' release stage isn't Off; anywhere else the routes answer Not found.
 export const isApp = (a: string): a is AppKey => APPS.some((x) => x.key === a);
 
 export async function appAccess(slug: string, app: string) {
-  if (!portalV2() || !isApp(app)) return null;
-  const p = await projectBySlug(slug); if (!p) return null;
+  if (!isApp(app)) return null;
+  const p = await projectBySlug(slug); if (!p || !(await portalV2Studio(p.id))) return null;
   const acc = await requireProjectAccess(p.id); if (acc instanceof Response) return null;
   return { p, acc, app };
 }

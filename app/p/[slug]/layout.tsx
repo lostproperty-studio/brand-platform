@@ -7,7 +7,7 @@ import { hasShowcase } from '@/lib/showcase';
 import { voiceReady } from '@/lib/voice';
 import { PreviewComments } from '@/components/portal/PreviewComments';
 import { canSee, projectStages, stageBadge } from '@/lib/features';
-import { APPS, portalV2 } from '@/lib/portalVersion';
+import { APPS } from '@/lib/portalVersion';
 import { GuideShell } from '@/components/portal/v2/GuideShell';
 import { readStates, readSwitches, usesStudioAi } from '@/lib/portal/switches';
 import { getAppPreviews } from '@/lib/portal/appPreviewsServer';
@@ -17,7 +17,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   const { slug } = await params;
   const ctx = await portalContext(slug);
   if (!ctx) notFound();
-  const { project, snap, fontCss, fonts, sidebar, preview, access, asClient } = ctx;
+  const { project, snap, fontCss, fonts, sidebar, preview, access, asClient, v2 } = ctx;
   if (!access.staff) await logVisit(project.id, access.user.id);
   const display = fonts.find((f) => f.role === 'display' && f.files.length) || fonts.find((f) => f.files.length);
   const body = fonts.find((f) => f.role === 'body' && f.files.length);
@@ -27,8 +27,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   const on = readSwitches(project.content);
   const studioAi = usesStudioAi(project.content);
   const features = on.director && canSee(stages.director, preview) ? [{ label: 'Director' as const, path: 'director', badge: stageBadge(stages.director) }] : [];
-  // Portal v2 (staging): the apps get their own section; the old Writer and Director entries drop out of the pages
-  const v2 = portalV2();
+  // The new portal (staging site, or this project's 'portal' stage): the apps get their own section; the old Writer and Director entries drop out of the pages
   // Photographer opens once it's at a stage this person can see (Admin settings → Releases); studio-only to start
   // Apps that are on and built open; ones coming soon (or not built yet) are greyed and open a preview of what they'll do
   const st = readStates(project.content);

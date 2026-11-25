@@ -72,10 +72,10 @@ export function packageSettings(content: unknown): PackageMap {
 }
 
 /** Every package for a project, resolved against the kit, the studio's uploads and settings. */
-export async function resolvePackages(opts: { files: KitFileRow[]; content: unknown; colours: { hex: string }[]; fonts: ProjectFont[]; preview: boolean; hasLogo: boolean }) {
+export async function resolvePackages(opts: { files: KitFileRow[]; content: unknown; colours: { hex: string }[]; fonts: ProjectFont[]; preview: boolean; hasLogo: boolean; /** The new portal is on for this project (its Motion package shows) */ v2?: boolean }) {
   const settings = packageSettings(opts.content);
   const custom = Object.keys(settings).filter((k) => k.startsWith('custom-'));
-  const defs: (Def & { id: string })[] = [...DEFS.filter((d) => d.kind !== 'motion' || portalV2()).map((d) => ({ ...d, id: d.kind as string })), ...custom.map((id) => ({ kind: 'custom' as const, section: 'elements' as const, title: settings[id].title || 'New package', purpose: settings[id].purpose || '', id }))];
+  const defs: (Def & { id: string })[] = [...DEFS.filter((d) => d.kind !== 'motion' || opts.v2 || portalV2()).map((d) => ({ ...d, id: d.kind as string })), ...custom.map((id) => ({ kind: 'custom' as const, section: 'elements' as const, title: settings[id].title || 'New package', purpose: settings[id].purpose || '', id }))];
   const out: Package[] = defs.map((d) => {
     const s = settings[d.id] || {};
     const uploads = s.files || [];
@@ -114,8 +114,8 @@ export async function resolvePackages(opts: { files: KitFileRow[]; content: unkn
 export const visibleToClient = (p: Package) => !p.hidden && !p.empty && p.enabled;
 
 /** The packages for a portal page or download. */
-export async function portalPackages(ctx: { files: KitFileRow[]; project: { content?: unknown }; snap: { colours: { hex: string }[] } | null; fonts: ProjectFont[]; preview: boolean }) {
-  return resolvePackages({ files: ctx.files, content: ctx.project.content, colours: ctx.snap?.colours || [], fonts: ctx.fonts, preview: ctx.preview, hasLogo: ctx.files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
+export async function portalPackages(ctx: { files: KitFileRow[]; project: { content?: unknown }; snap: { colours: { hex: string }[] } | null; fonts: ProjectFont[]; preview: boolean; v2?: boolean }) {
+  return resolvePackages({ files: ctx.files, content: ctx.project.content, colours: ctx.snap?.colours || [], fonts: ctx.fonts, preview: ctx.preview, v2: ctx.v2, hasLogo: ctx.files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
 }
 
 /** What a chapter is about, from its key or, for chapters built from a template, its title */

@@ -15,7 +15,7 @@ import { ToolManager } from '@/components/ToolManager';
 import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
 import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
-import { portalV2 } from '@/lib/portalVersion';
+import { portalV2Studio } from '@/lib/portalVersionServer';
 import { MotionMaker } from '@/components/motion/MotionMaker';
 import { readDraft, readMotion, isSubmitted } from '@/lib/motion/model';
 import { portalContext } from '@/lib/portal/context';
@@ -80,7 +80,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const asked = sp.tab === 'tools' || sp.tab === 'deliverables' ? 'resources' : sp.tab;
   // The old Review tab is now the creative director, inside the guidelines editor
   // Portal v2 (staging): a Motion tab, for the brand's logo and type motion
-  const tabs = portalV2() ? [...TABS.slice(0, 5), ['motion', 'Motion'] as const, ...TABS.slice(5)] : [...TABS];
+  const tabs = (await portalV2Studio(id)) ? [...TABS.slice(0, 5), ['motion', 'Motion'] as const, ...TABS.slice(5)] : [...TABS];
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, figma_page_id, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
@@ -220,7 +220,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const files: KitFileRow[] = withFigmaLogos((parts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string }))), p.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
     const snap = await buildSnapshot(id).catch(() => null);
     const { fonts } = await readFonts(id);
-    const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
+    const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, v2: await portalV2Studio(id), hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
     const logo = pickLogo(files).main;
     const logoUrl = logo ? (await signOne('kits', logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
     body = <div className="rs-studio">

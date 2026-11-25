@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { teamGate } from '@/lib/studioTeam';
-import { portalV2 } from '@/lib/portalVersion';
+import { portalV2Studio } from '@/lib/portalVersionServer';
 import { portalAnthropic } from '@/lib/ai/project';
 import { callTool } from '@/lib/ai/tool';
 import { aiFailure } from '@/lib/ai/errors';
@@ -31,9 +31,9 @@ function slim(html: string) {
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  if (!portalV2()) return new Response('Not found', { status: 404 });
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  if (!(await portalV2Studio(id))) return new Response('Not found', { status: 404 });
   { const gate = await teamGate(id, st, 'editor', 'motion'); if (gate) return gate; }
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });

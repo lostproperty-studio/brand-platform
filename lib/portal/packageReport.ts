@@ -1,4 +1,5 @@
 import { adminClient } from '@/lib/supabase/server';
+import { portalV2Studio } from '@/lib/portalVersionServer';
 import { withFigmaLogos } from '@/lib/portal/logo';
 import { readFonts } from '@/lib/projects/fonts';
 import { buildSnapshot } from '@/lib/projects/snapshot';
@@ -22,7 +23,7 @@ export async function packageContents(projectId: string, pkg: string): Promise<{
   const files: KitFileRow[] = withFigmaLogos((parts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string }))), p?.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
   const snap = await buildSnapshot(projectId).catch(() => null);
   const { fonts } = await readFonts(projectId);
-  const all = await resolvePackages({ files, content: p?.content, colours: snap?.colours || [], fonts, preview: true, hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
+  const all = await resolvePackages({ files, content: p?.content, colours: snap?.colours || [], fonts, preview: true, v2: await portalV2Studio(projectId), hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
   const it = all.find((x) => x.id === pkg); if (!it) return null;
   const entries: PkgEntry[] = [
     ...it.uploads.map((u) => ({ name: u.name, bytes: u.bytes, from: u.fromFigma ? 'Figma' : 'Uploaded' })),

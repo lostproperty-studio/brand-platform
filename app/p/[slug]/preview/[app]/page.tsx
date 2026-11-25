@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { portalContext, signFrames } from '@/lib/portal/context';
-import { APPS, portalV2, type AppKey } from '@/lib/portalVersion';
+import { APPS, type AppKey } from '@/lib/portalVersion';
 import { readStates } from '@/lib/portal/switches';
 import { getAppPreviews } from '@/lib/portal/appPreviewsServer';
 import { canSee, projectStages } from '@/lib/features';
@@ -12,9 +12,8 @@ import { AppPreview } from '@/components/portal/v2/AppPreview';
 // Opened from About on the app's home screen, or from the greyed-out icon while the app is coming soon.
 export default async function PreviewPage({ params }: { params: Promise<{ slug: string; app: string }> }) {
   const { slug, app } = await params;
-  if (!portalV2()) notFound();
   const def = APPS.find((a) => a.key === app); if (!def) notFound();
-  const ctx = await portalContext(slug); if (!ctx) notFound();
+  const ctx = await portalContext(slug); if (!ctx?.v2) notFound();
   const state = readStates(ctx.project.content)[def.key];
   if (state === 'off') notFound();
   // It's coming soon unless it's on and built (Photographer counts as built once its release stage allows)

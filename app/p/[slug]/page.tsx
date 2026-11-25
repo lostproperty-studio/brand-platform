@@ -11,7 +11,6 @@ import { listTools } from '@/lib/tools';
 import { AppTile } from '@/components/portal/ResourceVisuals';
 import { defaultIntro } from '@/lib/portal/home';
 import { systemCss, systemFor } from '@/lib/guideSystem';
-import { portalV2 } from '@/lib/portalVersion';
 import { HomeV2 } from '@/components/portal/v2/HomeV2';
 import { readSwitches } from '@/lib/portal/switches';
 
@@ -21,7 +20,7 @@ export default async function PortalHome({ params }: { params: Promise<{ slug: s
   const { slug } = await params;
   const ctx = (await portalContext(slug))!;
   // Portal v2 (the staging site): the new home page
-  if (portalV2()) return <HomeV2 ctx={ctx} slug={slug} />;
+  if (ctx.v2) return <HomeV2 ctx={ctx} slug={slug} />;
   const guide = ctx.snap?.guide;
   const chapters = guide?.chapters || [];
   const base = `/p/${slug}`;

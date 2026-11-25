@@ -5,16 +5,15 @@ import { portalAnthropic, logUsage } from '@/lib/ai/project';
 import { callTool } from '@/lib/ai/tool';
 import { voiceHas, voiceMd } from '@/lib/voice';
 import { BANDS, BAND_LABEL, type GreetingSet } from '@/lib/portal/greetings';
-import { portalV2 } from '@/lib/portalVersion';
+import { portalV2Studio } from '@/lib/portalVersionServer';
 
 export const maxDuration = 120;
 
 // Portal v2: the studio writes the home page's greetings from the brand's voice, once, and they're saved to the
 // project. Studio staff only; the client just sees the result.
 export async function POST(_: Request, ctx: { params: Promise<{ slug: string }> }) {
-  if (!portalV2()) return new Response('Not found', { status: 404 });
   const p = await projectBySlug((await ctx.params).slug);
-  if (!p) return new Response('Not found', { status: 404 });
+  if (!p || !(await portalV2Studio(p.id))) return new Response('Not found', { status: 404 });
   const acc = await requireProjectAccess(p.id);
   if (acc instanceof Response) return acc;
   if (!acc.staff) return NextResponse.json({ error: 'Only the studio can do this.' }, { status: 403 });

@@ -2,11 +2,11 @@ import { usesStudioAi } from '@/lib/portal/switches';
 import { notFound } from 'next/navigation';
 import { adminClient } from '@/lib/supabase/server';
 import { portalContext } from '@/lib/portal/context';
+import { portalV2 } from '@/lib/portalVersion';
 import { PortalSettings } from '@/components/portal/Settings';
 import { Plugins } from '@/components/portal/Plugins';
 import { pluginViews } from '@/lib/plugins/views';
 import { JumpNav } from '@/components/portal/JumpNav';
-import { portalV2 } from '@/lib/portalVersion';
 import { canSee, projectStages, stageBadge } from '@/lib/features';
 
 // Settings: managers see the team; admins also see AI and its usage, the Claude connector, and requests to Lost Property.

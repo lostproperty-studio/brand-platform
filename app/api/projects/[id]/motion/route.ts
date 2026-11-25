@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { teamGate } from '@/lib/studioTeam';
-import { portalV2 } from '@/lib/portalVersion';
+import { portalV2Studio } from '@/lib/portalVersionServer';
 import { cleanPreset, CONTROLS, DEFAULT_LOGO, DEFAULT_TYPE, readDraft, type BrandMotion, type Control, type MotionPreset, type TypePreset } from '@/lib/motion/model';
 
 // The studio's motion draft for a project: what moves, the brief, the logo and type behaviours, each logo's and
@@ -23,9 +23,9 @@ const Body = z.object({
 function diffs<T extends object>(full: T, base: T) { return Object.fromEntries(Object.entries(full).filter(([f, x]) => JSON.stringify(x) !== JSON.stringify(base[f as keyof T]))); }
 
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  if (!portalV2()) return new Response('Not found', { status: 404 });
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  if (!(await portalV2Studio(id))) return new Response('Not found', { status: 404 });
   { const gate = await teamGate(id, st, 'editor', 'motion'); if (gate) return gate; }
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });

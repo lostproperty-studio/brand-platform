@@ -1,6 +1,8 @@
-// Portal v2: the new client portal (a new home, and the apps in their own section of the sidebar). It's built on
-// the feature/portal-v2 branch and runs on the staging site, which sets PORTAL_V2=1. Anywhere else it stays off, so
-// merging the code changes nothing for clients until it's switched on. See docs/STAGING.md.
+// Portal v2: the new client portal (a new home, and the apps in their own section of the sidebar).
+// Two ways it's on:
+//   - for every project on a site that sets PORTAL_V2=1 (the staging site, see docs/STAGING.md), via portalV2();
+//   - per project, through the 'portal' stage in Admin settings → Releases (lib/portalVersionServer.ts).
+// portalV2() on its own is only for things that stay staging-only for now (the brand panel in other apps).
 export const portalV2 = () => process.env.PORTAL_V2 === '1';
 
 export type AppKey = 'writer' | 'director' | 'designer' | 'photographer';
