@@ -74,6 +74,11 @@ studio staff on staging just as on live, so you see the working copy and everyth
 - **Guidelines, Showcase, Resources and Settings** are the live versions, reading the copied content.
 - People, conversations and the client's AI key aren't copied. Staging uses the studio's AI key.
 
-## Bringing it to live, later
-When the new portal is ready, `feature/portal-v2` goes into `main` by pull request. `PORTAL_V2` stays off on live,
-so nothing changes for clients until it's switched on (then per client, through Releases).
+## Bringing it to live
+`feature/portal-v2` goes into `main` by pull request. `PORTAL_V2` stays off on live. Instead, the new portal is a
+release stage per client, **New portal** in Admin settings → Releases, starting at Studio only: studio staff see it in
+the studio preview, and moving a client to Client beta or Live gives their team the new portal. Switching back is
+instant. The staging site keeps `PORTAL_V2=1`, which turns it on for every project there.
+
+Still staging-only after the merge (they follow `PORTAL_V2` alone): the brand panel inside Canva, Office, Google
+Workspace and Figma, and chatting with Lost Property from the Ask bar.
