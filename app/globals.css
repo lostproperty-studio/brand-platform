@@ -5883,3 +5883,9 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .ss .ov-stat-f { margin-top: 4px; }
 .ss .ov-ck > li:first-child, .ss .vs-row:first-child { padding-top: 0; }
 .hm-ask { margin: 24px 0 0; max-width: 680px; }
+/* Client, Typefaces and Resources in the centred column */
+.ss .dash { grid-template-columns: minmax(0, 1fr); max-width: none; }
+.ss .fm-card { background: #fff; border-radius: 16px; padding: 16px 18px; }
+/* The design profile's side tray in Resources: wider than the other packages' trays */
+.rm2-pane.wide { width: min(820px, 100vw); }
+.rm2-ds { padding: 28px 32px 48px; }
