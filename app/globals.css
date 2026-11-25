@@ -5929,3 +5929,22 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 /* Settings: choices sit on the right of their row, like the switches; on a phone they drop below */
 .ss-row-r { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
 @media (max-width: 760px) { .ss-box .psw-row, .ss-row-r { flex-wrap: wrap; } .ss-box .psw-row .psw-seg, .ss-seg-r { margin-left: 0; } }
+
+/* Breathing room in the studio's centred pages (Overview, Settings, Typefaces, Resources, Requests, Client): more space
+   between modules, between a label and its box, and inside boxes and rows, so each group reads on its own */
+.ss, .ss.ov { max-width: 720px; margin: 24px auto 120px; gap: 64px; }
+.ss-sec { gap: 14px; }
+.ss-label { font-size: 16px; }
+.ss-note { margin: -6px 0 2px; line-height: 1.55; }
+.ss-box { padding: 8px 24px; border-radius: 18px; }
+.ss-row, .ss-box .psw-row { padding: 20px 0; }
+.ss .ov-card { padding: 24px; gap: 16px; border-radius: 18px; }
+.ss .ov-stat { padding: 20px 0; }
+.ss .ov-ck li { padding: 16px 0; }
+.ss .ov-feed { gap: 14px; }
+.ss .vs-row { padding: 16px 0; }
+.ss .td-item { padding: 22px 0; gap: 8px; }
+.ss .dash { gap: 24px; }
+.ss .fm-card { padding: 24px; }
+.ss .rm2-sec + .rm2-sec { margin-top: 24px; }
+@media (max-width: 760px) { .ss, .ss.ov { margin: 12px auto 120px; gap: 44px; } .ss-box { padding: 4px 16px; } .ss .ov-card { padding: 18px; } }
