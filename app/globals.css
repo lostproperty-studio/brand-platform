@@ -5948,3 +5948,11 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .ss .fm-card { padding: 24px; }
 .ss .rm2-sec + .rm2-sec { margin-top: 24px; }
 @media (max-width: 760px) { .ss, .ss.ov { margin: 12px auto 120px; gap: 44px; } .ss-box { padding: 4px 16px; } .ss .ov-card { padding: 18px; } }
+
+/* The project sidebar on desktop: no client name (it's in the top bar), and the sections centred in the height
+   below the logo, open or folded. The selected section shows by its fill, without a ring after a click. */
+@media (min-width: 761px) {
+  .pj-side-name, .pj-shell.rail .pj-side-name { display: none; }
+  .pj-side .pj-nav { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: safe center; padding-bottom: 60px; }
+  .pj-side .pj-tab.on:focus-visible { box-shadow: none; }
+}
