@@ -29,7 +29,9 @@ const SOURCE: Record<string, string> = {
 
 // Downloads in the studio: every package as the client sees it, with whether it's showing, whether it's caught up with
 // the guidelines, and a refresh. Open one to edit it, manage its files, preview it and download what the client gets.
-export function ResourceManager({ projectId, slug, packages, colours, logoUrl, client, roles, guideRev = 0, ai = {} }: {
+export function ResourceManager({ projectId, slug, packages, colours, logoUrl, client, roles, guideRev = 0, ai = {}, designProfile }: {
+  /** The design profile, shown in a side tray when the Design system card is opened */
+  designProfile?: React.ReactNode;
   roles: Parameters<typeof SystemPreview>[0]['roles'];
   projectId: string; slug: string; packages: Package[]; colours: Colour[]; logoUrl: string | null; client: string;
   /** The guidelines' revision now, to tell which packages are behind */ guideRev?: number;
@@ -42,6 +44,8 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
   const [stamps, setStamps] = useState<Record<string, Stamp>>(() => ({ ...ai, ...Object.fromEntries(packages.map((p) => [p.id, { refreshedAt: p.refreshedAt, refreshedRev: p.refreshedRev }])) }));
   const [sure, setSure] = useState<string | null>(null);
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [dsOpen, setDsOpen] = useState(false);
+  useEffect(() => { if (!dsOpen) return; const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.dp2-pop')) setDsOpen(false); }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [dsOpen]);
   const [undo, setUndo] = useState<{ pkg: string; name?: string; path?: string; label: string } | null>(null);
   const [report, setReport] = useState<(RefreshReport & { pkg: string; last?: string; at: string }) | null>(null);
   const [adding, setAdding] = useState(false);
@@ -105,7 +109,7 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
   ); };
 
   const aiCard = (id: 'design-system' | 'skills', title: string, sub: string, href: string) => (
-    <article key={id} className={'rm2-card ai' + (id === 'skills' ? ' click' : '')} {...(id === 'skills' ? { role: 'button', tabIndex: 0, 'aria-label': 'Claude skills: preview', onClick: () => setSkillsOpen(true), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter') setSkillsOpen(true); } } : {})}>
+    <article key={id} className={'rm2-card ai' + (id === 'skills' || designProfile ? ' click' : '')} {...(id === 'skills' || designProfile ? { role: 'button', tabIndex: 0, 'aria-label': id === 'skills' ? 'Claude skills: preview' : 'Design system: see and adjust the profile', onClick: () => (id === 'skills' ? setSkillsOpen(true) : setDsOpen(true)), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter') (id === 'skills' ? setSkillsOpen(true) : setDsOpen(true)); } } : {})}>
       <div className="rm2-pv">{id === 'design-system' ? <div className="rs-pv rs-dspv"><SystemPreview colours={colours} logoUrl={logoUrl} client={client} roles={roles} /></div> : <div className="rs-pv rm2-skills"><span>Claude</span><b>skills</b></div>}</div>
       <div className="rm2-txt">
         <div className="rm2-top"><h3>{title}</h3>{refreshBtn(id, title)}</div>
@@ -151,12 +155,18 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
       <section className="rm2-sec">
         <div className="rm2-sec-h"><h2>For AI</h2><p className="mute">The brand for Claude. Refresh after the guidelines change so it’s read them again.</p></div>
         <div className="rm2-grid">
-          {aiCard('design-system', 'Design system', 'Read from the guidelines by AI', `/api/p/${slug}/design-system`)}
+          {aiCard('design-system', 'Design system', designProfile ? 'Read from the guidelines by AI · open to see and adjust it' : 'Read from the guidelines by AI', `/api/p/${slug}/design-system`)}
           {aiCard('skills', 'Claude skills', 'Click to preview and check them', `/p/${slug}/resources#ai`)}
         </div>
       </section>
       {group('For developers', 'Built from the kit and the guidelines.', packages.filter((p) => ['tokens', 'guidelines', 'templates'].includes(p.kind)))}
 
+      {dsOpen && designProfile ? <div className="rm2-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setDsOpen(false); }}>
+        <aside className="rm2-pane wide" role="dialog" aria-modal="true" aria-label="Design system">
+          <div className="rm2-pane-h"><strong>Design system</strong><button type="button" className="rm2-ic" onClick={() => setDsOpen(false)} aria-label="Close"><X {...I} /></button></div>
+          <div className="rm2-pane-b rm2-ds">{designProfile}</div>
+        </aside>
+      </div> : null}
       {skillsOpen ? <SkillsPreview projectId={projectId} slug={slug} onClose={() => setSkillsOpen(false)} /> : null}
       {report ? <div className="rm2-back rm2-center" onMouseDown={(e) => { if (e.target === e.currentTarget) setReport(null); }}>
         <div className="rm2-rep" role="dialog" aria-modal="true" aria-labelledby="rep-t">
