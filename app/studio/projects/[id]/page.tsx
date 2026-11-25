@@ -367,11 +367,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const withFiles = fonts.filter((f) => f.files.length);
     // Plain copies: nothing here is shared with another prop
     const system = structuredClone(systemFor(guide?.system, { typeScale: pc.typeScale, profile: pc.dsProfile, fonts: withFiles }));
+    // Every logo file in the kit (or brought in from Figma), signed, with the one the portal uses first: the slides pick
+    // the version that suits their background (light artwork on dark slides), and the studio can choose
     const { data: logoRows } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%');
-    const logoRow = pickLogo(withFigmaLogos((logoRows || []).map((l) => ({ path: l.path, storage_path: l.storage_path })), p.content, {})).main;
-    const logoUrl = logoRow?.storage_path ? (await signOne('kits', logoRow.storage_path, 6 * 3600)).data?.signedUrl ?? null : null;
-    body = <PdfStudio projectId={id} client={p.client} guide={guide ? structuredClone(guide) : null} urls={urls} logoUrl={logoUrl} colours={structuredClone(snapP?.colours || [])} content={structuredClone({ pdf: (content as { pdf?: unknown }).pdf ?? null })} fontCss={fontCss}
-      system={system} fonts={withFiles.map((f) => ({ role: f.role, name: f.name || f.label }))} />;
+    const logoFiles = withFigmaLogos((logoRows || []).map((l) => ({ path: l.path, storage_path: l.storage_path })), p.content, {}).filter((f) => f.storage_path && /\.(svg|png|jpe?g|webp)$/i.test(f.path));
+    const best = pickLogo(logoFiles);
+    const ordered = [best.main, best.light, ...logoFiles].filter((f, i, a): f is NonNullable<typeof f> => !!f && a.findIndex((x) => x?.path === f.path) === i);
+    const { data: logoSigned } = ordered.length ? await signMany('kits', ordered.map((f) => f.storage_path!), 6 * 3600) : { data: [] };
+    const logoUrlOf = Object.fromEntries((logoSigned || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
+    const logos = ordered.filter((f) => logoUrlOf[f.storage_path!]).map((f) => { const file = f.path.split('/').pop()!; return { key: f.path, name: file.replace(/\.(svg|png|jpe?g|webp)$/i, '').replace(/[_-]+/g, ' '), url: logoUrlOf[f.storage_path!], light: /white|light|reverse|negative|inverse/i.test(file) }; });
+    body = <PdfStudio projectId={id} client={p.client} guide={guide ? structuredClone(guide) : null} urls={urls} logos={structuredClone(logos)} colours={structuredClone(snapP?.colours || [])} content={structuredClone({ pdf: (content as { pdf?: unknown }).pdf ?? null })} fontCss={fontCss}
+      system={system} fonts={withFiles.map((f) => ({ role: f.role, name: f.name || f.label, weights: [...new Set(f.files.map((x) => x.weight))].sort((a, b) => a - b) }))} />;
   }
   if (tab === 'motion') {
     // Every SVG logo: the kit's, or the files in the Logos package

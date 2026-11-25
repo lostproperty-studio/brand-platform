@@ -181,3 +181,92 @@ select.pd2-in { padding-right: 4px; }
   .pd2-page-in { width: 1920px; height: 1080px; zoom: .8; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
+
+/* ---------- Sections in the guideline's own styles (pd3-): the header above the hang line, the body from it */
+.pd3-head { position: absolute; display: flex; flex-direction: column; justify-content: flex-end; }
+.pd3-body { position: absolute; overflow: visible; }
+.pd3-g { position: relative; color: inherit; }
+.pd3-g .gb { overflow: visible; border-radius: 0; }
+.pd3-g .pd3-hd { gap: 20px; }
+.pd3-g .pd3-hd .gb-head { gap: 8px; }
+.pd3-g .gb-h, .pd3-g .gb-stmt-h { text-wrap: balance; }
+.pd3-g .gb-intro { max-width: none; }
+.pd3-g .gb-body { max-width: 68ch; }
+.pd3-g .gi .gb-body, .pd3-g .gi-body, .pd3-g .gc-body { max-width: none; }
+.on-dark .pd3-g .gb-eb, .on-dark .pd3-g .gc-label { opacity: .8; }
+/* The guide's web CSS sizes some things by the window; on a slide they're fixed */
+.pd3-g .gb.pad { padding: 48px; }
+.pd3-g .gb-stmt.pad { padding: 64px; }
+.pd3-g .gb-split { gap: 40px; }
+.pd3-g .gb-fig.graphic img { max-height: none; }
+.pd3-g .gc-card { min-height: 0; padding: 40px; }
+.pd3-g .gc-card.bx-none { padding-left: 0; padding-right: 0; }
+/* A carousel on a slide shows every card in a row, with no controls */
+.pd3-g .gc-track { overflow: visible; scroll-snap-type: none; }
+.pd3-g .gc-slide, .pd3-g .gc-images .gc-slide { flex: 1 1 0; min-width: 0; }
+.pd3-g .gc-ctl { display: none; }
+/* Pictures in an image, text-and-image or images section fill the body's height, cropped from their focal point */
+.pd3-body.fill > .pd3-g > .gb { height: 100%; }
+.pd3-body.fill > .pd3-g > .gb > .gb-part-media, .pd3-body.fill > .pd3-g > .gb-split > .gb-media { flex: 1 1 auto; min-height: 0; }
+.pd3-body.fill > .pd3-g > .gb-split { align-items: stretch; height: 100%; }
+.pd3-body.fill > .pd3-g > .gb-split > .gb-txt { align-self: center; }
+.pd3-body.fill > .pd3-g > .gb-split.ta-top > .gb-txt { align-self: start; }
+.pd3-body.fill > .pd3-g > .gb-split.ta-bottom > .gb-txt { align-self: end; }
+.pd3-body.fill .gb-part-media { display: flex; flex-direction: column; }
+.pd3-body.fill .gb-media { height: 100%; grid-auto-rows: minmax(0, 1fr); min-height: 0; }
+.pd3-body.fill .gb-fig { min-height: 0; height: 100%; }
+.pd3-body.fill .gb-fig .gb-fimg { aspect-ratio: auto !important; flex: 1 1 auto; min-height: 0; height: 100%; }
+.pd3-body.fill .gb-fig .gb-fimg .fr-in, .pd3-body.fill .gb-fig .gb-fimg .fr-m { height: 100%; }
+.pd3-bleed { position: absolute; overflow: hidden; }
+.pd3-bleed img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* Selecting on the slide, as in the guideline editor */
+.pd3-stage { position: relative; }
+.pd3-stage.picking .pd2-zoom { cursor: default; }
+.pd3-ov { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.pd3-hov { position: absolute; box-shadow: 0 0 0 1px rgba(224, 79, 210, .55); border-radius: 2px; }
+.pd3-sel { position: absolute; box-shadow: 0 0 0 2px #e04fd2; border-radius: 2px; }
+.pd3-sel.el { box-shadow: 0 0 0 1.5px #e04fd2, 0 0 0 4px rgba(242, 142, 232, .35); }
+.pd3-mark { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 0 2px #fff; }
+.pd3-chip { position: absolute; pointer-events: auto; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 999px; background: #111; color: #fff; font: 500 11px/1 var(--font); text-decoration: none; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.pd3-chip span { color: var(--pink); font-weight: 400; }
+.pd3-chip:hover span { text-decoration: underline; }
+.pd3-chip:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+.pd2-ov-hg { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, rgba(242, 142, 232, .14) 0 6px, transparent 6px 12px); }
+.pd3-th-ch { position: absolute; right: 5px; bottom: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 0 1.5px #fff; }
+.pd2-th-pv { position: relative; }
+
+/* The design panel: the guideline editor's, under a note that the content is linked to the guidelines */
+.pd3-design .dp { position: static; max-height: none; overflow: visible; box-shadow: none; border-radius: 0; background: transparent; }
+.pd3-design .dp .dp-empty { display: none; }
+/* Adding, duplicating, replacing and deleting change the guidelines' content, so they're left to the guidelines */
+.pd3-design .dp .dp-foot, .pd3-design .dp .dp-add, .pd3-design .dp .dp-btns-row, .pd3-design .dp .dp-addrow { display: none; }
+.pd3-linked { background: var(--fill); gap: 10px; }
+.pd3-lk { margin: 0; display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.45; color: var(--mute); }
+.pd3-lk b { color: var(--ink); font-weight: 500; }
+.pd3-lk svg { flex: none; margin-top: 2px; color: var(--ink); }
+.pd3-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 12px; }
+.pd3-crumbs span { display: inline-flex; align-items: center; gap: 2px; color: var(--mute); }
+.pd3-crumbs button { all: unset; cursor: pointer; padding: 2px 6px; border-radius: 6px; color: var(--mute); }
+.pd3-crumbs button:hover { background: #fff; color: var(--ink); }
+.pd3-crumbs button[aria-current="true"] { color: var(--ink); background: #fff; box-shadow: 0 0 0 1px var(--line); }
+.pd3-crumbs button:focus-visible { outline: 2px solid #000; }
+.pd3-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.pd3-acts .btn { font-size: 12px; }
+.pd3-changes .pd2-h { gap: 6px; }
+.pd3-n { font-size: 11px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: var(--pink); color: #000; display: inline-grid; place-items: center; }
+.pd3-ch { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.pd3-ch li { display: grid; grid-template-columns: minmax(0, 1fr) 20px; align-items: center; gap: 6px; font-size: 12px; min-height: 26px; }
+.pd3-ch li > span { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pd3-ch li > span b { font-weight: 400; color: var(--mute); white-space: nowrap; }
+.pd3-ch i { width: 6px; height: 6px; border-radius: 50%; background: var(--pink); flex: none; }
+.pd3-more summary { cursor: pointer; font-size: 12px; color: var(--mute); padding: 2px 0 6px; }
+.pd3-more summary:focus-visible { outline: 2px solid #000; border-radius: 4px; }
+.pd3-lnk { all: unset; cursor: pointer; text-decoration: underline; color: var(--ink); }
+.pd3-lnk:focus-visible { outline: 2px solid #000; }
+.pd3-logos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pd3-logos span { height: 56px; border-radius: 10px; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); padding: 10px 14px; box-sizing: border-box; }
+.pd3-logos img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.pd3-layers .ly { max-height: 260px; border-top: 0; padding: 10px 10px 6px; border-bottom: 1px solid var(--line); }
+.pd3-jump { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 6px; font-size: 12px; color: var(--mute); }
+.pd3-jump .pd2-in { background: #fff; }
