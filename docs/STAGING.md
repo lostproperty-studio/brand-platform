@@ -75,10 +75,12 @@ studio staff on staging just as on live, so you see the working copy and everyth
 - People, conversations and the client's AI key aren't copied. Staging uses the studio's AI key.
 
 ## Bringing it to live
-`feature/portal-v2` goes into `main` by pull request. `PORTAL_V2` stays off on live. Instead, the new portal is a
-release stage per client, **New portal** in Admin settings → Releases, starting at Studio only: studio staff see it in
-the studio preview, and moving a client to Client beta or Live gives their team the new portal. Switching back is
-instant. The staging site keeps `PORTAL_V2=1`, which turns it on for every project there.
+`feature/portal-v2` goes into `main` by pull request. `PORTAL_V2` stays off on live. There, the new portal is
+**Portal 2, the beta**: every client keeps Portal 1 (the main portal) until an admin changes their beta access in the
+project's Settings or in Admin settings → Releases → Portal versions (Off, Studio only, Client). Studio only lets the
+studio try it on that client's portal in Staging. When it's ready for everyone, **Make Portal 2 the main portal**;
+the next version, once it's in the code (`PORTALS` in `lib/portalVersion.ts`), becomes the beta. The staging site
+keeps `PORTAL_V2=1`, which runs the newest portal everywhere.
 
 Still staging-only after the merge (they follow `PORTAL_V2` alone): the brand panel inside Canva, Office, Google
 Workspace and Figma, and chatting with Lost Property from the Ask bar.
