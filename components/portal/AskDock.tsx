@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { ArrowUp, BookOpen, Clock, Download, Palette, Paperclip, PenLine, Plus, Square, Trash2, Type, X, ImageIcon, type LucideIcon } from 'lucide-react';
 import { AskAnswer, AskMark, CopyAnswer } from '@/components/portal/AskAnswer';
 import type { AskCatalog } from '@/lib/portal/askCatalog';
+import { LpLog, lpPlaceholder, useLpChat } from '@/components/portal/LpChat';
+import { LpAppIcon } from '@/components/panel/LpAppIcon';
+import { SessionBooking } from '@/components/portal/LpSupport';
 
 type Msg = { role: 'user' | 'assistant'; content: string; context?: string | null; failed?: boolean; images?: string[] };
 type Pic = { url: string; type: 'image/jpeg' | 'image/png'; data: string };
@@ -26,7 +29,7 @@ const STEPS = ['Reading the guidelines', 'Checking the rules', 'Finding the righ
 // Ask, always at the bottom of the screen: a conversation with the brand, like using Claude. It knows which page
 // you're on, shows what it's doing while it works, answers with the real colours, logos, downloads and pages as
 // cards, and saves each conversation to you.
-export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { slug: string; client: string; aiConnected: boolean; canConnect: boolean; studioAi?: boolean }) {
+export function AskDock({ slug, client, aiConnected, canConnect, studioAi, lpChat }: { slug: string; client: string; aiConnected: boolean; canConnect: boolean; studioAi?: boolean; lpChat?: boolean }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'chat' | 'history'>('chat');
@@ -39,6 +42,12 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
   const [cat, setCat] = useState<AskCatalog | null>(null);
   const [landed, setLanded] = useState(false);
   const [pics, setPics] = useState<Pic[]>([]);
+  // Woken: the bar is focused with nothing asked yet. It grows, the mark breathes and suggestions rise above it.
+  const [awake, setAwake] = useState(false);
+  // Two sides to the bar: Ask (the AI) and, where it's switched on, the Lost Property team
+  const [mode, setMode] = useState<'ai' | 'lp'>('ai');
+  const lp = useLpChat(slug, open && mode === 'lp');
+  const isLp = mode === 'lp' && !!lpChat;
   const fileIn = useRef<HTMLInputElement>(null);
   async function addPics(files: FileList | File[]) { const got = (await Promise.all([...files].slice(0, 4).map(shrink))).filter(Boolean) as Pic[]; if (got.length) { setPics((p) => [...p, ...got].slice(0, 4)); setOpen(true); } }
   const log = useRef<HTMLDivElement>(null);
@@ -55,8 +64,15 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && open) setOpen(false); if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setOpen(true); setTimeout(() => input.current?.focus(), 0); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [open]);
   // What Ask is doing, until the first words arrive
   useEffect(() => { if (!busy) return; setStep(0); const t = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 2)), 1400); return () => clearInterval(t); }, [busy]);
-  useEffect(() => { const el = input.current; if (!el) return; el.style.height = '0px'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }, [text]);
+  // Grows with what's typed. Measured while hidden it reads 0, so then it's left to its natural one-line height
+  useEffect(() => { const el = input.current; if (!el) return; el.style.height = 'auto'; const h = el.scrollHeight; el.style.height = h ? Math.min(h, 160) + 'px' : ''; }, [text]);
 
+  // Portal v2: the home page's Ask bar hands its question over here (window event 'lp-ask')
+  const sendRef = useRef<(q: string) => void>(() => {});
+  useEffect(() => { const f = (e: Event) => { const q = (e as CustomEvent<string>).detail; if (q) sendRef.current(q); else { setOpen(true); setTimeout(() => input.current?.focus(), 0); } }; window.addEventListener('lp-ask', f); return () => window.removeEventListener('lp-ask', f); }, []);
+  useEffect(() => { if (!lpChat) return; const f = (e: Event) => { const id = (e as CustomEvent<string>).detail; setMode('lp'); setOpen(true); if (id) lp.open(id); setTimeout(() => input.current?.focus(), 0); }; window.addEventListener('lp-chat', f); return () => window.removeEventListener('lp-chat', f); }, [lpChat, lp.open]);
+  async function sendLp(q: string) { const ok = await lp.send(q); if (ok) setText(''); setOpen(true); }
+  const submit = (q: string) => (isLp ? sendLp(q) : send(q));
   async function send(q: string) {
     if ((!q.trim() && !pics.length) || busy) return;
     if (!q.trim()) q = 'Give me feedback on this against the guidelines.';
@@ -86,22 +102,29 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
     ? [[BookOpen, 'Summarise this chapter'], [Palette, 'What are the exact values I need here?'], [ImageIcon, 'Show me an example of this done well']]
     : [[ImageIcon, 'Which logo should I use on a dark background?'], [Palette, 'Show me the brand colours'], [PenLine, 'Help me choose a headline'], [Type, 'What are the typefaces and where do I get them?'], [Download, 'Where do I download the logo files?']];
 
+  sendRef.current = (q: string) => { send(q); };
   if (hidden) return null;
   const last = msgs[msgs.length - 1];
   return (
-    <div className={'dock ak' + (open ? ' open' : '')}>
+    <div className={'dock ak' + (open ? ' open' : '') + (awake && !open && aiConnected ? ' awake' : '')}>
       {open ? <div className="ak-panel" role="dialog" aria-label={`Ask about ${client}`}>
         <div className="ak-top">
-          <AskMark state={busy && !msgs[msgs.length - 1]?.content ? 'scan' : 'rest'} />
-          <strong>{view === 'history' ? 'Your conversations' : 'Ask'}</strong>
-          {view === 'chat' ? <span className="mute ak-here">About {here}</span> : null}
-          {studioAi ? <span className="dock-studio" title="You’re previewing as the studio, so Ask runs on Lost Property’s AI. Clients use their own key.">Studio preview · Lost Property AI</span> : null}
+          {isLp ? <LpAppIcon size={22} /> : <AskMark state={busy && !msgs[msgs.length - 1]?.content ? 'scan' : 'rest'} />}
+          {lpChat ? <div className="ak-modes" role="tablist" aria-label="Who to ask"><button role="tab" aria-selected={!isLp} className={!isLp ? 'on' : ''} onClick={() => setMode('ai')}>Ask</button><button role="tab" aria-selected={isLp} className={isLp ? 'on' : ''} onClick={() => setMode('lp')}>Lost Property</button></div>
+            : <strong>{view === 'history' ? 'Your conversations' : 'Ask'}</strong>}
+          {isLp ? <span className="mute ak-here">{lp.view === 'list' ? 'Your conversations with the team' : 'Usually replies within a working day'}</span> : view === 'chat' ? <span className="mute ak-here">About {here}</span> : null}
+          {!isLp && studioAi ? <span className="dock-studio" title="You’re previewing as the studio, so Ask runs on Lost Property’s AI. Clients use their own key.">Studio preview · Lost Property AI</span> : null}
           <span style={{ flex: 1 }} />
-          <button className="ak-tb" onClick={newChat} aria-label="New conversation" data-tip="New"><Plus {...I} /></button>
-          <button className={'ak-tb' + (view === 'history' ? ' on' : '')} onClick={() => (view === 'history' ? setView('chat') : showHistory())} aria-label="Your conversations" data-tip="History"><Clock {...I} /></button>
+          {isLp ? <>
+            <button className="ak-tb" onClick={() => { lp.fresh(); input.current?.focus(); }} aria-label="New conversation with Lost Property" data-tip="New"><Plus {...I} /></button>
+            <button className={'ak-tb' + (lp.view === 'list' ? ' on' : '')} onClick={() => (lp.view === 'list' ? lp.setView('thread') : lp.showList())} aria-label="Your conversations with Lost Property" data-tip="Conversations"><Clock {...I} /></button>
+          </> : <>
+            <button className="ak-tb" onClick={newChat} aria-label="New conversation" data-tip="New"><Plus {...I} /></button>
+            <button className={'ak-tb' + (view === 'history' ? ' on' : '')} onClick={() => (view === 'history' ? setView('chat') : showHistory())} aria-label="Your conversations" data-tip="History"><Clock {...I} /></button>
+          </>}
           <button className="ak-tb" onClick={() => setOpen(false)} aria-label="Close" data-tip="Close · Esc"><X {...I} /></button>
         </div>
-        {view === 'history' ? <div className="ak-log">
+        {isLp ? <div className="ak-log" aria-live="polite"><LpLog s={lp} client={client} /></div> : view === 'history' ? <div className="ak-log">
           {history === null ? <p className="mute">Loading…</p> : !history.length ? <p className="mute">Nothing yet. Your questions are saved here, just for you.</p> : history.map((c) => <div key={c.id} className="dock-h"><button onClick={() => openConv(c.id)}><span>{c.title || 'Untitled'}</span><span className="mute">{c.context ? `${c.context} · ` : ''}{new Date(c.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></button><button className="ak-tb" aria-label="Delete conversation" onClick={() => delConv(c.id)}><Trash2 {...I} /></button></div>)}
         </div> : <div className="ak-log" ref={log} aria-live="polite" onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
           {!aiConnected ? <div className="ak-empty"><AskMark /><p>AI isn’t connected yet.</p><p className="mute">{canConnect ? <Link href={`/p/${slug}/settings`}>Connect your Anthropic account in Settings</Link> : 'Your admin can connect it in Settings.'}</p></div>
@@ -119,17 +142,20 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi }: { s
                 </div>)}
         </div>}
       </div> : null}
-      <form className="ak-bar" onSubmit={(e) => { e.preventDefault(); send(text); }} onDragOver={(e) => { if (aiConnected && e.dataTransfer.types.includes('Files')) e.preventDefault(); }} onDrop={(e) => { if (!aiConnected || !e.dataTransfer.files.length) return; e.preventDefault(); addPics(e.dataTransfer.files); }} onClick={() => { if (!open && msgs.length) setOpen(true); }}>
-        {!open ? <AskMark state={busy ? 'scan' : 'rest'} /> : null}
+      {awake && !open && aiConnected && !isLp && !text.trim() ? <div className="ak-wake" role="list" aria-label="Suggestions">{starters.slice(0, 3).map(([Ic, q], k) => <button key={q} type="button" role="listitem" className="ak-chip" style={{ animationDelay: `${60 + k * 60}ms` }} onMouseDown={(e) => e.preventDefault()} onClick={() => { setAwake(false); send(q); }}><Ic {...I} />{q}</button>)}</div> : null}
+      <form className={'ak-bar' + (isLp ? ' lp' : '')} onSubmit={(e) => { e.preventDefault(); submit(text); }} onDragOver={(e) => { if (aiConnected && e.dataTransfer.types.includes('Files')) e.preventDefault(); }} onDrop={(e) => { if (!aiConnected || !e.dataTransfer.files.length) return; e.preventDefault(); addPics(e.dataTransfer.files); }} onClick={() => { if (!open && (msgs.length || isLp)) setOpen(true); }}>
+        {!open ? (isLp ? <LpAppIcon size={22} /> : <AskMark state={busy ? 'scan' : awake && !text ? 'pulse' : 'rest'} />) : null}
         {pics.length ? <div className="ak-attach">{pics.map((p, k) => <span key={k} className="ak-thumb"><img src={p.url} alt="" /><button type="button" onClick={(e) => { e.stopPropagation(); setPics((x) => x.filter((_, j) => j !== k)); }} aria-label="Remove picture"><X size={11} strokeWidth={2.5} aria-hidden /></button></span>)}</div> : null}
         <input ref={fileIn} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files) addPics(e.target.files); e.target.value = ''; }} />
-        {aiConnected ? <button type="button" className="ak-clip" onClick={(e) => { e.stopPropagation(); fileIn.current?.click(); }} aria-label="Add a picture for feedback" data-tip="Add a picture for feedback"><Paperclip size={16} strokeWidth={1.75} aria-hidden /></button> : null}
+        {aiConnected && !isLp ? <button type="button" className="ak-clip" onClick={(e) => { e.stopPropagation(); fileIn.current?.click(); }} aria-label="Add a picture for feedback" data-tip="Add a picture for feedback"><Paperclip size={16} strokeWidth={1.75} aria-hidden /></button> : null}
         <label className="sr" htmlFor="dock-q">Ask about {here}</label>
-        <textarea id="dock-q" ref={input} rows={1} onPaste={(e) => { const f = [...e.clipboardData.files].filter((x) => x.type.startsWith('image/')); if (f.length && aiConnected) { e.preventDefault(); addPics(f); } }} className="ak-in" placeholder={aiConnected ? `Ask about ${here}…` : 'Ask isn’t connected yet'} value={text} onChange={(e) => setText(e.target.value)} onFocus={() => { if (msgs.length) setOpen(true); }} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }} disabled={!aiConnected} />
-        {busy ? <button type="button" className="ak-send stop" onClick={stop} aria-label="Stop"><Square size={12} strokeWidth={0} fill="currentColor" aria-hidden /></button>
+        <textarea id="dock-q" ref={input} rows={1} onPaste={(e) => { const f = [...e.clipboardData.files].filter((x) => x.type.startsWith('image/')); if (f.length && aiConnected) { e.preventDefault(); addPics(f); } }} className="ak-in" placeholder={isLp ? lpPlaceholder(lp) : !aiConnected ? 'Ask isn’t connected yet' : awake ? `What do you need for ${client}?` : `Ask about ${here}…`} value={text} onChange={(e) => setText(e.target.value)} onFocus={() => { if (msgs.length || isLp) setOpen(true); else setAwake(true); }} onBlur={() => { if (!text.trim()) setAwake(false); }} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(text); } }} disabled={!aiConnected && !isLp} />
+        {isLp ? <button className="ak-send" disabled={lp.busy || !text.trim()} aria-label="Send to Lost Property"><ArrowUp size={16} strokeWidth={2} aria-hidden /></button>
+          : busy ? <button type="button" className="ak-send stop" onClick={stop} aria-label="Stop"><Square size={12} strokeWidth={0} fill="currentColor" aria-hidden /></button>
           : <button className="ak-send" disabled={!aiConnected || (!text.trim() && !pics.length)} aria-label="Send"><ArrowUp size={16} strokeWidth={2} aria-hidden /></button>}
       </form>
       {open && last?.role === 'assistant' && !busy ? <span className="sr" role="status">Answer ready</span> : null}
+      {lpChat ? <SessionBooking client={client} /> : null}
     </div>
   );
 }

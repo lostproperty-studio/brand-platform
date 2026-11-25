@@ -1,21 +1,21 @@
+import { readSwitches } from '@/lib/portal/switches';
+import { notFound } from 'next/navigation';
 import { ProtectImages } from '@/components/portal/ImageRights';
 import { portalContext, signFrames } from '@/lib/portal/context';
 import { hasShowcase, showcasePaths } from '@/lib/showcase';
 import { ShowcaseMedia } from '@/components/portal/ShowcaseFrame';
 
-// The showcase: the brand at work, full width beside the sidebar. 3:2 rows across, 3:4 rows in pairs.
+// The showcase: the brand at work, full width beside the sidebar, opening straight onto the imagery. 3:2 rows across, 3:4 rows in pairs.
 export default async function ShowcasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const ctx = (await portalContext(slug))!;
+  if (!readSwitches(ctx.project.content).showcase) notFound();
   const s = ctx.snap?.showcase;
   const urls = s ? await signFrames(showcasePaths(s)) : {};
   return (
     <div className="sc">
-      <header className="sc-head">
-        {s?.kicker !== '' ? <p className="mute">{s?.kicker || 'The brand at work'}</p> : null}
-        <h1 className="pt-display">{s?.title || 'Showcase'}</h1>
-        {s?.intro ? <p className="pt-lede">{s.intro}</p> : null}
-      </header>
+      {/* Straight into the imagery: the title is there for screen readers only */}
+      <h1 className="sr-only">{s?.title || 'Showcase'}</h1>
       {!hasShowcase(s) ? <p className="mute sc-empty">{ctx.preview ? 'Nothing here yet. Build the showcase in the studio’s Showcase tab.' : 'Coming soon.'}</p> : null}
       <ProtectImages className="sc-rows">
         {(s?.rows || []).filter((r) => r.frames.some((f) => f.kind !== 'empty')).map((r) => (

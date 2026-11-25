@@ -1,0 +1,131 @@
+/* The LP panel. Self-contained (lpx-), the same in every app it sits in. Lost Property's skin: neutral and light,
+   one flash of pink (the active tab's mark), KMR Waldenburg where the host lets us load it. */
+.lpx { --lpx-ink: #000; --lpx-mute: #767676; --lpx-line: #ededed; --lpx-fill: #f7f7f7; --lpx-fill-2: #efefef; --lpx-pink: #f28ee8;
+  position: relative; display: flex; flex-direction: column; height: 100%; min-height: 100%; background: #fff; color: var(--lpx-ink);
+  font-family: 'KMR Waldenburg', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
+.lpx *, .lpx *::before, .lpx *::after { box-sizing: border-box; }
+/* Resets kept at zero specificity, so the panel's own classes always win */
+:where(.lpx) :where(button, input) { font: inherit; color: inherit; }
+:where(.lpx) :where(p, h3, ul, ol, figure) { margin: 0; padding: 0; }
+:where(.lpx) :where(ul, ol) { list-style: none; }
+
+.lpx-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 14px 10px; }
+.lpx-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lpx-mark { width: 24px; height: 24px; border-radius: 6px; background: var(--lpx-ink); flex: none; position: relative; }
+.lpx-mark::after { content: ''; position: absolute; right: 5px; bottom: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--lpx-pink); }
+.lpx-client { font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lpx-sub { font-size: 11px; color: var(--lpx-mute); }
+.lpx-icon { width: 28px; height: 28px; border-radius: 999px; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--lpx-mute); }
+.lpx-icon:hover { background: var(--lpx-fill); color: var(--lpx-ink); }
+
+.lpx-tabs { display: flex; gap: 0; padding: 0 8px 10px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--lpx-line); }
+.lpx-tabs::-webkit-scrollbar { display: none; }
+.lpx-tab { position: relative; flex: none; height: 28px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--lpx-mute); font-size: 12px; cursor: pointer; }
+.lpx-tab:hover { color: var(--lpx-ink); background: var(--lpx-fill); }
+.lpx-tab.on { color: var(--lpx-ink); background: var(--lpx-fill-2); }
+.lpx-tab.on::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--lpx-pink); margin-right: 6px; vertical-align: 1px; }
+.lpx-tab:focus-visible, .lpx-tile:focus-visible, .lpx-col:focus-visible, .lpx-link:focus-visible, .lpx-chip-btn:focus-visible { outline: 2px solid var(--lpx-ink); outline-offset: 2px; }
+
+.lpx-body { flex: 1; overflow-y: auto; padding: 14px 14px 24px; }
+.lpx-body > section { display: flex; flex-direction: column; gap: 14px; }
+.lpx-h { font-size: 11px; font-weight: 400; color: var(--lpx-mute); margin-bottom: 8px; }
+.lpx-group + .lpx-group { margin-top: 4px; }
+.lpx-meta { font-size: 11px; color: var(--lpx-mute); }
+.lpx-lede { font-size: 13px; color: #333; }
+.lpx-note { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--lpx-mute); padding: 10px; border-radius: 8px; background: var(--lpx-fill); }
+.lpx-note svg { flex: none; margin-top: 1px; }
+.lpx-link { border: 0; background: none; padding: 0; font-size: 11px; color: var(--lpx-mute); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.lpx-link:hover { color: var(--lpx-ink); }
+
+/* Logos and images: tiles to click (or drag) into the design */
+.lpx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lpx-fig { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.lpx-fig figcaption { font-size: 11px; color: var(--lpx-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lpx-tile { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; padding: 14px; border: 1px solid var(--lpx-line); border-radius: 8px; background: var(--lpx-fill); cursor: pointer; overflow: hidden; transition: border-color .15s; }
+.lpx-tile.dark { background: #161616; border-color: #161616; }
+.lpx-tile:hover { border-color: #bdbdbd; }
+.lpx-tile:disabled { cursor: default; }
+.lpx-tile img { position: absolute; inset: 14px; width: calc(100% - 28px); height: calc(100% - 28px); object-fit: contain; pointer-events: none; }
+.lpx-tile img.cover { inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lpx-add { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; border-radius: 999px; background: #fff; color: var(--lpx-ink); display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,.12); opacity: 0; transform: scale(.9); transition: opacity .15s, transform .15s; }
+.lpx-tile:hover .lpx-add, .lpx-tile:focus-visible .lpx-add { opacity: 1; transform: none; }
+.lpx-masonry { columns: 2; column-gap: 8px; }
+.lpx-masonry .lpx-tile { padding: 0; margin-bottom: 8px; break-inside: avoid; aspect-ratio: auto; min-height: 60px; }
+
+/* Colours */
+.lpx-cols { display: flex; flex-direction: column; gap: 2px; }
+.lpx-cols > li { display: flex; align-items: center; gap: 4px; }
+.lpx-fill { flex: none; padding: 4px 6px; }
+.lpx-col { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px; border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
+.lpx-col:hover { background: var(--lpx-fill); }
+.lpx-chip { width: 36px; height: 36px; border-radius: 8px; flex: none; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.lpx-chip svg { opacity: 0; transition: opacity .15s; }
+.lpx-col:hover .lpx-chip svg { opacity: .9; }
+.lpx-coltxt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.lpx-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lpx-hex { font-size: 11px; color: var(--lpx-mute); font-variant-numeric: tabular-nums; }
+
+/* Type */
+.lpx-fonts { display: flex; flex-direction: column; gap: 10px; }
+.lpx-font { padding: 12px; border-radius: 8px; background: var(--lpx-fill); display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+.lpx-fontname { font-size: 20px; line-height: 1.15; }
+.lpx-usage { font-size: 12px; color: #444; margin-bottom: 4px; }
+
+/* Rules, folded away */
+.lpx-rules { border-top: 1px solid var(--lpx-line); padding-top: 10px; }
+.lpx-rules summary { font-size: 12px; cursor: pointer; list-style: none; display: flex; justify-content: space-between; }
+.lpx-rules summary::after { content: '+'; color: var(--lpx-mute); }
+.lpx-rules[open] summary::after { content: '–'; }
+.lpx-rules .lpx-list { margin-top: 10px; }
+.lpx-list { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #333; }
+.lpx-list li { padding-left: 12px; position: relative; }
+.lpx-list li::before { content: ''; position: absolute; left: 0; top: 7px; width: 4px; height: 4px; border-radius: 50%; background: #c4c4c4; }
+
+/* Words */
+.lpx-lines { display: flex; flex-direction: column; gap: 6px; }
+.lpx-lines li { padding: 10px 12px; border-radius: 8px; background: var(--lpx-fill); display: flex; flex-direction: column; gap: 6px; }
+.lpx-acts { display: flex; gap: 12px; }
+
+/* Chips (image collections, Ask starters) */
+.lpx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lpx-chip-btn { height: 26px; padding: 0 10px; border: 1px solid var(--lpx-line); border-radius: 999px; background: #fff; font-size: 11px; cursor: pointer; text-align: left; }
+.lpx-chip-btn:hover { border-color: #bdbdbd; }
+.lpx-chip-btn.on { background: var(--lpx-ink); border-color: var(--lpx-ink); color: #fff; }
+
+/* Ask */
+.lpx-ask { min-height: 100%; }
+.lpx-start { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.lpx-start .lpx-chip-btn { height: auto; min-height: 26px; padding: 5px 10px; }
+.lpx-msgs { display: flex; flex-direction: column; gap: 8px; padding-bottom: 60px; }
+.lpx-msgs li { max-width: 92%; padding: 8px 11px; border-radius: 12px; font-size: 12.5px; white-space: pre-wrap; }
+.lpx-msgs li.user { align-self: flex-end; background: var(--lpx-ink); color: #fff; border-bottom-right-radius: 4px; }
+.lpx-msgs li.assistant { align-self: flex-start; background: var(--lpx-fill); border-bottom-left-radius: 4px; }
+.lpx-dots { display: flex; gap: 4px; }
+.lpx-dots span { width: 5px; height: 5px; border-radius: 50%; background: #9a9a9a; animation: lpx-blink 1s infinite; }
+.lpx-dots span:nth-child(2) { animation-delay: .15s; } .lpx-dots span:nth-child(3) { animation-delay: .3s; }
+@keyframes lpx-blink { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+.lpx-askbar { position: sticky; bottom: -24px; margin: 12px -14px -24px; padding: 10px 14px 14px; background: linear-gradient(transparent, #fff 30%); display: flex; gap: 6px; }
+.lpx-askbar input { flex: 1; height: 34px; border: 0; border-radius: 999px; background: var(--lpx-fill-2); padding: 0 14px; font-size: 12.5px; }
+.lpx-askbar input:focus { outline: 2px solid var(--lpx-ink); }
+.lpx-send { width: 34px; height: 34px; border: 0; border-radius: 999px; background: var(--lpx-ink); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.lpx-send:disabled { background: #d0d0d0; cursor: default; }
+
+.lpx-foot { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-top: 1px solid var(--lpx-line); font-size: 11px; color: var(--lpx-mute); }
+.lpx-toast { position: absolute; left: 50%; bottom: 52px; transform: translate(-50%, 8px); display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: var(--lpx-ink); color: #fff; font-size: 11px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+.lpx-toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { .lpx * { transition: none !important; animation: none !important; } }
+
+/* Before sign-in (the panel inside an app) */
+.lpx-gate { align-items: flex-start; justify-content: center; gap: 12px; padding: 28px 18px; }
+.lpx-gate .lpx-mark { width: 32px; height: 32px; border-radius: 8px; margin-bottom: 4px; }
+.lpx-gate .lpx-client { font-size: 18px; white-space: normal; }
+.lpx-wide { width: 100%; height: 38px; border-radius: 999px; font-size: 13px; margin-top: 4px; }
+.lpx-credit { margin-top: auto; padding-top: 24px; }
+.lpx-code { width: 100%; text-align: center; font-size: 22px; letter-spacing: .08em; font-variant-numeric: tabular-nums; padding: 12px; border-radius: 10px; background: var(--lpx-fill); }
+.lpx-gate .lpx-dots { display: inline-flex; margin-right: 6px; vertical-align: 1px; }
+/* A page that is only the panel (Office task pane, Google sidebar) */
+.lpx-page { height: 100vh; }
+.lpx-page .lpx { height: 100vh; }
+
+.lpx-icon { flex: none; display: block; }
+.lpx-gate .lpx-icon { width: 40px; height: 40px; margin-bottom: 4px; }

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_blank">
+    <style>html, body { margin: 0; height: 100%; overflow: hidden; } iframe { border: 0; width: 100%; height: 100%; display: block; }</style>
+  </head>
+  <body>
+    <iframe id="panel" src="<?= src ?>" allow="clipboard-write"></iframe>
+    <script>
+      // Passes what the panel asks for to the add-on's script, and the answer back. Only listens to the platform.
+      var PLATFORM = <?= JSON.stringify(platform) ?>;
+      var frame = document.getElementById('panel');
+      window.addEventListener('message', function (e) {
+        if (e.origin !== PLATFORM || e.source !== frame.contentWindow) return;
+        var d = e.data || {};
+        if (d.lp !== 1) return;
+        var reply = function (ok, error) { frame.contentWindow.postMessage({ lp: 1, id: d.id, ok: ok, error: error }, PLATFORM); };
+        if (d.op === 'open') { window.open(d.url, '_blank'); reply(true); return; }
+        var run = google.script.run.withSuccessHandler(function () { reply(true); }).withFailureHandler(function (err) { reply(false, (err && err.message) || String(err)); });
+        if (d.op === 'image') run.insertImage({ url: d.url, b64: d.b64, name: d.name, width: d.width });
+        else if (d.op === 'text') run.insertText({ text: d.text });
+      });
+    </script>
+  </body>
+</html>

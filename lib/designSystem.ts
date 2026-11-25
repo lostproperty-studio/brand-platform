@@ -5,6 +5,7 @@ import { chapterText } from '@/lib/portal/guide';
 import { aiRulesMd, watchoutsFrom } from '@/lib/aiRules';
 import { lum } from '@/lib/portal/generated';
 import { previewHtml, componentPreviews } from '@/lib/designSystemPreview';
+import { motionCss, motionMd, motionTokens } from '@/lib/motion/model';
 import { SETTING_INFO, showSetting, type Profile, type SettingKey, type Source } from '@/lib/designProfileInfo';
 
 // A design system for AI, built from the brand's guidelines: one folder that tells Claude (or any AI tool) how to
@@ -469,7 +470,9 @@ function componentReadme(c: (typeof COMPONENTS)[number]) {
 export function designSystemFiles(input: DSInput) {
   const s = buildSpec(input);
   const name = `${s.slug}-design-system`;
-  const tcss = tokensCss(s), ccss = componentsCss(s);
+  // The brand's motion, once submitted in the studio's Motion tab: eases and durations as tokens, and a Motion section
+  const mo = input.snap.motion;
+  const tcss = tokensCss(s) + (mo ? `\n/* Motion: the brand's eases and durations, from the Motion tab */\n:root {\n${motionCss(mo)}\n}\n` : ''), ccss = componentsCss(s);
   const skill = `---
 name: ${name}
 description: The ${s.client} design system. Use whenever building a ${s.client} web page, app screen, document, deck, social post, email or layout, to get its colours, type, spacing, components and logo exactly right.
@@ -486,8 +489,8 @@ Read \`DESIGN.md\` first; it is the brand book and the spec. Build with \`tokens
 `;
   const files: Record<string, string> = {
     'SKILL.md': skill,
-    'DESIGN.md': designMd(s, input),
-    'tokens.json': JSON.stringify(tokensJson(s), null, 2) + '\n',
+    'DESIGN.md': mo ? designMd(s, input).replace('\n## Components', `\n${motionMd(s.client, mo)}\n\nThe tokens: \`--ease-brand\`, \`--ease-brand-out\`, \`--ease-type\` and \`--duration-*\` in \`tokens.css\`. The animated logo files are in the client's Motion logos package.\n\n## Components`) : designMd(s, input),
+    'tokens.json': JSON.stringify(mo ? { ...tokensJson(s), motion: motionTokens(mo) } : tokensJson(s), null, 2) + '\n',
     'tokens.css': tcss,
     'brand.css': ccss,
     'preview.html': previewHtml(s, { css: tcss + ccss, url: (p) => p, standalone: true })

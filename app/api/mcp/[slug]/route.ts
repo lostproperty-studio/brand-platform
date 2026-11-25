@@ -1,9 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
-import { adminClient } from '@/lib/supabase/server';
 import { projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
 import { hashToken } from '@/lib/crypto';
-import { callTool, TOOLS } from '@/lib/mcp/tools';
-import { tokens as buildTokens } from '@/lib/kit/build';
+import { appOrigin } from '@/lib/origin';
+import { callTool, INSTRUCTIONS, TOOLS } from '@/lib/mcp/tools';
+import { loadKit } from '@/lib/mcp/kit';
 
 // Minimal stateless MCP server (Streamable HTTP, JSON responses) exposing one published kit, read-only.
 type Rpc = { jsonrpc: '2.0'; id?: string | number | null; method: string; params?: Record<string, unknown> };
@@ -20,6 +20,9 @@ async function authorised(req: Request, slug: string) {
   return a.length === b.length && timingSafeEqual(a, b) ? p : null;
 }
 
+// Images are resized and sent inline, which can take a few seconds for a chapter
+export const maxDuration = 60;
+
 export async function POST(req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params;
   const p = await authorised(req, slug);
@@ -29,19 +32,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const handle = async (m: Rpc) => {
     if (m.id === undefined) return null; // notification
     switch (m.method) {
-      case 'initialize': return reply(m.id, { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: `${p.client} brand kit`, version: '1.0.0' }, instructions: `Read-only access to the published ${p.client} brand kit. Call get_brand_overview first, then follow the rules exactly.` });
+      case 'initialize': return reply(m.id, { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: `${p.client} brand kit`, version: '1.0.0' }, instructions: INSTRUCTIONS(p.client) });
       case 'ping': return reply(m.id, {});
       case 'tools/list': return reply(m.id, { tools: TOOLS });
       case 'tools/call': {
         const snap = await publishedSnapshot(p.id);
         if (!snap) return fail(m.id, -32000, 'The kit has not been published yet.');
-        const sb = adminClient();
-        const { data: files } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id, visible)').eq('deliverable_parts.project_id', p.id).eq('deliverable_parts.visible', true);
-        const signed = async (path: string) => (await sb.storage.from('kits').createSignedUrl(path, 3600)).data?.signedUrl || '';
-        const assets = await Promise.all((files || []).filter((f) => f.path.startsWith('assets/') && f.storage_path).map(async (f) => ({ path: f.path, url: await signed(f.storage_path!) })));
-        const tokens = buildTokens({ client: snap.client, slug, version: '1.0.0', line: snap.line, portalUrl: '', colours: snap.colours, fonts: snap.fonts.map((f) => ({ role: f.role as 'display', name: f.name, usage: f.usage, weight: 'Regular' })), rules: [], assets: [], templates: [] });
-        const template = async (id: string) => { const f = (files || []).find((x) => x.path === `templates/${id}/index.html`); if (!f?.storage_path) return null; const { data } = await sb.storage.from('kits').download(f.storage_path); return data ? await data.text() : null; };
-        try { const text = await callTool(String(m.params?.name), (m.params?.arguments as Record<string, unknown>) || {}, { snapshot: snap, tokens, assets, template }); return reply(m.id, { content: [{ type: 'text', text }] }); }
+        const kit = await loadKit({ id: p.id, slug, client: p.client, content: p.content, mcp_token_hash: p.mcp_token_hash! }, snap, await appOrigin());
+        try { return reply(m.id, { content: await callTool(String(m.params?.name), (m.params?.arguments as Record<string, unknown>) || {}, kit) }); }
         catch (e) { return reply(m.id, { content: [{ type: 'text', text: (e as Error).message }], isError: true }); }
       }
       default: return fail(m.id, -32601, 'Method not found');

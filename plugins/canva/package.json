@@ -1,0 +1,21 @@
+{
+  "name": "lp-brand-panel-canva",
+  "private": true,
+  "description": "The Lost Property brand panel, as a private Canva app. One build for every client: each client's app signs in to their own portal.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@canva/asset": "^2.4.0",
+    "@canva/design": "^2.14.0",
+    "@canva/platform": "^2.2.3",
+    "@canva/user": "^2.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.6.0"
+  }
+}

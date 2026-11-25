@@ -28,8 +28,10 @@ function placeOf(c: { block: string | null; x: number; y: number }) {
   return { left: r.left + c.x * r.width, top: r.top + c.y * r.height };
 }
 
-export function PreviewComments({ projectId }: { projectId: string }) {
+export function PreviewComments({ projectId, v2 = false }: { projectId: string; v2?: boolean }) {
   const path = usePathname().replace(/^\/p\/[^/]+/, '') || '/';
+  // Portal v2: comments belong on the pages people review (home, guidelines, showcase), not inside the apps
+  const allowed = !v2 || path === '/' || path.startsWith('/guidelines') || path.startsWith('/showcase');
   const [list, setList] = useState<PortalComment[]>([]);
   const [me, setMe] = useState<string | null>(null);
   const [on, setOn] = useState(false);
@@ -55,7 +57,8 @@ export function PreviewComments({ projectId }: { projectId: string }) {
     return () => { window.removeEventListener('scroll', go, true); window.removeEventListener('resize', go); ro.disconnect(); cancelAnimationFrame(raf); };
   }, []);
   // Comment mode: the next click anywhere on the page pins a note there, instead of following links
-  const onRef = useRef(on); onRef.current = on;
+  const onRef = useRef(on); onRef.current = on && allowed;
+  const okRef = useRef(allowed); okRef.current = allowed;
   useEffect(() => {
     const click = (e: MouseEvent) => {
       if (!onRef.current) return;
@@ -67,7 +70,7 @@ export function PreviewComments({ projectId }: { projectId: string }) {
     const key = (e: KeyboardEvent) => {
       const typing = (e.target as HTMLElement).closest('input, textarea, [contenteditable="true"]');
       if (e.key === 'Escape') { setDraft(null); setOpen(null); setOn(false); }
-      if (!typing && (e.key === 'c' || e.key === 'C') && !e.metaKey && !e.ctrlKey && !e.altKey) setOn((v) => !v);
+      if (okRef.current && !typing && (e.key === 'c' || e.key === 'C') && !e.metaKey && !e.ctrlKey && !e.altKey) setOn((v) => !v);
     };
     document.addEventListener('click', click, true); document.addEventListener('keydown', key);
     return () => { document.removeEventListener('click', click, true); document.removeEventListener('keydown', key); };
@@ -96,7 +99,7 @@ export function PreviewComments({ projectId }: { projectId: string }) {
   const cur = list.find((c) => c.id === open);
   const pinAt = (p: { left: number; top: number }) => ({ left: Math.min(window.innerWidth - 340, p.left + 18), top: Math.min(window.innerHeight - 260, Math.max(12, p.top - 12)) });
 
-  if (typeof document === 'undefined') return null;
+  if (typeof document === 'undefined' || !allowed) return null;
   return createPortal(<div className="pc-ui">
     {shown.map((c) => { const p = placeOf(c); if (!p) return null; return <button key={c.id} type="button" className={'pc-pin' + (c.resolved_at ? ' done' : '') + (open === c.id ? ' on' : '')} style={{ left: p.left, top: p.top }} onClick={() => { setOpen(open === c.id ? null : c.id); setDraft(null); setReply(''); }} aria-label={`Comment ${num(c)} by ${c.author_name}`}>{c.resolved_at ? <Check size={12} strokeWidth={2.5} aria-hidden /> : num(c)}</button>; })}
 
@@ -122,7 +125,7 @@ export function PreviewComments({ projectId }: { projectId: string }) {
       </form>
     </div>; })() : null}
 
-    <div className="pc-bar">
+    <div className={'pc-bar' + (v2 ? ' top' : '')}>
       <button type="button" className={'pc-go' + (on ? ' on' : '')} onClick={() => { setOn(!on); setDraft(null); }} aria-pressed={on} title="Comment (C)"><MessageSquarePlus {...I} />{on ? 'Commenting · click anything · Esc to stop' : 'Comment'}</button>
       {here.length ? <button type="button" className="pc-count" onClick={() => setShowDone(!showDone)} aria-pressed={showDone} title={showDone ? 'Hide resolved' : 'Show resolved'}>{openCount} open{here.length - openCount ? ` · ${showDone ? 'hide' : 'show'} ${here.length - openCount} resolved` : ''}</button> : null}
     </div>

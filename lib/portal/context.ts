@@ -8,6 +8,7 @@ import { fontFaceCss, type ProjectFont } from '@/lib/fonts';
 import type { Snapshot } from '@/lib/ai/project';
 import { pickLogo, sidebarChoice, withFigmaLogos } from '@/lib/portal/logo';
 import { avatarSvgs, pickAvatarLogos } from '@/lib/portal/generated';
+import { portalV2For } from '@/lib/portalVersionServer';
 
 export type KitFileRow = { path: string; format: string; storage_path: string | null; part: string; partStatus: string };
 
@@ -38,7 +39,9 @@ export const portalContext = cache(async (slug: string) => {
   const fullUrl = (await sign(byPath(pickd.full))) || logoUrl;
   let miniUrl = await sign(byPath(pickd.mini));
   if (!miniUrl) miniUrl = await avatarUrl(files, p.client, snap?.colours || []).catch(() => null);
-  return { project: p, access: acc, preview, asClient, snap, fonts: fonts as ProjectFont[], fontCss, files, logoUrl, sidebar: { full: fullUrl, mini: miniUrl } };
+  // The new portal: on the staging site, or for this project at a stage this person can see (Admin settings → Releases)
+  const v2 = await portalV2For(p.id, preview);
+  return { project: p, access: acc, preview, asClient, v2, snap, fonts: fonts as ProjectFont[], fontCss, files, logoUrl, sidebar: { full: fullUrl, mini: miniUrl } };
 });
 
 export type PortalCtx = NonNullable<Awaited<ReturnType<typeof portalContext>>>;

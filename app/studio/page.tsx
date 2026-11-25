@@ -7,6 +7,8 @@ import { RequestsInbox, type InboxReq } from '@/components/RequestsInbox';
 import { Inbox, LogOut, Settings } from 'lucide-react';
 import { signOut } from '@/lib/auth/signOut';
 import { fontsNeedingLicence, type ProjectFont } from '@/lib/fonts';
+import { StudioBar } from '@/components/StudioBar';
+import { Suspense } from 'react';
 
 type Row = { packages?: unknown; id: string; client: string; name: string; slug: string; status: 'draft' | 'live' | 'archived'; updated_at: string; repo_full_name: string | null; brand: { core?: { hex: string }[]; logo?: string; fonts?: ProjectFont[] } };
 const FILTERS = [['all', 'All'], ['live', 'Live'], ['draft', 'Draft'], ['archived', 'Archive']] as const;
@@ -52,8 +54,11 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
           </form>
         </div>
       </aside>
+      <Suspense><StudioBar requests={openReqs.length} admin={showAdmin} email={st.user.email || ''} /></Suspense>
       <main className="db-main">
-        <div className="db-top"><h1>{f === 'requests' ? 'Requests' : FILTERS.find(([k]) => k === f)?.[1]}</h1><Link className="btn pink" href="/studio/new">New project</Link></div>
+        <form className="db-msearch"><input name="q" className="in" placeholder="Search projects" defaultValue={sp.q} aria-label="Search projects" />{f !== 'all' && f !== 'requests' ? <input type="hidden" name="f" value={f} /> : null}</form>
+        {f !== 'requests' ? <nav className="db-mchips" aria-label="Filter">{FILTERS.map(([k, label]) => <Link key={k} href={`/studio?f=${k}`} className={'db-mchip' + (f === k ? ' on' : '')}>{label}<span>{count(k)}</span></Link>)}</nav> : null}
+        <div className="db-top"><h1><span className="db-t-d">{f === 'requests' ? 'Requests' : FILTERS.find(([k]) => k === f)?.[1]}</span><span className="db-t-m">{f === 'requests' ? 'Requests' : 'Projects'}</span></h1><Link className="btn pink" href="/studio/new">New project</Link></div>
         {f === 'requests' ? <RequestsInbox initial={ordered} thumbs={thumbs} /> : openReqs.length ? <section className="db-inbox" aria-labelledby="db-in-h">
           <div className="db-inbox-h"><h2 id="db-in-h"><Inbox size={16} strokeWidth={1.75} aria-hidden />{openReqs.length} new request{openReqs.length === 1 ? '' : 's'}</h2><Link href="/studio?f=requests" className="ov-more">All requests →</Link></div>
           <RequestsInbox initial={ordered} thumbs={thumbs} compact />

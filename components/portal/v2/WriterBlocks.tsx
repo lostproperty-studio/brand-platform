@@ -1,0 +1,296 @@
+'use client';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CheckSquare, ClipboardList, Compass, GripVertical, Heading1, Heading2, Lightbulb, List, Minus, PenLine, Plus, Quote, Text, Trash2, Copy as CopyIcon } from 'lucide-react';
+import { isCheck, readFacts, type FactSheet } from '@/lib/factSheet';
+import { TemplatePicker, TEMPLATE_FOR, iconFor, usedTemplate, useQuickTemplates } from '@/components/portal/v2/WriterTemplates';
+import { templateById } from '@/lib/writerTemplates';
+
+// The Writer's page, built from blocks like a Notion page: text, headings, lists, to-dos, quotes, callouts and
+// dividers, plus smart blocks. A Piece is copy written for places (Instagram, email…) with options from the Writer;
+// a Brief tells the Writer what the doc's pieces need to do; a Fact comes live from the fact sheet. Words above a
+// piece (back to the previous piece) brief it too. Type "/" in an empty line, or use the + in the margin, to add one.
+
+export type BlockType = 'text' | 'h1' | 'h2' | 'todo' | 'bullet' | 'quote' | 'callout' | 'divider' | 'piece' | 'brief' | 'fact';
+export type Brief = { goal?: string; audience?: string; say?: string; avoid?: string };
+export type Block = { id: string; type: BlockType; text?: string; checked?: boolean; pieceId?: string; brief?: Brief; fact?: { tab: string; key: string } };
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+const TEXTY: BlockType[] = ['text', 'h1', 'h2', 'todo', 'bullet', 'quote', 'callout'];
+
+/** The doc's blocks; older docs (pieces only) get one block per piece, and a piece no block holds goes at the end */
+export function blocksOf(blocks: Block[] | undefined, pieces: { id: string }[]): Block[] {
+  const list = (blocks && blocks.length ? blocks : pieces.map((p) => ({ id: 'b-' + p.id, type: 'piece' as const, pieceId: p.id }))).filter((b) => b.type !== 'piece' || pieces.some((p) => p.id === b.pieceId));
+  const held = new Set(list.map((b) => b.pieceId));
+  return [...list, ...pieces.filter((p) => !held.has(p.id)).map((p) => ({ id: 'b-' + p.id, type: 'piece' as const, pieceId: p.id }))];
+}
+
+/** One block per piece: if a piece ended up in two (added, then placed), keep the one that was placed */
+export function onePerPiece(list: Block[]): Block[] {
+  const placed = new Set(list.filter((b) => b.type === 'piece' && !b.id.startsWith('b-')).map((b) => b.pieceId));
+  const seen = new Set<string>();
+  return list.filter((b) => { if (b.type !== 'piece') return true; if (b.id.startsWith('b-') && placed.has(b.pieceId)) return false; if (seen.has(b.pieceId!)) return false; seen.add(b.pieceId!); return true; });
+}
+
+/** What briefs a piece: the doc's Brief blocks, and the words written above it since the last piece */
+export function contextFor(blocks: Block[], pieceId: string, facts?: FactSheet | null) {
+  const at = blocks.findIndex((b) => b.pieceId === pieceId);
+  const above: string[] = [];
+  for (let i = at - 1; i >= 0 && blocks[i].type !== 'piece'; i--) { const b = blocks[i]; if (TEXTY.includes(b.type) && b.text?.trim()) above.unshift(b.text.trim()); if (b.type === 'fact') { const f = factOf(facts, b); if (f) above.unshift(`Fact: ${f.label}: ${f.value}`); } }
+  const briefs = blocks.filter((b) => b.type === 'brief' && b.brief).map((b) => briefText(b.brief!)).filter(Boolean);
+  return [briefs.length ? `Brief: ${briefs.join(' ')}` : '', above.length ? `Notes for this piece: ${above.join(' / ')}` : ''].filter(Boolean).join('\n');
+}
+const briefText = (b: Brief) => [b.goal && `Goal: ${b.goal}.`, b.audience && `For: ${b.audience}.`, b.say && `Must say: ${b.say}.`, b.avoid && `Avoid: ${b.avoid}.`].filter(Boolean).join(' ');
+function factOf(f: FactSheet | null | undefined, b: Block) {
+  if (!f || !b.fact) return null;
+  const t = f.tabs.find((x) => x.id === b.fact!.tab); const r = t?.rows.find((x) => x[0] === b.fact!.key);
+  if (!t || !r) return null;
+  const vals = r.slice(1).map((c, i) => [t.columns[i + 1], c.trim()] as const).filter(([k, c]) => c && !/^notes?$/i.test(k));
+  return { label: r[0], value: vals.length === 1 ? vals[0][1] : vals.map(([k, c]) => `${k}: ${c}`).join(' · '), unsure: isCheck(r), where: t.title };
+}
+
+type Item = { type: BlockType; label: string; about: string; Ic: typeof Text; smart?: boolean; keys?: string; tpl?: string; quick?: 'fav' | 'recent' };
+const MENU: Item[] = [
+  { type: 'piece', label: 'Piece', about: 'Copy for a destination: Instagram, an ad, an email, a poster…', Ic: PenLine, smart: true },
+  { type: 'brief', label: 'Brief', about: 'What the pieces need to do. The Writer reads it', Ic: Compass, smart: true },
+  { type: 'text', label: 'Text', about: 'Plain writing', Ic: Text },
+  { type: 'h1', label: 'Heading', about: 'A section', Ic: Heading1, keys: '#' },
+  { type: 'h2', label: 'Subheading', about: 'A smaller section', Ic: Heading2, keys: '##' },
+  { type: 'todo', label: 'To-do', about: 'Something to tick off', Ic: CheckSquare, keys: '[]' },
+  { type: 'bullet', label: 'List', about: 'A bulleted line', Ic: List, keys: '-' },
+  { type: 'quote', label: 'Quote', about: 'Someone’s words', Ic: Quote, keys: '>' },
+  { type: 'callout', label: 'Callout', about: 'A note that stands out', Ic: Lightbulb },
+  { type: 'divider', label: 'Divider', about: 'A line across the page', Ic: Minus, keys: '---' }
+];
+const SHORT: [RegExp, BlockType][] = [[/^#\s$/, 'h1'], [/^##\s$/, 'h2'], [/^\[\]\s$/, 'todo'], [/^[-*]\s$/, 'bullet'], [/^>\s$/, 'quote'], [/^---$/, 'divider']];
+
+/** Like Notion: a menu opens below the line if there's room, above it if there's more room there, and never runs off the screen */
+export function useFit(ref: React.RefObject<HTMLElement | null>, want = 380) {
+  const [fit, setFit] = useState<{ up: boolean; max: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current?.parentElement; if (!el) return;
+    const r = el.getBoundingClientRect(); const anchorBottom = Math.min(r.bottom, r.top + 40);
+    const below = innerHeight - anchorBottom - 16, above = r.top - 72;
+    const up = below < Math.min(want, 300) && above > below;
+    setFit({ up, max: Math.max(160, Math.min(want, up ? above : below)) });
+  }, [ref, want]);
+  return fit ? { style: { maxHeight: fit.max, ...(fit.up ? { top: 'auto', bottom: 'calc(100% + 4px)' } : {}) }, up: fit.up } : { style: { visibility: 'hidden' as const }, up: false };
+}
+
+export function BlockCanvas({ blocks, setBlocks, slug, facts, addPiece, removePiece, restorePiece, renderPiece, readOnly }: {
+  blocks: Block[]; setBlocks: (fn: (b: Block[]) => Block[]) => void; slug: string; facts: boolean;
+  addPiece: (template: string) => string; removePiece: (id: string) => unknown; restorePiece: (p: unknown) => void; renderPiece: (pieceId: string, n: number) => ReactNode; readOnly?: boolean;
+}) {
+  const refs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const [focusId, setFocusId] = useState<{ id: string; end?: boolean } | null>(null);
+  const [menu, setMenu] = useState<{ at: string; q: string; mode: 'slash' | 'plus' | 'turn' } | null>(null);
+  const [hi, setHi] = useState(0);
+  const [drag, setDrag] = useState<string | null>(null);
+  const [over, setOver] = useState<{ id: string; after: boolean } | null>(null);
+  const [sheet, setSheet] = useState<FactSheet | null>(null);
+  const [factPick, setFactPick] = useState<string | null>(null);
+  const [tplPick, setTplPick] = useState<string | null>(null);
+  useEffect(() => { if (facts) fetch(`/api/p/${slug}/facts`).then((r) => (r.ok ? r.json() : null)).then((j) => j && setSheet(readFacts({ factSheet: j.facts }))).catch(() => {}); }, [slug, facts]);
+  useEffect(() => { if (!focusId) return; const el = refs.current[focusId.id]; if (el) { el.focus(); const n = focusId.end === false ? 0 : el.value.length; el.setSelectionRange(n, n); } setFocusId(null); }, [focusId, blocks]);
+
+  // "+ Piece" from the toolbar or the outline: a line at the end, with the template picker open on it
+  useEffect(() => {
+    const f = () => { const nb: Block = { id: uid(), type: 'text', text: '' }; setBlocks((bs) => [...bs, nb]); setTplPick(nb.id); setTimeout(() => document.querySelector(`[data-block="${nb.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60); };
+    addEventListener('wb-add-piece', f); return () => removeEventListener('wb-add-piece', f);
+  }, [setBlocks]);
+  const patch = (id: string, x: Partial<Block>) => setBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, ...x } : b)));
+  const insertAfter = (id: string | null, b: Block) => setBlocks((bs) => { const i = id ? bs.findIndex((x) => x.id === id) : bs.length - 1; const n = [...bs]; n.splice(i + 1, 0, b); return n; });
+  const remove = (id: string) => setBlocks((bs) => bs.filter((b) => b.id !== id));
+  const make = (type: BlockType): Block => {
+    if (type === 'brief') return { id: uid(), type, brief: {} };
+    return { id: uid(), type, text: '' };
+  };
+  // Picking from the menu: an empty line becomes the block; otherwise it goes in below
+  const choose = (type: BlockType, tpl?: string) => {
+    if (!menu) return;
+    const at = blocks.find((b) => b.id === menu.at); setMenu(null);
+    if (type === 'piece' && tpl) { placePiece(tpl, menu.at); return; }
+    if (type === 'fact') { setFactPick(menu.at); return; }
+    if (type === 'piece') { setTplPick(menu.at); return; }
+    if (menu.mode === 'turn' && at && TEXTY.includes(type) && TEXTY.includes(at.type)) { patch(at.id, { type }); setFocusId({ id: at.id }); return; }
+    const emptyLine = at && at.type === 'text' && !(at.text || '').replace(/^\//, '').trim();
+    const b = make(type);
+    if (emptyLine && at) setBlocks((bs) => bs.map((x) => (x.id === at.id ? { ...b, id: at.id } : x)));
+    else insertAfter(at?.id || null, b);
+    const id = emptyLine && at ? at.id : b.id;
+    if (TEXTY.includes(type)) setFocusId({ id });
+    else if (type === 'divider' || type === 'brief') { const t: Block = { id: uid(), type: 'text', text: '' }; setTimeout(() => { insertAfter(id, t); if (type === 'divider') setFocusId({ id: t.id }); }, 0); }
+  };
+  // A piece is a template for a destination: pick it, and the card goes in (an empty line becomes it)
+  const placePiece = (template: string, atId = tplPick) => {
+    const at = blocks.find((b) => b.id === atId); setTplPick(null); usedTemplate(template);
+    const b: Block = { id: uid(), type: 'piece', pieceId: addPiece(template) };
+    if (at && at.type === 'text' && !(at.text || '').replace(/^\//, '').trim()) setBlocks((bs) => bs.map((x) => (x.id === at.id ? { ...b, id: at.id } : x)));
+    else insertAfter(at?.id || null, b);
+  };
+  // Deleting is instant, with an Undo for a few seconds (no "are you sure?" pop-up)
+  const [gone, setGone] = useState<{ b: Block; at: number; piece?: unknown } | null>(null);
+  useEffect(() => { if (!gone) return; const t = setTimeout(() => setGone(null), 7000); return () => clearTimeout(t); }, [gone]);
+  const del = (b: Block) => { const at = blocks.findIndex((x) => x.id === b.id); const piece = b.type === 'piece' ? removePiece(b.pieceId!) : undefined; remove(b.id); setGone({ b, at, piece }); };
+  const undoDel = () => { if (!gone) return; if (gone.piece) restorePiece(gone.piece); const g = gone; setBlocks((bs) => { const n = bs.filter((x) => x.id !== g.b.id); n.splice(Math.min(g.at, n.length), 0, g.b); return n; }); setGone(null); };
+  // The bin on a piece's own card asks the canvas to delete it, so it gets the same Undo
+  useEffect(() => { const f = (e: Event) => { const id = (e as CustomEvent<string>).detail; const b = blocks.find((x) => x.pieceId === id); if (b) del(b); }; addEventListener('wb-del-piece', f); return () => removeEventListener('wb-del-piece', f); });
+  const placeFact = (tab: string, key: string) => {
+    const at = blocks.find((b) => b.id === factPick); setFactPick(null);
+    const b: Block = { id: uid(), type: 'fact', fact: { tab, key } };
+    if (at && at.type === 'text' && !(at.text || '').replace(/^\//, '').trim()) setBlocks((bs) => bs.map((x) => (x.id === at.id ? { ...b, id: at.id } : x)));
+    else insertAfter(at?.id || null, b);
+  };
+  const quickT = useQuickTemplates();
+  const quick: Item[] = menu && menu.mode !== 'turn' ? [...quickT.favs.map((id) => ({ id, q: 'fav' as const })), ...quickT.recent.filter((id) => !quickT.favs.includes(id)).slice(0, 3).map((id) => ({ id, q: 'recent' as const }))]
+    .slice(0, 6).map(({ id, q }) => ({ type: 'piece' as const, tpl: id, quick: q, label: templateById(id).label, about: TEMPLATE_FOR[id] || '', Ic: iconFor(id) as unknown as typeof Text })) : [];
+  const items = !menu ? [] : [...quick.filter((m) => !menu.q || `${m.label} ${m.about}`.toLowerCase().includes(menu.q.toLowerCase())), ...MENU.filter((m) => (menu.mode !== 'turn' || TEXTY.includes(m.type)) && (m.type !== 'fact' || facts) && (!menu.q || `${m.label} ${m.about}`.toLowerCase().includes(menu.q.toLowerCase())))];
+  useEffect(() => { setHi(0); }, [menu?.q, menu?.at]);
+
+  const key = (b: Block, i: number) => (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
+    if (menu && menu.at === b.id && menu.mode === 'slash') {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min(items.length - 1, h + 1)); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(0, h - 1)); return; }
+      if (e.key === 'Enter') { e.preventDefault(); if (items[hi]) { patch(b.id, { text: '' }); choose(items[hi].type, items[hi].tpl); } return; }
+      if (e.key === 'Escape') { e.preventDefault(); setMenu(null); return; }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      // Enter on an empty list line or to-do ends the list
+      if (['todo', 'bullet'].includes(b.type) && !el.value.trim()) { patch(b.id, { type: 'text' }); return; }
+      const before = el.value.slice(0, el.selectionStart), after = el.value.slice(el.selectionEnd);
+      const type: BlockType = ['todo', 'bullet'].includes(b.type) ? b.type : 'text';
+      const nb: Block = { id: uid(), type, text: after };
+      patch(b.id, { text: before }); insertAfter(b.id, nb); setFocusId({ id: nb.id, end: false });
+      return;
+    }
+    if (e.key === 'Backspace' && el.selectionStart === 0 && el.selectionEnd === 0) {
+      if (b.type !== 'text') { e.preventDefault(); patch(b.id, { type: 'text' }); return; }
+      const prev = [...blocks.slice(0, i)].reverse().find((x) => TEXTY.includes(x.type));
+      if (prev && blocks[i - 1]?.id === prev.id) { e.preventDefault(); const len = (prev.text || '').length; patch(prev.id, { text: (prev.text || '') + el.value }); remove(b.id); setTimeout(() => { const p = refs.current[prev.id]; if (p) { p.focus(); p.setSelectionRange(len, len); } }, 0); }
+      else if (!el.value && blocks.length > 1) { e.preventDefault(); remove(b.id); if (prev) setFocusId({ id: prev.id }); }
+      return;
+    }
+    if (e.key === 'ArrowUp' && !el.value.slice(0, el.selectionStart).includes('\n')) { const p = [...blocks.slice(0, i)].reverse().find((x) => TEXTY.includes(x.type)); if (p) { e.preventDefault(); setFocusId({ id: p.id }); } }
+    if (e.key === 'ArrowDown' && !el.value.slice(el.selectionEnd).includes('\n')) { const n = blocks.slice(i + 1).find((x) => TEXTY.includes(x.type)); if (n) { e.preventDefault(); setFocusId({ id: n.id, end: false }); } }
+  };
+  const type = (b: Block) => (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const v = e.target.value;
+    // Markdown shortcuts, as in Notion: "# ", "## ", "[] ", "- ", "> ", "---"
+    if (b.type === 'text') for (const [re, t] of SHORT) if (re.test(v)) { if (t === 'divider') { patch(b.id, { type: 'divider', text: '' }); const nb: Block = { id: uid(), type: 'text', text: '' }; insertAfter(b.id, nb); setFocusId({ id: nb.id }); } else patch(b.id, { type: t, text: '' }); return; }
+    patch(b.id, { text: v });
+    if (b.type === 'text' && v.startsWith('/') && !v.includes(' ', 1) && v.length < 24) setMenu({ at: b.id, q: v.slice(1), mode: 'slash' });
+    else if (menu?.at === b.id && menu.mode === 'slash') setMenu(null);
+  };
+  const grow = (el: HTMLTextAreaElement | null) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } };
+
+  let pieceN = 0;
+  // Reordering: hold the ⋮⋮ handle and move. A short press without moving opens the block's menu instead.
+  const grab = (b: Block) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    const x0 = e.clientX, y0 = e.clientY; let moving = false; let target: { id: string; after: boolean } | null = null;
+    const move = (m: PointerEvent) => {
+      if (!moving && Math.hypot(m.clientX - x0, m.clientY - y0) < 5) return;
+      if (!moving) { moving = true; setDrag(b.id); document.body.classList.add('wb-dragging'); }
+      m.preventDefault();
+      const els = [...document.querySelectorAll<HTMLElement>('.wb > .wb-b')];
+      let best: { id: string; after: boolean } | null = null;
+      for (const el of els) { const r = el.getBoundingClientRect(); if (m.clientY < r.top + r.height / 2) { best = { id: el.dataset.block!, after: false }; break; } best = { id: el.dataset.block!, after: true }; }
+      target = best && best.id !== b.id ? best : null; setOver(target);
+      if (m.clientY < 80) scrollBy(0, -12); if (m.clientY > innerHeight - 80) scrollBy(0, 12);
+      const sc = (e.currentTarget as HTMLElement | null)?.closest('.w2-doc'); if (sc) { if (m.clientY < 120) sc.scrollTop -= 14; if (m.clientY > innerHeight - 100) sc.scrollTop += 14; }
+    };
+    const up = () => {
+      removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+      document.body.classList.remove('wb-dragging');
+      if (!moving) { setMenu(menu?.at === b.id && menu.mode === 'turn' ? null : { at: b.id, q: '', mode: 'turn' }); return; }
+      const t = target as { id: string; after: boolean } | null;
+      if (t) setBlocks((bs) => { const mv = bs.find((x) => x.id === b.id)!; const rest = bs.filter((x) => x.id !== b.id); const j = rest.findIndex((x) => x.id === t.id) + (t.after ? 1 : 0); rest.splice(j, 0, mv); return rest; });
+      setDrag(null); setOver(null);
+    };
+    addEventListener('pointermove', move, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  };
+  return <div className="wb">
+    {blocks.map((b, i) => {
+      if (b.type === 'piece') pieceN++;
+      const n = pieceN;
+      const numbered = b.type === 'bullet';
+      return <Fragment key={b.id}>
+        <div className={`wb-b wb-is-${b.type}` + (over?.id === b.id ? (over.after ? ' drop-after' : ' drop-before') : '') + (drag === b.id ? ' dragging' : '')} data-block={b.id}>
+          {!readOnly ? <div className="wb-gut" contentEditable={false}>
+            <button type="button" className="wb-g" onClick={() => setMenu(menu?.at === b.id && menu.mode === 'plus' ? null : { at: b.id, q: '', mode: 'plus' })} aria-label="Add a block below" title="Add a block below"><Plus size={16} strokeWidth={1.6} aria-hidden /></button>
+            <button type="button" className="wb-g wb-drag" onPointerDown={grab(b)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMenu({ at: b.id, q: '', mode: 'turn' }); } if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); setBlocks((bs) => { const i = bs.findIndex((x) => x.id === b.id); const j = e.key === 'ArrowUp' ? i - 1 : i + 1; if (j < 0 || j >= bs.length) return bs; const n = [...bs]; [n[i], n[j]] = [n[j], n[i]]; return n; }); } }}
+              aria-label="Drag to move, or click for options (Alt and arrow keys to move)" title="Drag to move · click for options"><GripVertical size={16} strokeWidth={1.6} aria-hidden /></button>
+            {blocks.length > 1 || b.type !== 'text' ? <button type="button" className="wb-g wb-del" onClick={() => del(b)} aria-label="Delete this block" title="Delete"><Trash2 size={15} strokeWidth={1.6} aria-hidden /></button> : null}
+          </div> : null}
+          {TEXTY.includes(b.type) ? <div className="wb-line">
+            {b.type === 'todo' ? <input type="checkbox" className="wb-check" checked={!!b.checked} onChange={(e) => patch(b.id, { checked: e.target.checked })} aria-label="Done" disabled={readOnly} /> : null}
+            {numbered ? <span className="wb-dot" aria-hidden /> : null}
+            {b.type === 'callout' ? <Lightbulb size={18} strokeWidth={1.6} className="wb-ci" aria-hidden /> : null}
+            <textarea ref={(el) => { refs.current[b.id] = el; grow(el); }} rows={1} className={'wb-t' + (b.type === 'todo' && b.checked ? ' done' : '')} value={b.text || ''} readOnly={readOnly}
+              placeholder={b.type === 'text' ? (blocks.length === 1 || i === blocks.length - 1 ? 'Write, or type / for blocks' : '') : b.type === 'h1' ? 'Heading' : b.type === 'h2' ? 'Subheading' : b.type === 'todo' ? 'To-do' : b.type === 'bullet' ? 'List' : b.type === 'quote' ? 'Quote' : 'Callout'}
+              onChange={type(b)} onKeyDown={key(b, i)} onInput={(e) => grow(e.currentTarget)} aria-label={MENU.find((m) => m.type === b.type)?.label} />
+          </div> : null}
+          {b.type === 'divider' ? <hr className="wb-hr" /> : null}
+          {b.type === 'piece' && b.pieceId ? renderPiece(b.pieceId, n) : null}
+          {b.type === 'brief' ? <BriefBlock b={b.brief || {}} set={(x) => patch(b.id, { brief: { ...(b.brief || {}), ...x } })} readOnly={readOnly} /> : null}
+          {b.type === 'fact' ? (() => { const f = factOf(sheet, b); return <div className={'wb-fact' + (f?.unsure ? ' unsure' : '')}>
+            <ClipboardList size={16} strokeWidth={1.6} aria-hidden />
+            {f ? <><span className="wb-fact-k">{f.label}</span><span className="wb-fact-v">{f.value || '–'}</span><span className="wb-fact-w">{f.unsure ? 'Not confirmed yet' : f.where}</span></>
+              : <span className="mute">{sheet ? 'This fact isn’t on the fact sheet any more.' : 'Loading the fact…'}</span>}
+          </div>; })() : null}
+          {menu?.at === b.id ? <Menu items={items} hi={hi} setHi={setHi} title={menu.mode === 'turn' ? 'Turn into' : undefined} onPick={(t, tpl) => { if (menu.mode === 'slash') patch(b.id, { text: '' }); choose(t, tpl); }} onClose={() => setMenu(null)}
+            extra={menu.mode === 'turn' ? <>
+              <button type="button" onClick={() => { setMenu(null); const c = { ...b, id: uid() }; insertAfter(b.id, b.type === 'piece' ? { ...c, type: 'text', text: '' } : c); }}><CopyIcon size={15} strokeWidth={1.6} aria-hidden /><span><b>Duplicate</b></span></button>
+              <button type="button" className="danger" onClick={() => { setMenu(null); del(b); }}><Trash2 size={15} strokeWidth={1.6} aria-hidden /><span><b>Delete</b></span></button>
+            </> : null} /> : null}
+          {tplPick === b.id ? <TemplatePicker onPick={placePiece} onClose={() => setTplPick(null)} /> : null}
+          {factPick === b.id ? <FactPicker sheet={sheet} onPick={placeFact} onClose={() => setFactPick(null)} /> : null}
+        </div>
+      </Fragment>;
+    })}
+    {gone ? <div className="wb-undo" role="status">{gone.b.type === 'piece' ? 'Piece deleted' : 'Deleted'}<button type="button" onClick={undoDel}>Undo</button></div> : null}
+    {!readOnly ? <button type="button" className="wb-end" onClick={() => { const last = blocks[blocks.length - 1]; if (last?.type === 'text' && !last.text) { setFocusId({ id: last.id }); return; } const nb: Block = { id: uid(), type: 'text', text: '' }; insertAfter(null, nb); setFocusId({ id: nb.id }); }} aria-label="Add a line at the end" /> : null}
+  </div>;
+}
+
+function Menu({ items, hi, setHi, title, onPick, onClose, extra }: { items: Item[]; hi: number; setHi: (n: number) => void; title?: string; onPick: (t: BlockType, tpl?: string) => void; onClose: () => void; extra?: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { const c = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as Element).closest?.('.wb-gut')) onClose(); }; const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; addEventListener('mousedown', c); addEventListener('keydown', k); return () => { removeEventListener('mousedown', c); removeEventListener('keydown', k); }; }, [onClose]);
+  useEffect(() => { ref.current?.querySelector('.hi')?.scrollIntoView({ block: 'nearest' }); }, [hi]);
+  const fit = useFit(ref, 380);
+  const favs = items.filter((x) => x.quick === 'fav'), recent = items.filter((x) => x.quick === 'recent');
+  const smart = items.filter((x) => x.smart && !x.quick), basic = items.filter((x) => !x.smart && !x.quick);
+  const row = (x: Item) => { const k = items.indexOf(x); return <button type="button" key={x.tpl ? `${x.quick}-${x.tpl}` : x.type} className={k === hi ? 'hi' : ''} onMouseEnter={() => setHi(k)} onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(x.type, x.tpl)}>
+    <span className={'wb-mi' + (x.smart || x.tpl ? ' smart' : '')}><x.Ic size={17} strokeWidth={1.6} aria-hidden /></span><span><b>{x.label}</b><span>{x.about}</span></span>{x.keys ? <kbd>{x.keys}</kbd> : null}</button>; };
+  return <div className={'wb-menu' + (fit.up ? ' up' : '')} ref={ref} role="menu" style={fit.style}>
+    {title ? <p className="wb-mh">{title}</p> : null}
+    {!items.length ? <p className="wb-none">No blocks match</p> : null}
+    {favs.length ? <><p className="wb-mh">Favourites</p>{favs.map(row)}</> : null}
+    {recent.length ? <><p className="wb-mh">Recently used</p>{recent.map(row)}</> : null}
+    {smart.length ? <><p className="wb-mh">Smart</p>{smart.map(row)}</> : null}
+    {basic.length ? <><p className="wb-mh">{smart.length ? 'Basic' : title === 'Turn into' ? '' : 'Basic'}</p>{basic.map(row)}</> : null}
+    {extra ? <><hr />{extra}</> : null}
+  </div>;
+}
+
+function BriefBlock({ b, set, readOnly }: { b: Brief; set: (x: Partial<Brief>) => void; readOnly?: boolean }) {
+  const F: [keyof Brief, string, string][] = [['goal', 'Goal', 'What should this doc’s writing do?'], ['audience', 'For', 'Who’s reading?'], ['say', 'Must say', 'The facts and messages that have to be there'], ['avoid', 'Avoid', 'Words, claims or tones to stay away from']];
+  return <div className="wb-brief">
+    <p className="wb-brief-h"><Compass size={15} strokeWidth={1.7} aria-hidden />Brief<span>The Writer reads this for every piece</span></p>
+    {F.map(([k, l, ph]) => <label key={k} className="wb-brief-r"><span>{l}</span><textarea rows={1} value={b[k] || ''} placeholder={ph} readOnly={readOnly} onChange={(e) => set({ [k]: e.target.value })} ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }} /></label>)}
+  </div>;
+}
+
+function FactPicker({ sheet, onPick, onClose }: { sheet: FactSheet | null; onPick: (tab: string, key: string) => void; onClose: () => void }) {
+  const [q, setQ] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { const c = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); }; addEventListener('mousedown', c); return () => removeEventListener('mousedown', c); }, [onClose]);
+  const rows = useMemo(() => (sheet?.tabs || []).flatMap((t) => t.rows.filter((r) => r[0]?.trim() && r.slice(1).some((c) => c.trim())).map((r) => ({ t, r }))).filter(({ r }) => !q || r.join(' ').toLowerCase().includes(q.toLowerCase())).slice(0, 60), [sheet, q]);
+  return <div className="wb-menu wb-facts" ref={ref} role="dialog" aria-label="Add a fact">
+    <input autoFocus className="wb-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a fact: hours, prices, people…" onKeyDown={(e) => { if (e.key === 'Escape') onClose(); if (e.key === 'Enter' && rows[0]) onPick(rows[0].t.id, rows[0].r[0]); }} />
+    {!sheet ? <p className="wb-none">Loading the fact sheet…</p> : !rows.length ? <p className="wb-none">Nothing matches. Add it to the fact sheet first.</p> : null}
+    {rows.map(({ t, r }) => <button type="button" key={t.id + r[0]} onClick={() => onPick(t.id, r[0])}><span className="wb-mi"><ClipboardList size={15} strokeWidth={1.6} aria-hidden /></span><span><b>{r[0]}</b><span>{isCheck(r) ? 'Not confirmed yet · ' : ''}{r.slice(1).filter((c) => c.trim() && !/check:/i.test(c)).join(' · ').slice(0, 90)}</span></span><kbd>{t.title}</kbd></button>)}
+  </div>;
+}
+

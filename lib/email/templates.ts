@@ -33,11 +33,11 @@ ${e.note ? `<tr><td style="padding:20px 40px 0 40px;font:13px/1.5 ${FONT};color:
 }
 
 // ---------- the emails
-export const signInEmail = (b: EmailBrand, url: string) => render(b, {
+export const signInEmail = (b: EmailBrand, url: string, code?: string) => render(b, {
   subject: b.kind === 'client' ? `Sign in to the ${b.name} brand hub` : 'Sign in to Brand Platform',
   preheader: 'Your sign-in link. It works once, for the next hour.',
   heading: b.kind === 'client' ? `Sign in to the ${b.name} brand hub` : 'Sign in to Brand Platform',
-  lines: ['Here’s your link to sign in. No password needed.'],
+  lines: ['Here’s your link to sign in. No password needed.', ...(code ? [`Signing in on the app, or on another device? Type this code instead: ${code}`] : [])],
   button: { label: 'Sign in', url },
   note: 'The link works once and expires in an hour. If you didn’t ask to sign in, you can ignore this email.'
 });

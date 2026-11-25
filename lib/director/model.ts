@@ -1,5 +1,8 @@
 // Director's file format: a short video as a list of scenes, each with its picture (generated, uploaded or a brand
 // card), captions and an optional logo, plus a sound layer. Safe to import in client components.
+// Portal v2: the kit can carry the brand's motion (lib/motion), so logos and captions move the brand's way, and a
+// scene can be a logo endboard.
+import type { BrandMotion } from '@/lib/motion/model';
 
 export type Aspect = '9:16' | '16:9' | '1:1' | '4:5';
 export const ASPECTS: { id: Aspect; label: string; use: string; w: number; h: number }[] = [
@@ -21,7 +24,7 @@ export type Source =
 
 export type Placement = 'top-left' | 'top' | 'top-right' | 'centre' | 'bottom-left' | 'bottom' | 'bottom-right';
 export type Size = 'S' | 'M' | 'L' | 'XL';
-export type TextAnim = 'none' | 'fade' | 'rise' | 'wipe' | 'type' | 'pop';
+export type TextAnim = 'none' | 'fade' | 'rise' | 'wipe' | 'type' | 'pop' | 'brand';
 export const TEXT_ANIMS: { id: TextAnim; label: string }[] = [
   { id: 'fade', label: 'Fade' }, { id: 'rise', label: 'Rise' }, { id: 'wipe', label: 'Wipe' }, { id: 'type', label: 'Type on' }, { id: 'pop', label: 'Pop' }, { id: 'none', label: 'Cut' }
 ];
@@ -56,6 +59,22 @@ export type Scene = {
   motion: 'none' | 'push' | 'pull' | 'pan';
   logo?: { placement: Placement; size: Size; tone: 'dark' | 'light' } | null;
   captions: Caption[];
+  /** A logo endboard: the logo built in the brand's motion, with optional lines of text or icons around it */
+  endboard?: Endboard;
+};
+
+/** Something on an endboard besides the logo: a line of text (a URL, a date, a sign-off) or an icon */
+export type EndboardItem = { id: string; kind: 'text' | 'icon'; text: string; icon?: string; at: 'above' | 'below' | 'top' | 'bottom'; size: Size; font?: string };
+export type Endboard = {
+  /** The logo, by its name in the kit */
+  logo: string;
+  /** Size, as a % of the frame width */
+  scale: number;
+  /** Seconds before the logo starts */
+  delay: number;
+  /** Builds out again at the end, in the brand's way */
+  out: boolean;
+  items: EndboardItem[];
 };
 
 export type Track = {
@@ -70,7 +89,11 @@ export type Track = {
 
 export type Brief = { prompt: string; length: number; aspect: Aspect; mood?: string };
 
-export type Doc = { v: 1; aspect: Aspect; brief?: Brief; logline?: string; scenes: Scene[]; audio: Track[] };
+/** An effects layer on the timeline: Lost Property's effects over whatever footage or images sit under it */
+export type FxClip = { id: string; start: number; duration: number; layer: import('@/lib/effects/model').EffectLayer };
+export type Doc = { v: 1; aspect: Aspect; brief?: Brief; logline?: string; scenes: Scene[]; audio: Track[]; fx?: FxClip[] };
+/** The effect layers showing at time t, bottom first */
+export const fxAt = (d: Doc, t: number) => (d.fx || []).filter((f) => f.layer.on && t >= f.start && t < f.start + f.duration).map((f) => f.layer);
 
 export type FileRow = { id: string; title: string; aspect: Aspect; status: 'plan' | 'edit'; data: Doc; thumb: string | null; updated_at: string; created_at?: string };
 
@@ -78,7 +101,11 @@ export type BrandKit = {
   client: string;
   colours: { name: string; hex: string; role?: string }[];
   fonts: { role: string; label: string; name: string }[];
-  logos: { name: string; url: string; light: boolean }[];
+  /** key: the logo's storage path, for its own motion settings */
+  logos: { name: string; url: string; light: boolean; key?: string }[];
+  /** Portal v2: how the brand's logos and type move, and its icons */
+  motion?: BrandMotion;
+  icons?: { name: string; url: string }[];
 };
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
@@ -111,7 +138,7 @@ export function brandPair(kit: BrandKit) {
 
 export function newCaption(kit: BrandKit, over: Partial<Caption> = {}): Caption {
   const { light } = brandPair(kit);
-  return { id: uid(), text: 'Your words here', start: 0.3, end: 3, position: 'bottom', align: 'centre', size: 'M', font: kit.fonts.find((f) => f.role === 'display')?.role || kit.fonts[0]?.role || 'display', colour: light, box: null, anim: 'rise', ...over };
+  return { id: uid(), text: 'Your words here', start: 0.3, end: 3, position: 'bottom', align: 'centre', size: 'M', font: kit.fonts.find((f) => f.role === 'display')?.role || kit.fonts[0]?.role || 'display', colour: light, box: null, anim: kit.motion ? 'brand' : 'rise', ...over };
 }
 
 export function newScene(kit: BrandKit, over: Partial<Scene> = {}): Scene {
@@ -128,6 +155,13 @@ export const TEMPLATES: { id: string; name: string; about: string; make: (kit: B
   { id: 'end', name: 'Logo end card', about: 'The logo, centred, to close', make: (k) => { const p = brandPair(k); return newScene(k, { title: 'End card', duration: 2.5, source: { kind: 'card' }, background: p.dark, motion: 'none', logo: { placement: 'centre', size: 'L', tone: 'light' } }); } }
 ];
 
+/** A logo endboard scene, on the brand's dark colour with the logo made for dark grounds */
+export function endboardScene(k: BrandKit, logo?: BrandKit['logos'][number], over: Partial<Endboard> = {}): Scene {
+  const p = brandPair(k);
+  const l = logo || k.logos.find((x) => x.light) || k.logos[0];
+  return newScene(k, { title: 'Logo endboard', duration: 3, source: { kind: 'card' }, background: l && !l.light ? p.light : p.dark, motion: 'none', endboard: { logo: l?.name || '', scale: 40, delay: 0.2, out: false, items: [], ...over } });
+}
+
 export const SIZE_SCALE: Record<Size, number> = { S: 0.045, M: 0.065, L: 0.09, XL: 0.13 };
 export const LOGO_SCALE: Record<Size, number> = { S: 0.18, M: 0.28, L: 0.42, XL: 0.6 };
 
@@ -143,9 +177,19 @@ export function captionFrame(c: Caption, local: number): { visible: boolean; sty
     case 'rise': return { visible: true, style: { opacity: o, transform: `translateY(${(1 - a) * 0.6}em)` } };
     case 'wipe': return { visible: true, style: { opacity: pout, clipPath: `inset(0 ${(1 - a) * 100}% 0 0)` } };
     case 'pop': return { visible: true, style: { opacity: o, transform: `scale(${0.85 + 0.15 * ease(clamp((local - c.start) / 0.35, 0, 1))})` } };
+    // The brand's type motion is drawn by components/motion/TypeStage; here it's only shown or hidden
+    case 'brand': return { visible: true, style: {} };
     case 'type': { const speed = 28; return { visible: true, style: { opacity: pout }, chars: Math.floor((local - c.start) * speed) }; }
     default: return { visible: true, style: {} };
   }
+}
+
+/** The same camera move as numbers (scale, and sideways shift as a share of the width), for drawing on a canvas */
+export function motionParams(m: Scene['motion'], p: number) {
+  if (m === 'push') return { scale: 1 + 0.08 * p, tx: 0 };
+  if (m === 'pull') return { scale: 1.08 - 0.08 * p, tx: 0 };
+  if (m === 'pan') return { scale: 1.1, tx: (0.5 - p) * 0.06 };
+  return { scale: 1, tx: 0 };
 }
 
 /** Slow camera move on stills, by progress through the scene (0–1) */

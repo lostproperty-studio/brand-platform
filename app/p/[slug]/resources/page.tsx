@@ -9,12 +9,15 @@ import { AppTile, SystemPreview } from '@/components/portal/ResourceVisuals';
 import { PackageCard } from '@/components/portal/PackageCard';
 import { JumpNav } from '@/components/portal/JumpNav';
 import { TeamFileUpload } from '@/components/portal/TeamFiles';
+import { Plugins } from '@/components/portal/Plugins';
+import { pluginViews } from '@/lib/plugins/views';
 
 
 // Resources: the apps tray at the top, then everything to take away, as packages in a long scroll with a jump bar.
 // Only what this client has is shown, so a simple brand stays simple.
-export default async function Resources({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Resources({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ plugin?: string; msg?: string }> }) {
   const { slug } = await params;
+  const sp = await searchParams;
   const ctx = (await portalContext(slug))!;
   const snap = ctx.snap!;
   const tools = await listTools(ctx.project.id, ctx.preview);
@@ -27,8 +30,10 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
   const skillsShown = SKILLS.filter((s) => skillShown(skillSet, s.id));
   // One Brand assets section, as in the studio: logo, colour and type, then the extras this brand has
   const sec = (p: Package) => (p.section === 'elements' ? 'brand' : p.section);
-  const sections = SECTIONS.filter((s) => s.id !== 'elements').map((s) => ({ ...s, items: shown.filter((p) => sec(p) === s.id) })).filter((s) => s.items.length || (s.id === 'team' && ctx.access.canManage));
-  const jump = [{ id: 'apps', label: 'Apps' }, ...sections.filter((s) => s.id === 'brand' || s.id === 'elements').map((s) => ({ id: s.id, label: s.title })), { id: 'ai', label: 'For AI' }, ...sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => ({ id: s.id, label: s.id === 'builders' ? 'For developers' : 'Team files' }))];
+  const sections = SECTIONS.filter((s) => s.id !== 'elements').map((s) => ({ ...s, items: shown.filter((p) => sec(p) === s.id) })).filter((s) => s.items.length); // Team files only show where the team has already shared some
+  // Plug-ins (portal v2, behind its release stage): the brand panel in the apps the team uses. Storage is in Settings.
+  const plugins = await pluginViews({ projectId: ctx.project.id, slug, content: ctx.project.content, preview: ctx.preview, staff: ctx.access.staff }, 'apps');
+  const jump = [{ id: 'apps', label: 'Custom Apps' }, ...sections.filter((s) => s.id === 'brand' || s.id === 'elements').map((s) => ({ id: s.id, label: s.title })), { id: 'ai', label: 'For AI' }, ...(plugins ? [{ id: 'plugins', label: 'Plug-ins' }] : []), ...sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => ({ id: s.id, label: s.id === 'builders' ? 'For developers' : 'Team files' }))];
 
   const card = (p: Package) => <PackageCard key={p.id} p={p} slug={slug} colours={snap.colours} logoUrl={ctx.logoUrl} preview={ctx.preview} fonts={ctx.fonts} canManage={ctx.access.canManage} />;
 
@@ -37,23 +42,18 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
       <header className="pt-chhead">
         <p className="mute">Make and take away</p>
         <h1 className="pt-display">Resources</h1>
-        <p className="pt-lede">Apps for making {ctx.project.client} work, and everything you need to take with you, packaged by type.</p>
+        <p className="pt-lede">Download assets, use custom apps, and plug the platform into the tools you use day to day.</p>
       </header>
       <JumpNav items={jump} />
 
       <section id="apps" className="rs-sec" aria-labelledby="h-apps">
-        <div className="rs-sec-head"><h2 id="h-apps" className="pt-h2">Apps</h2><p className="mute">Built for the {ctx.project.client} brand, with the rules built in.</p></div>
+        <div className="rs-sec-head"><h2 id="h-apps" className="pt-h2">Custom Apps</h2><p className="mute">Built for the {ctx.project.client} brand, with the rules built in.</p></div>
         <div className="rs-tray">
           {tools.map((t, i) => <Link key={t.id} href={`${base}/tools/${t.id}`} className={'rs-app' + (t.visible ? '' : ' off')}>
             <AppTile icon={t.icon} />
             <span className="rs-app-name">{t.name}{t.beta ? <span className="beta-tag" title="A work in progress: it may change, and things may not always work as expected">Beta</span> : null}{t.ai_enabled ? <span className="rs-pill">AI</span> : null}{t.visible ? null : <span className="rs-pill">Hidden</span>}</span>
             <span className="mute rs-app-desc">{t.description}</span>
           </Link>)}
-          <Link href={`${base}/resources/design-system`} className="rs-app">
-            <span className="rs-tile rs-tile-sys"><SystemPreview colours={snap.colours} logoUrl={ctx.logoUrl} client={ctx.project.client} roles={r} /></span>
-            <span className="rs-app-name">Design system<span className="rs-pill">For Claude</span></span>
-            <span className="mute rs-app-desc">The brand as a system AI can build with.</span>
-          </Link>
         </div>
       </section>
 
@@ -88,6 +88,11 @@ export default async function Resources({ params }: { params: Promise<{ slug: st
         </div> : null}
         <p className="mute rs-note">To add a skill or the design system: in Claude, open <strong>Settings → Capabilities → Skills</strong> and upload the .zip. Download again after a new version of the guidelines.</p>
       </section>
+
+      {plugins ? <section id="plugins" className="rs-sec" aria-labelledby="h-plugins">
+        <div className="rs-sec-head"><h2 id="h-plugins" className="pt-h2">Plug-ins{plugins.badge ? <span className="beta-tag">{plugins.badge}</span> : null}</h2><p className="mute">{ctx.project.client}, inside the tools your team already uses.</p></div>
+        <Plugins group="apps" slug={slug} client={ctx.project.client} lead={ctx.access.clientAdmin} staff={ctx.access.staff} items={plugins.items} panel={plugins.panel} preview={plugins.preview} dbReady={plugins.ready} flash={sp.plugin && sp.msg ? { plugin: sp.plugin, msg: sp.msg } : undefined} />
+      </section> : null}
 
       {sections.filter((s) => s.id === 'builders' || s.id === 'team').map((s) => (
         <section key={s.id} id={s.id} className="rs-sec" aria-labelledby={`h-${s.id}`}>

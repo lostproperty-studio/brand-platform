@@ -5,9 +5,11 @@
 // specs, LinkedIn Sponsored Content specs.
 
 export type WriterPart = { key: string; label: string; limit?: number; unit?: 'chars' | 'words'; soft?: boolean; count?: number; hint?: string; body?: boolean };
-export type WriterTemplate = { id: string; label: string; group: string; parts: WriterPart[]; note?: string; length?: 'line' | 'short' | 'medium' | 'long' };
+export type WriterTemplate = { id: string; label: string; group: string; parts: WriterPart[]; note?: string; length?: 'line' | 'short' | 'medium' | 'long' | 'article'; /** Only in the new portal's Writer */ v2?: boolean;
+  /** How to write it, for the Writer (added on the server's side of the prompt; can be long) */ guide?: string;
+  /** Lost Property's own way of writing it, used instead of `guide` in the studio's in-house project */ houseGuide?: string };
 
-export const TEMPLATE_GROUPS = ['Ads', 'Social', 'Email and messages', 'Web', 'Print and places', 'Other'] as const;
+export const TEMPLATE_GROUPS = ['Ads', 'Social', 'Email and messages', 'Web', 'Editorial', 'Print and places', 'Other'] as const;
 
 export const WRITER_TEMPLATES: WriterTemplate[] = [
   // Ads
@@ -44,6 +46,8 @@ export const WRITER_TEMPLATES: WriterTemplate[] = [
   { id: 'x', label: 'X post', group: 'Social', parts: [{ key: 'post', label: 'Post', limit: 280 }] },
   { id: 'threads', label: 'Threads post', group: 'Social', parts: [{ key: 'post', label: 'Post', limit: 500 }] },
   { id: 'tiktok', label: 'TikTok caption', group: 'Social', parts: [{ key: 'caption', label: 'Caption', limit: 150, soft: true }, { key: 'overlay', label: 'On-screen text', limit: 60, soft: true }] },
+  { id: 'video-script', v2: true, label: 'Video script', group: 'Social', note: 'A short film, scene by scene. Opens in Director.', length: 'short', parts: [
+    { key: 'scenes', label: 'Scenes', count: 6, hint: 'Each scene: the shot, then " | ", then any voiceover (VO:) or on-screen words (On screen:), or nothing' }] },
   { id: 'youtube', label: 'YouTube video', group: 'Social', parts: [{ key: 'title', label: 'Title', limit: 70, soft: true, hint: '100 maximum; about 70 show in search' }, { key: 'description', label: 'Description', limit: 5000, body: true, hint: 'The first two lines show above the fold' }] },
 
   // Email and messages
@@ -66,7 +70,62 @@ export const WRITER_TEMPLATES: WriterTemplate[] = [
   { id: 'poster', label: 'Poster or billboard', group: 'Print and places', parts: [{ key: 'headline', label: 'Headline', limit: 7, unit: 'words', soft: true, hint: 'Readable in a few seconds' }, { key: 'line', label: 'Supporting line', limit: 12, unit: 'words', soft: true }] },
   { id: 'signage', label: 'Signage and wayfinding', group: 'Print and places', parts: [{ key: 'sign', label: 'Sign', limit: 5, unit: 'words', soft: true }, { key: 'detail', label: 'Detail line', limit: 10, unit: 'words', soft: true }] },
   { id: 'packaging', label: 'Packaging', group: 'Print and places', parts: [{ key: 'front', label: 'Front of pack', limit: 8, unit: 'words', soft: true }, { key: 'back', label: 'Back of pack', body: true }] },
-  { id: 'press', label: 'Press release', group: 'Print and places', length: 'long', parts: [{ key: 'headline', label: 'Headline' }, { key: 'subheading', label: 'Standfirst' }, { key: 'body', label: 'Body', body: true }] },
+
+  // Editorial
+  { id: 'press', label: 'Press release', group: 'Editorial', length: 'article', note: 'An announcement for journalists: the news first, then the story, a quote and the boilerplate.', parts: [
+    { key: 'headline', label: 'Headline', hint: '[Brand] [does what] for [whom], [what makes it different]' },
+    { key: 'subheading', label: 'Opening paragraph', body: true, hint: 'Starts “Date TBC:”, then the news in a sentence or two' },
+    { key: 'body', label: 'The story', body: true, hint: 'The context, who’s behind it, the idea, then the details: one paragraph each' },
+    { key: 'launch', label: 'When and where', hint: 'One line: when it opens or launches, and where' },
+    { key: 'quote', label: 'Quote', body: true, hint: 'Name, role: “…”' },
+    { key: 'about', label: 'About', body: true, hint: 'The boilerplate' },
+    { key: 'assets', label: 'Press assets', hint: 'Link to the images' }],
+    guide: `A press release announcing news from the brand, in this order:
+- Headline: "[Brand] [does what] [for whom / where], [the one thing that makes it different]". One line, no full stop.
+- Opening paragraph: begins "Date TBC:" (or the date if given). One or two sentences with the news: who has done what, where, and why it's different.
+- The story, one paragraph per line: the context (what it is, what makes it different, who it's for, with concrete facts); who's behind it and any named partners; the idea behind it; then the details, one paragraph each (the place, the product, the experience, the people), specific rather than adjectival.
+- When and where: one plain line on dates, place and availability.
+- Quote: "[Name], [Role], [Brand]:" then a quote in their speaking voice that gives the feeling or the story behind it, not a list of facts. Mark it "[Draft quote for approval]" unless the brief gives one.
+- About [Brand]: two or three sentences of boilerplate from what the brand says about itself.
+- Press assets: "Asset link: [link to press assets]" unless given.
+Third person throughout, except the quote. The news in the first sentence. Never invent facts, names, dates or numbers: put anything missing in [square brackets].`,
+    houseGuide: `Lost Property's press release format, in this order:
+- Headline: "Lost Property [creates / designs / launches] [what] for [client], [the one thing that makes it different]". One line, no full stop.
+- Opening paragraph: begins "Date TBC:" (or the date if given). One or two sentences: "Independent brand design studio Lost Property has created [the work] for [client] - [what the client is and the experience it offers]."
+- The story, one paragraph per line:
+  1. Context: what the client or place is, what makes it different, what guests or audiences will feel. Concrete facts (number of pools, a policy, a city) carry it.
+  2. Who founded it and any partners (architects, interior studios), named.
+  3. The big idea: the world or story Lost Property imagined for the brand, and how it informs every layer.
+  4. Then the work, part by part, one paragraph each, only for parts in the brief: wordmark and typography; icons; colour and materials; verbal strategy and naming; sound and scent; wayfinding and storytelling moments; characters; products and objects. Each opens with Lost Property as the subject ("Lost Property designed / crafted / developed…") and is specific: name the materials, notes, creatures, places, never adjectives alone.
+- When and where: one plain line, e.g. "[Client] is set to open in [city] in [year]."
+- Quote: "Steffan Cummins, Founder, Lost Property:" then a quote in his speaking voice that gives the feeling or story behind the work, not a list of deliverables. Mark it "[Draft quote for approval]" if he hasn't given one.
+- About Lost Property Studio: "Lost Property is an independent brand design studio founded by Steffan Cummins. Working globally across hospitality, music, art, and culture, the studio combines strategic thinking and creative design to build brands as immersive worlds — engaging, tactile, and culturally-grounded experiences that extend far beyond traditional identity systems." Use it as written unless the brief changes it.
+- Press assets: "Asset link: [link to press assets]" unless a link is given.
+Third person throughout, except the quote. UK English. Evocative but factual: sensory, concrete detail does the persuading. Hyphens with spaces for asides, as in the studio's releases. Never invent facts, names, dates or numbers: put anything missing in [square brackets].` },
+  { id: 'substack', label: 'Substack article', group: 'Editorial', length: 'article', note: 'A first-person essay for a Substack or journal.', parts: [
+    { key: 'title', label: 'Title', limit: 8, unit: 'words', soft: true, hint: 'A short statement or nudge, sentence case' },
+    { key: 'subtitle', label: 'Subtitle', limit: 20, unit: 'words', soft: true, hint: 'The argument in one plain sentence' },
+    { key: 'article', label: 'Article', body: true, hint: 'Open on a scene or observation; real examples; end on a line that lands it' },
+    { key: 'note', label: 'Note at the end', hint: 'Optional: a line about the newsletter' }],
+    guide: `A long-form article for the brand's Substack or journal, written in the first person by the brand's founder or a named voice (in the brand's voice):
+- Title: short, a statement or a gentle instruction, sentence case.
+- Subtitle: one plain sentence that says the argument.
+- Opening: start with something concrete, a scene, a detail, or something noticed in the world, rather than a claim.
+- Shape: move between a personal experience and the bigger idea, and back. Build the case through two to four real, specific examples. Acknowledge the other side fairly before saying where it falls short. Two or three short subheadings are fine.
+- Rhythm: mostly paragraphs of two to five sentences, the odd one-line paragraph for emphasis. Natural, conversational sentences; no hype.
+- No invented statistics, quotes or facts about real people or work: use [square brackets] for anything to check.
+- Ending: no summary and no sales pitch. Close on a line that lands the idea.
+- 800 to 1,100 words.`,
+    houseGuide: `An essay for Lost Property's Substack, written by Steffan Cummins (founder and creative director) in the first person, about brand, creativity and culture. In the spirit of his pieces "Be more specific.", "Institution vs. individual" and "Work with soul is winning".
+- Title: short, a statement or a gentle instruction, sentence case ("Be more specific.", "Work with soul is winning"). A pair of opposites works too.
+- Subtitle: one plain sentence that says the argument, often first person ("Why I think…").
+- Opening: start with something concrete, a scene, a few specific details, or something he's noticed in the industry, rather than a claim. Get to the point within three short paragraphs.
+- Shape: move between a personal reaction or experience (running a studio, a project, a film or album he loved) and the bigger idea, and back. Build the case through two to four real examples from culture: films, music, ads, studios, brands. Name the specific detail that makes each one work. Acknowledge the other side fairly ("I get that…") before saying where it falls short.
+- Two or three short subheadings are fine for longer pieces: conversational, slightly evocative, not clever for the sake of it.
+- Rhythm: mostly paragraphs of two to five sentences, with the odd one-line paragraph for emphasis. Natural, conversational sentences. Not a string of clipped fragments, no dramatic set-ups like "I'll say this plainly", no hype.
+- Honest about uncertainty ("I think", "it feels like"); no invented statistics, quotes or facts about real people or work: use [square brackets] for anything to check.
+- Ending: no summary and no call to action. Close on a hopeful, human line that lands the idea.
+- 800 to 1,100 words. UK English. Conversational, wise and straightforward, quietly optimistic.` },
 
   // Other
   { id: 'tagline', label: 'Tagline or strapline', group: 'Other', parts: [{ key: 'line', label: 'Line', limit: 8, unit: 'words', soft: true }] },

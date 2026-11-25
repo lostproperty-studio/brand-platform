@@ -74,7 +74,10 @@ const tokensIn = (line: string): Tok[] => [...line.matchAll(new RegExp(TOKEN.sou
 
 export function AskAnswer({ text, cat, streaming }: { text: string; cat: AskCatalog | null; streaming?: boolean }) {
   // While streaming, hold back a token that hasn't finished arriving
-  const body = streaming ? text.replace(/\[\[[^\]]*\]?$/, '') : text;
+  // An old-style citation ([chapter: colour]) becomes the chapter's card, or goes if there's one already
+  const hasPage = /\[\[page:/i.test(text);
+  const tidy = text.replace(/\[chapter:\s*([^\]\n]{1,80})\]/gi, (_m, t: string) => (hasPage ? '' : `[[page:${t.trim()}]]`)).replace(/\n{3,}/g, '\n\n');
+  const body = streaming ? tidy.replace(/\[\[?[^\]]*\]?$/, '') : tidy;
   const lines = body.split('\n');
   const blocks: ReactNode[] = [];
   let para: string[] = [], list: { ordered: boolean; items: string[] } | null = null, cards: Tok[] = [];

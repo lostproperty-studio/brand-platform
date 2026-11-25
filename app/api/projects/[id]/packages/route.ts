@@ -28,7 +28,7 @@ const REBUILT: Record<string, string> = {
 // limited by the server), set a cover, rename, hide, switch on drafted spaces, and add custom packages.
 
 const safe = (s: string) => s.normalize('NFKD').replace(/[^\w.\- ]+/g, '').replace(/\s+/g, '-').slice(0, 120) || 'file';
-const Pkg = z.string().regex(/^(logos|colours|fonts|avatars|icons|images|graphics|tokens|guidelines|templates|team|custom-[a-z0-9]{4,12})$/);
+const Pkg = z.string().regex(/^(logos|motion|colours|fonts|avatars|icons|images|graphics|tokens|guidelines|templates|team|custom-[a-z0-9]{4,12})$/);
 /** Refresh also covers the AI deliverables, which have no files of their own */
 const Refreshable = z.string().regex(/^(logos|colours|fonts|avatars|icons|images|graphics|tokens|guidelines|templates|team|design-system|skills|custom-[a-z0-9]{4,12})$/);
 const Body = z.discriminatedUnion('action', [

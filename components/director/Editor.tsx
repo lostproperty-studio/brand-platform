@@ -1,17 +1,24 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowLeft, ArrowUp, Copy, Download, Film, LayoutTemplate, Loader2, Music, Palette, Pause, Play, Plus, SkipBack, Sparkles, Trash2, Type, Upload, Volume2, Wand2 } from 'lucide-react';
-import { ASPECTS, TEMPLATES, TEXT_ANIMS, brandPair, clamp, missing, newCaption, newScene, sceneAt, starts, total, uid, type Aspect, type BrandKit, type Caption, type FileRow, type Placement, type Scene, type Size, type Source, type Track } from '@/lib/director/model';
+import { ASPECTS, TEMPLATES, TEXT_ANIMS, brandPair, clamp, endboardScene, missing, newCaption, newScene, sceneAt, starts, total, uid, type Aspect, type BrandKit, type Caption, type Endboard, type FileRow, type Placement, type Scene, type Size, type Source, type Track } from '@/lib/director/model';
+import { Shapes, Layers } from 'lucide-react';
+import { AddEffect, LayersPanel, PresetLibrary } from '@/components/effects/Effects';
+import type { EffectLayer } from '@/lib/effects/model';
+import type { FxClip } from '@/lib/director/model';
+import { describe, presetFor } from '@/lib/motion/model';
+import { LogoMotion, fitLength } from '@/components/motion/LogoMotion';
+import { TypeStage } from '@/components/motion/TypeStage';
 import { api, secs } from './api';
 import { SAVE_LABEL, useSave } from './useSave';
 import { Stage } from './Stage';
 import { SOURCES, sourceId } from './Planner';
 
 const I = { size: 14, strokeWidth: 1.7, 'aria-hidden': true } as const;
-type Sel = { type: 'scene'; id: string } | { type: 'caption'; id: string; sceneId: string } | { type: 'track'; id: string } | null;
-type Tab = 'scenes' | 'templates' | 'text' | 'brand' | 'sound';
+type Sel = { type: 'scene'; id: string } | { type: 'caption'; id: string; sceneId: string } | { type: 'track'; id: string } | { type: 'fx'; id: string } | null;
+type Tab = 'scenes' | 'templates' | 'assets' | 'effects' | 'text' | 'brand' | 'sound';
 const TABS: { id: Tab; label: string; Icon: typeof Film }[] = [
-  { id: 'scenes', label: 'Scenes', Icon: Film }, { id: 'templates', label: 'Templates', Icon: LayoutTemplate }, { id: 'text', label: 'Text', Icon: Type }, { id: 'brand', label: 'Brand', Icon: Palette }, { id: 'sound', label: 'Sound', Icon: Music }
+  { id: 'scenes', label: 'Scenes', Icon: Film }, { id: 'templates', label: 'Templates', Icon: LayoutTemplate }, { id: 'text', label: 'Text', Icon: Type }, { id: 'effects', label: 'Effects', Icon: Layers as typeof Film }, { id: 'brand', label: 'Brand', Icon: Palette }, { id: 'sound', label: 'Sound', Icon: Music }
 ];
 const TEXT_PRESETS: { name: string; make: (k: BrandKit) => Partial<Caption> }[] = [
   { name: 'Headline', make: (k) => ({ text: 'A headline', position: 'centre', size: 'XL', anim: 'rise', font: k.fonts.find((f) => f.role === 'display')?.role || k.fonts[0]?.role || 'display' }) },
@@ -60,6 +67,14 @@ export function Editor({ slug, kit, file, setFile, onBack, canGenerate }: { slug
   const selScene = sel?.type === 'scene' ? d.scenes.find((s) => s.id === sel.id) : sel?.type === 'caption' ? d.scenes.find((s) => s.id === sel.sceneId) : cur?.scene;
   const selCaption = sel?.type === 'caption' ? selScene?.captions.find((c) => c.id === sel.id) : undefined;
   const selTrack = sel?.type === 'track' ? d.audio.find((a) => a.id === sel.id) : undefined;
+  // Effect layers on the timeline: added over the current scene, then moved and stretched on the track
+  const selFx = sel?.type === 'fx' ? (d.fx || []).find((f) => f.id === sel.id) : undefined;
+  const setFx = (id: string, x: Partial<FxClip>) => edit((doc) => ({ ...doc, fx: (doc.fx || []).map((f) => (f.id === id ? { ...f, ...x } : f)) }));
+  const addFx = (layer: EffectLayer) => {
+    const st0 = starts(d); const i = cur ? cur.index : 0; const s0 = d.scenes[i];
+    const clip: FxClip = { id: uid(), start: s0 ? st0[i] : 0, duration: s0 ? s0.duration : Math.max(1, T), layer };
+    edit((doc) => ({ ...doc, fx: [...(doc.fx || []), clip] })); setSel({ type: 'fx', id: clip.id });
+  };
   const jumpTo = (sceneId: string) => { const i = d.scenes.findIndex((s) => s.id === sceneId); if (i >= 0) setT(st[i] + 0.01); };
   const pick = (s: Sel) => { setSel(s); if (s?.type === 'scene') jumpTo(s.id); };
 
@@ -120,7 +135,7 @@ export function Editor({ slug, kit, file, setFile, onBack, canGenerate }: { slug
 
     <div className="dr-ed-main">
       <aside className="dr-left">
-        <nav className="dr-tabs">{TABS.map((x) => <button key={x.id} className={tab === x.id ? 'on' : ''} onClick={() => setTab(x.id)} title={x.label}><x.Icon size={16} strokeWidth={1.6} aria-hidden /><span>{x.label}</span></button>)}</nav>
+        <nav className="dr-tabs">{(kit.motion ? [...TABS.slice(0, 2), { id: 'assets' as Tab, label: 'Assets', Icon: Shapes as typeof Film }, ...TABS.slice(2)] : TABS).map((x) => <button key={x.id} className={tab === x.id ? 'on' : ''} onClick={() => setTab(x.id)} title={x.label}><x.Icon size={16} strokeWidth={1.6} aria-hidden /><span>{x.label}</span></button>)}</nav>
         <div className="dr-left-body">
           {tab === 'scenes' ? <>
             <ol className="dr-scenes">{d.scenes.map((s, i) => <li key={s.id} className={'dr-sc' + (selScene?.id === s.id ? ' on' : '')} onClick={() => pick({ type: 'scene', id: s.id })}>
@@ -130,13 +145,15 @@ export function Editor({ slug, kit, file, setFile, onBack, canGenerate }: { slug
             </li>)}</ol>
             <button className="btn dr-wide" onClick={() => insertScene(newScene(kit))}><Plus {...I} />Add scene</button>
           </> : null}
-          {tab === 'templates' ? <div className="dr-tpls">{TEMPLATES.map((x) => { const s = x.make(kit); return <button key={x.id} className="dr-tpl" onClick={() => insertScene(x.make(kit))}>
+          {tab === 'effects' ? <FxLibrary studio={canGenerate} sceneUrl={(cur?.scene.media?.kind === 'image' ? cur.scene.media.url : undefined) || d.scenes.find((s) => s.media?.kind === 'image')?.media?.url} onAdd={addFx} /> : null}
+          {tab === 'assets' && kit.motion ? <Assets kit={kit} onEndboard={(l) => insertScene(endboardScene(kit, l))} onPlace={(l) => selScene && setScene(selScene.id, { logo: { placement: selScene.logo?.placement || 'bottom', size: selScene.logo?.size || 'M', tone: l.light ? 'light' : 'dark' } })} onType={(over) => addCaption({ anim: 'brand', ...over })} canPlace={!!selScene && !selScene.endboard} /> : null}
+          {tab === 'templates' ? <div className="dr-tpls">{(kit.motion ? TEMPLATES.filter((x) => x.id !== 'end') : TEMPLATES).map((x) => { const s = x.make(kit); return <button key={x.id} className="dr-tpl" onClick={() => insertScene(x.make(kit))}>
             <span className="dr-tpl-frame" style={{ background: s.background }}>{s.captions[0] ? <span style={{ color: s.captions[0].colour, fontFamily: `var(--font-${s.captions[0].font}, var(--pt-display))` }}>{s.captions[0].text}</span> : s.logo && kit.logos[0] ? <img src={(kit.logos.find((l) => l.light) || kit.logos[0]).url} alt="" /> : <Film size={18} strokeWidth={1.3} aria-hidden />}</span>
             <span><strong>{x.name}</strong><span className="mute">{x.about}</span></span>
-          </button>; })}</div> : null}
+          </button>; })}{kit.motion && kit.logos.length ? <button className="dr-tpl" onClick={() => insertScene(endboardScene(kit))}><span className="dr-tpl-frame" style={{ background: brandPair(kit).dark }}><img src={(kit.logos.find((l) => l.light) || kit.logos[0]).url} alt="" /></span><span><strong>Logo endboard</strong><span className="mute">The logo in the brand’s motion, with a line or icon</span></span></button> : null}</div> : null}
           {tab === 'text' ? <div className="dr-tpls">{TEXT_PRESETS.map((x) => { const c = { ...newCaption(kit), ...x.make(kit) }; return <button key={x.name} className="dr-tpl" onClick={() => addCaption(x.make(kit))}>
             <span className="dr-tpl-frame" style={{ background: brandPair(kit).dark }}><span style={{ color: c.colour, background: c.box || undefined, fontFamily: `var(--font-${c.font}, var(--pt-display))`, fontSize: c.size === 'XL' ? 18 : c.size === 'L' ? 15 : 12 }}>{c.text}</span></span>
-            <span><strong>{x.name}</strong><span className="mute">{TEXT_ANIMS.find((a) => a.id === c.anim)?.label}, {c.position.replace('-', ' ')}</span></span>
+            <span><strong>{x.name}</strong><span className="mute">{c.anim === 'brand' ? 'Brand motion' : TEXT_ANIMS.find((a) => a.id === c.anim)?.label}, {c.position.replace('-', ' ')}</span></span>
           </button>; })}<p className="mute dr-small">Adds to the current scene at the playhead.</p></div> : null}
           {tab === 'brand' ? <div className="dr-brand">
             <p className="dr-kicker">Colours</p>
@@ -172,6 +189,7 @@ export function Editor({ slug, kit, file, setFile, onBack, canGenerate }: { slug
 
       <aside className="dr-right">
         {selCaption && sel?.type === 'caption' ? <CaptionPanel c={selCaption} scene={selScene!} kit={kit} set={(p) => setCaption(sel.sceneId, selCaption.id, p)} remove={() => { setScene(sel.sceneId, { captions: selScene!.captions.filter((c) => c.id !== selCaption.id) }); setSel({ type: 'scene', id: sel.sceneId }); }} />
+          : selFx ? <FxPanel clip={selFx} total={T} studio={canGenerate} set={(x) => setFx(selFx.id, x)} remove={() => { edit((doc) => ({ ...doc, fx: (doc.fx || []).filter((f) => f.id !== selFx.id) })); setSel(null); }} />
           : selTrack ? <TrackPanel a={selTrack} busy={busy[selTrack.id]} canGenerate={canGenerate} set={(p) => setTrack(selTrack.id, p)} make={() => makeSound(selTrack)} upload={() => askUpload({ type: 'track', id: selTrack.id }, 'audio/*')} remove={() => { edit((x) => ({ ...x, audio: x.audio.filter((a) => a.id !== selTrack.id) })); setSel(null); }} total={T} />
           : selScene ? <ScenePanel s={selScene} kit={kit} busy={busy[selScene.id]} canGenerate={canGenerate} set={(p) => setScene(selScene.id, p)} generate={() => generate(selScene)} upload={() => askUpload({ type: 'scene', id: selScene.id }, 'video/*,image/*')}
             pickCaption={(id) => setSel({ type: 'caption', id, sceneId: selScene.id })} addCaption={() => addCaption({})}
@@ -180,7 +198,7 @@ export function Editor({ slug, kit, file, setFile, onBack, canGenerate }: { slug
       </aside>
     </div>
 
-    <Timeline doc={d} t={t} setT={(x) => { setPlaying(false); setT(x); }} sel={sel} pick={(s) => setSel(s)} resize={(id, dur) => setScene(id, { duration: dur })} busy={busy} />
+    <Timeline doc={d} t={t} setT={(x) => { setPlaying(false); setT(x); }} sel={sel} pick={(s) => setSel(s)} resize={(id, dur) => setScene(id, { duration: dur })} moveFx={setFx} busy={busy} />
   </div>;
 }
 
@@ -204,6 +222,7 @@ function ScenePanel({ s, kit, busy, canGenerate, set, generate, upload, pickCapt
   return <div className="dr-panel">
     <input className="dr-panel-t" value={s.title} onChange={(e) => set({ title: e.target.value })} aria-label="Scene title" />
     <Row label="Length"><input type="range" min={0.5} max={12} step={0.1} value={s.duration} onChange={(e) => set({ duration: Number(e.target.value) })} /><span className="dr-num">{secs(s.duration)}</span></Row>
+    {s.endboard ? <EndboardPanel eb={s.endboard} kit={kit} set={(x) => set({ endboard: { ...s.endboard!, ...x } })} background={s.background} setBackground={(h) => set({ background: h })} /> : <>
     <p className="dr-kicker">Picture</p>
     <div className="dr-chips tight">{SOURCES.map((x) => <button key={x.id} className={'dr-chip' + (sourceId(s.source) === x.id ? ' on' : '')} onClick={() => set({ source: x.make(s) })}><x.Icon size={12} aria-hidden />{x.label}</button>)}</div>
     {s.note ? <p className="mute dr-small">{s.note}</p> : null}
@@ -229,6 +248,7 @@ function ScenePanel({ s, kit, busy, canGenerate, set, generate, upload, pickCapt
       <Row label="Version"><Chips value={s.logo.tone} options={[{ id: 'dark', label: 'For light grounds' }, { id: 'light', label: 'For dark grounds' }]} onPick={(v) => set({ logo: { ...s.logo!, tone: v } })} /></Row>
       <button className="btn" onClick={() => set({ logo: null })}>Remove logo</button>
     </> : <button className="btn dr-wide" onClick={() => set({ logo: { placement: 'bottom', size: 'M', tone: 'light' } })} disabled={!kit.logos.length}><Plus {...I} />Add the logo</button>}
+    </>}
     <p className="dr-kicker">Captions</p>
     {s.captions.map((c) => <button key={c.id} className="dr-capitem" onClick={() => pickCaption(c.id)}><Type {...I} /><span>{c.text}</span><span className="mute">{secs(c.start)}–{secs(c.end)}</span></button>)}
     <button className="btn dr-wide" onClick={addCaption}><Plus {...I} />Add a caption</button>
@@ -251,7 +271,7 @@ function CaptionPanel({ c, scene, kit, set, remove }: { c: Caption; scene: Scene
     <Row label="Colour"><Swatches kit={kit} value={c.colour} onPick={(h) => h && set({ colour: h })} /></Row>
     <Row label="Box"><Swatches kit={kit} value={c.box} onPick={(h) => set({ box: h })} none /></Row>
     <p className="dr-kicker">Animation</p>
-    <Chips value={c.anim} options={TEXT_ANIMS.map((a) => ({ id: a.id, label: a.label }))} onPick={(v) => set({ anim: v })} />
+    <Chips value={c.anim} options={[...(kit.motion ? [{ id: 'brand' as const, label: 'Brand' }] : []), ...TEXT_ANIMS].map((a) => ({ id: a.id, label: a.label }))} onPick={(v) => set({ anim: v })} />
     <div className="dr-panel-foot"><button className="btn" onClick={remove}><Trash2 {...I} />Delete caption</button></div>
   </div>;
 }
@@ -288,7 +308,7 @@ function AudioLayer({ tracks, t, playing }: { tracks: Track[]; t: number; playin
   return <>{tracks.filter((a) => a.media?.url).map((a) => <audio key={a.id} ref={(el) => { refs.current[a.id] = el; }} src={a.media!.url} preload="auto" />)}</>;
 }
 
-function Timeline({ doc, t, setT, sel, pick, resize, busy }: { doc: FileRow['data']; t: number; setT: (t: number) => void; sel: Sel; pick: (s: Sel) => void; resize: (id: string, dur: number) => void; busy: Record<string, string> }) {
+function Timeline({ doc, t, setT, sel, pick, resize, moveFx, busy }: { doc: FileRow['data']; t: number; setT: (t: number) => void; sel: Sel; pick: (s: Sel) => void; resize: (id: string, dur: number) => void; moveFx: (id: string, x: Partial<FxClip>) => void; busy: Record<string, string> }) {
   const wrap = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(800);
   useEffect(() => { const el = wrap.current; if (!el) return; const ro = new ResizeObserver(() => setW(el.clientWidth - 24)); ro.observe(el); return () => ro.disconnect(); }, []);
@@ -313,6 +333,7 @@ function Timeline({ doc, t, setT, sel, pick, resize, busy }: { doc: FileRow['dat
   return <div className="dr-tl" ref={wrap}>
     <div className="dr-tl-in" style={{ width: w }}>
       <div className="dr-ruler" onPointerDown={scrub}>{ticks.map((x) => <span key={x} style={{ left: x * pps }}>{x}s</span>)}</div>
+      {doc.fx?.length ? <FxLane fx={doc.fx} pps={pps} T={T} sel={sel} pick={(id) => pick({ type: 'fx', id })} move={moveFx} /> : null}
       <div className="dr-lane">
         <span className="dr-lane-l"><Film size={12} aria-hidden /></span>
         {doc.scenes.map((s, i) => <div key={s.id} className={'dr-clip' + ((sel?.type === 'scene' && sel.id === s.id) || (sel?.type === 'caption' && sel.sceneId === s.id) ? ' on' : '') + (s.media || s.source.kind === 'card' ? '' : ' need')} style={{ left: st[i] * pps, width: Math.max(8, s.duration * pps - 2), background: s.background }} onClick={() => { pick({ type: 'scene', id: s.id }); setT(st[i] + 0.01); }}>
@@ -334,5 +355,111 @@ function Timeline({ doc, t, setT, sel, pick, resize, busy }: { doc: FileRow['dat
       </div>
       <div className="dr-playhead" style={{ left: t * pps }} />
     </div>
+  </div>;
+}
+
+// ---------- Portal v2: the brand's motion assets, and the logo endboard's settings
+function useLoop(T: number) {
+  const [t, setT] = useState(0);
+  useEffect(() => { let raf = 0; const t0 = performance.now(); const tick = (n: number) => { setT(((n - t0) % (T + 600)) ); raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf); }, [T]);
+  return Math.min(t, T);
+}
+function LogoTile({ l, kit, onEndboard, onPlace, canPlace }: { l: BrandKit['logos'][number]; kit: BrandKit; onEndboard: () => void; onPlace: () => void; canPlace: boolean }) {
+  const P = useMemo(() => fitLength({ ...presetFor(kit.motion!, l.key), scale: 70 }, presetFor(kit.motion!, l.key).length), [kit.motion, l.key]);
+  const t = useLoop(P.length * 1000);
+  const svg = /\.svg$/i.test(l.url.split('?')[0]);
+  const p = brandPair(kit);
+  return <div className="dr-mlogo">
+    <span className="dr-mlogo-f" style={{ background: l.light ? p.dark : p.light }}>{svg ? <LogoMotion url={l.url} P={P} t={t} /> : <img src={l.url} alt="" />}</span>
+    <span className="dr-mlogo-n">{l.name}</span>
+    <span className="dr-mlogo-a"><button className="btn sm solid" onClick={onEndboard}>Endboard</button><button className="btn sm" onClick={onPlace} disabled={!canPlace} title={canPlace ? 'Place on the selected scene' : 'Select a scene first'}>On scene</button></span>
+  </div>;
+}
+function Assets({ kit, onEndboard, onPlace, onType, canPlace }: { kit: BrandKit; onEndboard: (l: BrandKit['logos'][number]) => void; onPlace: (l: BrandKit['logos'][number]) => void; onType: (c: Partial<Caption>) => void; canPlace: boolean }) {
+  const m = kit.motion!;
+  const T = useLoop(m.type.length * 1000);
+  const p = brandPair(kit);
+  const display = kit.fonts.find((f) => f.role === 'display')?.role || kit.fonts[0]?.role || 'display';
+  return <div className="dr-assets">
+    <p className="dr-kicker">Motion logos</p>
+    <p className="mute dr-small">{describe(m.logo)}</p>
+    <div className="dr-mlogos">{kit.logos.filter((l) => !m.assets?.logos?.length || !l.key || m.assets.logos.includes(l.key)).map((l) => <LogoTile key={l.url} l={l} kit={kit} onEndboard={() => onEndboard(l)} onPlace={() => onPlace(l)} canPlace={canPlace} />)}</div>
+    {!kit.logos.length ? <p className="mute dr-small">No logos in the kit yet.</p> : null}
+    <p className="dr-kicker">Type</p>
+    <p className="mute dr-small">{describe(m.type)}</p>
+    {[['Headline', 'XL', 'centre'], ['Line', 'M', 'lower-third']].map(([name, size, pos]) => <button key={name} className="dr-tpl" onClick={() => onType({ text: name === 'Headline' ? 'A headline' : 'A line about this moment', size: size as Size, position: pos as Caption['position'], font: display })}>
+      <span className="dr-tpl-frame" style={{ background: p.dark, overflow: 'hidden' }}><TypeStage text={name === 'Headline' ? 'A headline' : 'A line'} P={m.type} t={T} font={`var(--font-${display}, var(--pt-display))`} colour={p.light} size={name === 'Headline' ? 18 : 13} /></span>
+      <span><strong>{name}</strong><span className="mute">In the brand’s type motion</span></span></button>)}
+    <p className="mute dr-small">Motion set by Lost Property for {kit.client}.</p>
+  </div>;
+}
+function EndboardPanel({ eb, kit, set, background, setBackground }: { eb: Endboard; kit: BrandKit; set: (x: Partial<Endboard>) => void; background: string; setBackground: (h: string) => void }) {
+  const items = eb.items;
+  const setItem = (id: string, x: Partial<Endboard['items'][number]>) => set({ items: items.map((i) => (i.id === id ? { ...i, ...x } : i)) });
+  return <>
+    <p className="dr-kicker">Endboard</p>
+    <Row label="Logo"><div className="dr-logos">{kit.logos.map((l) => <button key={l.url} className={'dr-logo-b' + (l.light ? ' dark' : '') + (eb.logo === l.name ? ' on' : '')} title={l.name} onClick={() => { set({ logo: l.name }); const p = brandPair(kit); setBackground(l.light ? p.dark : p.light); }}><img src={l.url} alt={l.name} /></button>)}</div></Row>
+    <Row label="Size"><input type="range" min={10} max={90} step={2} value={eb.scale} onChange={(e) => set({ scale: Number(e.target.value) })} /><span className="dr-num">{eb.scale}%</span></Row>
+    <Row label="Starts"><input type="range" min={0} max={2} step={0.1} value={eb.delay} onChange={(e) => set({ delay: Number(e.target.value) })} /><span className="dr-num">{secs(eb.delay)}</span></Row>
+    <Row label="At the end"><Chips value={eb.out ? 'out' : 'stay'} options={[{ id: 'stay', label: 'Stays' }, { id: 'out', label: 'Builds out' }]} onPick={(v) => set({ out: v === 'out' })} /></Row>
+    <Row label="Ground"><Swatches kit={kit} value={background} onPick={(h) => h && setBackground(h)} /></Row>
+    <p className="dr-kicker">With it</p>
+    {items.map((i) => <div key={i.id} className="dr-ebi">
+      {i.kind === 'text' ? <input className="dr-in" value={i.text} onChange={(e) => setItem(i.id, { text: e.target.value })} placeholder="e.g. tileyard.co.uk" />
+        : <div className="dr-logos">{(kit.icons || []).slice(0, 24).map((ic) => <button key={ic.url} className={'dr-logo-b' + (i.icon === ic.name ? ' on' : '')} title={ic.name} onClick={() => setItem(i.id, { icon: ic.name })}><img src={ic.url} alt={ic.name} /></button>)}</div>}
+      <Chips value={i.at} options={[{ id: 'above', label: 'Above' }, { id: 'below', label: 'Below' }, { id: 'top', label: 'Top' }, { id: 'bottom', label: 'Bottom' }]} onPick={(v) => setItem(i.id, { at: v })} />
+      <div className="dr-ebi-r"><Chips value={i.size} options={SIZES.map((x) => ({ id: x, label: x }))} onPick={(v) => setItem(i.id, { size: v })} /><button className="btn sm" onClick={() => set({ items: items.filter((x) => x.id !== i.id) })} aria-label="Remove"><Trash2 size={12} aria-hidden /></button></div>
+    </div>)}
+    <div className="dr-chips tight"><button className="btn sm" onClick={() => set({ items: [...items, { id: uid(), kind: 'text', text: '', at: 'below', size: 'S' }] })}><Plus size={12} aria-hidden />Text</button>
+      {kit.icons?.length ? <button className="btn sm" onClick={() => set({ items: [...items, { id: uid(), kind: 'icon', text: '', icon: kit.icons![0].name, at: 'above', size: 'S' }] })}><Plus size={12} aria-hidden />Icon</button> : null}</div>
+    <p className="mute dr-small">The logo builds in the {kit.client} motion, then the rest follows in the brand’s type motion.</p>
+  </>;
+}
+
+// ---------- Effects: Lost Property's presets to add as layers, the effects track, and a layer's settings
+function FxLibrary({ studio, sceneUrl, onAdd }: { studio: boolean; sceneUrl?: string; onAdd: (l: EffectLayer) => void }) {
+  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    // Previews on a still from the video, or on a stand-in picture
+    if (sceneUrl) { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => setImg(i); i.src = sceneUrl; return; }
+    const c = document.createElement('canvas'); c.width = 320; c.height = 200; const x = c.getContext('2d')!;
+    const g = x.createLinearGradient(0, 0, 0, 200); g.addColorStop(0, '#2b3d5a'); g.addColorStop(0.6, '#c58b5e'); g.addColorStop(1, '#1a1410'); x.fillStyle = g; x.fillRect(0, 0, 320, 200);
+    x.fillStyle = '#fff3dc'; x.beginPath(); x.arc(220, 100, 16, 0, 7); x.fill();
+    const i = new Image(); i.onload = () => setImg(i); i.src = c.toDataURL();
+  }, [sceneUrl]);
+  return <div className="dr-fxlib">
+    <p className="dr-kicker">Lost Property presets</p>
+    <p className="mute dr-small">Adds an effects layer over the current scene. Stretch it on the timeline to cover more.</p>
+    <PresetLibrary img={img} onAdd={onAdd} />
+    {studio ? <><p className="dr-kicker">Single effects · studio</p><AddEffect onAdd={onAdd} /></> : null}
+  </div>;
+}
+
+function FxLane({ fx, pps, T, sel, pick, move }: { fx: FxClip[]; pps: number; T: number; sel: Sel; pick: (id: string) => void; move: (id: string, x: Partial<FxClip>) => void }) {
+  // Layers that overlap go on rows of their own
+  const rows: FxClip[][] = [];
+  for (const f of [...fx].sort((a, b) => a.start - b.start)) { const r = rows.find((row) => row.every((g) => f.start >= g.start + g.duration - 1e-3 || f.start + f.duration <= g.start + 1e-3)); if (r) r.push(f); else rows.push([f]); }
+  const drag = (e: React.PointerEvent, f: FxClip, mode: 'move' | 'end') => {
+    e.stopPropagation(); pick(f.id); const x0 = e.clientX, s0 = f.start, d0 = f.duration;
+    const snap = (v: number) => Math.round(v * 10) / 10;
+    const mv = (ev: PointerEvent) => { const dx = (ev.clientX - x0) / pps; if (mode === 'move') move(f.id, { start: snap(clamp(s0 + dx, 0, Math.max(0, T - 0.1))) }); else move(f.id, { duration: snap(clamp(d0 + dx, 0.2, 600)) }); };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  };
+  return <div className="dr-fxlane" style={{ height: rows.length * 22 + 2 }}>
+    {rows.map((row, r) => row.map((f) => <div key={f.id} className={'dr-fxbar' + (sel?.type === 'fx' && sel.id === f.id ? ' on' : '') + (f.layer.on ? '' : ' off')} style={{ left: f.start * pps, width: Math.max(10, f.duration * pps - 2), top: r * 22 }} onPointerDown={(e) => drag(e, f, 'move')} title={`${f.layer.name}: drag to move`}>
+      <Layers size={10} aria-hidden /><span>{f.layer.name}</span><i className="dr-fxbar-h" onPointerDown={(e) => drag(e, f, 'end')} title="Drag to change length" /></div>))}
+  </div>;
+}
+
+function FxPanel({ clip, total: T, studio, set, remove }: { clip: FxClip; total: number; studio: boolean; set: (x: Partial<FxClip>) => void; remove: () => void }) {
+  return <div className="dr-panel">
+    <input className="dr-panel-t" value={clip.layer.name} onChange={(e) => set({ layer: { ...clip.layer, name: e.target.value } })} aria-label="Layer name" />
+    <Row label="Starts"><input type="range" min={0} max={Math.max(0.1, T - 0.1)} step={0.1} value={clip.start} onChange={(e) => set({ start: Number(e.target.value) })} /><span className="dr-num">{secs(clip.start)}</span></Row>
+    <Row label="Length"><input type="range" min={0.2} max={Math.max(1, T)} step={0.1} value={clip.duration} onChange={(e) => set({ duration: Number(e.target.value) })} /><span className="dr-num">{secs(clip.duration)}</span></Row>
+    <p className="dr-kicker">Effects</p>
+    <LayersPanel layers={[clip.layer]} studio={studio} set={(ls) => (ls.length ? set({ layer: ls[0] }) : remove())} />
+    {!studio ? <p className="mute dr-small">Set up by Lost Property. Use Strength to make it lighter.</p> : null}
+    <div className="dr-panel-foot"><button className="btn" onClick={remove}><Trash2 {...I} />Remove layer</button></div>
   </div>;
 }

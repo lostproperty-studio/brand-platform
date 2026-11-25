@@ -15,7 +15,7 @@ import { blockPaths } from '@/lib/figma/blocks';
 
 const textOn = (hex: string) => { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#000' : '#fff'; };
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `RGB ${n >> 16} ${(n >> 8) & 255} ${n & 255}`; };
-const PACKS: Record<string, string[]> = { logo: ['logos'], colour: ['colours'], type: ['fonts'], imagery: ['images'], layout: ['templates'], iconography: ['icons'], icons: ['icons'], graphics: ['graphics'] };
+const PACKS: Record<string, string[]> = { logo: ['logos', 'motion'], colour: ['colours'], type: ['fonts'], imagery: ['images'], layout: ['templates'], iconography: ['icons'], icons: ['icons'], graphics: ['graphics'] };
 
 // One chapter of the guidelines: the Figma frames as designed, then the exact rules, then its resources.
 export default async function Chapter({ params }: { params: Promise<{ slug: string; chapter: string }> }) {
@@ -74,10 +74,9 @@ export default async function Chapter({ params }: { params: Promise<{ slug: stri
         <div className="pt-rules">{c.rules.map((r, k) => <div key={k} className="pt-rule"><span className="pt-n">{chapterNum(k)}</span><p className="pt-rule-h">{r.title}</p><p>{r.text}</p></div>)}</div>
       </section> : null}
 
-      {packs.length ? <section className="pt-blk" aria-labelledby="h-d">
+      {packs.length ? <section className="pt-blk pt-res" aria-labelledby="h-d">
         <h2 id="h-d" className="pt-h2">Resources</h2>
         <div className="rs-grid">{packs.map((p) => <PackageCard key={p.id} p={p} slug={slug} colours={ctx.snap?.colours || []} logoUrl={ctx.logoUrl} preview={ctx.preview} fonts={ctx.fonts} />)}</div>
-        <Link href={`/p/${slug}/resources`} className="mute">Everything in the kit →</Link>
       </section> : null}
 
       <nav className="pt-pn" aria-label="Chapters">

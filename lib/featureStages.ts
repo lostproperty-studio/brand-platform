@@ -12,10 +12,15 @@ export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<Stage, string> = { off: 'Off', studio: 'Studio only', beta: 'Client beta', live: 'Live' };
 
-export type FeatureKey = 'director';
+export type FeatureKey = 'portal' | 'director' | 'photographer' | 'plugins' | 'support' | 'facts';
 
 export const FEATURES: Record<FeatureKey, { name: string; about: string; default: Stage }> = {
-  director: { name: 'Director', about: 'Plan, shoot and generate short-form video from the brand’s creative direction.', default: 'studio' }
+  portal: { name: 'New portal', about: 'The new client portal: a new home page, the guidelines with their own chapter list, and the apps (Writer, Director) in their own section of the sidebar.', default: 'studio' },
+  director: { name: 'Director', about: 'Plan, shoot and generate short-form video from the brand’s creative direction.', default: 'studio' },
+  photographer: { name: 'Photographer', about: 'Collections of on-brand images: add, find, generate, check against the art direction and edit with effects.', default: 'studio' },
+  plugins: { name: 'Plug-ins', about: 'The brand panel inside Canva, Microsoft Office and Google Workspace, and syncing to the client’s own file storage.', default: 'studio' },
+  support: { name: 'Working with Lost Property', about: 'Chat with the Lost Property team from the Ask bar (answered in the studio’s Slack), requests as tickets, and booking paid sessions.', default: 'studio' },
+  facts: { name: 'Fact sheet', about: 'A fact sheet in the Writer: names, people, places, times and prices the client keeps up to date, used by the Writer as the truth.', default: 'studio' }
 };
 
 export const FEATURE_KEYS = Object.keys(FEATURES) as FeatureKey[];

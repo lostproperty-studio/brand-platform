@@ -11,7 +11,9 @@ const LENGTHS = [6, 15, 30, 60];
 const STEPS = ['Reading the brief', 'Stepping into the brand’s world', 'Planning the shots', 'Writing the storyboard'];
 
 // Director: the team's videos as tiles, a new video from a brief or a blank canvas, then the storyboard and the editor
-export function DirectorApp({ slug, kit, canGenerate, badge, labs }: { slug: string; kit: BrandKit; canGenerate: boolean; badge: string | null; labs: boolean }) {
+export function DirectorApp({ slug, kit, canGenerate, badge, labs, only, onCreated, head }: { slug: string; kit: BrandKit; canGenerate: boolean; badge: string | null; labs: boolean;
+  /** Portal v2: show only these videos (a project's), tell the project about new ones, and use the project's own heading */
+  only?: string[]; onCreated?: (id: string) => void; head?: React.ReactNode }) {
   const A = api(slug);
   const [tiles, setTiles] = useState<Tile[] | null>(null);
   const [note, setNote] = useState('');
@@ -25,7 +27,7 @@ export function DirectorApp({ slug, kit, canGenerate, badge, labs }: { slug: str
   // The open file follows the address (?f=…), so the back button and links work
   const openFile = useCallback(async (id: string, push = true) => {
     setLoading(id);
-    try { const { file } = await A.open(id); setOpen(file); if (push) history.pushState({ f: id }, '', `?f=${id}`); }
+    try { const { file } = await A.open(id); setOpen(file); if (push) { const u = new URLSearchParams(location.search); u.set('f', id); history.pushState({ f: id }, '', `?${u}`); } }
     catch (e) { setNote((e as Error).message); }
     setLoading('');
   }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -34,29 +36,30 @@ export function DirectorApp({ slug, kit, canGenerate, badge, labs }: { slug: str
     const pop = () => { const f = new URLSearchParams(location.search).get('f'); if (f) openFile(f, false); else { setOpen(null); refresh(); } };
     addEventListener('popstate', pop); return () => removeEventListener('popstate', pop);
   }, [openFile, refresh]);
-  const close = () => { setOpen(null); history.pushState({}, '', location.pathname); refresh(); };
+  const close = () => { setOpen(null); const u = new URLSearchParams(location.search); u.delete('f'); history.pushState({}, '', u.toString() ? `?${u}` : location.pathname); refresh(); };
 
   const remove = async (t: Tile) => {
     if (!window.confirm(`Delete “${t.title}”? This can’t be undone.`)) return;
     await A.remove(t.id).catch(() => {}); refresh();
   };
 
+  const shown = tiles && only ? tiles.filter((t) => only.includes(t.id)) : tiles;
   if (open?.status === 'plan') return <Planner key={open.id + 'p'} slug={slug} kit={kit} file={open} onChange={setOpen} onBack={close} onBuild={(f) => setOpen(f)} />;
   if (open) return <Editor key={open.id} slug={slug} kit={kit} file={open} setFile={(fn) => setOpen((o) => (o ? fn(o) : o))} onBack={close} canGenerate={canGenerate} />;
 
   return <div className="dr-files">
-    <header className="dr-files-head">
+    {head ?? <header className="dr-files-head">
       <div>
         <h1 className="dr-files-title"><Clapperboard size={26} strokeWidth={1.4} aria-hidden />Director{badge ? <span className={'pt-badge big ' + badge.toLowerCase()}>{badge}</span> : null}</h1>
         <p className="mute">Short-form video for {kit.client}, made in the brand’s world, with its type, logos and colours built in.</p>
       </div>
       <button className="btn solid dr-new-btn" onClick={() => setMaking(true)}><Plus {...I} />New video</button>
-    </header>
+    </header>}
     {labs ? <p className="dr-labs" role="status">Labs: only the studio can see Director. {kit.client}’s team won’t see it until it’s moved to Client beta in Admin settings → Releases.</p> : null}
     {note ? <p className="cd-err" role="alert">{note}</p> : null}
     <div className="dr-grid">
       <button className="dr-tile dr-tile-new" onClick={() => setMaking(true)}><span className="dr-tile-new-in"><Plus size={22} strokeWidth={1.4} aria-hidden />New video</span></button>
-      {tiles === null ? <div className="dr-tile dr-tile-ghost" aria-busy /> : tiles.map((t) => {
+      {shown === null ? <div className="dr-tile dr-tile-ghost" aria-busy /> : shown.map((t) => {
         const a = ASPECTS.find((x) => x.id === t.aspect) || ASPECTS[0];
         return <div key={t.id} className="dr-tile">
           <button className="dr-tile-open" onClick={() => openFile(t.id)} aria-label={`Open ${t.title}`}>
@@ -75,8 +78,8 @@ export function DirectorApp({ slug, kit, canGenerate, badge, labs }: { slug: str
         </div>;
       })}
     </div>
-    {tiles?.length === 0 ? <p className="mute dr-empty">No videos yet. Start one from a brief and Director will plan it for you, or open a blank canvas.</p> : null}
-    {making ? <NewVideo slug={slug} onClose={() => setMaking(false)} onOpen={(id) => { setMaking(false); openFile(id); }} /> : null}
+    {shown?.length === 0 ? <p className="mute dr-empty">No videos yet. Start one from a brief and Director will plan it for you, or open a blank canvas.</p> : null}
+    {making ? <NewVideo slug={slug} onClose={() => setMaking(false)} onOpen={(id) => { setMaking(false); onCreated?.(id); openFile(id); }} /> : null}
   </div>;
 }
 

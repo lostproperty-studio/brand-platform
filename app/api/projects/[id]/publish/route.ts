@@ -1,5 +1,8 @@
 import { teamGate } from '@/lib/studioTeam';
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
+import { portalV2 } from '@/lib/portalVersion';
+import { appOrigin } from '@/lib/origin';
+import { afterPublish } from '@/lib/plugins/canva';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { buildSnapshot } from '@/lib/projects/snapshot';
 import { readFonts } from '@/lib/projects/fonts';
@@ -39,5 +42,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const c = (cur?.content || {}) as { kitSync?: Record<string, unknown> };
     await sb.from('projects').update({ content: { ...c, kitSync: { ...(c.kitSync || {}), error: kit.error, failedAt: new Date().toISOString() } } }).eq('id', id);
   }
+  // Plug-ins (staging only for now): Canva gets what's just been published, after the response so publishing isn't slowed
+  if (portalV2()) { const { data: pr } = await sb.from('projects').select('slug').eq('id', id).single(); const origin = await appOrigin(); if (pr?.slug) after(() => afterPublish(id, pr.slug, origin)); }
   return NextResponse.json({ ok: true, trialFonts: pending.length, kit });
 }

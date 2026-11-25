@@ -1132,6 +1132,7 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
           <Roundels me={me} peers={collab.peers} chapters={g.chapters} go={goTo} />
         </div>
       </div>
+      <p className="ve-mnote">On a phone: edit the words, comment and review. Layout, new sections and imports are on a bigger screen.</p>
       <PeerLayer peers={collab.peers} cursors={collab.cursors} ch={chId} />
       {spell.menu}
       {commentsOpen ? <CommentsPanel comments={comments} slug={slug} only={commentsOpen.only} onClose={() => setCommentsOpen(false)} where={commentWhere} onJump={jumpToComment} /> : null}

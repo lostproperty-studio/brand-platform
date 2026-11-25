@@ -1,6 +1,11 @@
 import { publishedSnapshot } from '@/lib/projects/snapshot';
 import { signMany, signOne } from '@/lib/storage/signed';
 import { ProjectTabs } from '@/components/ProjectTabs';
+import { PublishControl, type PublishState } from '@/components/PublishControl';
+import { byArea, changeFeed } from '@/lib/projects/changes';
+import { ConnectorSettings } from '@/components/ConnectorSettings';
+import { readConnector } from '@/lib/mcp/kit';
+import { kitGaps } from '@/lib/mcp/gaps';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -15,6 +20,11 @@ import { ToolManager } from '@/components/ToolManager';
 import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
 import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
+import { portalV2Studio } from '@/lib/portalVersionServer';
+import { MotionMaker } from '@/components/motion/MotionMaker';
+import { readDraft, readMotion, isSubmitted } from '@/lib/motion/model';
+import { portalContext } from '@/lib/portal/context';
+import { portalPackages } from '@/lib/portal/packages';
 import { readSources, type Source } from '@/lib/figma/sources';
 import { pickLogo, sidebarChoice, withFigmaLogos } from '@/lib/portal/logo';
 import { SidebarLogoPicker } from '@/components/SidebarLogoPicker';
@@ -49,13 +59,25 @@ import type { KitFileRow } from '@/lib/portal/context';
 import { tierLabel, tierOf } from '@/lib/playbook';
 import { Overview, type OverviewData } from '@/components/Overview';
 import { portalShot } from '@/lib/projects/overview';
+import { SwitchesSetting } from '@/components/SwitchesSetting';
+import { readStates, readSwitches, usesStudioAi } from '@/lib/portal/switches';
 import { logoThumbs } from '@/lib/projects/logoThumb';
 import { portalUrl } from '@/lib/domain';
 import { PortalAddress } from '@/components/PortalAddress';
 import { env } from '@/lib/env';
 import { teamGate, teamRole } from '@/lib/studioTeam';
+import { StudioBar } from '@/components/StudioBar';
+import { Suspense } from 'react';
+import { MonitorSmartphone } from 'lucide-react';
 
-const TABS = [['overview', 'Overview'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['pdf', 'PDF'], ['client', 'Client']] as const;
+// On a phone the studio keeps to what works well on a small screen; these sections say to use a bigger one
+const DESK = new Set(['showcase', 'typefaces', 'motion', 'pdf']);
+// Sections with their own side panels: the project sidebar folds to icons there, to leave them the width
+const RAIL = new Set(['guidelines', 'showcase', 'motion', 'pdf']);
+
+// The sections down the left, in three groups: the summary; the editing tools; the client and the project's settings
+type Tab = readonly [string, string];
+const EDIT: Tab[] = [['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['pdf', 'PDF']];
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -66,10 +88,19 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // Tools and Deliverables now live inside Resources
   const asked = sp.tab === 'tools' || sp.tab === 'deliverables' ? 'resources' : sp.tab;
   // The old Review tab is now the creative director, inside the guidelines editor
-  const tab = asked === 'review' ? 'guidelines' : TABS.some(([k]) => k === asked) ? asked! : 'overview';
+  // Portal v2 (staging): a Motion tab, for the brand's logo and type motion
+  const edit = [...EDIT];
+  if (await portalV2Studio(id)) edit.splice(edit.findIndex(([k]) => k === 'resources'), 0, ['motion', 'Motion']);
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, figma_page_id, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
+  // Sections switched off for this project drop out of the studio too
+  const on = readSwitches(p.content);
+  const studioAi = usesStudioAi(p.content);
+  if (!on.showcase) { const i = edit.findIndex(([k]) => k === 'showcase'); if (i >= 0) edit.splice(i, 1); }
+  const groups: Tab[][] = [[['overview', 'Overview']], edit, [['client', 'Client'], ['settings', 'Settings']]];
+  const tabs = groups.flat();
+  const tab = asked === 'review' ? 'guidelines' : tabs.some(([k]) => k === asked) ? asked! : 'overview';
   // The studio team: people not on a project's team can't open it; viewers see it read-only
   const me = st;
   const myRole = me instanceof Response ? null : await teamRole(id, me);
@@ -88,6 +119,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const tier = tierOf(content);
   const drafts = guide ? guide.chapters.flatMap((c) => c.blocks).filter((b) => b.draft === 'draft').length : 0;
   const missing = guide ? guide.chapters.flatMap((c) => c.blocks).filter((b) => b.draft === 'missing').length : 0;
+  const { count: openCount } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'open');
+  // What's changed and what's published: the Publish control at the top of every section, and the overview's versions
+  const feed = await changeFeed(id);
+  const portalAddr = await portalUrl(p.slug);
   let body: React.ReactNode = null;
   if (tab === 'overview') {
     const { fonts } = await readFonts(id);
@@ -138,6 +173,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null, aiRejected: !!(p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt,
       chapters: guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length : 0,
       checks,
+      // What the client's Claude reads: placeholder text in the published guidelines
+      gaps: await publishedSnapshot(id).then((snap) => (snap ? kitGaps(snap) : []), () => []),
+      versions: { live: feed.live, pending: byArea(feed.pending), direct: byArea(feed.direct), list: feed.versions.slice(0, 12).map((v) => ({ ...v, areas: byArea(v.changes) })) },
       delivery: {
         projectId: id, slug: p.slug, client: p.client, portalUrl: await portalUrl(p.slug), status: p.status as 'draft' | 'live' | 'archived',
         published: ver ? { at: ver.created_at, version: ver.version } : null,
@@ -154,20 +192,26 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           return [
             { ok: chapters > 0, text: chapters ? `Guidelines: ${chapters} chapter${chapters === 1 ? '' : 's'}` : 'No guidelines yet' },
             { ok: (logos || 0) > 0, text: logos ? `Downloads: ${logos} logo files, colours, fonts${fonts.some((f) => fontsNeedingLicence([f]).length) ? ' (once licensed)' : ''} and the rest of Resources` : 'Downloads: no logo files yet; build the kit' },
-            { ok: hasShowcase(readShowcase(content)), text: hasShowcase(readShowcase(content)) ? 'Showcase: the brand at work' : 'No showcase (the page is hidden until it has pictures)' },
-            { ok: !!v.writer && voiceReady(v), text: v.writer && voiceReady(v) ? 'Writer: copy in the brand voice' : 'Writer is off' },
+            ...(on.showcase ? [] : [{ ok: true, text: 'Showcase: switched off for this project' }]),
+            ...(!on.showcase ? [] : [{ ok: hasShowcase(readShowcase(content)), text: hasShowcase(readShowcase(content)) ? 'Showcase: the brand at work' : 'No showcase (the page is hidden until it has pictures)' }]),
+            ...(on.writer ? [{ ok: !!v.writer && voiceReady(v), text: v.writer && voiceReady(v) ? 'Writer: copy in the brand voice' : 'Writer is off' }] : []),
             { ok: (apps || 0) > 0, text: apps ? `${apps} app${apps === 1 ? '' : 's'} in Resources` : 'No apps' },
-            { ok: !!p.ai_key_hint, text: p.ai_key_hint ? 'AI (Ask, Writer and apps): connected with their key' : 'AI needs the client’s own key: their admin adds it after joining, until then Ask and the Writer are off' }
+            { ok: !!p.ai_key_hint || studioAi, text: studioAi ? 'AI (Ask, Writer and apps): runs on Lost Property’s Claude' : p.ai_key_hint ? 'AI (Ask, Writer and apps): connected with their key' : 'AI needs the client’s own key: their admin adds it after joining, until then Ask and the Writer are off' }
           ];
         })()
       }
     };
+    body = <div className="ov-wrap"><Overview d={data} created={!!sp.created} skipped={!!sp.skipped} /></div>;
+  }
+  if (tab === 'settings') {
+    // The project's settings: the portal's address, the guide tier, sections and apps, the kit, the Claude connector
     body = <div className="ov-wrap">
-      <Overview d={data} created={!!sp.created} skipped={!!sp.skipped} />
       <h2 className="ov-sec-h">Settings</h2>
       <div className="ov-settings">
-      <PortalAddress projectId={p.id} host={data.portalUrl.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />
+      <PortalAddress projectId={p.id} host={portalAddr.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />
       <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
+      <SwitchesSetting projectId={p.id} switches={readStates(p.content)} studioAi={studioAi} admin={me.role === 'admin'} />
+      <ConnectorSettings projectId={p.id} shareFontFiles={readConnector(p.content).shareFontFiles} />
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
       <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
       </div>
@@ -198,7 +242,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const files: KitFileRow[] = withFigmaLogos((parts || []).flatMap((d) => ((d.deliverable_files || []) as Omit<KitFileRow, 'part' | 'partStatus'>[]).map((f) => ({ ...f, part: d.key as string, partStatus: d.status as string }))), p.content, { format: 'svg', part: 'assets', partStatus: 'ready' });
     const snap = await buildSnapshot(id).catch(() => null);
     const { fonts } = await readFonts(id);
-    const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
+    const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, v2: await portalV2Studio(id), hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
     const logo = pickLogo(files).main;
     const logoUrl = logo ? (await signOne('kits', logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
     body = <div className="rs-studio">
@@ -315,18 +359,48 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const logoUrl = logoRow?.storage_path ? (await signOne('kits', logoRow.storage_path, 6 * 3600)).data?.signedUrl ?? null : null;
     body = <PdfStudio projectId={id} client={p.client} guide={guide} urls={urls} logoUrl={logoUrl} colours={snapP?.colours || []} content={content} sysCss={sysCss} fontCss={fontCss} />;
   }
+  if (tab === 'motion') {
+    // Every SVG logo: the kit's, or the files in the Logos package
+    const pc = await portalContext(p.slug);
+    const pkg = pc ? (await portalPackages(pc)).find((x) => x.kind === 'logos') : undefined;
+    const files = [...(pkg?.uploads || []).filter((u) => /\.svg$/i.test(u.name)).map((u) => ({ path: u.path, name: u.name })), ...(pkg?.kitFiles || []).filter((f) => f.storage_path && /\.svg$/i.test(f.path)).map((f) => ({ path: f.storage_path!, name: f.path.split('/').pop()! }))];
+    const { data: signed } = files.length ? await signMany('kits', files.map((f) => f.path), 6 * 3600) : { data: [] };
+    const url = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
+    const logos = files.filter((f) => url[f.path]).map((f) => ({ path: f.path, name: f.name.replace(/\.svg$/i, '').replace(/[_-]+/g, ' '), url: url[f.path] }));
+    // Every typeface on the project, in its own font where it's been uploaded
+    const fonts = (pc?.fonts || []).filter((f) => f.name).map((f) => ({ role: f.role, label: f.label, name: f.name, css: f.files.length ? `var(--font-${f.role}), sans-serif` : 'inherit' }));
+    const sub = isSubmitted(p.content) ? readMotion(p.content) : null;
+    body = <>{pc?.fontCss ? <style>{pc.fontCss}</style> : null}<MotionMaker key={sub?.version || 0} projectId={id} client={p.client} logos={logos} fonts={fonts} colours={pc?.snap?.colours || []} motion={readDraft(p.content)}
+      live={sub ? { version: sub.version || 1, submittedAt: sub.submittedAt, submittedBy: sub.submittedBy } : null} canSubmit={myRole === 'lead'} /></>;
+  }
   if (tab === 'typefaces') {
     body = <FontManager projectId={id} />;
   }
+  const publishState: PublishState = {
+    projectId: id, client: p.client, portalUrl: portalAddr, status: p.status as PublishState['status'],
+    live: feed.live ? { version: feed.live.version, at: feed.live.at, by: feed.live.by } : null,
+    pending: byArea(feed.pending), canPublish: myRole !== 'viewer'
+  };
+  const tabName = tabs.find(([k]) => k === tab)?.[1];
   return (
-    <div>
-      <header className="pj-head">
-        <div className="pj-bar"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn ic" href="/studio"><ArrowLeft size={15} strokeWidth={1.75} aria-hidden />Projects</Link></div>
-        <h1 className="pj-title">{p.client}</h1>
-        <div className="pj-nav"><ProjectTabs id={id} tabs={TABS} current={tab} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
-      </header>
-      {myRole === 'viewer' ? <p className="ov-viewer" role="note">You’re a viewer on this project, so changes you try to make won’t be saved.</p> : null}
-      <div id="pj-panel" role="tabpanel" aria-label={TABS.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>{body}</div>
+    <div className={'pj-shell' + (RAIL.has(tab) ? ' rail' : '')}>
+      <aside className="pj-side" aria-label={`${p.client} project`}>
+        <div className="pj-bar"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn ic pj-back" href="/studio"><ArrowLeft size={15} strokeWidth={1.75} aria-hidden />Projects</Link></div>
+        <p className="pj-side-name" title={p.client}>{p.client}</p>
+        <nav className="pj-nav"><ProjectTabs id={id} groups={groups} current={tab} desk={[...DESK]} /></nav>
+      </aside>
+      <div className="pj-main">
+        <header className="pj-head">
+          <h1 className="pj-title"><span className="pj-title-c">{p.client}</span><span className="pj-title-t">{tabName}</span></h1>
+          <div className="pj-acts"><a className="btn ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a><PublishControl s={publishState} /></div>
+        </header>
+        {myRole === 'viewer' ? <p className="ov-viewer" role="note">You’re a viewer on this project, so changes you try to make won’t be saved.</p> : null}
+        <div id="pj-panel" role="tabpanel" aria-label={tabName} style={{ padding: '20px 20px 80px' }}>
+          {DESK.has(tab) ? <div className="pj-desk-note"><MonitorSmartphone size={28} strokeWidth={1.4} aria-hidden /><h2>{tabName} is for a bigger screen</h2><p className="mute">On a phone you can review, comment and edit the words. Open this on a laptop to work on it.</p><a className="btn" href={`/p/${p.slug}`}>Preview as client</a></div> : null}
+          <div className={DESK.has(tab) ? 'pj-desk' : undefined}>{body}</div>
+        </div>
+      </div>
+      <Suspense><StudioBar requests={openCount || 0} admin={me instanceof Response ? false : me.role === 'admin'} email={me instanceof Response ? '' : me.user.email || ''} /></Suspense>
     </div>
   );
 }

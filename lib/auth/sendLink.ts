@@ -1,6 +1,7 @@
 'use server';
 import { appOrigin } from '@/lib/origin';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { userClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
 import { emailProvider, sendEmail } from '@/lib/email/send';
@@ -23,9 +24,9 @@ export async function sendSignInLink(form: FormData) {
   let sent = false;
   if (emailProvider()) {
     try {
-      const { url } = await signInUrl(email, next);
+      const { url, code } = await signInUrl(email, next);
       const b = slug ? await clientBrand(slug) : studioBrand();
-      await sendEmail({ to: email, ...signInEmail(b, url) });
+      await sendEmail({ to: email, ...signInEmail(b, url, code) });
       sent = true; await clearEmailError();
     } catch (e) { await noteEmailError('sign-in', e); }
   }
@@ -35,5 +36,24 @@ export async function sendSignInLink(form: FormData) {
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${await appOrigin()}/auth/callback?next=${encodeURIComponent(next)}`, shouldCreateUser: true } });
     if (error) { failed = true; reason = /rate|limit|seconds/i.test(error.message) ? 'wait' : ''; console.error('[sign-in] supabase:', error.message); }
   }
+  // Remember who asked (only on this device, never in the page), so the code from the email can be typed in here
+  if (!failed) (await cookies()).set('lp_signin', email, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 3600 });
   redirect(`${back}${back.includes('?') ? '&' : '?'}${failed ? `error=${reason || '1'}` : 'sent=1'}&next=${encodeURIComponent(next)}`);
+}
+
+/** Signs in with the 6-digit code from the sign-in email: for the iOS app, or when the link opens on another device */
+export async function signInWithCode(form: FormData) {
+  const code = String(form.get('code') || '').replace(/\D/g, '');
+  const next = String(form.get('next') || '/');
+  const back = String(form.get('back') || '/login');
+  const jar = await cookies();
+  const email = jar.get('lp_signin')?.value || '';
+  const again = `${back}${back.includes('?') ? '&' : '?'}next=${encodeURIComponent(next)}`;
+  if (!email) redirect(`${again}&error=expired`);
+  const sb = await userClient();
+  let { error } = await sb.auth.verifyOtp({ email, token: code, type: 'email' });
+  if (error) ({ error } = await sb.auth.verifyOtp({ email, token: code, type: 'magiclink' }));
+  if (error) redirect(`${again}&sent=1&error=code`);
+  jar.delete('lp_signin');
+  redirect(next.startsWith('/') ? next : '/');
 }

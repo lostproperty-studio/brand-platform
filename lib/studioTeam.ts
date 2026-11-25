@@ -30,7 +30,7 @@ export async function teamRole(projectId: string, st: Staff, rows?: TeamRow[]): 
 export async function teamGate(projectId: string, st: Staff, need: TeamRole, area?: string): Promise<Response | null> {
   const role = await teamRole(projectId, st);
   if (!role) return new Response('You’re not on this project’s team. Ask its lead to add you.', { status: 403 });
-  if (RANK[role] < RANK[need]) return new Response(need === 'lead' ? 'Only the project’s leads can do this.' : 'You can view this project but not change it.', { status: 403 });
+  if (RANK[role] < RANK[need]) return new Response(need === 'lead' ? 'Only the project’s leads and studio admins can do this.' : 'You can view this project but not change it.', { status: 403 });
   if (need !== 'viewer') await touch(projectId, st.user.id, area);
   return null;
 }
