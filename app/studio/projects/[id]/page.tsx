@@ -75,11 +75,13 @@ import { MonitorSmartphone } from 'lucide-react';
 // On a phone the studio keeps to what works well on a small screen; these sections say to use a bigger one
 const DESK = new Set(['showcase', 'typefaces', 'motion', 'pdf']);
 // Sections with their own side panels: the project sidebar folds to icons there, to leave them the width
-const RAIL = new Set(['guidelines', 'showcase', 'motion', 'pdf']);
+const RAIL = new Set(['guidelines', 'showcase', 'voice', 'motion', 'pdf']);
 
 // The sections down the left, in three groups: the summary; the editing tools; the client and the project's settings
 type Tab = readonly [string, string];
-const EDIT: Tab[] = [['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['pdf', 'PDF']];
+// The editors (full-width canvases with their own panels), then the brand's typefaces and files (a centred column)
+const EDIT: Tab[] = [['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['voice', 'Voice'], ['pdf', 'PDF']];
+const ASSETS: Tab[] = [['typefaces', 'Typefaces'], ['resources', 'Resources']];
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -92,7 +94,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // The old Review tab is now the creative director, inside the guidelines editor
   // Portal v2 (staging): a Motion tab, for the brand's logo and type motion
   const edit = [...EDIT];
-  if (await portalV2Studio(id)) edit.splice(edit.findIndex(([k]) => k === 'resources'), 0, ['motion', 'Motion']);
+  if (await portalV2Studio(id)) edit.splice(edit.findIndex(([k]) => k === 'pdf'), 0, ['motion', 'Motion']);
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, figma_page_id, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
@@ -100,7 +102,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const on = readSwitches(p.content);
   const studioAi = usesStudioAi(p.content);
   if (!on.showcase) { const i = edit.findIndex(([k]) => k === 'showcase'); if (i >= 0) edit.splice(i, 1); }
-  const groups: Tab[][] = [[['overview', 'Overview']], edit, [['requests', 'Requests'], ['client', 'Client'], ['settings', 'Settings']]];
+  const groups: Tab[][] = [[['overview', 'Overview']], edit, ASSETS, [['requests', 'Requests'], ['client', 'Client'], ['settings', 'Settings']]];
   const tabs = groups.flat();
   const tab = asked === 'review' ? 'guidelines' : tabs.some(([k]) => k === asked) ? asked! : 'overview';
   // The studio team: people not on a project's team can't open it; viewers see it read-only
@@ -253,12 +255,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const packages = await resolvePackages({ files, content: p.content, colours: snap?.colours || [], fonts, preview: true, v2: await portalV2Studio(id), hasLogo: files.some((f) => /^assets\/logo\/.+\.svg$/i.test(f.path)) });
     const logo = pickLogo(files).main;
     const logoUrl = logo ? (await signOne('kits', logo.storage_path!, 3600)).data?.signedUrl ?? null : null;
-    body = <div className="rs-studio">
-      <nav className="rs-studio-nav" aria-label="Resources"><a href="#design-system">Design system</a><a href="#apps">Apps and tools</a><a href="#downloads">Downloads</a></nav>
-      <section id="design-system" className="rs-studio-sec"><h2 className="rs-studio-h">Design system</h2><DesignProfile projectId={id} slug={p.slug} initial={readProfile(p.content)} chapters={(normaliseGuide((p.content as { guide?: Guide } | null)?.guide)?.chapters || []).filter((c) => !c.removed).length} colours={snap?.colours || []} roles={dsRoles(snap?.colours || [])} fonts={fonts.map((f) => ({ role: f.role, name: f.name }))} fontCss={fontFaceCss(fonts, await signFontUrls(fonts))} /></section>
-      <section id="apps" className="rs-studio-sec"><h2 className="rs-studio-h">Apps and tools</h2><ToolManager projectId={id} slug={p.slug} /></section>
-      <section id="downloads" className="rs-studio-sec"><h2 className="rs-studio-h">Downloads</h2><ResourceManager projectId={id} slug={p.slug} client={p.client} roles={dsRoles(snap?.colours || [])} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} guideRev={((p.content as { guide?: { _rev?: number } } | null)?.guide?._rev) || 0} ai={{ 'design-system': packageSettings(p.content)['design-system'] || {}, skills: packageSettings(p.content).skills || {} }} /></section>
-        <GithubPanel projectId={id} repo={p.repo_full_name} sync={(content as { kitSync?: never }).kitSync} shared={!!(content as { repoShared?: boolean }).repoShared} />
+    body = <div className="ss rs-ss">
+      <section id="design-system" className="ss-sec"><h2 className="ss-label">Design system</h2><DesignProfile projectId={id} slug={p.slug} initial={readProfile(p.content)} chapters={(normaliseGuide((p.content as { guide?: Guide } | null)?.guide)?.chapters || []).filter((c) => !c.removed).length} colours={snap?.colours || []} roles={dsRoles(snap?.colours || [])} fonts={fonts.map((f) => ({ role: f.role, name: f.name }))} fontCss={fontFaceCss(fonts, await signFontUrls(fonts))} /></section>
+      <section id="apps" className="ss-sec"><h2 className="ss-label">Apps and tools</h2><ToolManager projectId={id} slug={p.slug} /></section>
+      <section id="downloads" className="ss-sec"><h2 className="ss-label">Downloads</h2><ResourceManager projectId={id} slug={p.slug} client={p.client} roles={dsRoles(snap?.colours || [])} packages={packages} colours={snap?.colours || []} logoUrl={logoUrl} guideRev={((p.content as { guide?: { _rev?: number } } | null)?.guide?._rev) || 0} ai={{ 'design-system': packageSettings(p.content)['design-system'] || {}, skills: packageSettings(p.content).skills || {} }} /></section>
+        <section id="github" className="ss-sec"><h2 className="ss-label">GitHub</h2><GithubPanel projectId={id} repo={p.repo_full_name} sync={(content as { kitSync?: never }).kitSync} shared={!!(content as { repoShared?: boolean }).repoShared} /></section>
     </div>;
   }
   if (tab === 'client') {
@@ -293,7 +294,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const shownFull = signed.find((x) => x.path === sideNow.full)?.url ?? autoFull;
     const shownMini = signed.find((x) => x.path === sideNow.mini)?.url ?? avatar;
     const recentList = a.filter((x) => x.kind !== 'visit');
-    body = <div className="dash">
+    body = <div className="ss"><section className="ss-sec"><h2 className="ss-label">How {p.client} uses their portal</h2><div className="dash">
       <DashCard title="Last 30 days" icon={<BarChart3 size={16} strokeWidth={1.75} aria-hidden />} sheet={<>
         {a.length ? <div className="tm-list">{a.filter((x) => x.kind !== 'visit').slice(0, 25).map((x, k) => <div key={k} className="tm-row"><span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{emailOf[x.user_id || ''] || 'Someone'} {VERB[x.kind] || x.kind} {x.detail || ''}</span><span className="mute">{new Date(x.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>)}</div> : <p className="mute" style={{ margin: 0 }}>No activity yet.</p>}
       </>} action="Activity" sheetTitle="Recent activity">
@@ -342,7 +343,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       </>}>
         {recentList.length ? <ul className="dc-list">{recentList.slice(0, 4).map((x, k) => <li key={k}><span>{(emailOf[x.user_id || ''] || 'Someone').split('@')[0]} {VERB[x.kind] || x.kind} {x.detail || ''}</span><span className="mute">{new Date(x.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></li>)}</ul> : <p className="mute">Nothing yet.</p>}
       </DashCard>
-    </div>;
+    </div></section></div>;
   }
   if (tab === 'voice') {
     // How the brand writes: the voice work and what the AI needs, for the Writer, Ask, the skill and the connector
@@ -382,7 +383,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       live={sub ? { version: sub.version || 1, submittedAt: sub.submittedAt, submittedBy: sub.submittedBy } : null} canSubmit={myRole === 'lead'} /></>;
   }
   if (tab === 'typefaces') {
-    body = <FontManager projectId={id} />;
+    body = <div className="ss"><section className="ss-sec"><h2 className="ss-label">Typefaces</h2><p className="ss-note">The licensed font files are what the portal, the kit and the Claude connector use. Trial files show until they’re replaced.</p><FontManager projectId={id} /></section></div>;
   }
   const publishState: PublishState = {
     projectId: id, client: p.client, portalUrl: portalAddr, status: p.status as PublishState['status'],

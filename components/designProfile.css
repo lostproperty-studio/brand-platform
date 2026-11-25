@@ -177,3 +177,21 @@
   .dp2-3, .dp2-g-layout .dp2-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dp2-g-layout .dp2-3 .dp2-wide { grid-column: span 2; }
 }
+
+/* In the studio's centred column (Resources): the groups stack, each labelled above its own box, and the tiles
+   re-flow to the column's width */
+.ss .dp2-groups { display: flex; flex-direction: column; gap: 40px; margin-top: 26px; }
+.ss .dp2-g { position: relative; padding: 16px 18px; border-radius: 16px; gap: 12px; }
+.ss .dp2-gh { position: absolute; left: 0; top: -28px; font-size: 14px; font-weight: 500; }
+.ss .dp2-6 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.ss .dp2-6 > .dp2-cell, .ss .dp2-6 > .dp2-cell:nth-child(n + 4) { grid-column: auto; }
+.ss .dp2-g-img .dp2-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.ss .dp2-roles { grid-auto-flow: row; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ss .dp2-pal { margin-top: 0; }
+.ss .dp2-head { padding-bottom: 4px; }
+/* Graphic devices wrap inside their tile instead of running out of it */
+.dp2-chips { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.dp2-chips > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) { .ss .dp2-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ss .dp2-g-img .dp2-2 { grid-template-columns: minmax(0, 1fr); } }
+.dp2-vis { min-width: 0; } .dp2-vis > .dp2-chips { flex: 1; }
+.ss .dp2-g-rules .dp2-2 { grid-template-columns: minmax(0, 1fr); } .ss .dp2-dd li span { white-space: normal; }
