@@ -366,6 +366,16 @@ export function GuideEditor({ projectId, slug, guide: initial, content, thumbs, 
       setSel(ii >= 0 ? { block: r.block, item: ii, el: `${r.item}.${r.field}` } : r.field.startsWith('cap:') ? { block: r.block, el: 'img:' + r.field.slice(4) } : { block: r.block, el: r.field }); }
     setTimeout(() => { const el = r.block ? document.querySelector(`[data-block="${r.block}"]`) : document.querySelector('.ve-chhead'); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
   };
+  // Arriving from the overview's 'Guidelines to finish' (?ch=<chapter>&b=<section>): open that chapter at that section
+  useEffect(() => {
+    const u = new URL(window.location.href); const ch = u.searchParams.get('ch'); if (!ch) return;
+    const b = u.searchParams.get('b');
+    if (latest.current?.chapters.some((c) => c.id === ch)) {
+      setChId(ch);
+      if (b) { setSel({ block: b }); setTimeout(() => document.querySelector(`.ve-blocks [data-block="${CSS.escape(b)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250); }
+    }
+    u.searchParams.delete('ch'); u.searchParams.delete('b'); window.history.replaceState(null, '', u.toString());
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   /** What Review should help with: the selected text, frame or section, as references to its words */
   const reviewFocus = () => {
     if (!g || !sel || !chId) return null;

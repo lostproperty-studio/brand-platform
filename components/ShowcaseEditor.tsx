@@ -72,7 +72,7 @@ export function ShowcaseEditor({ projectId, slug, initial, initialUrls, colours 
 
   const selRow = sel ? rows.find((r) => r.id === sel.row) : undefined;
   const selFrame = selRow && sel?.i !== undefined ? selRow.frames[sel.i] : undefined;
-  const mini = (f: ShowcaseFrame) => f.kind === 'image' && f.path && urls[f.path] ? <img src={urls[f.path]} alt="" /> : f.kind === 'video' ? <span className="sx-k">MP4</span> : f.kind === 'code' ? <span className="sx-k">Code</span> : null;
+  const mini = (f: ShowcaseFrame) => f.kind === 'image' && f.path && urls[f.path] ? <img src={urls[f.path]} alt="" /> : f.kind === 'video' ? (f.path && urls[f.path] ? <video src={`${urls[f.path]}#t=0.1`} muted playsInline preload="metadata" aria-hidden="true" /> : <span className="sx-k">MP4</span>) : f.kind === 'code' ? <span className="sx-k">Code</span> : null;
 
   return (
     <div className="sx">

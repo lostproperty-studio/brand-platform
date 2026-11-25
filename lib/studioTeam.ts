@@ -41,7 +41,14 @@ async function touch(projectId: string, userId: string, area?: string) {
     const sb = adminClient();
     await sb.from('projects').update({ last_edited_by: userId, last_edited_at: new Date().toISOString() }).eq('id', projectId);
     const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const { count } = await sb.from('activity').select('id', { count: 'exact', head: true }).eq('project_id', projectId).eq('user_id', userId).eq('kind', 'edit').eq('detail', area || 'project').gte('created_at', since);
-    if (!count) await sb.from('activity').insert({ project_id: projectId, user_id: userId, kind: 'edit', detail: area || 'project' });
+    const [{ data: recent }, { data: pub }] = await Promise.all([
+      sb.from('activity').select('created_at').eq('project_id', projectId).eq('user_id', userId).eq('kind', 'edit').eq('detail', area || 'project').gte('created_at', since).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      sb.from('project_versions').select('created_at').eq('project_id', projectId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    ]);
+    // A new entry unless there's one from the last ten minutes that's still waiting: an edit after a publish always
+    // gets its own, so the Publish button knows there's something new to publish
+    const waiting = recent && (!pub || new Date(recent.created_at) > new Date(pub.created_at));
+    if (!waiting && area !== 'publish') await sb.from('activity').insert({ project_id: projectId, user_id: userId, kind: 'edit', detail: area || 'project' });
+    else if (!recent && area === 'publish') await sb.from('activity').insert({ project_id: projectId, user_id: userId, kind: 'edit', detail: 'publish' });
   } catch { /* best effort; never blocks the change */ }
 }

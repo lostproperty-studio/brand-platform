@@ -68,3 +68,46 @@ export function kitGaps(snapshot: Snapshot): { chapter: string; points: string[]
   }
   return out;
 }
+
+// ── For the studio's overview: the same gaps as to-dos, one per section, with what's missing, a suggestion of what to
+// write, and where to go to fix it.
+
+export type GuideTodo = { chapterId: string; chapter: string; blockId: string | null; section: string; missing: string; suggestion: string };
+
+/** What a good answer looks like, by what the chapter is about: exact, measurable specs Claude can follow */
+const SUGGEST: { re: RegExp; text: string }[] = [
+  { re: /logo|wordmark|symbol|marque/, text: 'Say exactly how it works: the minimum size (in mm and px), the clear space around it (for example “the height of the symbol on every side”), which version goes on light and on dark backgrounds, and what never to do with it.' },
+  { re: /colou?r|palette/, text: 'Give each colour its name, HEX, RGB and CMYK, what it’s for (backgrounds, text, accents) and roughly how much of a page it takes.' },
+  { re: /typ(e|ography)|font/, text: 'Name the typeface and weight for each level (for example “headlines in Die Grotesk D Heavy”), with size, line spacing, letter spacing and the case rule.' },
+  { re: /layout|grid|template|format/, text: 'Give the grid for each format: columns, outer margins and gutters (for example “A4: 12 columns, 15mm margins, 5mm gutters”), and how far type and logos sit from the edges.' },
+  { re: /imag|photo|art direction|picture/, text: 'Describe the treatment exactly: crops and ratios, colour and grain, how see-through layered images are (for example “60% opacity”) and the most layers allowed.' },
+  { re: /graphic|device|pattern|tile|grid of dots|dot/, text: 'Give its construction: sizes and spacing (for example “4px dots on an 8px grid”), colours, how it’s built (such as how to make a word tile), and where it may and may not be used.' },
+  { re: /voice|tone|writ|messag/, text: 'Write the principle in one line, then one example that’s on brand and one that isn’t.' },
+  { re: /icon/, text: 'Give the icon style: stroke weight, corner radius, grid size and the sizes they’re used at.' }
+];
+const suggestFor = (chapter: string, section: string) => (SUGGEST.find((s) => s.re.test(`${section} ${chapter}`.toLowerCase())) || { text: 'Replace the stand-in text with the actual rule, with measurable values (sizes, spacing, percentages) wherever there are any.' }).text;
+
+const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+
+/** The gaps in the guidelines as to-dos: one per section that has stand-in text or a missing image */
+export function guideTodos(snapshot: Snapshot): GuideTodo[] {
+  const out: GuideTodo[] = [];
+  for (const c of snapshot.guide?.chapters || []) {
+    if (isPlaceholder(c.lede)) out.push({ chapterId: c.id, chapter: c.title, blockId: null, section: 'Introduction', missing: 'The chapter’s introduction is still stand-in text', suggestion: 'Say in one or two sentences what this chapter covers and the one thing to get right.' });
+    c.blocks.forEach((b, i) => {
+      const n = { headline: 0, text: 0, label: 0, image: 0, swatch: 0 };
+      const count = (t?: string, kind: keyof typeof n = 'text') => { if (isPlaceholder(t)) n[kind]++; };
+      count(b.heading, 'headline'); count(b.eyebrow, 'label'); count(b.body);
+      for (const x of b.extras || []) count(x.text, x.kind === 'heading' ? 'headline' : 'text');
+      (b.items || []).filter((it) => !it.hidden).forEach((it) => { for (const e of itemEls(it)) if (!e.hidden && e.kind !== 'button' && isPlaceholder(e.text)) n[e.kind === 'heading' ? 'headline' : e.kind === 'label' ? 'label' : 'text']++; });
+      for (const s of b.swatches || []) if (isPlaceholder(s.name) || (norm(s.name) === 'colour' && s.hex.toUpperCase() === '#000000')) n.swatch++;
+      if ((b.kind === 'image' || b.kind === 'split' || b.kind === 'media') && !(b.media || []).length && !b.backdrop) n.image++;
+      const parts = [n.headline ? plural(n.headline, 'headline') : '', n.text ? plural(n.text, 'description') : '', n.label ? plural(n.label, 'label') : '', n.swatch ? plural(n.swatch, 'colour swatch', 'colour swatches') : '', n.image ? 'an image' : ''].filter(Boolean);
+      if (!parts.length) return;
+      const section = real(b.heading) ? short(b.heading!) : `Section ${i + 1}`;
+      out.push({ chapterId: c.id, chapter: c.title, blockId: b.id, section, missing: `Still needs ${parts.join(', ').replace(/, ([^,]*)$/, ' and $1')}`, suggestion: n.image && parts.length === 1 ? 'Add the example image this section describes, so Claude can see what good looks like.' : suggestFor(c.title, section) });
+    });
+    if (!c.blocks.length && !(c.rules || []).length) out.push({ chapterId: c.id, chapter: c.title, blockId: null, section: 'Whole chapter', missing: 'Nothing written in this chapter yet', suggestion: suggestFor(c.title, '') });
+  }
+  return out;
+}
