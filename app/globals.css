@@ -5953,7 +5953,8 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
    below the logo, open or folded. The selected section shows by its fill, without a ring after a click. */
 @media (min-width: 761px) {
   .pj-side-name, .pj-shell.rail .pj-side-name { display: none; }
-  .pj-side .pj-nav { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: safe center; padding-bottom: 60px; }
+  .pj-side .pj-nav { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: safe center; align-items: stretch; padding-bottom: 60px; }
+  .pj-side .pj-nav > .pj-tabs { width: 100%; }
   .pj-side .pj-tab.on:focus-visible { box-shadow: none; }
 }
 
