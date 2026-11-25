@@ -5889,3 +5889,25 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 /* The design profile's side tray in Resources: wider than the other packages' trays */
 .rm2-pane.wide { width: min(820px, 100vw); }
 .rm2-ds { padding: 28px 32px 48px; }
+
+/* The project sidebar, aligned: its top row is exactly as tall as the page's top bar, so their dividing lines run
+   straight across; every icon and the logo keep the same place whether the sidebar is open or folded to icons;
+   and it slides between the two, with the words fading, rather than jumping. Desktop only (phones use the strip). */
+@media (min-width: 761px) {
+  .pj-shell { --pj-bar: 60px; transition: grid-template-columns .22s ease; }
+  .pj-side, .pj-shell.rail .pj-side { padding: 0 10px 16px; overflow-x: hidden; }
+  .pj-side .pj-bar, .pj-shell.rail .pj-side .pj-bar { box-sizing: border-box; height: var(--pj-bar); margin: 0 -10px 8px; padding: 0 10px 0 16px; justify-content: flex-start; border-bottom: 1px solid var(--line); }
+  .pj-side .pj-bp { flex: none; width: 28px; }
+  .pj-side > * { flex: none; }
+  .pj-main > .pj-head { box-sizing: border-box; height: var(--pj-bar); min-height: 0; padding-top: 0; padding-bottom: 0; }
+  .pj-side-name { height: 22px; line-height: 22px; margin: 4px 12px 8px; }
+  .pj-side .pj-tab, .pj-shell.rail .pj-side .pj-tab { justify-content: flex-start; padding: 0 12px; gap: 10px; white-space: nowrap; overflow: hidden; }
+  .pj-side .pj-tab-l, .pj-side-name, .pj-side .pj-back { transition: opacity .15s ease; }
+  /* Folded: the words fade out but keep their place, so nothing moves up or across */
+  .pj-shell.rail .pj-back, .pj-shell.rail .pj-side-name, .pj-shell.rail .pj-tab-l { display: revert; opacity: 0; pointer-events: none; }
+  .pj-shell.rail .pj-back { visibility: hidden; }
+  .pj-sep { margin: 10px 2px; }
+  /* A quieter focus ring than the browser's, the same in both states */
+  .pj-side .pj-tab:focus-visible { outline: 0; box-shadow: inset 0 0 0 1.5px #000; }
+}
+@media (min-width: 761px) and (prefers-reduced-motion: reduce) { .pj-shell, .pj-side .pj-tab-l, .pj-side-name, .pj-side .pj-back { transition: none; } }
