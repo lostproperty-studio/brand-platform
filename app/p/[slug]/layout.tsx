@@ -7,7 +7,7 @@ import { hasShowcase } from '@/lib/showcase';
 import { voiceReady } from '@/lib/voice';
 import { PreviewComments } from '@/components/portal/PreviewComments';
 import { canSee, projectStages, stageBadge } from '@/lib/features';
-import { APPS } from '@/lib/portalVersion';
+import { APPS, portalName } from '@/lib/portalVersion';
 import { GuideShell } from '@/components/portal/v2/GuideShell';
 import { readStates, readSwitches, usesStudioAi } from '@/lib/portal/switches';
 import { getAppPreviews } from '@/lib/portal/appPreviewsServer';
@@ -39,7 +39,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
       <style>{css}</style>
       <PortalNav showcaseName={snap?.showcase?.nav} slug={slug} client={project.client} logoUrl={sidebar.full} miniUrl={sidebar.mini} chapters={chapters} showSettings={access.canManage} showShowcase={on.showcase && (preview || hasShowcase(snap?.showcase))} showWriter={!v2 && (preview || (!!snap?.voice && voiceReady(snap.voice) && !!snap.voice.writer))} features={v2 ? [] : features} apps={apps} rail={v2} />
       <div className="pt-main">
-        {preview ? <div className="pt-preview" role="status">Studio preview of the working copy. <a href={`/api/p/${slug}/view-as?mode=client`}>View as the client</a> · {project.status === 'live' ? 'Clients see the last published version.' : 'Not published yet, so clients can’t see it.'} <a href={`/studio/projects/${project.id}`}>Back to the studio</a></div> : null}
+        {preview ? <div className="pt-preview" role="status"><b>Staging</b> · your latest changes, private to Lost Property{ctx.portal.canToggle && ctx.portal.beta ? <> · {ctx.portal.onBeta ? `${portalName(ctx.portal.beta)} (beta)` : `${portalName(ctx.portal.main)} (main)`} <a href={`/api/p/${slug}/staging?portal=${ctx.portal.onBeta ? 'main' : 'beta'}&to=/p/${slug}`}>Switch to {ctx.portal.onBeta ? 'main' : 'the beta'}</a></> : null}. <a href={`/api/p/${slug}/view-as?mode=client`}>View as the client</a> · {project.status === 'live' ? 'Clients see the last published version.' : 'Not published yet, so clients can’t see it.'} <a href={`/studio/projects/${project.id}`}>Back to the studio</a></div> : null}
         {asClient ? <div className="pt-preview as-client" role="status">You’re seeing exactly what {project.client}’s team sees: {project.status === 'live' ? 'the published version' : 'nothing yet, because it isn’t published'}, with their downloads, apps and AI. <a href={`/api/p/${slug}/view-as?mode=studio`}>Back to the studio preview</a></div> : null}
         {preview ? <PreviewComments projectId={project.id} v2={v2} /> : null}
         {snap ? <AskDock slug={slug} client={project.client} aiConnected={!!project.ai_key_hint || preview || studioAi} studioAi={preview || studioAi} canConnect={access.clientAdmin} lpChat={v2 && canSee(stages.support, preview)} /> : null}

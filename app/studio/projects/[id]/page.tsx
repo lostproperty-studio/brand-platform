@@ -20,7 +20,9 @@ import { ToolManager } from '@/components/ToolManager';
 import { LoginLookEditor, StudioRequests } from '@/components/ClientAdmin';
 import { listMembers, ROLE_LABEL } from '@/lib/team';
 import { DEFAULT_LOOK, type LoginLook } from '@/lib/branding';
-import { portalV2Studio } from '@/lib/portalVersionServer';
+import { betaAccess, portalLine, portalV2Studio } from '@/lib/portalVersionServer';
+import { portalName } from '@/lib/portalVersion';
+import { PortalVersionSetting } from '@/components/PortalVersionSetting';
 import { MotionMaker } from '@/components/motion/MotionMaker';
 import { readDraft, readMotion, isSubmitted } from '@/lib/motion/model';
 import { portalContext } from '@/lib/portal/context';
@@ -98,7 +100,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const on = readSwitches(p.content);
   const studioAi = usesStudioAi(p.content);
   if (!on.showcase) { const i = edit.findIndex(([k]) => k === 'showcase'); if (i >= 0) edit.splice(i, 1); }
-  const groups: Tab[][] = [[['overview', 'Overview']], edit, [['client', 'Client'], ['settings', 'Settings']]];
+  const groups: Tab[][] = [[['overview', 'Overview']], edit, [['requests', 'Requests'], ['client', 'Client'], ['settings', 'Settings']]];
   const tabs = groups.flat();
   const tab = asked === 'review' ? 'guidelines' : tabs.some(([k]) => k === asked) ? asked! : 'overview';
   // The studio team: people not on a project's team can't open it; viewers see it read-only
@@ -203,18 +205,24 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     };
     body = <div className="ov-wrap"><Overview d={data} created={!!sp.created} skipped={!!sp.skipped} /></div>;
   }
+  if (tab === 'requests') {
+    // The client's requests to Lost Property, newest first
+    const { data: reqs } = await sb.from('requests').select('id, kind, title, details, status, reply, email, created_at').eq('project_id', id).order('created_at', { ascending: false });
+    body = <div className="ss"><section className="ss-sec"><h2 className="ss-label">Requests from {p.client}</h2><div className="ss-box"><StudioRequests projectId={id} initial={reqs || []} /></div></section></div>;
+  }
   if (tab === 'settings') {
-    // The project's settings: the portal's address, the guide tier, sections and apps, the kit, the Claude connector
-    body = <div className="ov-wrap">
-      <h2 className="ov-sec-h">Settings</h2>
-      <div className="ov-settings">
-      <PortalAddress projectId={p.id} host={portalAddr.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />
-      <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
-      <SwitchesSetting projectId={p.id} switches={readStates(p.content)} studioAi={studioAi} admin={me.role === 'admin'} />
-      <ConnectorSettings projectId={p.id} shareFontFiles={readConnector(p.content).shareFontFiles} />
-      <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
-      <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
-      </div>
+    // The project's settings, one column: a label above each group, its options stacked inside
+    const line = await portalLine();
+    const access = (await betaAccess([id]))[id];
+    const sec = (k: string, label: string, children: React.ReactNode, note?: string) => <section className="ss-sec" id={k} aria-labelledby={`st-${k}`}><h2 className="ss-label" id={`st-${k}`}>{label}</h2>{note ? <p className="ss-note">{note}</p> : null}<div className="ss-box">{children}</div></section>;
+    body = <div className="ss">
+      {sec('address', 'Portal address', <PortalAddress projectId={p.id} host={portalAddr.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />)}
+      {sec('portal', 'Portal version', <PortalVersionSetting projectId={p.id} slug={p.slug} client={p.client} main={line.main} beta={line.beta} access={access} admin={me.role === 'admin'} />, 'Try the next portal on this client in Staging without changing what they see.')}
+      {sec('tier', 'Guide tier', <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />)}
+      {sec('sections', 'Sections and apps', <SwitchesSetting projectId={p.id} switches={readStates(p.content)} studioAi={studioAi} admin={me.role === 'admin'} />)}
+      {sec('connector', 'Claude connector', <ConnectorSettings projectId={p.id} shareFontFiles={readConnector(p.content).shareFontFiles} />)}
+      {sec('kit', 'Brand kit', <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />)}
+      {sec('danger', 'Danger zone', <div className="ss-row"><div><p className="ss-name">Delete project</p><p className="ss-about">Removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p></div><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>)}
     </div>;
   }
   if (tab === 'guidelines') {
@@ -379,7 +387,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const publishState: PublishState = {
     projectId: id, client: p.client, portalUrl: portalAddr, status: p.status as PublishState['status'],
     live: feed.live ? { version: feed.live.version, at: feed.live.at, by: feed.live.by } : null,
-    pending: byArea(feed.pending), canPublish: myRole !== 'viewer'
+    pending: byArea(feed.pending), canPublish: myRole !== 'viewer', slug: p.slug,
+    staging: await (async () => { const l = await portalLine(); return { main: portalName(l.main), beta: l.beta ? portalName(l.beta) : null, betaAccess: (await betaAccess([id]))[id] }; })()
   };
   const tabName = tabs.find(([k]) => k === tab)?.[1];
   return (

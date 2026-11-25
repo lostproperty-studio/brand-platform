@@ -10,6 +10,7 @@ import { AdminTeam } from '@/components/AdminTeam';
 import { AdminDomain } from '@/components/AdminDomain';
 import { AdminKrea } from '@/components/AdminKrea';
 import { AdminReleases } from '@/components/AdminReleases';
+import { AdminPortal } from '@/components/AdminPortal';
 import { AdminAppPreviews } from '@/components/AdminAppPreviews';
 
 // Admin settings for the studio: who's on the platform, releases and what clients see, and the domain
@@ -30,6 +31,11 @@ export default async function Admin() {
           <h2 id="adm-team" className="ov-h"><Users size={16} strokeWidth={1.75} aria-hidden />Studio team</h2>
           <p className="mute" style={{ margin: '0 0 6px' }}>Members create projects, edit content and manage client access. Admins also manage this team and the domain. Who works on each project is set on that project’s Overview.</p>
           <AdminTeam initial={staff} me={st.user.id} />
+        </section>
+        <section className="ov-card" aria-labelledby="adm-pv">
+          <h2 id="adm-pv" className="ov-h"><Rocket size={16} strokeWidth={1.75} aria-hidden />Portal versions</h2>
+          <p className="mute" style={{ margin: '0 0 6px' }}>Build the next portal as a beta without touching what clients see. Try it on any client’s portal in Staging, give it to a client when it’s ready for them, then make it the main portal for everyone.</p>
+          <AdminPortal />
         </section>
         <section className="ov-card" aria-labelledby="adm-rel">
           <h2 id="adm-rel" className="ov-h"><Rocket size={16} strokeWidth={1.75} aria-hidden />Releases</h2>
