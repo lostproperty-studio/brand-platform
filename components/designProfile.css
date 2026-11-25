@@ -178,22 +178,50 @@
   .dp2-g-layout .dp2-3 .dp2-wide { grid-column: span 2; }
 }
 
-/* In the studio's centred column (Resources): the groups stack, each labelled above its own box, and the tiles
-   re-flow to the column's width */
-.ss .dp2-groups, .rm2-ds .dp2-groups { display: flex; flex-direction: column; gap: 40px; margin-top: 26px; }
-.ss .dp2-g, .rm2-ds .dp2-g { position: relative; padding: 16px 18px; border-radius: 16px; gap: 12px; }
-.ss .dp2-gh, .rm2-ds .dp2-gh { position: absolute; left: 0; top: -28px; font-size: 14px; font-weight: 500; }
-.ss .dp2-6, .rm2-ds .dp2-6 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.ss .dp2-6 > .dp2-cell, .rm2-ds .dp2-6 > .dp2-cell, .ss .dp2-6 > .dp2-cell:nth-child(n + 4), .rm2-ds .dp2-6 > .dp2-cell:nth-child(n + 4) { grid-column: auto; }
-.ss .dp2-g-img .dp2-2, .rm2-ds .dp2-g-img .dp2-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
-.ss .dp2-roles, .rm2-ds .dp2-roles { grid-auto-flow: row; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.ss .dp2-pal, .rm2-ds .dp2-pal { margin-top: 0; }
-.ss .dp2-head, .rm2-ds .dp2-head { padding-bottom: 4px; }
-/* Graphic devices wrap inside their tile instead of running out of it */
-.dp2-chips { flex-wrap: wrap; min-width: 0; max-width: 100%; }
-.dp2-chips > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 760px) { .ss .dp2-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ss .dp2-g-img .dp2-2 { grid-template-columns: minmax(0, 1fr); } }
-.dp2-vis { min-width: 0; } .dp2-vis > .dp2-chips { flex: 1; }
-.ss .dp2-g-rules .dp2-2, .rm2-ds .dp2-g-rules .dp2-2 { grid-template-columns: minmax(0, 1fr); } .ss .dp2-dd li span { white-space: normal; }
-.rm2-ds .dp2-dd li span { white-space: normal; }
-@media (max-width: 760px) { .rm2-ds .dp2-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rm2-ds .dp2-g-img .dp2-2 { grid-template-columns: minmax(0, 1fr); } .rm2-ds { padding: 16px; } }
+/* Decisions as a list (the side tray in Resources): each group labelled above its box, one decision per row with a
+   small picture, the decision in words, where it came from and Edit; the editor opens in place under the row */
+.dp2.dp3 { gap: 28px; }
+.dp3-head { display: flex; flex-direction: column; gap: 12px; }
+.dp3-intro { margin: 0; font-size: 14px; line-height: 1.55; color: var(--mute); max-width: 620px; }
+.dp2.dp3 .dp2-groups { display: flex; flex-direction: column; gap: 32px; }
+.dp2.dp3 .dp2-g { padding: 0; box-shadow: none; background: none; border-radius: 0; gap: 10px; }
+.dp2.dp3 .dp2-gh { position: static; font-size: 15px; font-weight: 500; }
+.dp2.dp3 .dp2-ghs { font-size: 13px; font-weight: 400; }
+.dp3-rows { display: flex; flex-direction: column; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); padding: 0 20px; background: #fff; }
+.dp3-item + .dp3-item { border-top: 1px solid var(--line); }
+.dp3-row { display: flex; align-items: center; gap: 18px; min-height: 76px; padding: 16px 0; }
+.dp3-vis { flex: none; width: 88px; height: 56px; border-radius: 10px; background: var(--fill); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.dp3-vis > * { transform: scale(.9); }
+.dp3-vis .dp2-svg { width: 76px; height: auto; transform: none; }
+.dp3-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dp3-name { font-size: 12px; color: var(--mute); }
+.dp3-val { font-size: 15px; color: var(--ink); }
+.dp3-item.is-off .dp3-vis { opacity: .35; filter: grayscale(1); }
+.dp3-item.is-off .dp3-val { color: var(--mute); }
+.dp3-src { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 9px; border-radius: 999px; background: var(--fill); color: var(--mute); white-space: nowrap; }
+.dp3-src-judgement { background: #fde3fa; color: #7a1f70; }
+.dp3-src-studio { background: #000; color: #fff; }
+.dp3-intro .dp3-src { vertical-align: 1px; }
+.dp3-edit { flex: none; min-width: 58px; justify-content: center; }
+.dp3-list { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.45; }
+.dp3-list li { display: flex; gap: 8px; align-items: flex-start; }
+.dp3-list li svg { flex: none; margin-top: 4px; }
+.dp3-list-devices li::before { content: ''; flex: none; width: 6px; height: 6px; margin-top: 8px; border-radius: 50%; background: var(--ink); }
+.dp3-list-donts li svg { color: #b3261e; }
+.dp3-roles { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 6px; }
+.dp3-roles .dp2-chip { height: 44px; }
+.dp3-item > .dp2-spec { margin: 16px 0; }
+/* The editor, in place under its row rather than floating */
+.dp2.dp3 .dp2-pop { position: static; width: auto; max-width: none; margin: 0 0 18px; box-shadow: none; background: var(--fill); border-radius: 12px; padding: 16px; }
+.dp2.dp3 .dp2-pop-h .dp2-x { display: none; }
+@media (max-width: 760px) {
+  .dp3-rows { padding: 0 14px; }
+  .dp3-row { flex-wrap: wrap; gap: 10px 14px; }
+  .dp3-vis { width: 64px; height: 44px; }
+  .dp3-txt { flex-basis: calc(100% - 80px); }
+  .dp3-roles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.dp3-row:has(.dp3-list) { align-items: flex-start; }
+.dp3-row:has(.dp3-list) .dp3-src, .dp3-row:has(.dp3-list) .dp3-edit { margin-top: 18px; }
+.dp2.dp3 .dp2-pop-t { display: none; }
+.dp2.dp3 .dp2-pop-help { margin: 0; }

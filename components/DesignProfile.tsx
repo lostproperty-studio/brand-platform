@@ -103,18 +103,24 @@ export function DesignProfile({ projectId, slug, initial, chapters, colours = []
     { role: 'Accent', c: st.accent.off ? roles?.accent || accCol : accCol }, ...(roles?.surface ? [{ role: 'Surface', c: roles.surface }] : [])
   ];
 
-  /** One element: a button showing the element itself, its value, and where it came from */
-  const tile = (k: SettingKey, visual: ReactNode, value: ReactNode, cls = '') => {
+  /** One decision as a row: a small picture of it, the decision in words, where it came from, and Edit. The editor
+   *  opens in place under the row. */
+  const tile = (k: SettingKey, visual: ReactNode, value: ReactNode, _cls = '') => {
     const s = st[k] as Setting<unknown>; if (!s) return null;
     const label = SETTING_INFO[k].label;
-    const Src = s.source.from === 'guidelines' ? BookOpen : s.source.from === 'studio' ? PenLine : Sparkles;
-    const said = `${srcText(s.source)}${s.locked ? ', locked' : ''}${s.off ? ', switched off: the default is used' : ''}`;
-    return <div className={`dp2-cell ${cls}`} key={k}>
-      <button ref={(el) => { tileRefs.current[k] = el; }} type="button" className={`dp2-tile${s.off ? ' is-off' : ''}${open === k ? ' is-open' : ''}${s.source.from === 'studio' ? ' is-studio' : ''}`} onClick={() => openEditor(k)} aria-expanded={open === k} aria-haspopup="dialog" aria-controls={open === k ? `dp2-pop-${k}` : undefined}>
-        <span className="dp2-vis" aria-hidden="true">{visual}</span>
-        <span className="dp2-lab"><span className="dp2-name">{label}</span><span className="dp2-val">{s.off ? 'Off: default used' : value}</span></span>
-        <span className={`dp2-mk dp2-mk-${s.source.from}`} title={said}><Src {...i12} />{s.locked ? <Lock {...i12} /> : null}<span className="dp2-sr">{said}</span></span>
-      </button>
+    const list = k === 'devices' || k === 'dos' || k === 'donts';
+    const items = list ? (val(k) as string[]) : [];
+    const tag = s.source.from === 'studio' ? 'Edited' : s.source.from === 'guidelines' ? 'From the guidelines' : 'AI’s call: check';
+    return <div className={`dp3-item${open === k ? ' is-open' : ''}${s.off ? ' is-off' : ''}`} key={k}>
+      <div className="dp3-row">
+        {list ? null : <span className="dp3-vis" aria-hidden="true">{visual}</span>}
+        <span className="dp3-txt"><span className="dp3-name">{label}</span>
+          {s.off ? <span className="dp3-val">Off: the design system’s default is used</span>
+            : list ? (items.length ? <ul className={`dp3-list dp3-list-${k}`}>{items.map((d, i) => <li key={i}>{k === 'dos' ? <Check {...i12} /> : k === 'donts' ? <X {...i12} /> : null}<span>{d}</span></li>)}</ul> : <span className="dp3-val">None yet</span>)
+            : <span className="dp3-val">{value}</span>}</span>
+        <span className={`dp3-src dp3-src-${s.source.from}`} title={srcText(s.source)}>{s.locked ? <Lock {...i12} /> : null}{tag}</span>
+        <button ref={(el) => { tileRefs.current[k] = el; }} type="button" className="btn sm dp3-edit" onClick={() => openEditor(k)} aria-expanded={open === k} aria-controls={`dp2-pop-${k}`} aria-label={`${open === k ? 'Close' : 'Edit'} ${label}`}>{open === k ? 'Close' : 'Edit'}</button>
+      </div>
       {open === k ? <Editor k={k} s={s} error={msg} draft={draft} setDraft={setDraft} palette={palette} saving={saving} onClose={closeEditor} rootRef={rootRef}
         onSave={() => patch(k, { value: Array.isArray(draft) ? draft.map((x) => String(x).trim()).filter(Boolean) : draft })} onLock={() => patch(k, { locked: !s.locked }, false)} onOff={() => patch(k, { off: !s.off }, false)} /> : null}
     </div>;
@@ -127,22 +133,13 @@ export function DesignProfile({ projectId, slug, initial, chapters, colours = []
   const ratio = im.ratio.split(':').map(Number);
   const readOn = p.at ? new Date(p.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
 
-  return <div className="dp2" ref={rootRef}>
+  return <div className="dp2 dp3" ref={rootRef}>
     {faces ? <style>{faces}</style> : null}
-    <div className="dp2-head">
-      <div>
-        <p className="dp2-t"><Sparkles {...I} /> Design profile</p>
-        <p className="dp2-meta">Read {readOn} from {p.chapters.length} chapter{p.chapters.length === 1 ? '' : 's'}. Click anything to adjust it.</p>
-        <ul className="dp2-legend" aria-label="Where each element came from">
-          <li><BookOpen {...i12} /> {n.guide} from the guidelines</li>
-          <li className="dp2-lg-judge"><Sparkles {...i12} /> {n.judge} judgement call{n.judge === 1 ? '' : 's'}</li>
-          <li className="dp2-lg-studio"><PenLine {...i12} /> {n.studio} set by the studio</li>
-          <li><Lock {...i12} /> locked</li>
-        </ul>
-      </div>
+    <div className="dp3-head">
+      <p className="dp3-intro">What the AI decided from the guidelines{readOn ? ` (read ${readOn})` : ''}. Check each decision and edit anything that’s wrong. {n.judge ? <>The {n.judge} marked <span className="dp3-src dp3-src-judgement">AI’s call: check</span> aren’t in the guidelines, so look at those first.</> : null}</p>
       <div className="dp2-acts">
         <a className="btn ic" href={`/p/${slug}/resources/design-system`} target="_blank" rel="noopener"><ExternalLink {...I} />See the design system</a>
-        <button className="btn ic" disabled={busy || !chapters} onClick={read} title="Settings you edited or locked stay as they are">{busy ? <Loader2 {...I} className="spin" /> : <RotateCcw {...I} />}Read again</button>
+        <button className="btn ic" disabled={busy || !chapters} onClick={read} title="Decisions you edited or locked stay as they are">{busy ? <Loader2 {...I} className="spin" /> : <RotateCcw {...I} />}Read again</button>
       </div>
     </div>
     {msg && !open ? <p className="dp2-msg" role="status">{msg}</p> : null}
@@ -150,23 +147,22 @@ export function DesignProfile({ projectId, slug, initial, chapters, colours = []
     <div className="dp2-groups">
       <section className="dp2-g dp2-g-colour" aria-labelledby="dp2-h-colour">
         <h3 id="dp2-h-colour" className="dp2-gh">Colour</h3>
-        <div className="dp2-roles" aria-label="Colour roles">
+        <div className="dp3-rows">
+          <div className="dp3-item"><div className="dp3-row"><span className="dp3-txt"><span className="dp3-name">Colours in use</span><span className="dp2-roles dp3-roles" aria-label="Colour roles">
           {roleSw.map(({ role, c }) => <div key={role} className="dp2-role"><span className="dp2-chip" style={{ background: c.hex, color: onHex(c.hex) }}>{role === 'Text' ? 'Aa' : ''}</span><span className="dp2-rl">{role}</span><span className="dp2-rn">{c.name}</span></div>)}
-        </div>
-        <div className="dp2-tiles dp2-2">
+        </span></span></div></div>
           {tile('accent', <span className="dp2-acc"><span className="dp2-accsw" style={{ background: acc.hex }} /><span className="dp2-meter">{[1, 2, 3].map((x) => <i key={x} className={x <= amount ? 'on' : ''} style={x <= amount ? { background: acc.hex } : undefined} />)}</span></span>, <>{accCol.name !== 'Accent' ? accCol.name : acc.hex.toUpperCase()} · {acc.use}</>)}
           {tile('ground', <span className="dp2-page" style={{ background: dark ? ink.hex : paper.hex, color: dark ? paper.hex : ink.hex }}><b>Aa</b><i style={{ background: acc.hex }} /></span>, <>{cap(val('ground'))} pages</>)}
         </div>
-        {palette.length ? <div className="dp2-pal" aria-label="Palette"><span className="dp2-fl">Palette</span>{palette.slice(0, 12).map((c) => <span key={c.hex} className="dp2-dot" title={`${c.name} ${c.hex.toUpperCase()}`} style={{ background: c.hex }} />)}</div> : null}
       </section>
 
       <section className="dp2-g dp2-g-type" aria-labelledby="dp2-h-type">
         <h3 id="dp2-h-type" className="dp2-gh">Type{dispName ? <span className="dp2-ghs">{dispName}{bodyName && bodyName !== dispName ? ` · ${bodyName}` : ''}</span> : null}</h3>
-        <div className="dp2-spec" aria-hidden="true">
+        <div className="dp3-rows">
+          <div className="dp3-item"><div className="dp2-spec" aria-hidden="true">
           <p className="dp2-spec-h" style={{ ...head, fontSize: { restrained: 26, large: 32, huge: 40 }[st.displayScale.off ? 'large' : ds] }}>{caseText('Headline style', st.headlineCase.off ? 'sentence' : hc)}</p>
           <p className="dp2-spec-b" style={{ fontFamily: family('body'), fontSize: st.bodySize.off ? 16 : bs }}>Body text reads like this, at {st.bodySize.off ? 16 : bs}px.</p>
-        </div>
-        <div className="dp2-tiles dp2-6">
+        </div></div>
           {tile('headlineCase', <span className="dp2-glyph" style={{ ...head, textTransform: hc === 'upper' ? 'uppercase' : hc === 'lower' ? 'lowercase' : 'none' }}>{hc === 'title' ? 'Ab Cd' : hc === 'sentence' ? 'Ab cd' : 'Ab'}</span>, { sentence: 'Sentence', upper: 'UPPER', lower: 'lower', title: 'Title' }[hc])}
           {tile('headlineWeight', <span className="dp2-glyph" style={{ fontFamily: family('display'), fontWeight: hw }}>Aa</span>, <>{hw} · {WEIGHT[hw] || ''}</>)}
           {tile('headlineTracking', <span className="dp2-glyph" style={{ fontFamily: family('display'), letterSpacing: `${ht * 3}em` }}>AVA</span>, `${ht > 0 ? '+' : ''}${ht}em`)}
@@ -177,7 +173,7 @@ export function DesignProfile({ projectId, slug, initial, chapters, colours = []
 
       <section className="dp2-g dp2-g-layout" aria-labelledby="dp2-h-layout">
         <h3 id="dp2-h-layout" className="dp2-gh">Layout</h3>
-        <div className="dp2-tiles dp2-3">
+        <div className="dp3-rows">
           {tile('grid', <svg viewBox="0 0 100 56" className="dp2-svg">{(() => { const m = g.marginPct, gw = Math.min(g.gutter / 10, 3), w = (100 - 2 * m - gw * (g.columns - 1)) / g.columns; return <><rect x="0" y="0" width="100" height="56" className="dp2-paper" />{Array.from({ length: g.columns }, (_, i) => <rect key={i} x={m + i * (w + gw)} y="6" width={w} height="44" className="dp2-col" />)}</>; })()}</svg>, `${g.columns} col · ${g.marginPct}% margin · ${g.gutter}px gutter`, 'dp2-wide')}
           {tile('corners', <svg viewBox="0 0 100 56" className="dp2-svg"><rect x="6" y="20" width="36" height="16" rx={co.controls >= 999 ? 8 : Math.min(co.controls / 2, 8)} className="dp2-ink" /><rect x="52" y="8" width="42" height="40" rx={Math.min(co.cards / 2, 20)} className="dp2-card" /></svg>, `${co.controls >= 999 ? 'Pill' : `${co.controls}px`} · ${co.cards}px`)}
           {tile('density', <span className="dp2-dense" style={{ gap: { airy: 8, balanced: 5, dense: 2 }[dn] }}>{[0, 1, 2].map((x) => <i key={x} />)}</span>, cap(dn))}
@@ -188,7 +184,7 @@ export function DesignProfile({ projectId, slug, initial, chapters, colours = []
 
       <section className="dp2-g dp2-g-img" aria-labelledby="dp2-h-img">
         <h3 id="dp2-h-img" className="dp2-gh">Imagery</h3>
-        <div className="dp2-tiles dp2-2">
+        <div className="dp3-rows">
           {tile('imagery', <span className={`dp2-photo dp2-ph-${im.treatment}`}><span style={{ aspectRatio: `${ratio[0]} / ${ratio[1]}`, borderRadius: im.corners && im.treatment !== 'full-bleed' ? Math.max(3, Math.min(co.cards, 8)) : 0 }} />{im.treatment === 'mixed' ? <span style={{ aspectRatio: `${ratio[0]} / ${ratio[1]}`, borderRadius: im.corners ? 3 : 0 }} /> : null}<i /><i /></span>, `${cap(im.treatment)} · ${im.ratio}${im.corners ? ' · rounded' : ''}`)}
           {tile('devices', <span className="dp2-chips">{val('devices').length ? val('devices').slice(0, 4).map((d, i) => <span key={i}>{d}</span>) : <span className="dp2-none">None found</span>}</span>, `${val('devices').length} graphic device${val('devices').length === 1 ? '' : 's'}`, 'dp2-wide')}
         </div>
@@ -196,7 +192,7 @@ export function DesignProfile({ projectId, slug, initial, chapters, colours = []
 
       <section className="dp2-g dp2-g-rules" aria-labelledby="dp2-h-rules">
         <h3 id="dp2-h-rules" className="dp2-gh">Do’s and don’ts</h3>
-        <div className="dp2-tiles dp2-2">
+        <div className="dp3-rows">
           {(['dos', 'donts'] as const).map((k) => tile(k, <ul className={`dp2-dd dp2-dd-${k}`}>{val(k).length ? val(k).slice(0, 3).map((d, i) => <li key={i}>{k === 'dos' ? <Check {...i12} /> : <X {...i12} />}<span>{d}</span></li>) : <li className="dp2-none">None yet</li>}{val(k).length > 3 ? <li className="dp2-more">+{val(k).length - 3} more</li> : null}</ul>, `${val(k).length} rule${val(k).length === 1 ? '' : 's'}`, 'dp2-wide'))}
         </div>
       </section>
