@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Clock, ExternalLink, Globe, Layers, Loader2, Lock, Rocket } from 'lucide-react';
 
 export type PublishState = {
@@ -29,12 +29,26 @@ function ago(d: string) {
 export function PublishControl({ s }: { s: PublishState }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // What's waiting, kept current: the editors save without reloading the page, so ask again every 20 seconds while
+  // the page is showing, when you come back to it, and when the card opens
+  const [now, setNow] = useState({ live: s.live, pending: s.pending });
+  useEffect(() => { setNow({ live: s.live, pending: s.pending }); }, [s.live, s.pending]);
+  const refresh = useCallback(() => {
+    if (document.hidden) return;
+    fetch(`/api/projects/${s.projectId}/changes`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) setNow({ live: j.live, pending: j.pending }); }).catch(() => {});
+  }, [s.projectId]);
+  useEffect(() => {
+    const t = setInterval(refresh, 20000);
+    addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh);
+    return () => { clearInterval(t); removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };
+  }, [refresh]);
+  useEffect(() => { if (open) refresh(); }, [open, refresh]);
   const [tab, setTab] = useState<'staging' | 'production'>('production');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; bad?: boolean; fonts?: string[] } | null>(null);
   const box = useRef<HTMLDivElement>(null);
-  const n = s.pending.length;
-  const neverPublished = !s.live;
+  const n = now.pending.length;
+  const neverPublished = !now.live;
   const waiting = neverPublished || n > 0;
   useEffect(() => {
     if (!open) return;
@@ -52,7 +66,7 @@ export function PublishControl({ s }: { s: PublishState }) {
     if (r.status === 409 && j.code === 'trial_fonts') { setMsg({ text: 'Some typefaces are still trial files, so the client would see trial fonts.', bad: true, fonts: (j.fonts || []).map((f: { name?: string; label: string }) => f.name || f.label) }); return; }
     if (!r.ok) { setMsg({ text: j.error || (typeof j === 'string' ? j : 'Publishing didn’t work. Try again.'), bad: true }); return; }
     setMsg({ text: j.kit && !j.kit.ok ? `Published. The GitHub kit didn’t update: ${j.kit.error}` : 'Published. Clients see it now.', bad: !!(j.kit && !j.kit.ok) });
-    router.refresh();
+    router.refresh(); refresh();
   }
 
   return <div className="pub" ref={box}>
@@ -73,10 +87,10 @@ export function PublishControl({ s }: { s: PublishState }) {
         <Link className="pub-all" href="?tab=settings#portal" onClick={() => setOpen(false)}>Portal version settings</Link>
       </> : <>
         <div className="pub-row"><Globe {...I} /><a href={s.portalUrl} target="_blank" rel="noopener" className="pub-url">{s.portalUrl.replace(/^https?:\/\//, '')}</a></div>
-        <div className="pub-row"><Clock {...I} />{s.live ? <span>{ago(s.live.at)} · by {s.live.by} · v{s.live.version}</span> : <span>Not published yet. {s.client} can’t see anything.</span>}</div>
+        <div className="pub-row"><Clock {...I} />{now.live ? <span>{ago(now.live.at)} · by {now.live.by} · v{now.live.version}</span> : <span>Not published yet. {s.client} can’t see anything.</span>}</div>
         {n ? <div className="pub-pending">
           <p className="pub-k">{n} change{n === 1 ? '' : 's'} not published</p>
-          <ul>{s.pending.slice(0, 6).map((c) => <li key={c.label}><span className="pub-dot" aria-hidden /><span className="pub-l">{c.label}</span><span className="mute">{c.who.join(', ')} · {ago(c.at)}</span></li>)}</ul>
+          <ul>{now.pending.slice(0, 6).map((c) => <li key={c.label}><span className="pub-dot" aria-hidden /><span className="pub-l">{c.label}</span><span className="mute">{c.who.join(', ')} · {ago(c.at)}</span></li>)}</ul>
         </div> : null}
         {msg ? <div className={'pub-msg' + (msg.bad ? ' bad' : '')} role="status"><p>{msg.text}{msg.fonts?.length ? ` (${msg.fonts.join(', ')})` : ''}</p>
           {msg.fonts ? <div className="pub-acts"><Link className="btn" href="?tab=typefaces" onClick={() => setOpen(false)}>Add licensed files</Link><button type="button" className="btn" onClick={() => publish(true)} disabled={busy}>Publish anyway</button></div> : null}

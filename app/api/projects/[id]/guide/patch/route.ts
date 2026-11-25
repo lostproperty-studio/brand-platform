@@ -25,7 +25,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const st = await requireStaff();
   if (st instanceof Response) return st;
   const { id } = await ctx.params;
-  { const gate = await teamGate(id, st, 'editor', 'project'); if (gate) return gate; }
+  { const gate = await teamGate(id, st, 'editor', 'guidelines'); if (gate) return gate; }
   const body = await req.json().catch(() => null) as { patch?: GuidePatch } | null;
   const patch = body?.patch;
   if (!patch || typeof patch !== 'object') return NextResponse.json({ error: 'Bad request' }, { status: 400 });
