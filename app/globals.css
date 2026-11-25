@@ -4643,6 +4643,7 @@ span.fx-layer-n { cursor: default; padding-left: 4px; }
 .ak-modes button.on { background: #fff; color: #000; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 .ak-chip.on { background: #000; color: #fff; box-shadow: none; }
 .lpc-empty svg { margin-bottom: 8px; }
+.lpc-empty .ak-chip svg { margin-bottom: 0; } /* that space is for the big logo, not the icons in the buttons */
 .lpc-thread { display: flex; flex-direction: column; gap: 14px; }
 .lpc-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .lpc-a { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: start; max-width: 86%; }
