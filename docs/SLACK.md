@@ -10,6 +10,13 @@ studio replies in the thread and the client sees it in their portal; a ✅ on th
 Without the settings below, nothing goes to Slack; requests still arrive in the studio under each project's
 Requests.
 
+## Email (works now, no setup)
+Every new request, and every new message from a client on a conversation, is also emailed to the studio admins,
+with a link to the project's Requests. To send them somewhere else instead (a shared inbox, say), add
+`REQUESTS_EMAIL` in Vercel with one or more addresses, separated by commas, and redeploy.
+
+Slack's free plan allows custom apps too (up to ten apps and integrations), so the steps below work on it.
+
 ## Setting it up (once, about 10 minutes)
 1. Go to api.slack.com/apps → **Create New App** → *From scratch*. Name it **LP Platform**, pick the studio workspace.
 2. **OAuth & Permissions → Bot Token Scopes:** add `chat:write`, `users:read`, `channels:history` and
