@@ -2,10 +2,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Check, Clock, Globe, Loader2, Rocket } from 'lucide-react';
+import { Check, Clock, ExternalLink, Globe, Layers, Loader2, Lock, Rocket } from 'lucide-react';
 
 export type PublishState = {
-  projectId: string; client: string; portalUrl: string; status: 'draft' | 'live' | 'archived';
+  projectId: string; slug: string; client: string; portalUrl: string; status: 'draft' | 'live' | 'archived';
+  /** Staging: the portal versions this client can be seen on */
+  staging: { main: string; beta: string | null; betaAccess: 'off' | 'studio' | 'client' };
   live: { version: string; at: string; by: string } | null;
   /** Changes waiting to go live, one line per area */
   pending: { label: string; who: string[]; at: string }[];
@@ -27,6 +29,7 @@ function ago(d: string) {
 export function PublishControl({ s }: { s: PublishState }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<'staging' | 'production'>('production');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; bad?: boolean; fonts?: string[] } | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -57,19 +60,32 @@ export function PublishControl({ s }: { s: PublishState }) {
       {waiting && !neverPublished ? <span className="pc-n" aria-label={`${n} unpublished change${n === 1 ? '' : 's'}`}>{n}</span> : null}Publish
     </button>
     {open ? <div className="pc-card" role="dialog" aria-label="Publish">
-      <div className="pc-row"><Globe {...I} /><a href={s.portalUrl} target="_blank" rel="noopener" className="pc-url">{s.portalUrl.replace(/^https?:\/\//, '')}</a></div>
-      <div className="pc-row"><Clock {...I} />{s.live ? <span>{ago(s.live.at)} · by {s.live.by} · v{s.live.version}</span> : <span>Not published yet. {s.client} can’t see anything.</span>}</div>
-      {n ? <div className="pc-pending">
-        <p className="pc-k">{n} change{n === 1 ? '' : 's'} not published</p>
-        <ul>{s.pending.slice(0, 6).map((c) => <li key={c.label}><span className="pc-dot" aria-hidden /><span className="pc-l">{c.label}</span><span className="mute">{c.who.join(', ')} · {ago(c.at)}</span></li>)}</ul>
-      </div> : null}
-      {msg ? <div className={'pc-msg' + (msg.bad ? ' bad' : '')} role="status"><p>{msg.text}{msg.fonts?.length ? ` (${msg.fonts.join(', ')})` : ''}</p>
-        {msg.fonts ? <div className="pc-acts"><Link className="btn" href="?tab=typefaces" onClick={() => setOpen(false)}>Add licensed files</Link><button type="button" className="btn" onClick={() => publish(true)} disabled={busy}>Publish anyway</button></div> : null}
-      </div> : null}
-      {!s.canPublish ? <p className="pc-done mute">You can view this project but not publish it.</p>
-        : waiting ? <button type="button" className="pc-big" onClick={() => publish()} disabled={busy}>{busy ? <Loader2 {...I} className="spin" /> : <Rocket {...I} />}{neverPublished ? `Publish to ${s.client}` : 'Publish changes'}</button>
-        : <p className="pc-done"><Check {...I} />Latest published</p>}
-      <Link className="pc-all" href="?tab=overview#versions" onClick={() => setOpen(false)}>All versions</Link>
+      <div className="pc-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === 'staging'} className={tab === 'staging' ? 'on' : ''} onClick={() => setTab('staging')}>Staging</button>
+        <button type="button" role="tab" aria-selected={tab === 'production'} className={tab === 'production' ? 'on' : ''} onClick={() => setTab('production')}>Production</button>
+      </div>
+      {tab === 'staging' ? <>
+        <div className="pc-row"><Lock {...I} /><span>Private to Lost Property</span></div>
+        <div className="pc-row"><Clock {...I} /><span>Always your latest changes{n ? ` · ${n} not in Production yet` : neverPublished ? ' · nothing in Production yet' : ' · same as Production'}</span></div>
+        <div className="pc-row"><Layers {...I} /><span>{s.staging.main}{s.staging.beta ? ` · beta ${s.staging.beta} ${s.staging.betaAccess === 'off' ? 'off for this client' : s.staging.betaAccess === 'client' ? 'given to the client' : 'for the studio'}` : ''}</span></div>
+        <a className="pc-big" href={`/api/p/${s.slug}/staging?portal=main`}><ExternalLink {...I} />Open Staging</a>
+        {s.staging.beta && s.staging.betaAccess !== 'off' ? <a className="pc-sub" href={`/api/p/${s.slug}/staging?portal=beta`}>Open Staging on {s.staging.beta} (beta)</a> : null}
+        <Link className="pc-all" href="?tab=settings#portal" onClick={() => setOpen(false)}>Portal version settings</Link>
+      </> : <>
+        <div className="pc-row"><Globe {...I} /><a href={s.portalUrl} target="_blank" rel="noopener" className="pc-url">{s.portalUrl.replace(/^https?:\/\//, '')}</a></div>
+        <div className="pc-row"><Clock {...I} />{s.live ? <span>{ago(s.live.at)} · by {s.live.by} · v{s.live.version}</span> : <span>Not published yet. {s.client} can’t see anything.</span>}</div>
+        {n ? <div className="pc-pending">
+          <p className="pc-k">{n} change{n === 1 ? '' : 's'} not published</p>
+          <ul>{s.pending.slice(0, 6).map((c) => <li key={c.label}><span className="pc-dot" aria-hidden /><span className="pc-l">{c.label}</span><span className="mute">{c.who.join(', ')} · {ago(c.at)}</span></li>)}</ul>
+        </div> : null}
+        {msg ? <div className={'pc-msg' + (msg.bad ? ' bad' : '')} role="status"><p>{msg.text}{msg.fonts?.length ? ` (${msg.fonts.join(', ')})` : ''}</p>
+          {msg.fonts ? <div className="pc-acts"><Link className="btn" href="?tab=typefaces" onClick={() => setOpen(false)}>Add licensed files</Link><button type="button" className="btn" onClick={() => publish(true)} disabled={busy}>Publish anyway</button></div> : null}
+        </div> : null}
+        {!s.canPublish ? <p className="pc-done mute">You can view this project but not publish it.</p>
+          : waiting ? <button type="button" className="pc-big" onClick={() => publish()} disabled={busy}>{busy ? <Loader2 {...I} className="spin" /> : <Rocket {...I} />}{neverPublished ? `Publish to ${s.client}` : 'Publish changes'}</button>
+          : <p className="pc-done"><Check {...I} />Latest published</p>}
+        <Link className="pc-all" href="?tab=overview#versions" onClick={() => setOpen(false)}>All versions</Link>
+      </>}
     </div> : null}
   </div>;
 }

@@ -2,9 +2,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { BookOpen, FileText, GalleryHorizontalEnd, LayoutDashboard, ListChecks, Package, Settings, Spline, Type, MessageSquareQuote, Users, type LucideIcon } from 'lucide-react';
+import { BookOpen, Inbox, FileText, GalleryHorizontalEnd, LayoutDashboard, ListChecks, Package, Settings, Spline, Type, MessageSquareQuote, Users, type LucideIcon } from 'lucide-react';
 
-const ICONS: Record<string, LucideIcon> = { overview: LayoutDashboard, review: ListChecks, guidelines: BookOpen, showcase: GalleryHorizontalEnd, typefaces: Type, voice: MessageSquareQuote, resources: Package, motion: Spline, pdf: FileText, client: Users, settings: Settings };
+const ICONS: Record<string, LucideIcon> = { overview: LayoutDashboard, review: ListChecks, guidelines: BookOpen, showcase: GalleryHorizontalEnd, typefaces: Type, voice: MessageSquareQuote, resources: Package, motion: Spline, pdf: FileText, client: Users, requests: Inbox, settings: Settings };
 
 type Tab = readonly [string, string];
 

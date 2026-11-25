@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { DeliverButton, type Delivery } from '@/components/DeliverPanel';
+import type { Delivery } from '@/components/DeliverPanel';
 import {
   AlertCircle, ArrowUpRight, BookOpen, CheckCircle2, Clock, Download, ExternalLink, Eye, Figma, GitBranch, Github, Globe, Link2, MessageSquare,
   History, PenLine, Send, Sparkles, UserPlus, Users, type LucideIcon
@@ -82,8 +82,8 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
           <p className="ov-k"><Globe {...I} />Client portal</p>
           <p className="ov-url">{d.portalUrl.replace(/^https?:\/\//, '')}</p>
           <p className="mute">{d.status === 'live' && d.published ? `Live since ${new Date(d.published.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. Version ${d.published.version}${d.published.by ? `, published by ${d.published.by}` : ''}.` : d.published ? `Published ${ago(d.published.at)} but not live.` : 'Not published yet. Clients can’t see anything until you publish.'}</p>
-          {d.changedSince ? <p className="ov-flag"><AlertCircle size={14} strokeWidth={1.75} aria-hidden />There are changes the client can’t see yet. Publish to update the portal.</p> : null}
-          <div className="ov-row"><DeliverButton d={d.delivery} /><a className="btn ic" href={`/p/${d.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Open portal</a><CopyLink url={d.portalUrl} /></div>
+          {d.changedSince ? <p className="ov-flag"><AlertCircle size={14} strokeWidth={1.75} aria-hidden />There are changes the client can’t see yet. Use Publish, top right, to update the portal.</p> : null}
+          <div className="ov-row"><a className="btn ic" href={`/p/${d.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Open portal</a><CopyLink url={d.portalUrl} /></div>
         </div>
       </section>
 
