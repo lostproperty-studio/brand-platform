@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { StudioBar } from '@/components/StudioBar';
-import { Sparkles, ArrowLeft, Globe, LayoutGrid, Mail, Rocket, Users } from 'lucide-react';
+import { Sparkles, ArrowLeft, Globe, LayoutGrid, Mail, Rocket, Send, Users } from 'lucide-react';
 import { adminClient } from '@/lib/supabase/server';
 import { AdminEmail } from '@/components/AdminEmail';
 import { requireAdmin, listStaff } from '@/lib/admin';
 import { env } from '@/lib/env';
 import { AdminTeam } from '@/components/AdminTeam';
 import { AdminDomain } from '@/components/AdminDomain';
+import { AdminSlack } from '@/components/AdminSlack';
 import { AdminKrea } from '@/components/AdminKrea';
 import { AdminReleases } from '@/components/AdminReleases';
 import { AdminPortal } from '@/components/AdminPortal';
@@ -44,6 +45,11 @@ export default async function Admin() {
         <section className="ov-card" aria-labelledby="adm-apv">
           <h2 id="adm-apv" className="ov-h"><LayoutGrid size={16} strokeWidth={1.75} aria-hidden />App previews</h2>
           <AdminAppPreviews example={(projects || []).find((x) => x.slug === 'lost-property-studio')?.slug || projects?.[0]?.slug || null} />
+        </section>
+        <section className="ov-card" aria-labelledby="adm-slack">
+          <h2 id="adm-slack" className="ov-h"><Send size={16} strokeWidth={1.75} aria-hidden />Slack</h2>
+          <p className="mute" style={{ margin: '0 0 6px' }}>Client requests and messages to Lost Property post to the studio’s Slack channel, one thread each. Send a test to check it’s set up; if it doesn’t arrive, this says why.</p>
+          <AdminSlack />
         </section>
         <section className="ov-card" aria-labelledby="adm-domain">
           <h2 id="adm-domain" className="ov-h"><Globe size={16} strokeWidth={1.75} aria-hidden />Domain</h2>
