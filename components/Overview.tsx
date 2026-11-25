@@ -85,7 +85,6 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
           <p className="ov-k"><Globe {...I} />Client portal</p>
           <p className="ov-url">{d.portalUrl.replace(/^https?:\/\//, '')}</p>
           <p className="mute">{d.status === 'live' && d.published ? `Live since ${new Date(d.published.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. Version ${d.published.version}${d.published.by ? `, published by ${d.published.by}` : ''}.` : d.published ? `Published ${ago(d.published.at)} but not live.` : 'Not published yet. Clients can’t see anything until you publish.'}</p>
-          {d.changedSince ? <p className="ov-flag"><AlertCircle size={14} strokeWidth={1.75} aria-hidden />There are changes the client can’t see yet. Use Publish, top right, to update the portal.</p> : null}
           <div className="ov-row"><a className="btn ic" href={`/p/${d.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Open portal</a><CopyLink url={d.portalUrl} /></div>
         </div>
       </div>)}
