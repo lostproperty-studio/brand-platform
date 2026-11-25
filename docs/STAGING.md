@@ -84,3 +84,29 @@ keeps `PORTAL_V2=1`, which runs the newest portal everywhere.
 
 Still staging-only after the merge (they follow `PORTAL_V2` alone): the brand panel inside Canva, Office, Google
 Workspace and Figma, and chatting with Lost Property from the Ask bar.
+
+## Bringing a project from staging to live
+For a project made on staging (Lost Property's own brand, to start). Run it from a computer, once. It only reads
+from staging and only adds to live: if live already has a project at that address, it stops without writing.
+
+Make a file called `.env.copy` with four lines:
+
+| Variable | Where it's from |
+| --- | --- |
+| `SOURCE_SUPABASE_URL` | **staging** Supabase → Project Settings → Data API → Project URL |
+| `SOURCE_SUPABASE_SERVICE_KEY` | **staging** Supabase → Project Settings → API Keys → service_role |
+| `NEXT_PUBLIC_SUPABASE_URL` | **live** Supabase → Project Settings → Data API → Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | **live** Supabase → Project Settings → API Keys → service_role |
+
+Then, in the platform's folder (Node 20 or later):
+
+```bash
+npm install
+node --env-file=.env.copy scripts/copy-from-staging.mjs lost-property --check
+node --env-file=.env.copy scripts/copy-from-staging.mjs lost-property
+```
+
+The first line says what it would copy and writes nothing; if the address isn't right it lists the projects on
+staging. The second copies. Delete `.env.copy` afterwards. The project arrives on live as a draft: open it in the
+studio, check it, build the kit (Settings → Brand kit), then Publish. People, conversations and release stages
+don't come across.
