@@ -1,6 +1,8 @@
 import { publishedSnapshot } from '@/lib/projects/snapshot';
 import { signMany, signOne } from '@/lib/storage/signed';
 import { ProjectTabs } from '@/components/ProjectTabs';
+import { PublishControl, type PublishState } from '@/components/PublishControl';
+import { byArea, changeFeed } from '@/lib/projects/changes';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -67,8 +69,12 @@ import { MonitorSmartphone } from 'lucide-react';
 
 // On a phone the studio keeps to what works well on a small screen; these sections say to use a bigger one
 const DESK = new Set(['showcase', 'typefaces', 'motion', 'pdf']);
+// Sections with their own side panels: the project sidebar folds to icons there, to leave them the width
+const RAIL = new Set(['guidelines', 'showcase', 'motion', 'pdf']);
 
-const TABS = [['overview', 'Overview'], ['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['pdf', 'PDF'], ['client', 'Client']] as const;
+// The sections down the left, in three groups: the summary; the editing tools; the client and the project's settings
+type Tab = readonly [string, string];
+const EDIT: Tab[] = [['guidelines', 'Guidelines'], ['showcase', 'Showcase'], ['typefaces', 'Typefaces'], ['voice', 'Voice'], ['resources', 'Resources'], ['pdf', 'PDF']];
 const STATUS: Record<string, string> = { ready: 'Ready', in_review: 'In review', in_production: 'In production', not_in_scope: 'Not in scope' };
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; created?: string; skipped?: string }> }) {
@@ -80,14 +86,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const asked = sp.tab === 'tools' || sp.tab === 'deliverables' ? 'resources' : sp.tab;
   // The old Review tab is now the creative director, inside the guidelines editor
   // Portal v2 (staging): a Motion tab, for the brand's logo and type motion
-  const tabs = (await portalV2Studio(id)) ? [...TABS.slice(0, 5), ['motion', 'Motion'] as const, ...TABS.slice(5)] : [...TABS];
+  const edit = [...EDIT];
+  if (await portalV2Studio(id)) edit.splice(edit.findIndex(([k]) => k === 'resources'), 0, ['motion', 'Motion']);
   const sb = adminClient();
   const { data: p } = await sb.from('projects').select('id, client, name, line, slug, status, figma_key, figma_page_id, repo_full_name, kit_version, published_at, ai_key_hint, mcp_token_hash, content, brand').eq('id', id).maybeSingle();
   if (!p) notFound();
   // Sections switched off for this project drop out of the studio too
   const on = readSwitches(p.content);
   const studioAi = usesStudioAi(p.content);
-  if (!on.showcase) { const i = tabs.findIndex(([k]) => k === 'showcase'); if (i >= 0) tabs.splice(i, 1); }
+  if (!on.showcase) { const i = edit.findIndex(([k]) => k === 'showcase'); if (i >= 0) edit.splice(i, 1); }
+  const groups: Tab[][] = [[['overview', 'Overview']], edit, [['client', 'Client'], ['settings', 'Settings']]];
+  const tabs = groups.flat();
   const tab = asked === 'review' ? 'guidelines' : tabs.some(([k]) => k === asked) ? asked! : 'overview';
   // The studio team: people not on a project's team can't open it; viewers see it read-only
   const me = st;
@@ -108,6 +117,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const drafts = guide ? guide.chapters.flatMap((c) => c.blocks).filter((b) => b.draft === 'draft').length : 0;
   const missing = guide ? guide.chapters.flatMap((c) => c.blocks).filter((b) => b.draft === 'missing').length : 0;
   const { count: openCount } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'open');
+  // What's changed and what's published: the Publish control at the top of every section, and the overview's versions
+  const feed = await changeFeed(id);
+  const portalAddr = await portalUrl(p.slug);
   let body: React.ReactNode = null;
   if (tab === 'overview') {
     const { fonts } = await readFonts(id);
@@ -158,6 +170,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null, aiRejected: !!(p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt,
       chapters: guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length : 0,
       checks,
+      versions: { live: feed.live, pending: byArea(feed.pending), direct: byArea(feed.direct), list: feed.versions.slice(0, 12).map((v) => ({ ...v, areas: byArea(v.changes) })) },
       delivery: {
         projectId: id, slug: p.slug, client: p.client, portalUrl: await portalUrl(p.slug), status: p.status as 'draft' | 'live' | 'archived',
         published: ver ? { at: ver.created_at, version: ver.version } : null,
@@ -183,11 +196,14 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         })()
       }
     };
+    body = <div className="ov-wrap"><Overview d={data} created={!!sp.created} skipped={!!sp.skipped} /></div>;
+  }
+  if (tab === 'settings') {
+    // The project's settings: the portal's address, the guide tier, sections and apps, the kit, the Claude connector
     body = <div className="ov-wrap">
-      <Overview d={data} created={!!sp.created} skipped={!!sp.skipped} />
       <h2 className="ov-sec-h">Settings</h2>
       <div className="ov-settings">
-      <PortalAddress projectId={p.id} host={data.portalUrl.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />
+      <PortalAddress projectId={p.id} host={portalAddr.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />
       <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
       <SwitchesSetting projectId={p.id} switches={readStates(p.content)} studioAi={studioAi} admin={me.role === 'admin'} />
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
@@ -354,17 +370,29 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (tab === 'typefaces') {
     body = <FontManager projectId={id} />;
   }
+  const publishState: PublishState = {
+    projectId: id, client: p.client, portalUrl: portalAddr, status: p.status as PublishState['status'],
+    live: feed.live ? { version: feed.live.version, at: feed.live.at, by: feed.live.by } : null,
+    pending: byArea(feed.pending), canPublish: myRole !== 'viewer'
+  };
+  const tabName = tabs.find(([k]) => k === tab)?.[1];
   return (
-    <div>
-      <header className="pj-head">
-        <div className="pj-bar"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn ic" href="/studio"><ArrowLeft size={15} strokeWidth={1.75} aria-hidden />Projects</Link></div>
-        <h1 className="pj-title">{p.client}</h1>
-        <div className="pj-nav"><ProjectTabs id={id} tabs={tabs} current={tab} desk={[...DESK]} /><a className="btn solid ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a></div>
-      </header>
-      {myRole === 'viewer' ? <p className="ov-viewer" role="note">You’re a viewer on this project, so changes you try to make won’t be saved.</p> : null}
-      <div id="pj-panel" role="tabpanel" aria-label={tabs.find(([k]) => k === tab)?.[1]} style={{ padding: '20px 20px 80px' }}>
-        {DESK.has(tab) ? <div className="pj-desk-note"><MonitorSmartphone size={28} strokeWidth={1.4} aria-hidden /><h2>{tabs.find(([k]) => k === tab)?.[1]} is for a bigger screen</h2><p className="mute">On a phone you can review, comment and edit the words. Open this on a laptop to work on it.</p><a className="btn" href={`/p/${p.slug}`}>Preview as client</a></div> : null}
-        <div className={DESK.has(tab) ? 'pj-desk' : undefined}>{body}</div>
+    <div className={'pj-shell' + (RAIL.has(tab) ? ' rail' : '')}>
+      <aside className="pj-side" aria-label={`${p.client} project`}>
+        <div className="pj-bar"><Link href="/studio" className="pj-bp" aria-label="Brand Platform home"><img src="/lp-logo.svg" alt="" /><span className="bp-sub">Brand Platform</span></Link><Link className="btn ic pj-back" href="/studio"><ArrowLeft size={15} strokeWidth={1.75} aria-hidden />Projects</Link></div>
+        <p className="pj-side-name" title={p.client}>{p.client}</p>
+        <nav className="pj-nav"><ProjectTabs id={id} groups={groups} current={tab} desk={[...DESK]} /></nav>
+      </aside>
+      <div className="pj-main">
+        <header className="pj-head">
+          <h1 className="pj-title"><span className="pj-title-c">{p.client}</span><span className="pj-title-t">{tabName}</span></h1>
+          <div className="pj-acts"><a className="btn ic pj-preview" href={`/p/${p.slug}`}><ExternalLink size={15} strokeWidth={1.75} aria-hidden />Preview as client</a><PublishControl s={publishState} /></div>
+        </header>
+        {myRole === 'viewer' ? <p className="ov-viewer" role="note">You’re a viewer on this project, so changes you try to make won’t be saved.</p> : null}
+        <div id="pj-panel" role="tabpanel" aria-label={tabName} style={{ padding: '20px 20px 80px' }}>
+          {DESK.has(tab) ? <div className="pj-desk-note"><MonitorSmartphone size={28} strokeWidth={1.4} aria-hidden /><h2>{tabName} is for a bigger screen</h2><p className="mute">On a phone you can review, comment and edit the words. Open this on a laptop to work on it.</p><a className="btn" href={`/p/${p.slug}`}>Preview as client</a></div> : null}
+          <div className={DESK.has(tab) ? 'pj-desk' : undefined}>{body}</div>
+        </div>
       </div>
       <Suspense><StudioBar requests={openCount || 0} admin={me instanceof Response ? false : me.role === 'admin'} email={me instanceof Response ? '' : me.user.email || ''} /></Suspense>
     </div>

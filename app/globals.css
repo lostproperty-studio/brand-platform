@@ -5717,3 +5717,104 @@ body.wb-dragging, body.wb-dragging * { cursor: grabbing !important; user-select:
 .apv-mark .apv-logo { max-height: 8px; }
 .apv-plain .apv-mark .apv-logo { opacity: .85; }
 @media (max-width: 720px) { .fb-about span { display: none; } }
+
+/* A project in the studio: its sections down the left in three groups (Overview; the editing tools; Client and
+   Settings), the title and Publish along the top. Sections with their own side panels fold the sidebar to icons. */
+.pj-shell { display: grid; grid-template-columns: 216px minmax(0, 1fr); min-height: 100vh; }
+.pj-shell.rail { grid-template-columns: 60px minmax(0, 1fr); }
+.pj-side { position: sticky; top: 0; height: 100vh; overflow-y: auto; border-right: 1px solid var(--line); padding: 6px 10px 16px; display: flex; flex-direction: column; gap: 2px; z-index: 31; background: #fff; }
+.pj-side .pj-bar { display: flex; align-items: center; gap: 8px; padding: 10px 2px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.pj-side .pj-bp { border-right: 0; padding-right: 0; }
+.pj-side .pj-bp .bp-sub { display: none; }
+.pj-side .pj-back { margin-left: auto; }
+.pj-side-name { margin: 4px 10px 8px; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-side .pj-nav { display: block; }
+.pj-side .pj-tabs { flex-direction: column; gap: 2px; margin: 0; overflow: visible; }
+.pj-side .pj-tab { min-height: 32px; border-radius: 8px; padding: 0 10px; gap: 9px; color: var(--ink); }
+.pj-side .pj-tab svg { color: var(--mute); flex: none; }
+.pj-side .pj-tab:hover { background: var(--fill); }
+.pj-side .pj-tab.on { background: var(--fill-2); }
+.pj-side .pj-tab.on svg { color: var(--ink); }
+.pj-sep { display: block; height: 1px; background: var(--line); margin: 10px 4px; }
+.pj-shell.rail .pj-side { padding: 6px 8px 16px; }
+.pj-shell.rail .pj-side .pj-bar { justify-content: center; }
+.pj-shell.rail .pj-back, .pj-shell.rail .pj-side-name, .pj-shell.rail .pj-tab-l { display: none; }
+.pj-shell.rail .pj-side .pj-tab { justify-content: center; padding: 0; }
+.pj-main { min-width: 0; display: flex; flex-direction: column; }
+.pj-main > .pj-head { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; min-height: 61px; padding: 10px 20px; position: sticky; top: 0; z-index: 30; background: rgba(255,255,255,.92); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.pj-main .pj-title { margin: 0; font-size: 15px; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.pj-title-c { color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pj-title-c::after { content: '/'; margin-left: 8px; color: var(--line); color: #cfcfcf; }
+.pj-title-t { white-space: nowrap; }
+.pj-acts { display: flex; align-items: center; gap: 8px; flex: none; }
+.pj-acts .pj-preview { margin: 0; min-height: 32px; }
+
+/* Publish: the button says if anything's waiting; its card shows what's live and what isn't yet */
+.pc { position: relative; }
+.pc-go { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--fill-2); color: var(--ink); font-size: 13px; cursor: pointer; }
+.pc-go:hover { background: #e4e4e4; }
+.pc-go.hot { background: var(--sel); color: #fff; }
+.pc-go.hot:hover { background: #0a86e0; }
+.pc-go:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+.pc-n { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #fff; color: var(--sel); font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+.pc-card { position: absolute; right: 0; top: calc(100% + 8px); width: 340px; padding: 8px; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 18px 48px rgba(0,0,0,.14); display: flex; flex-direction: column; gap: 2px; z-index: 80; }
+.pc-row { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 0 8px; color: var(--mute); }
+.pc-row svg { flex: none; }
+.pc-url { color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-url:hover { color: var(--ink); text-decoration: underline; }
+.pc-pending { margin: 4px 0; padding: 10px; border-radius: 10px; background: var(--fill); }
+.pc-k { margin: 0 0 6px; font-weight: 500; }
+.pc-pending ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pc-pending li { display: flex; align-items: baseline; gap: 8px; }
+.pc-pending .pc-l { flex: none; }
+.pc-pending .mute { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pc-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--sel); align-self: center; }
+.pc-msg { margin: 4px 0; padding: 10px; border-radius: 10px; background: #eef7ff; }
+.pc-msg.bad { background: #fff3f3; }
+.pc-msg p { margin: 0; }
+.pc-acts { display: flex; gap: 6px; margin-top: 8px; }
+.pc-big { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; margin-top: 4px; border: 0; border-radius: 10px; background: var(--sel); color: #fff; font-size: 13px; cursor: pointer; }
+.pc-big:disabled { opacity: .6; cursor: default; }
+.pc-done { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; margin: 4px 0 0; border-radius: 10px; background: var(--fill); color: var(--mute); }
+.pc-all { align-self: center; margin-top: 4px; padding: 4px 8px; font-size: 12px; color: var(--mute); text-decoration: none; }
+.pc-all:hover { color: var(--ink); }
+
+/* Changes and versions on the overview */
+.ov-vers { margin-bottom: 4px; }
+.vs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.vs-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.vs-row:first-child { border-top: 0; padding-top: 4px; }
+.vs-ic { flex: none; width: 32px; height: 32px; border-radius: 8px; background: var(--fill); display: inline-flex; align-items: center; justify-content: center; color: var(--mute); }
+.vs-row.live .vs-ic { background: #e6f4ff; color: var(--sel); }
+.vs-row.pending .vs-ic { background: #e6f4ff; }
+.vs-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sel); }
+.vs-t { flex: 1; min-width: 0; }
+.vs-t p { margin: 0; }
+.vs-tag { margin-left: 8px; font-size: 11px; padding: 2px 7px; border-radius: 999px; background: #e6f4ff; color: #0a6ab3; }
+.vs-tag.live { background: #000; color: #fff; }
+.vs-areas { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.vs-areas li::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--sel); vertical-align: middle; }
+.vs-how { margin-top: 6px !important; }
+.vs-at { flex: none; white-space: nowrap; }
+.vs-direct { margin: 8px 0 0; }
+.ov-gaps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ov-gaps li { display: flex; flex-direction: column; gap: 2px; }
+
+/* On a phone: no sidebar; the sections are the strip along the top, as before */
+@media (max-width: 760px) {
+  .pj-shell, .pj-shell.rail { display: block; }
+  .pj-side { position: sticky; top: 0; height: auto; overflow: visible; padding: env(safe-area-inset-top) 0 0; border-right: 0; border-bottom: .5px solid rgba(0,0,0,.1); background: rgba(255,255,255,.9); -webkit-backdrop-filter: blur(20px) saturate(1.8); backdrop-filter: blur(20px) saturate(1.8); }
+  .pj-side .pj-bar { border: 0; margin: 0; padding: 0 8px; height: 44px; }
+  .pj-side .pj-bar .pj-bp { display: none; }
+  .pj-shell.rail .pj-back, .pj-shell.rail .pj-side-name, .pj-shell.rail .pj-tab-l { display: revert; }
+  .pj-side-name { margin: 0; padding: 0 16px; font-size: 28px; font-weight: 500; }
+  .pj-side .pj-tabs { flex-direction: row; overflow-x: auto; padding: 6px 16px 8px; gap: 6px; }
+  .pj-side .pj-tab, .pj-shell.rail .pj-side .pj-tab { border-radius: 999px; padding: 0 12px; background: rgba(0,0,0,.05); }
+  .pj-side .pj-tab.on { background: #000; color: #fff; }
+  .pj-side .pj-tab.on svg { color: #fff; }
+  .pj-sep { display: none; }
+  .pj-main > .pj-head { position: static; min-height: 0; padding: 10px 16px; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 0; }
+  .pj-main .pj-title { display: none; }
+  .pj-acts { margin-left: auto; }
+  .pc-card { width: min(340px, calc(100vw - 32px)); }
+}

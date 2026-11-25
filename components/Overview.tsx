@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { DeliverButton, type Delivery } from '@/components/DeliverPanel';
 import {
   AlertCircle, ArrowUpRight, BookOpen, CheckCircle2, Clock, Download, ExternalLink, Eye, Figma, GitBranch, Github, Globe, Link2, MessageSquare,
-  PenLine, Send, Sparkles, UserPlus, Users, type LucideIcon
+  History, PenLine, Send, Sparkles, UserPlus, Users, type LucideIcon
 } from 'lucide-react';
 import { CopyLink } from '@/components/CopyLink';
 import { ProjectTeam } from '@/components/ProjectTeam';
@@ -22,9 +22,18 @@ export type OverviewData = {
   sources: { assets: SourceRow; guidelines: SourceRow; report: AssetsReport | null };
   repo: { name: string; version: string } | null; ai: string | null; aiRejected?: boolean; chapters: number;
   checks: { ok: boolean; title: string; note?: string; href?: string; cta?: string }[];
+  /** Changes and publishes: what's waiting to go live, and each published version with the areas it changed */
+  versions: {
+    live: { version: string; at: string; by: string } | null;
+    pending: AreaRow[]; direct: AreaRow[];
+    list: { version: string; at: string; by: string; areas: AreaRow[] }[];
+  };
+  /** Points in the published guidelines still holding placeholder text, which the client's Claude can't use */
+  gaps?: { chapter: string; points: string[] }[];
   delivery: Delivery;
 };
 
+type AreaRow = { area: string; label: string; who: string[]; at: string };
 const I = { size: 16, strokeWidth: 1.75, 'aria-hidden': true } as const;
 export function ago(d: string | null | undefined) {
   if (!d) return '';
@@ -78,6 +87,28 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
         </div>
       </section>
 
+
+      {/* Versions: what's waiting to go live, then each publish with what it changed. The latest is what clients see. */}
+      <section className="ov-card ov-vers" id="versions" aria-labelledby="ov-vh">
+        <h2 id="ov-vh" className="ov-h"><History {...I} />Changes and versions</h2>
+        <ul className="vs">
+          {d.versions.pending.length || !d.versions.live ? <li className="vs-row pending">
+            <span className="vs-ic" aria-hidden><span className="vs-dot" /></span>
+            <div className="vs-t"><p><b>{d.versions.live ? 'Not published yet' : 'Never published'}</b><span className="vs-tag">Clients can’t see {d.versions.pending.length === 1 ? 'this' : 'these'}</span></p>
+              {d.versions.pending.length ? <ul className="vs-areas">{d.versions.pending.map((a) => <li key={a.area}>{a.label}<span className="mute"> · {a.who.join(', ')} · {ago(a.at)}</span></li>)}</ul>
+                : <p className="mute">Publish to give {d.client} the portal, the kit and the Claude connector.</p>}
+              <p className="mute vs-how">Use Publish (top right) to put {d.versions.pending.length === 1 ? 'it' : 'them'} live.</p></div>
+          </li> : null}
+          {d.versions.list.map((v, k) => <li key={v.at} className={'vs-row' + (k === 0 ? ' live' : '')}>
+            <span className="vs-ic" aria-hidden>{k === 0 ? <CheckCircle2 size={16} strokeWidth={1.75} /> : <Clock size={16} strokeWidth={1.75} />}</span>
+            <div className="vs-t"><p><b>{v.by}</b>{k === 0 ? <span className="vs-tag live">Live</span> : null}<span className="mute"> · v{v.version}</span></p>
+              <p className="mute">{v.areas.length ? v.areas.map((a) => a.label).join(', ') : 'Republished'}{v.areas.length ? ` · ${v.areas.length} area${v.areas.length === 1 ? '' : 's'} changed` : ''}</p></div>
+            <span className="mute vs-at" title={new Date(v.at).toLocaleString('en-GB')}>{ago(v.at)}</span>
+          </li>)}
+        </ul>
+        {d.versions.direct.length ? <p className="mute vs-direct">Also changed, and live straight away: {d.versions.direct.map((a) => a.label).join(', ')}.</p> : null}
+      </section>
+
       {/* Status at a glance */}
       <div className="ov-stats">
         <Stat icon={Send} label="Shared with the client" tone={shared ? 'good' : 'warn'} foot={<Link href="?tab=client" className="ov-more">{shared ? 'Manage access' : 'Invite the client'} →</Link>}>
@@ -104,6 +135,15 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
               {c.href ? <Link className="btn" href={c.href}>{c.cta}</Link> : null}
             </li>)}</ul>
           </section>
+
+
+          {/* Unfinished text: placeholders the client's Claude would otherwise read as rules */}
+          {d.gaps?.length ? <section className="ov-card" aria-labelledby="ov-gaps">
+            <h2 id="ov-gaps" className="ov-h"><AlertCircle {...I} />Unfinished text · {d.gaps.reduce((n, g) => n + g.points.length, 0)}</h2>
+            <p className="mute">These points in the published guidelines still hold placeholder text. The client’s Claude is told they aren’t written yet. Fill them in with exact specs, then publish.</p>
+            <ul className="ov-gaps">{d.gaps.map((g) => <li key={g.chapter}><b>{g.chapter}</b><span className="mute">{g.points.slice(0, 4).join(' · ')}{g.points.length > 4 ? ` · and ${g.points.length - 4} more` : ''}</span></li>)}</ul>
+            <Link href="?tab=guidelines" className="ov-more">Open the guidelines →</Link>
+          </section> : null}
 
           {/* Client activity */}
           <section className="ov-card" aria-labelledby="ov-act">
