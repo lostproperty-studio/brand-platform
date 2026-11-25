@@ -203,7 +203,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         })()
       }
     };
-    body = <div className="ov-wrap"><Overview d={data} created={!!sp.created} skipped={!!sp.skipped} /></div>;
+    body = <Overview d={data} created={!!sp.created} skipped={!!sp.skipped} />;
   }
   if (tab === 'requests') {
     // The client's requests to Lost Property, newest first
