@@ -3,6 +3,9 @@ import { signMany, signOne } from '@/lib/storage/signed';
 import { ProjectTabs } from '@/components/ProjectTabs';
 import { PublishControl, type PublishState } from '@/components/PublishControl';
 import { byArea, changeFeed } from '@/lib/projects/changes';
+import { ConnectorSettings } from '@/components/ConnectorSettings';
+import { readConnector } from '@/lib/mcp/kit';
+import { kitGaps } from '@/lib/mcp/gaps';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -170,6 +173,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null, aiRejected: !!(p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt,
       chapters: guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length : 0,
       checks,
+      // What the client's Claude reads: placeholder text in the published guidelines
+      gaps: await publishedSnapshot(id).then((snap) => (snap ? kitGaps(snap) : []), () => []),
       versions: { live: feed.live, pending: byArea(feed.pending), direct: byArea(feed.direct), list: feed.versions.slice(0, 12).map((v) => ({ ...v, areas: byArea(v.changes) })) },
       delivery: {
         projectId: id, slug: p.slug, client: p.client, portalUrl: await portalUrl(p.slug), status: p.status as 'draft' | 'live' | 'archived',
@@ -206,6 +211,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <PortalAddress projectId={p.id} host={portalAddr.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, '')} slug={p.slug} />
       <TierSetting projectId={p.id} tier={tier} hasGuide={!!guide} />
       <SwitchesSetting projectId={p.id} switches={readStates(p.content)} studioAi={studioAi} admin={me.role === 'admin'} />
+      <ConnectorSettings projectId={p.id} shareFontFiles={readConnector(p.content).shareFontFiles} />
       <ProjectActions id={p.id} status={p.status} hasRepo={!!p.repo_full_name} />
       <div className="danger-zone"><p className="mute">Deleting removes the project, its portal and all uploaded files. You choose whether the GitHub repository goes too.</p><DeleteProjectButton id={p.id} client={p.client} repo={p.repo_full_name} /></div>
       </div>

@@ -91,6 +91,9 @@ const TEMPLATE_SIZES: Record<string, [number, number, string]> = {
   'web-hero': [1440, 900, 'Web page hero'], 'email-header': [600, 240, 'Email header'], 'slide-16x9': [1920, 1080, 'Presentation slide']
 };
 
+/** A template's name for people, from its id (social-post-4x5 → Instagram post 4:5) */
+export const templateLabel = (id: string) => TEMPLATE_SIZES[id]?.[2] || id.replace(/[-_]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
+
 function templateHtml(id: string, input: KitInput) {
   const [w, h, label] = TEMPLATE_SIZES[id] || [1080, 1350, id];
   const lead = input.colours[0]?.hex || '#333333';
