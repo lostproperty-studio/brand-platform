@@ -8,7 +8,7 @@ The platform's releases, newest first. Process: [RELEASING.md](RELEASING.md).
 - Director, first working version: a files grid of the team's videos; new videos from a brief (planned and storyboarded by Claude in the brand's world) or a blank canvas; an editor with 9:16, 4:5, 1:1 and 16:9 canvases, scenes generated with Krea or filled with uploaded footage, brand-colour cards, sequence templates, animated captions in the brand's fonts, the brand's logos, and sound (a bespoke Krea track and sound effects).
 
 **For clients**
-- No visible changes.
+- Fix: sign-in links from work email no longer show “That link has expired”. Email security checks (such as Microsoft Defender) were opening the link first and using it up; the sign-in page now waits for the person to press Continue.
 
 ## 1.0.0-beta.2 — 14 November 2026
 
