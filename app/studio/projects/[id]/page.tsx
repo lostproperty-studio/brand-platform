@@ -54,7 +54,8 @@ import { packageSettings, resolvePackages } from '@/lib/portal/packages';
 import { PdfStudio } from '@/components/PdfStudio';
 import { hasShowcase } from '@/lib/showcase';
 import { GithubPanel } from '@/components/GithubPanel';
-import { systemCss, systemFor } from '@/lib/guideSystem';
+import { systemFor } from '@/lib/guideSystem';
+import { pdfPaths } from '@/lib/pdf';
 import { roles as dsRoles } from '@/lib/designSystem';
 import { buildSnapshot } from '@/lib/projects/snapshot';
 import type { KitFileRow } from '@/lib/portal/context';
@@ -354,21 +355,23 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     body = <VoiceStudio knowledge={readKnowledge(p.content)} liveWriter={!!pub?.voice?.writer && voiceReady(pub.voice)} published={!!pub} projectId={id} slug={p.slug} initial={readVoice(p.content)} hasGuide={!!g} hasChapter={!!g?.chapters.some((c) => c.key === 'voice' && !c.removed)} />;
   }
   if (tab === 'pdf') {
-    // The guidelines as 16:9 slides, from templates the studio sets, exported to PDF
-    const pdfImg = (content as { pdf?: { title?: { image?: string } } }).pdf?.title?.image;
-    const paths = [...(guide ? guidePaths(guide) : []), ...(pdfImg ? [pdfImg] : [])];
+    // The guidelines as a 16:9 slide deck the studio designs (grid, hang line, type styles, layouts), exported to PDF
+    const paths = [...(guide ? guidePaths(guide) : []), ...pdfPaths(content)];
     const { data: signed } = paths.length ? await signMany('previews', paths, 6 * 3600) : { data: [] };
     const urls = Object.fromEntries((signed || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
     const { fonts } = await readFonts(id);
     const disp = fonts.find((f) => f.role === 'display' && f.files.length), bod = fonts.find((f) => f.role === 'body' && f.files.length);
-    const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.pdf-root.pt { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
+    const fontCss = fontFaceCss(fonts, await signFontUrls(fonts)) + `\n.pd2-root { ${disp ? `--pt-display: var(--font-${disp.role});` : ''} ${bod ? `--pt-body: var(--font-${bod.role});` : ''} }`;
     const snapP = await buildSnapshot(id).catch(() => null);
     const pc = content as { typeScale?: never; dsProfile?: never };
-    const sysCss = systemCss(systemFor(guide?.system, { typeScale: pc.typeScale, profile: pc.dsProfile, fonts: fonts.filter((f) => f.files.length) }));
+    const withFiles = fonts.filter((f) => f.files.length);
+    // Plain copies: nothing here is shared with another prop
+    const system = structuredClone(systemFor(guide?.system, { typeScale: pc.typeScale, profile: pc.dsProfile, fonts: withFiles }));
     const { data: logoRows } = await sb.from('deliverable_files').select('path, storage_path, deliverable_parts!inner(project_id)').eq('deliverable_parts.project_id', id).like('path', 'assets/logo/%');
     const logoRow = pickLogo(withFigmaLogos((logoRows || []).map((l) => ({ path: l.path, storage_path: l.storage_path })), p.content, {})).main;
     const logoUrl = logoRow?.storage_path ? (await signOne('kits', logoRow.storage_path, 6 * 3600)).data?.signedUrl ?? null : null;
-    body = <PdfStudio projectId={id} client={p.client} guide={guide} urls={urls} logoUrl={logoUrl} colours={snapP?.colours || []} content={content} sysCss={sysCss} fontCss={fontCss} />;
+    body = <PdfStudio projectId={id} client={p.client} guide={guide ? structuredClone(guide) : null} urls={urls} logoUrl={logoUrl} colours={structuredClone(snapP?.colours || [])} content={structuredClone({ pdf: (content as { pdf?: unknown }).pdf ?? null })} fontCss={fontCss}
+      system={system} fonts={withFiles.map((f) => ({ role: f.role, name: f.name || f.label }))} />;
   }
   if (tab === 'motion') {
     // Every SVG logo: the kit's, or the files in the Logos package
