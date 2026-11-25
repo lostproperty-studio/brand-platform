@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Delivery } from '@/components/DeliverPanel';
+import type { GuideTodo } from '@/lib/mcp/gaps';
 import {
   AlertCircle, ArrowUpRight, BookOpen, CheckCircle2, Clock, Download, ExternalLink, Eye, Figma, GitBranch, Github, Globe, MessageSquare,
   PenLine, Send, Sparkles, UserPlus, type LucideIcon
@@ -28,8 +29,8 @@ export type OverviewData = {
     pending: AreaRow[]; direct: AreaRow[];
     list: { version: string; at: string; by: string; areas: AreaRow[] }[];
   };
-  /** Points in the published guidelines still holding placeholder text, which the client's Claude can't use */
-  gaps?: { chapter: string; points: string[] }[];
+  /** Sections of the guidelines still holding stand-in text or missing an image, with what to write */
+  todos?: GuideTodo[];
   delivery: Delivery;
 };
 
@@ -133,11 +134,16 @@ export function Overview({ d, created, skipped }: { d: OverviewData; created?: b
             </li>)}</ul>
       </>)}
 
-      {/* Unfinished text: placeholders the client's Claude would otherwise read as rules */}
-      {d.gaps?.length ? sec('gaps', `Unfinished text · ${d.gaps.reduce((n, g) => n + g.points.length, 0)}`, <>
-            <p className="mute">These points in the published guidelines still hold placeholder text. The client’s Claude is told they aren’t written yet. Fill them in with exact specs, then publish.</p>
-            <ul className="ov-gaps">{d.gaps.map((g) => <li key={g.chapter}><b>{g.chapter}</b><span className="mute">{g.points.slice(0, 4).join(' · ')}{g.points.length > 4 ? ` · and ${g.points.length - 4} more` : ''}</span></li>)}</ul>
-            <Link href="?tab=guidelines" className="ov-more">Open the guidelines →</Link>
+      {/* Guidelines to finish: each section with stand-in text, what it needs, a suggestion, and a way straight to it */}
+      {d.todos?.length ? sec('finish', `Guidelines to finish · ${d.todos.length}`, <>
+        <p className="mute td-intro">These parts of the guidelines still have stand-in text or a missing image. Claude skips them, so the client gets nothing there. Write in exact specs, then publish.</p>
+        <ul className="td">{d.todos.slice(0, 12).map((t) => <li key={t.chapterId + (t.blockId || '') + t.section} className="td-item">
+          <div className="td-top"><div className="td-where"><span className="td-ch">{t.chapter.charAt(0).toUpperCase() + t.chapter.slice(1)}</span><span className="td-sec">{t.section}</span></div>
+            <Link className="btn td-go" href={`?tab=guidelines&ch=${encodeURIComponent(t.chapterId)}${t.blockId ? `&b=${encodeURIComponent(t.blockId)}` : ''}`}>Edit</Link></div>
+          <p className="td-miss">{t.missing}</p>
+          <p className="td-tip"><span>Suggestion</span>{t.suggestion}</p>
+        </li>)}</ul>
+        {d.todos.length > 12 ? <p className="mute">And {d.todos.length - 12} more in the guidelines.</p> : null}
       </>) : null}
 
       {/* Client activity */}

@@ -5,7 +5,7 @@ import { PublishControl, type PublishState } from '@/components/PublishControl';
 import { byArea, changeFeed } from '@/lib/projects/changes';
 import { ConnectorSettings } from '@/components/ConnectorSettings';
 import { readConnector } from '@/lib/mcp/kit';
-import { kitGaps } from '@/lib/mcp/gaps';
+import { guideTodos } from '@/lib/mcp/gaps';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -177,8 +177,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       repo: p.repo_full_name ? { name: p.repo_full_name, version: p.kit_version } : null, ai: p.ai_key_hint || null, aiRejected: !!(p.content as { aiKeyRejectedAt?: string } | null)?.aiKeyRejectedAt,
       chapters: guide ? guide.chapters.filter((c) => !c.hidden && !c.removed && (!c.id.startsWith('draft-') || c.blocks.some((b) => !b.draft))).length : 0,
       checks,
-      // What the client's Claude reads: placeholder text in the published guidelines
-      gaps: await publishedSnapshot(id).then((snap) => (snap ? kitGaps(snap) : []), () => []),
+      // Guidelines to finish: stand-in text and missing images in the working copy, with what to write
+      todos: await buildSnapshot(id).then(guideTodos, () => []),
       versions: { live: feed.live, pending: byArea(feed.pending), direct: byArea(feed.direct), list: feed.versions.slice(0, 12).map((v) => ({ ...v, areas: byArea(v.changes) })) },
       delivery: {
         projectId: id, slug: p.slug, client: p.client, portalUrl: await portalUrl(p.slug), status: p.status as 'draft' | 'live' | 'archived',
