@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scanGate } from '@/lib/studioTeam';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { exportNodes, fetchPage } from '@/lib/figma/scan';
@@ -10,6 +11,7 @@ type N = { id: string; name: string; children?: N[] };
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await scanGate(id, st as Exclude<typeof st, Response>, 'editor', 'review'); if (gate) return gate; }
   const b = z.object({ nodeId: z.string().max(40).optional(), link: z.string().max(600).optional() }).safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const nodeId = b.data.nodeId || b.data.link?.match(/node-id=([0-9]+[-:][0-9]+)/)?.[1]?.replace('-', ':');

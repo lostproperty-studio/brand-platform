@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scanGate } from '@/lib/studioTeam';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { prepareReview } from '@/lib/review/prepare';
 
@@ -8,6 +9,7 @@ export const maxDuration = 120;
 export async function POST(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await scanGate(id, st as Exclude<typeof st, Response>, 'editor', 'review'); if (gate) return gate; }
   try {
     const { questions, contexts } = await prepareReview(id);
     const { data: items } = await adminClient().from('review_items').select('*').eq('scan_id', id).order('ord');

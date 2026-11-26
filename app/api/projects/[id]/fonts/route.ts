@@ -59,7 +59,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const meta = parseFontFile(file.name);
     if (!meta.format) { problems.push(`${file.name}: use .woff2, .woff, .otf or .ttf`); continue; }
     if (file.size > MAX_BYTES) { problems.push(`${file.name}: larger than 4 MB`); continue; }
-    const path = `fonts/${id}/${role}/${randomUUID().slice(0, 8)}-${file.name.replace(/[^\w.-]+/g, '-')}`;
+    const path = `fonts/${id}/${String(role).toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40) || 'font'}/${randomUUID().slice(0, 8)}-${file.name.replace(/[^\w.-]+/g, '-')}`;
     const { error } = await sb.storage.from(FONT_BUCKET).upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: FONT_MIME[meta.format], upsert: false });
     if (error) { problems.push(`${file.name}: ${error.message}`); continue; }
     // A file named "...Trial..." is kept as trial even if uploaded as licensed, so it can't reach the kit by mistake.

@@ -2,6 +2,7 @@ import { App } from 'octokit';
 import { studioAnthropic } from '@/lib/ai/studio';
 import { env } from '@/lib/env';
 import { createClient } from '@supabase/supabase-js';
+import { requireStaff } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,10 +12,14 @@ async function check(fn: () => Promise<string>) {
 }
 
 export async function GET() {
+  // Anyone (and the custom-domain check, lib/domain.ts) gets a plain 'ok', with no calls out to anything. The full
+  // setup check below is for signed-in studio staff only.
+  const st = await requireStaff();
+  if (st instanceof Response) return Response.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } });
   const [supabase, github, figma, anthropic] = await Promise.all([
     check(async () => { const s = createClient(env.supabaseUrl(), env.supabaseService()); const { error, count } = await s.from('projects').select('id', { count: 'exact', head: true }); if (error) throw new Error(error.message); return `${count ?? 0} projects`; }),
-    check(async () => { const g = env.github(); const pem = g.privateKey; if (!pem.includes('-----BEGIN')) throw new Error(`private key doesn’t look like a .pem file (${pem.length} chars, starts “${pem.slice(0, 6)}”)`); const app = new App({ appId: g.appId, privateKey: g.privateKey }); const kit = await app.getInstallationOctokit(g.installationId); const { data } = await kit.rest.apps.listReposAccessibleToInstallation({ per_page: 1 }); return `installed, ${data.total_count} repos visible`; }),
-    check(async () => { const t = env.figmaToken(); const r = await fetch('https://api.figma.com/v1/files/T5NgfMUus0JuBz1HAito3g?depth=1', { headers: { 'X-Figma-Token': t } }); if (!r.ok) throw new Error(`Figma said ${r.status}: ${(await r.text()).slice(0, 100)} (token starts ${t.slice(0, 5)}, ${t.length} chars)`); const f = await r.json(); return `can read “${f.name}”`; }),
+    check(async () => { const g = env.github(); const pem = g.privateKey; if (!pem.includes('-----BEGIN')) throw new Error('private key doesn’t look like a .pem file'); const app = new App({ appId: g.appId, privateKey: g.privateKey }); const kit = await app.getInstallationOctokit(g.installationId); const { data } = await kit.rest.apps.listReposAccessibleToInstallation({ per_page: 1 }); return `installed, ${data.total_count} repos visible`; }),
+    check(async () => { const t = env.figmaToken(); const r = await fetch('https://api.figma.com/v1/files/T5NgfMUus0JuBz1HAito3g?depth=1', { headers: { 'X-Figma-Token': t } }); if (!r.ok) throw new Error(`Figma said ${r.status}`); const f = await r.json(); return `can read “${f.name}”`; }),
     check(async () => { await studioAnthropic().models.list({ limit: 1 }); return 'key accepted'; })
   ]);
   const migrations = await check(async () => {

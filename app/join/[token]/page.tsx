@@ -21,8 +21,12 @@ export default async function Join({ params, searchParams }: { params: Promise<{
     const { data: existing } = await sb.from('project_members').select('role').eq('project_id', inv.link.projectId).eq('user_id', user.id).maybeSingle();
     const staff = await activeStaff(user.id);
     if (!existing && !staff) {
+      // Take one use of the link first, atomically, so a limited link can't be used more times than it allows
+      const { data: claimed, error } = await sb.rpc('claim_invite', { p_id: inv.link.id });
+      if (!error && claimed === false) return <LoginScreen b={b} heading="Invite link not valid"><p className="ls-msg">This invite link has been used up. Ask your team’s admin for a new one.</p></LoginScreen>;
       await addMember(inv.link.projectId, user.id, inv.link.role, user.email || null, null);
-      await sb.from('invite_links').update({ uses: inv.link.uses + 1 }).eq('id', inv.link.id);
+      // Before migration 0021 the count is kept the old way
+      if (error) await sb.from('invite_links').update({ uses: inv.link.uses + 1 }).eq('id', inv.link.id);
       await logActivity(inv.link.projectId, user.id, 'join', ROLE_LABEL[inv.link.role]);
     }
     redirect(`/p/${b.slug}`);
