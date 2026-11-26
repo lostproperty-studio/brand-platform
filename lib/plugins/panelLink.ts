@@ -56,7 +56,9 @@ export async function pollLink(id: string, poll: string) {
   if (l.used_at) return { status: 'invalid' as const };
   if (new Date(l.expires_at).getTime() < Date.now()) return { status: 'expired' as const };
   if (!l.approved_at || !l.project_id || !l.user_id) return { status: 'waiting' as const };
-  await sb.from('panel_links').update({ used_at: new Date().toISOString() }).eq('id', id);
+  // Spend it only if nobody else has in the meantime: two polls at once can't both get tokens
+  const { data: spent } = await sb.from('panel_links').update({ used_at: new Date().toISOString() }).eq('id', id).is('used_at', null).select('id');
+  if (!spent?.length) return { status: 'invalid' as const };
   const client = await internalClient(l.project_id, l.host as PanelHost);
   return { status: 'ready' as const, ...(await mintGrant(client, l.project_id, l.user_id)) };
 }
