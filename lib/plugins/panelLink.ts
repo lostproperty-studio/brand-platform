@@ -1,5 +1,5 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { adminClient } from '@/lib/supabase/server';
+import { activeStaff, adminClient } from '@/lib/supabase/server';
 import { hashToken } from '@/lib/crypto';
 import { projectStages, canSee } from '@/lib/features';
 import { internalClient, mintGrant, secretMatches, stillMember } from '@/lib/plugins/panelAuth';
@@ -31,8 +31,7 @@ export async function readLink(id: string) {
 /** The brands someone can sign a panel in to: projects they're in where Plug-ins is turned on for them */
 export async function brandsFor(userId: string) {
   const sb = db();
-  const { data: st } = await sb.from('staff').select('user_id').eq('user_id', userId).maybeSingle();
-  const staff = !!st;
+  const staff = !!(await activeStaff(userId));
   const rows = staff
     ? (await sb.from('projects').select('id, client, slug').order('client')).data || []
     : ((await sb.from('project_members').select('projects!inner(id, client, slug)').eq('user_id', userId)).data || []).map((r) => (Array.isArray(r.projects) ? r.projects[0] : r.projects) as { id: string; client: string; slug: string });

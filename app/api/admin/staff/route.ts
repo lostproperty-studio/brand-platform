@@ -72,6 +72,8 @@ export async function PATCH(req: Request) {
   if (patch.active === false) {
     const { data: s } = await sb.from('staff').select('email').eq('user_id', user_id).maybeSingle();
     if (s?.email) await sb.from('project_team').delete().eq('email', String(s.email).toLowerCase());
+    // Their brand-panel sign-ins stop straight away too
+    await sb.from('panel_grants').update({ revoked_at: new Date().toISOString() }).eq('user_id', user_id).is('revoked_at', null).then(() => null, () => null);
   }
   return NextResponse.json({ staff: await listStaff() });
 }

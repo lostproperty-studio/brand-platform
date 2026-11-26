@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { adminClient, currentUser } from '@/lib/supabase/server';
+import { activeStaff, adminClient, currentUser } from '@/lib/supabase/server';
 import { addMember, findInvite, ROLE_HELP, ROLE_LABEL } from '@/lib/team';
 import { projectBranding } from '@/lib/branding';
 import { LoginScreen } from '@/components/LoginScreen';
@@ -19,7 +19,7 @@ export default async function Join({ params, searchParams }: { params: Promise<{
   if (user) {
     const sb = adminClient();
     const { data: existing } = await sb.from('project_members').select('role').eq('project_id', inv.link.projectId).eq('user_id', user.id).maybeSingle();
-    const { data: staff } = await sb.from('staff').select('user_id').eq('user_id', user.id).maybeSingle();
+    const staff = await activeStaff(user.id);
     if (!existing && !staff) {
       await addMember(inv.link.projectId, user.id, inv.link.role, user.email || null, null);
       await sb.from('invite_links').update({ uses: inv.link.uses + 1 }).eq('id', inv.link.id);

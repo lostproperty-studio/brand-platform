@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { adminClient } from '@/lib/supabase/server';
+import { activeStaff, adminClient } from '@/lib/supabase/server';
 import { hashToken } from '@/lib/crypto';
 import type { PanelHost } from '@/lib/plugins/catalog';
 import { projectStages, canSee } from '@/lib/features';
@@ -51,8 +51,7 @@ export function secretMatches(hash: string, secret: string) {
 /** Whether someone is still in this portal: the studio, or a member of the project */
 export async function stillMember(projectId: string, userId: string) {
   const sb = db();
-  const { data: st } = await sb.from('staff').select('user_id').eq('user_id', userId).maybeSingle();
-  if (st) return { staff: true };
+  if (await activeStaff(userId)) return { staff: true };
   const { data: m } = await sb.from('project_members').select('role').eq('project_id', projectId).eq('user_id', userId).maybeSingle();
   return m ? { staff: false } : null;
 }
