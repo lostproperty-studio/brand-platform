@@ -306,6 +306,6 @@ All on `claude/elegant-curie-ipfpwg`, one commit per fix. Rule followed: **no ch
 1. **Supabase → Authentication**: turn **off** "Allow new users to sign up" (the app creates accounts itself), keep "Confirm email" on, disable unused providers.
 2. **Supabase → Realtime → Settings**: turn **off** "Allow public access".
 3. **Supabase → Security Advisor**: re-run after the deploy; `_migrations` should no longer be flagged.
-4. **Vercel**: confirm `KEY_ENCRYPTION_SECRET` is set in Production.
+4. **Vercel: `KEY_ENCRYPTION_SECRET`** isn't set, and that's fine: stored secrets use a key derived from Supabase's JWT secret. Optional; only needed **before** ever changing Supabase's JWT secret (steps in RELEASING.md). Adding it is safe at any time since #27.
 5. **DNS export** for check 13.
 6. After a week or two, look at the browser console's CSP reports, then switch the CSP from report-only to enforced.

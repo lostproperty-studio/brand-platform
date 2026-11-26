@@ -32,6 +32,6 @@ export async function GET() {
     if (pending.length) throw new Error('Pending: ' + pending.join(', '));
     return `${files.length} applied`;
   });
-  const encryption = { ok: !!(process.env.KEY_ENCRYPTION_SECRET || process.env.SUPABASE_JWT_SECRET), detail: '' };
+  const encryption = { ok: !!(process.env.KEY_ENCRYPTION_SECRET || process.env.SUPABASE_JWT_SECRET), detail: process.env.KEY_ENCRYPTION_SECRET ? 'own key set' : 'using a key from the Supabase JWT secret: set KEY_ENCRYPTION_SECRET before ever changing that (RELEASING.md)' };
   return Response.json({ supabase, github, figma, anthropic, encryption, migrations });
 }
