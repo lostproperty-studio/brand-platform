@@ -35,6 +35,9 @@ try { db = await connect(); } catch (e) {
 }
 try {
   await db.query('create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())');
+  // The record of what's run is for this script only: never readable or writable through Supabase's public API
+  await db.query('alter table _migrations enable row level security').catch(() => {});
+  await db.query('revoke all on table _migrations from anon, authenticated').catch(() => {});
   const { rows } = await db.query('select name from _migrations');
   const done = new Set(rows.map((r) => r.name));
   // The first two were applied by hand in the Supabase SQL editor: record them if their tables exist

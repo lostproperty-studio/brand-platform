@@ -1,3 +1,5 @@
+import { safeNext } from '@/lib/safeNext';
+import { studioByDomain } from '@/lib/auth/studioDomain';
 import { appOrigin } from '@/lib/origin';
 import { NextResponse } from 'next/server';
 import { adminClient, userClient } from '@/lib/supabase/server';
@@ -12,7 +14,7 @@ export async function GET(req: Request) {
     const sb = await userClient();
     const { data } = await sb.auth.exchangeCodeForSession(code);
     const u = data.user;
-    const studio = !!u?.email && env.studioDomains().includes(u.email.split('@')[1]);
+    const studio = studioByDomain(u);
     if (u?.email && studio) {
       await adminClient().from('staff').upsert({ user_id: u.id, email: u.email }, { onConflict: 'user_id', ignoreDuplicates: true });
     }
@@ -25,5 +27,5 @@ export async function GET(req: Request) {
       }
     }
   }
-  return NextResponse.redirect(new URL(next.startsWith('/') ? next : '/', await appOrigin()));
+  return NextResponse.redirect(new URL(safeNext(next), await appOrigin()));
 }

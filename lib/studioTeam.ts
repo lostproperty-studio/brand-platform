@@ -52,3 +52,15 @@ async function touch(projectId: string, userId: string, area?: string) {
     else if (!recent && area === 'publish') await sb.from('activity').insert({ project_id: projectId, user_id: userId, kind: 'edit', detail: 'publish' });
   } catch { /* best effort; never blocks the change */ }
 }
+
+/** teamGate for a Figma scan, or a review item from one: the project is looked up from the scan */
+export async function scanGate(scanId: string, st: Staff, need: TeamRole, area?: string): Promise<Response | null> {
+  const { data } = await adminClient().from('scans').select('project_id').eq('id', scanId).maybeSingle();
+  if (!data?.project_id) return new Response('Not found', { status: 404 });
+  return teamGate(String(data.project_id), st, need, area);
+}
+export async function reviewItemGate(itemId: string, st: Staff, need: TeamRole, area?: string): Promise<Response | null> {
+  const { data } = await adminClient().from('review_items').select('scan_id').eq('id', itemId).maybeSingle();
+  if (!data?.scan_id) return new Response('Not found', { status: 404 });
+  return scanGate(String(data.scan_id), st, need, area);
+}

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { reviewItemGate } from '@/lib/studioTeam';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { studioAnthropic } from '@/lib/ai/studio';
@@ -7,6 +8,7 @@ import { studioAnthropic } from '@/lib/ai/studio';
 export async function POST(req: Request, ctx: { params: Promise<{ itemId: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { itemId } = await ctx.params;
+  { const gate = await reviewItemGate(itemId, st as Exclude<typeof st, Response>, 'editor', 'review'); if (gate) return gate; }
   const b = z.object({ explanation: z.string().min(1).max(2000), question: z.string().max(300) }).safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const { data: it } = await adminClient().from('review_items').select('kind, title, found, proposal').eq('id', itemId).single();

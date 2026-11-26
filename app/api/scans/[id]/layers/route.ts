@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scanGate } from '@/lib/studioTeam';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { fetchPage } from '@/lib/figma/scan';
 
@@ -9,6 +10,7 @@ const GENERIC = /^(frame|group|rectangle|vector|image|ellipse|line|union|subtrac
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const st = await requireStaff(); if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await scanGate(id, st as Exclude<typeof st, Response>, 'viewer'); if (gate) return gate; }
   const q = (new URL(req.url).searchParams.get('q') || '').trim().toLowerCase();
   if (q.length < 2) return NextResponse.json({ layers: [] });
   const { data: scan } = await adminClient().from('scans').select('figma_key, page_id').eq('id', id).single();

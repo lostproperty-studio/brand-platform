@@ -12,7 +12,7 @@ export async function LayoutMaker({ slug, toolId }: { slug: string; toolId: stri
   // Templates and the files they reference (tokens, logos, imagery), signed for this session
   const used = ctx.files.filter((f) => f.storage_path && /^(templates|tokens|assets\/(logo|imagery|patterns?))\//.test(f.path));
   const { data } = used.length ? await sb.storage.from('kits').createSignedUrls(used.map((f) => f.storage_path!), 6 * 3600) : { data: [] };
-  const byStorage = Object.fromEntries((data || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl]));
+  const byStorage = Object.fromEntries((data || []).filter((d) => d.path && d.signedUrl).map((d) => [d.path!, d.signedUrl!]));
   const resources = Object.fromEntries(used.filter((f) => byStorage[f.storage_path!]).map((f) => [f.path, byStorage[f.storage_path!]]));
   const templates = used.filter((f) => /^templates\/[^/]+\/index\.html$/.test(f.path)).map((f) => { const id = f.path.split('/')[1]; return { id, label: LABELS[id] || id, path: f.path }; });
   const images = used.filter((f) => /^assets\/(imagery|patterns?)\/.+\.(png|jpe?g|webp)$/i.test(f.path)).map((f) => ({ path: f.path, url: resources[f.path] }));

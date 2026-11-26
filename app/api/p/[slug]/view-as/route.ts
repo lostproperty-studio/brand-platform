@@ -1,3 +1,4 @@
+import { safeNext } from '@/lib/safeNext';
 import { NextResponse } from 'next/server';
 import { requireStaff } from '@/lib/supabase/server';
 
@@ -8,7 +9,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
   const url = new URL(req.url);
   const client = url.searchParams.get('mode') !== 'studio';
   const back = url.searchParams.get('to') || `/p/${slug}`;
-  const res = NextResponse.redirect(new URL(back.startsWith('/') ? back : `/p/${slug}`, url.origin));
+  const res = NextResponse.redirect(new URL(safeNext(back, `/p/${slug}`), url.origin));
   if (client) res.cookies.set('lp-as-client', slug, { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 4, secure: url.protocol === 'https:' });
   else res.cookies.delete('lp-as-client');
   return res;

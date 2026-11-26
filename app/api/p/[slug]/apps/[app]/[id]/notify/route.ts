@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { allow, tooMany } from '@/lib/rateLimit';
 import { z } from 'zod';
 import { appAccess, db, hasSharing, openFile, viewerOf } from '@/lib/apps/server';
 import { appOrigin } from '@/lib/origin';
@@ -24,6 +25,7 @@ const APP_NAME: Record<string, string> = { writer: 'Writer', director: 'Director
 export async function POST(req: Request, ctx: P) {
   const { slug, app, id } = await ctx.params;
   const a = await appAccess(slug, app); if (!a) return new Response('Not found', { status: 404 });
+  if (!(await allow(`notify:user:${a.acc.user.id}`, 30, 3600))) return tooMany();
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const sb = db();

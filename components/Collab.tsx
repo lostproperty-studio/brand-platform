@@ -73,12 +73,14 @@ export function useCollab({ projectId, me, ch, sel, onPatch, onReload, onResync 
         .on('broadcast', { event: 'resync' }, () => cb.current.onResync())
         .subscribe((s) => {
           if (s === 'SUBSCRIBED') { everJoined = true; joined.current = true; chan.current = c; setStatus('live'); track(); if (wasDown) { wasDown = false; cb.current.onResync(); } }
-          else if (s === 'CHANNEL_ERROR' && priv && !everJoined) {
-            // Private channels need the 0008 migration; until then, join an ordinary one
-            const old = c; c = null; if (old) sb.removeChannel(old); join(false);
+          else if (s === 'CHANNEL_ERROR' && !everJoined && retries < 2) {
+            // Only ever the private channel (checked against who's allowed): try again a couple of times, as a fresh
+            // sign-in token can take a moment. Never fall back to a public channel, which anyone could listen to.
+            retries++; const old = c; c = null; if (old) sb.removeChannel(old); setTimeout(() => join(true), 1500 * retries);
           } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') { joined.current = false; wasDown = true; if (!gone) setStatus('off'); }
         });
     };
+    let retries = 0;
     join(true);
     return () => { gone = true; joined.current = false; chan.current = null; if (c) sb.removeChannel(c); };
   }, [projectId, me, track]);

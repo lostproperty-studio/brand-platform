@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { reviewItemGate } from '@/lib/studioTeam';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 
@@ -8,6 +9,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ itemId: strin
   const st = await requireStaff();
   if (st instanceof Response) return st;
   const { itemId } = await ctx.params;
+  { const gate = await reviewItemGate(itemId, st as Exclude<typeof st, Response>, 'editor', 'review'); if (gate) return gate; }
   const b = Body.safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   const { data, error } = await adminClient().from('review_items').update({ ...b.data, answered_by: st.user.id }).eq('id', itemId).select('id, status, answer, note').single();

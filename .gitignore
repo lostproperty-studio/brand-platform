@@ -1,8 +1,19 @@
 node_modules
 .next
-.env
-.env.local
 *.tsbuildinfo
 next-env.d.ts
 .vercel
 .harness
+
+# Secrets: every env file (only the example is shared), keys and certificates. docs/STAGING.md has people make
+# .env.staging and .env.copy here, holding live database keys, so they must never be committed.
+.env*
+!.env.example
+*.pem
+*.p8
+*.p12
+*.key
+*.keystore
+supabase/.temp/
+supabase/.branches/
+*.local.*

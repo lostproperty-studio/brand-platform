@@ -57,7 +57,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const snap = a.acc.staff ? await buildSnapshot(a.p.id) : await publishedSnapshot(a.p.id);
   if (!snap) return NextResponse.json({ error: 'The brand guidelines aren’t ready yet.' }, { status: 409 });
   let ai, studio = false;
-  try { ({ ai, studio } = await portalAnthropic(a.p.id, a.acc.staff)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
+  try { ({ ai, studio } = await portalAnthropic(a.p.id, a.acc.staff, a.acc.user.id)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
 
   const system = `${brandSystemPrompt(snap)}
 

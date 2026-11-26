@@ -1,3 +1,4 @@
+import { safeNext } from '@/lib/safeNext';
 import { notFound } from 'next/navigation';
 import { projectBranding } from '@/lib/branding';
 import { LoginScreen } from '@/components/LoginScreen';
@@ -9,7 +10,7 @@ export default async function ClientLogin({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const b = await projectBranding(slug);
   if (!b) notFound();
-  const next = sp.next?.startsWith('/') ? sp.next : `/p/${slug}`;
+  const next = safeNext(sp.next, `/p/${slug}`);
   return (
     <LoginScreen b={b}>
       {sp.sent ? <form action={signInWithCode} className="ls-form">

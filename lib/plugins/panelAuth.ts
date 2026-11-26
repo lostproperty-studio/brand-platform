@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { adminClient } from '@/lib/supabase/server';
+import { activeStaff, adminClient } from '@/lib/supabase/server';
 import { hashToken } from '@/lib/crypto';
 import type { PanelHost } from '@/lib/plugins/catalog';
 import { projectStages, canSee } from '@/lib/features';
@@ -51,8 +51,7 @@ export function secretMatches(hash: string, secret: string) {
 /** Whether someone is still in this portal: the studio, or a member of the project */
 export async function stillMember(projectId: string, userId: string) {
   const sb = db();
-  const { data: st } = await sb.from('staff').select('user_id').eq('user_id', userId).maybeSingle();
-  if (st) return { staff: true };
+  if (await activeStaff(userId)) return { staff: true };
   const { data: m } = await sb.from('project_members').select('role').eq('project_id', projectId).eq('user_id', userId).maybeSingle();
   return m ? { staff: false } : null;
 }
@@ -105,7 +104,9 @@ export async function exchange(c: { client_id: string }, f: { grant_type: string
   }
   if (!(await stillMember(g.project_id, g.user_id))) { await sb.from('panel_grants').update({ revoked_at: new Date().toISOString() }).eq('id', g.id); return { error: 'invalid_grant' }; }
   const t = tokens();
-  await sb.from('panel_grants').update({ code_hash: null, code_expires: null, access_hash: hashToken(t.access), refresh_hash: hashToken(t.refresh), access_expires: new Date(Date.now() + ACCESS_HOURS * 3600e3).toISOString(), last_used_at: new Date().toISOString() }).eq('id', g.id);
+  // Only if the code or refresh token is still the current one: the same one can't be exchanged twice at once
+  const { data: swapped } = await sb.from('panel_grants').update({ code_hash: null, code_expires: null, access_hash: hashToken(t.access), refresh_hash: hashToken(t.refresh), access_expires: new Date(Date.now() + ACCESS_HOURS * 3600e3).toISOString(), last_used_at: new Date().toISOString() }).eq('id', g.id).eq(col, hashToken(val)).select('id');
+  if (!swapped?.length) return { error: 'invalid_grant' };
   return { access_token: t.access, token_type: 'Bearer', expires_in: ACCESS_HOURS * 3600, refresh_token: t.refresh, scope: 'brand' };
 }
 

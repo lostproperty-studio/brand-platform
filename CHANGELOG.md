@@ -2,6 +2,19 @@
 
 The platform's releases, newest first. Process: [RELEASING.md](RELEASING.md).
 
+## 1.0.0-beta.4 — 26 November 2026
+
+Security hardening from a 20-point audit (SECURITY_AUDIT_REPORT.md). Nothing changes in how the platform looks or works.
+
+**For the studio**
+- Switching someone off in Admin settings now removes their access everywhere, including client portals and the brand panel.
+- Rate limits on sign-in emails, sign-in codes, AI, requests, chats, invites, panel links and the Claude connector, far above normal use.
+- Studio tables are server-only; security headers on every page; Next.js 15.5 and patched dependencies.
+- Supabase settings to change are listed at the end of the report.
+
+**For clients**
+- No visible changes. Sign-in links can only lead back to this site, and live editing only uses private channels.
+
 ## 1.0.0-beta.3 — 25 November 2026
 
 The new portal from staging, a clearer way to publish, and a Claude connector that sees the whole brand.

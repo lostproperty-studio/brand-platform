@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scanGate } from '@/lib/studioTeam';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
 
 // Scan progress + review items (with signed preview URLs). The wizard polls this while scanning.
@@ -6,6 +7,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
   const st = await requireStaff();
   if (st instanceof Response) return st;
   const { id } = await ctx.params;
+  { const gate = await scanGate(id, st as Exclude<typeof st, Response>, 'viewer'); if (gate) return gate; }
   const sb = adminClient();
   const { data: scan } = await sb.from('scans').select('id, project_id, figma_key, status, steps, meta, error').eq('id', id).single();
   if (!scan) return new Response('Not found', { status: 404 });

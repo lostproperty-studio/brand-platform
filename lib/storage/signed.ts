@@ -2,18 +2,19 @@ import { adminClient } from '@/lib/supabase/server';
 
 // Signed links to stored files, reused while they're fresh. Signing a new link on every page load costs a round trip
 // to storage and, because each link is different, stops the browser and CDN from reusing the picture it already has.
-// So a link is kept and handed out again until it's within an hour of expiring.
+// So a link is kept and handed out again until it's within an hour (or half its life) of expiring.
 type Entry = { url: string; until: number };
 const cache = new Map<string, Entry>();
 const MAX = 20_000;
 const SPARE = 3600_000; // hand a link out only while it has at least an hour left
 
 export async function signMany(bucket: string, paths: string[], seconds = 6 * 3600): Promise<{ data: { path: string | null; signedUrl: string }[] }> {
-  const now = Date.now(); const ttl = Math.max(seconds, 6 * 3600);
+  // As long as the caller asked for (at least 5 minutes): short-lived links stay short-lived
+  const now = Date.now(); const ttl = Math.max(seconds, 300); const spare = Math.min(SPARE, ttl * 500);
   const want = [...new Set(paths.filter(Boolean))];
   const out: { path: string; signedUrl: string }[] = [];
   const missing: string[] = [];
-  for (const p of want) { const e = cache.get(bucket + ':' + p); if (e && e.until - now > SPARE) out.push({ path: p, signedUrl: e.url }); else missing.push(p); }
+  for (const p of want) { const e = cache.get(bucket + ':' + p); if (e && e.until - now > spare) out.push({ path: p, signedUrl: e.url }); else missing.push(p); }
   if (missing.length) {
     const { data } = await adminClient().storage.from(bucket).createSignedUrls(missing, ttl);
     for (const d of data || []) if (d.path && d.signedUrl) { cache.set(bucket + ':' + d.path, { url: d.signedUrl, until: now + ttl * 1000 }); out.push({ path: d.path, signedUrl: d.signedUrl }); }

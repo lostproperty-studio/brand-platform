@@ -8,7 +8,9 @@ import { aboutMd, type BrandForm } from '@/lib/brandForm';
 // Route 1: chat and Canvas run on the client's own Anthropic key, stored encrypted on the project.
 // The studio's key is never used for client features, so usage is billed to the client by Anthropic.
 
-export class NoClientKey extends Error { constructor() { super('AI is not connected for this project. A client admin can add an Anthropic API key in portal settings.'); } }
+export class NoClientKey extends Error { constructor(message = 'AI is not connected for this project. A client admin can add an Anthropic API key in portal settings.') { super(message); } }
+/** Over the AI rate limit: a NoClientKey, so every route already shows its message rather than failing */
+export class TooMuchAI extends NoClientKey { constructor() { super('That’s a lot of AI requests in a short time. Wait a few minutes, then try again.'); } }
 
 export async function clientAnthropic(projectId: string) {
   const { data, error } = await adminClient().from('projects').select('ai_provider, ai_key_cipher').eq('id', projectId).single();
@@ -20,7 +22,13 @@ export async function clientAnthropic(projectId: string) {
 /** The AI for a portal request. The studio previewing a portal (building and testing it before delivery) runs
  *  on Lost Property's own key, so Ask and the AI tools work before the client has connected theirs, and the
  *  studio's testing never lands on the client's bill. Clients always run on their own key. */
-export async function portalAnthropic(projectId: string, staff: boolean): Promise<{ ai: Anthropic; studio: boolean }> {
+export async function portalAnthropic(projectId: string, staff: boolean, userId?: string): Promise<{ ai: Anthropic; studio: boolean }> {
+  // Generous limits per person and per project, far above normal use (the Writer suggests as you type), to stop a
+  // script running up the AI bill. Shown as a plain message, like the not-connected one.
+  if (userId) {
+    const { allowAll } = await import('@/lib/rateLimit');
+    if (!(await allowAll([[`ai:user:${userId}`, 200, 600], [`ai:project:${projectId}`, 2000, 3600]]))) throw new TooMuchAI();
+  }
   if (staff || await studioAiProject(projectId)) { const { studioAnthropic } = await import('@/lib/ai/studio'); return { ai: studioAnthropic(), studio: true }; }
   return { ai: await clientAnthropic(projectId), studio: false };
 }

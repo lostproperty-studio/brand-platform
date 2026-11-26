@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { requireStaff, userClient } from '@/lib/supabase/server';
+import { adminClient, requireStaff } from '@/lib/supabase/server';
 import { ProjectCard } from '@/components/ProjectCard';
 import { logoThumbs } from '@/lib/projects/logoThumb';
 import { RequestsInbox, type InboxReq } from '@/components/RequestsInbox';
@@ -19,7 +19,9 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   const st = await requireStaff();
   if (st instanceof Response) redirect('/');
   const sp = await searchParams;
-  const sb = await userClient();
+  // The person is checked as active staff above, so the server reads for them (the studio's tables aren't open to
+  // the browser's connection)
+  const sb = adminClient();
   const { data } = await sb.from('projects').select('id, client, name, slug, status, updated_at, brand, repo_full_name, packages:content->packages').order('updated_at', { ascending: false });
   const all = (data || []) as unknown as Row[];
   const thumbs = await logoThumbs(all.map((p) => ({ id: p.id, client: p.client, brand: p.brand, content: { packages: p.packages } })));

@@ -1,4 +1,5 @@
 'use client';
+import { safeNext } from '@/lib/safeNext';
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 
@@ -10,7 +11,7 @@ export default function Confirm() {
     const sb = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
     const params = new URLSearchParams(window.location.hash.slice(1));
     const next = new URLSearchParams(window.location.search).get('next') || '/';
-    const go = () => window.location.replace(next.startsWith('/') ? next : '/');
+    const go = () => window.location.replace(safeNext(next));
     const access_token = params.get('access_token'), refresh_token = params.get('refresh_token');
     const code = new URLSearchParams(window.location.search).get('code');
     (async () => {

@@ -1,3 +1,5 @@
+import { safeNext } from '@/lib/safeNext';
+import { studioByDomain } from '@/lib/auth/studioDomain';
 import { redirect } from 'next/navigation';
 import { adminClient, currentUser, userClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
@@ -14,13 +16,13 @@ export default async function Verify({ searchParams }: { searchParams: Promise<{
     const sb = await userClient();
     const { data, error } = await sb.auth.verifyOtp({ token_hash, type: 'magiclink' });
     // Pressed twice, or already signed in on this browser: carry on rather than calling the link expired
-    if ((error || !data.user) && (await currentUser())) redirect(next.startsWith('/') ? next : '/');
+    if ((error || !data.user) && (await currentUser())) redirect(safeNext(next));
     if (error || !data.user) redirect(`/auth/verify?failed=1&next=${encodeURIComponent(next)}`);
     const u = data.user;
-    if (u.email && env.studioDomains().includes(u.email.split('@')[1])) await adminClient().from('staff').upsert({ user_id: u.id, email: u.email }, { onConflict: 'user_id', ignoreDuplicates: true });
-    redirect(next.startsWith('/') ? next : '/');
+    if (studioByDomain(u)) await adminClient().from('staff').upsert({ user_id: u.id, email: u.email }, { onConflict: 'user_id', ignoreDuplicates: true });
+    redirect(safeNext(next));
   }
-  const next = sp.next?.startsWith('/') ? sp.next : '/';
+  const next = safeNext(sp.next);
   const portal = next.match(/^\/p\/([^/]+)/)?.[1];
   if (sp.failed && (await currentUser())) redirect(next);
   if (sp.failed || !sp.token_hash) return (

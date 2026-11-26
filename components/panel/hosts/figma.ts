@@ -30,7 +30,17 @@ if (typeof window !== 'undefined') window.addEventListener('message', (e) => {
   if (d.ok) w.ok(); else w.fail(new Error(d.error || 'Figma didn’t take it'));
 });
 
-const post = (msg: object) => window.parent.postMessage({ pluginMessage: { lp: 1, ...msg }, pluginId: '*' }, '*');
+// Figma's plugin windows have no web origin, so messages to them can't name a target and go to '*'. Before sending
+// anything (it includes the panel's sign-in tokens to keep), check every window around this page is Figma or a
+// sandboxed frame inside it, so a copy of this page framed by another site is never handed them.
+function inFigma() {
+  if (typeof window === 'undefined' || window.parent === window) return false;
+  const a = (window.location as Location & { ancestorOrigins?: DOMStringList }).ancestorOrigins;
+  if (!a) return true; // browsers without ancestorOrigins (Figma's desktop app and Chrome have it)
+  const list = Array.from({ length: a.length }, (_, i) => a.item(i) || '');
+  return list.length > 0 && list.some((o) => /^https:\/\/([a-z0-9-]+\.)*figma\.com$/.test(o)) && list.every((o) => o === 'null' || /^https:\/\/([a-z0-9-]+\.)*figma\.com$/.test(o));
+}
+const post = (msg: object) => { if (inFigma()) window.parent.postMessage({ pluginMessage: { lp: 1, ...msg }, pluginId: '*' }, '*'); };
 function send(req: Req, timeout = 60_000) {
   const id = ++n;
   return new Promise<void>((ok, fail) => {
