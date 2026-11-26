@@ -272,3 +272,40 @@ Rotate as a precaution only if any of these happened:
 ---
 
 *No fixes have been made. Pick the findings to fix and I'll do them one at a time on a branch, with a test where it makes sense, and re-run the relevant check to confirm each one.*
+
+---
+
+## 6. Fixes made (26 November 2026)
+
+All on `claude/elegant-curie-ipfpwg`, one commit per fix. Rule followed: **no change to what people see or do.** Every fix was typechecked; the redirect helper has tests (`npm test`); a full production build and a local smoke test (sign-in, redirects, headers, panel, health, connector) passed at the end.
+
+| Finding | What changed | Commit |
+|---|---|---|
+| H1 Removed staff keep access | `activeStaff()` used by client portals, the panel and invites; switching someone off also revokes their panel sign-ins | `0c424c2` |
+| H2 Open `_migrations` table | RLS on and public access revoked, by the deploy script every run and by migration 0018 | `b805a72` |
+| H3 Outdated dependencies | next 15.5.29, supabase-js 2.119.2 + @supabase/ssr 0.12.7, nodemailer 10.6.1, sharp 0.35.5, fflate 0.8.3; image optimiser off; `poweredByHeader: false` | `bf2fff0` |
+| M1 Open redirect | `safeNext()` / `safeBack()` on every `next`, `to` and `back`, with tests | `2b780fb` |
+| M2 No rate limits (+ L2 enumeration, L12 connector batches) | Shared limiter (migration 0019, fails open): sign-in emails, wrong codes, AI, requests, chats, file notices, invites, panel links, the connector. Sign-in responds identically whether or not an email has access | `687186a` |
+| M3 Staff database policies | Migration 0020 drops every `is_staff()`/`is_admin()` policy on public tables; the studio project list reads through the server | `b6a16e6` |
+| M4 Public live-editing fallback | Private channels only, with two retries | `3b9cc61` |
+| M5 Staff by email domain | Only confirmed addresses from email links or Google | `8b6637d` |
+| M6 Security headers | HSTS, nosniff, Referrer-Policy, Permissions-Policy, CSP (report-only), frame-ancestors 'self' except `/panel/*`; Figma panel only messages Figma | `3eecbd7` |
+| M7 Stored prompt injection | Team examples fenced as quoted data in every prompt (AI spend capped by M2) | `2a8f2bd` |
+| M8 `.gitignore` | All `.env*` (except the example), keys and Supabase temp folders | `06a8a3c` |
+| L1, L3, L5, L6, L11 | Atomic invite uses (migration 0021); health check private; signed links honour their lifetime; scan/review team checks; safe font paths | `350fe22` |
+| L7 | Panel link and token exchanges single-use under concurrency | `3bfd62d` |
+
+### Not changed, and why
+- **zod 3 → 4** (npm audit high): zod 4 changes validation behaviour across 100+ schemas; needs its own careful pass.
+- **M9 panel-link phishing**: the strong fix (typing the code instead of pressing "It matches") changes what people see. The new per-connection limit on starting links narrows it; your call whether to change the screen.
+- **L4 panel refresh-token expiry and reuse detection**: expiry would sign people out of the panel periodically. Revocation on staff removal (H1) covers the main risk.
+- **L8 content save races, L9 encryption-key fallback, L10 implicit sign-in fragment, L13 junk rows, L14 Canva origin**: low risk; each needs a behaviour change or a setting only you can confirm (e.g. `KEY_ENCRYPTION_SECRET` set in Vercel before the fallback can be removed).
+- **Studio-key usage logging** (part of M7): logging studio-paid AI would change the client's usage numbers on the Client tab; the per-person and per-project limits now cap it instead.
+
+### Still needed from you (dashboard settings the code can't change)
+1. **Supabase → Authentication**: turn **off** "Allow new users to sign up" (the app creates accounts itself), keep "Confirm email" on, disable unused providers.
+2. **Supabase → Realtime → Settings**: turn **off** "Allow public access".
+3. **Supabase → Security Advisor**: re-run after the deploy; `_migrations` should no longer be flagged.
+4. **Vercel**: confirm `KEY_ENCRYPTION_SECRET` is set in Production.
+5. **DNS export** for check 13.
+6. After a week or two, look at the browser console's CSP reports, then switch the CSP from report-only to enforced.
