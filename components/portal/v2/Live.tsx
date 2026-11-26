@@ -54,12 +54,14 @@ export function useLiveFile<S>({ fileId, me, at, onOps, getState, onState }: {
           if (s === 'SUBSCRIBED') {
             const first = !ever; ever = true; chan.current = c; setStatus('live'); track();
             if (first) c!.send({ type: 'broadcast', event: 'hello', payload: { k: key.current } }).catch(() => {});
-          } else if (s === 'CHANNEL_ERROR' && priv && !ever) {
-            // Private channels need migration 0017; until then, an ordinary channel
-            const old = c; c = null; if (old) sb.removeChannel(old); join(false);
+          } else if (s === 'CHANNEL_ERROR' && !ever && retries < 2) {
+            // Only ever the private channel (checked against who may open the file): try again a couple of times, as
+            // a fresh sign-in token can take a moment. Never fall back to a public channel, which anyone could join.
+            retries++; const old = c; c = null; if (old) sb.removeChannel(old); setTimeout(() => join(true), 1500 * retries);
           } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') { chan.current = null; if (!gone) setStatus('off'); }
         });
     };
+    let retries = 0;
     join(true);
     return () => { gone = true; chan.current = null; if (c) sb.removeChannel(c); };
   }, [fileId, me, track]);
