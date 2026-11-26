@@ -1,4 +1,5 @@
 'use server';
+import { safeBack, safeNext } from '@/lib/safeNext';
 import { appOrigin } from '@/lib/origin';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
@@ -15,8 +16,8 @@ import { clearEmailError, noteEmailError } from '@/lib/email/status';
  *  is the platform's own, branded for the client whose portal it's for; otherwise Supabase sends its plain one. */
 export async function sendSignInLink(form: FormData) {
   const email = String(form.get('email') || '').trim().toLowerCase();
-  const next = String(form.get('next') || '/');
-  const back = String(form.get('back') || '/login');
+  const next = safeNext(form.get('next'));
+  const back = safeBack(form.get('back'));
   const slug = String(form.get('brand') || '') || next.match(/^\/p\/([^/]+)/)?.[1] || '';
   // Only people with access get a link; everyone else sees the same message, so the page doesn't reveal who has an account
   if (!(await mayGetLink(email, back))) redirect(`${back}${back.includes('?') ? '&' : '?'}sent=1&next=${encodeURIComponent(next)}`);
@@ -44,8 +45,8 @@ export async function sendSignInLink(form: FormData) {
 /** Signs in with the 6-digit code from the sign-in email: for the iOS app, or when the link opens on another device */
 export async function signInWithCode(form: FormData) {
   const code = String(form.get('code') || '').replace(/\D/g, '');
-  const next = String(form.get('next') || '/');
-  const back = String(form.get('back') || '/login');
+  const next = safeNext(form.get('next'));
+  const back = safeBack(form.get('back'));
   const jar = await cookies();
   const email = jar.get('lp_signin')?.value || '';
   const again = `${back}${back.includes('?') ? '&' : '?'}next=${encodeURIComponent(next)}`;
@@ -55,5 +56,5 @@ export async function signInWithCode(form: FormData) {
   if (error) ({ error } = await sb.auth.verifyOtp({ email, token: code, type: 'magiclink' }));
   if (error) redirect(`${again}&sent=1&error=code`);
   jar.delete('lp_signin');
-  redirect(next.startsWith('/') ? next : '/');
+  redirect(next);
 }

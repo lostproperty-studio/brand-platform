@@ -1,4 +1,5 @@
 'use server';
+import { safeNext } from '@/lib/safeNext';
 import { redirect } from 'next/navigation';
 import { userClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
@@ -10,7 +11,7 @@ export async function signInWithGoogle(form: FormData) {
   const sb = await userClient();
   const { data, error } = await sb.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: `${await appOrigin()}/auth/callback?via=google&next=${encodeURIComponent(next.startsWith('/') ? next : '/studio')}`, queryParams: { hd: env.studioDomains()[0], prompt: 'select_account' } }
+    options: { redirectTo: `${await appOrigin()}/auth/callback?via=google&next=${encodeURIComponent(safeNext(next, '/studio'))}`, queryParams: { hd: env.studioDomains()[0], prompt: 'select_account' } }
   });
   if (error || !data.url) redirect('/login?error=google');
   redirect(data.url);

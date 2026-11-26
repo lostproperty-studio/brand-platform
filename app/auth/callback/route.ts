@@ -1,3 +1,4 @@
+import { safeNext } from '@/lib/safeNext';
 import { appOrigin } from '@/lib/origin';
 import { NextResponse } from 'next/server';
 import { adminClient, userClient } from '@/lib/supabase/server';
@@ -25,5 +26,5 @@ export async function GET(req: Request) {
       }
     }
   }
-  return NextResponse.redirect(new URL(next.startsWith('/') ? next : '/', await appOrigin()));
+  return NextResponse.redirect(new URL(safeNext(next), await appOrigin()));
 }
