@@ -20,7 +20,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const snap = acc.staff ? await buildSnapshot(p.id) : await publishedSnapshot(p.id); // studio previews the working copy
   if (!snap) return NextResponse.json({ error: 'This portal hasn’t been published yet.' }, { status: 409 });
   let ai, studio = false;
-  try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
+  try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff, acc.user.id)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
 
   let res;
   try { res = await ai.messages.create({

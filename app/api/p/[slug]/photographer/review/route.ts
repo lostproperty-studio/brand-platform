@@ -18,7 +18,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const m = b.data.image.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
   if (!m) return NextResponse.json({ error: 'That isn’t an image.' }, { status: 400 });
   const ad = await artDirection(a.p.id, a.acc.staff);
-  const { ai, studio } = await portalAnthropic(a.p.id, a.acc.staff);
+  const { ai, studio } = await portalAnthropic(a.p.id, a.acc.staff, a.acc.user.id);
   try {
     const r = await callTool<{ score: number; verdict: 'on' | 'close' | 'off'; summary: string; good: string[]; fix: string[] }>(ai, {
       model: 'claude-sonnet-5-5', max_tokens: 900,

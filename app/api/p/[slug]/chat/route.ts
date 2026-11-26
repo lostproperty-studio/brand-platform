@@ -30,7 +30,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const snap = acc.staff ? await buildSnapshot(p.id) : await publishedSnapshot(p.id);
   if (!snap) return new Response('This portal hasn’t been published yet.', { status: 409 });
   let ai, studio = false;
-  try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff)); } catch (e) { if (e instanceof NoClientKey) return new Response(e.message, { status: 402 }); throw e; }
+  try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff, acc.user.id)); } catch (e) { if (e instanceof NoClientKey) return new Response(e.message, { status: 402 }); throw e; }
 
   const here = body.data.path ? await pageContext(p.id, slug, snap, body.data.path) : null;
   const sb = adminClient();

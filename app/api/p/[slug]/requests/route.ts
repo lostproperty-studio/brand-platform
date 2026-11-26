@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { allow, tooMany } from '@/lib/rateLimit';
 import { z } from 'zod';
 import { adminClient, requireProjectAccess } from '@/lib/supabase/server';
 import { projectBySlug } from '@/lib/projects/snapshot';
@@ -20,6 +21,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
 export async function POST(req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const p = await projectBySlug((await ctx.params).slug); if (!p) return new Response('Not found', { status: 404 });
   const acc = await requireProjectAccess(p.id); if (acc instanceof Response) return acc;
+  if (!(await allow(`requests:user:${acc.user.id}`, 20, 3600))) return tooMany();
   if (!acc.clientAdmin) return NextResponse.json({ error: 'Only admins can send requests.' }, { status: 403 });
   const b = z.object({ kind: z.enum(['edit', 'asset', 'domain', 'access', 'other']), title: z.string().min(3).max(140), details: z.string().max(4000).default('') }).safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Give the request a short title.' }, { status: 400 });

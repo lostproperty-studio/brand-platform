@@ -20,7 +20,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
   const cached = content.photoDirection as { key: string; pointers: string[]; prompt: string } | undefined;
   if (cached?.key === key && !new URL(req.url).searchParams.has('fresh')) return NextResponse.json(cached);
   try {
-    const { ai } = await portalAnthropic(a.p.id, a.acc.staff);
+    const { ai } = await portalAnthropic(a.p.id, a.acc.staff, a.acc.user.id);
     const r = await callTool<{ pointers: string[]; prompt: string }>(ai, {
       model: 'claude-sonnet-5-5', max_tokens: 1200,
       system: `You are Lost Property's art director for ${ad.client}. From the brand's art direction, write the rules of thumb a team keeps in mind when choosing or making photographs: 4 to 6 pointers, each under 14 words, concrete and visual (light, colour, framing, subject, mood), in the guidelines' own terms. Then one paragraph describing the photographic style, to steer an image generator: no brand names, no text in images.`,

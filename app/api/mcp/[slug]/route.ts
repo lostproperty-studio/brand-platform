@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import { allow, clientIp } from '@/lib/rateLimit';
 import { projectBySlug, publishedSnapshot } from '@/lib/projects/snapshot';
 import { hashToken } from '@/lib/crypto';
 import { appOrigin } from '@/lib/origin';
@@ -26,6 +27,8 @@ export const maxDuration = 60;
 export async function POST(req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params;
   const p = await authorised(req, slug);
+  // A connector makes a handful of calls a minute; far more than that is a script
+  if (p && !(await allow(`mcp:project:${p.id}`, 300, 60))) return new Response('Too many requests', { status: 429, headers: { 'Retry-After': '30' } });
   if (!p) return new Response('Unauthorized', { status: 401 });
   const msg = (await req.json().catch(() => null)) as Rpc | Rpc[] | null;
   if (!msg) return Response.json(fail(null, -32700, 'Parse error'), { status: 400 });
@@ -45,6 +48,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
       default: return fail(m.id, -32601, 'Method not found');
     }
   };
+  if (Array.isArray(msg) && msg.length > 20) return Response.json(fail(null, -32600, 'Send at most 20 requests at once.'), { status: 400 });
   if (Array.isArray(msg)) { const out = (await Promise.all(msg.map(handle))).filter(Boolean); return out.length ? Response.json(out) : new Response(null, { status: 202 }); }
   const out = await handle(msg);
   return out ? Response.json(out) : new Response(null, { status: 202 });

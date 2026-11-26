@@ -48,7 +48,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   let text = (q.text || '').trim(), fromImage = false;
   if (q.images?.length) {
     let ai, studio = false;
-    try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
+    try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff, acc.user.id)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
     try {
       const res = await callTool<{ copy: string }>(ai, {
         model: 'claude-sonnet-5-5', max_tokens: 1500,

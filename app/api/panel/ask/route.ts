@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const snap = (who.staff ? await buildSnapshot(who.projectId).catch(() => null) : null) || await publishedSnapshot(who.projectId);
   if (!snap) return new Response('This brand hasn’t been published yet.', { status: 409, headers: cors });
   let ai;
-  try { ({ ai } = await portalAnthropic(who.projectId, who.staff)); } catch (e) { if (e instanceof NoClientKey) return new Response(e.message, { status: 402, headers: cors }); throw e; }
+  try { ({ ai } = await portalAnthropic(who.projectId, who.staff, who.userId)); } catch (e) { if (e instanceof NoClientKey) return new Response(e.message, { status: 402, headers: cors }); throw e; }
   const r = await ai.messages.create({
     model: 'claude-sonnet-5-5', max_tokens: 700,
     system: `${brandSystemPrompt(snap, { cite: 'none', voice: true })}\n\nYou are answering inside a small side panel in ${body.data.where || 'a design app'}. Keep answers short: a few sentences or a short list. Give exact values. No headings.`,

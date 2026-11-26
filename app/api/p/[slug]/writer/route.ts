@@ -62,7 +62,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   if (!snap || !v || (acc.staff ? !voiceHas(v) : !(voiceReady(v) && v.writer))) return NextResponse.json({ error: 'The Writer isn’t set up for this brand yet. Lost Property will turn it on.' }, { status: 409 });
   let ai, studio = false;
   const factsOn = canSee((await projectStages(p.id)).facts, acc.staff);
-  try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
+  try { ({ ai, studio } = await portalAnthropic(p.id, acc.staff, acc.user.id)); } catch (e) { if (e instanceof NoClientKey) return NextResponse.json({ error: e.message }, { status: 402 }); throw e; }
 
   const system = `You are the Writer for ${snap.client}, inside their brand portal. You write and review copy in the ${snap.client} voice, and nothing else.
 

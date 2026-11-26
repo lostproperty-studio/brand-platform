@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { allow, tooMany } from '@/lib/rateLimit';
 import { z } from 'zod';
 import { adminClient, requireProjectAccess, ROLE_OF } from '@/lib/supabase/server';
 import { projectBySlug } from '@/lib/projects/snapshot';
@@ -26,6 +27,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const b = z.object({ email: z.string().email().max(200), role: Role.default('creator') }).safeParse(await req.json().catch(() => ({})));
   if (!b.success) return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 });
   if (!canGrant(g.acc!.role, b.data.role)) return NextResponse.json({ error: 'Only admins can invite admins.' }, { status: 403 });
+  if (!(await allow(`invites:project:${g.p!.id}`, 50, 3600))) return tooMany();
   try {
     const r = await inviteMember(g.p!.id, slug, b.data.email, b.data.role, g.acc!.user.id);
     return NextResponse.json({ ok: true, emailed: r.emailed, members: await listMembers(g.p!.id) });
