@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { relativeUploadName } from '@/lib/filePath';
 import { useRouter } from 'next/navigation';
 import { Check, Download, Eye, EyeOff, FolderUp, ImagePlus, Loader2, Plus, RotateCw, Trash2, Upload, X } from 'lucide-react';
 import type { Package } from '@/lib/portal/packages';
@@ -19,6 +20,27 @@ const ago = (iso?: string) => {
 const ALWAYS = ['logos', 'colours', 'fonts'];
 /** Added when the brand has them */
 const OPTIONAL = ['avatars', 'icons', 'images', 'graphics'];
+/** Files dropped onto a package, with dropped folders opened up and each file keeping its place in them (the same
+ *  path "Upload a folder" gives), so a dropped folder's subfolders survive into the download */
+async function filesFromDrop(dt: DataTransfer): Promise<File[]> {
+  type Entry = { isFile: boolean; isDirectory: boolean; name: string; fullPath: string; file?: (ok: (f: File) => void, fail: (e: unknown) => void) => void; createReader?: () => { readEntries: (ok: (es: Entry[]) => void, fail: (e: unknown) => void) => void } };
+  const entries = [...(dt.items || [])].map((i) => (i as DataTransferItem & { webkitGetAsEntry?: () => Entry | null }).webkitGetAsEntry?.()).filter(Boolean) as Entry[];
+  if (!entries.some((e) => e.isDirectory)) return [];
+  const out: File[] = [];
+  const walk = async (e: Entry): Promise<void> => {
+    if (e.isFile && e.file) {
+      const f = await new Promise<File>((ok, fail) => e.file!(ok, fail));
+      Object.defineProperty(f, 'webkitRelativePath', { value: e.fullPath.replace(/^\//, '') });
+      out.push(f);
+    } else if (e.isDirectory && e.createReader) {
+      const reader = e.createReader();
+      for (;;) { const batch = await new Promise<Entry[]>((ok, fail) => reader.readEntries(ok, fail)); if (!batch.length) break; for (const c of batch) await walk(c); }
+    }
+  };
+  for (const e of entries) await walk(e);
+  return out;
+}
+
 const FOLDERS = ['logos', 'icons', 'images', 'graphics', 'avatars', 'custom', 'fonts'];
 /** What each kind of package fills from, in a line */
 const SOURCE: Record<string, string> = {
@@ -66,12 +88,14 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
     if (!list.length) return;
     try {
       for (const [k, f] of list.entries()) {
-        setMsg(`Uploading ${k + 1} of ${list.length}: ${f.name}`);
-        const s = await call({ action: 'sign', pkg, name: f.name, cover });
+        // From "Upload a folder", the file keeps its place in the folder's subfolders
+        const name = cover ? f.name : relativeUploadName(f);
+        setMsg(`Uploading ${k + 1} of ${list.length}: ${name}`);
+        const s = await call({ action: 'sign', pkg, name, cover });
         const fd = new FormData(); fd.append('cacheControl', '3600'); fd.append('', f);
         const up = await fetch(s.signedUrl, { method: 'PUT', body: fd, headers: { 'x-upsert': 'true' } });
         if (!up.ok) throw new Error(`Couldn’t upload ${f.name}.`);
-        await call({ action: 'add', pkg, name: f.name, path: s.path, bytes: f.size, type: f.type || 'application/octet-stream', cover });
+        await call({ action: 'add', pkg, name, path: s.path, bytes: f.size, type: f.type || 'application/octet-stream', cover });
       }
       setMsg(`Uploaded ${list.length} file${list.length === 1 ? '' : 's'}.`); router.refresh();
     } catch (e) { setMsg((e as Error).message); }
@@ -202,7 +226,7 @@ export function ResourceManager({ projectId, slug, packages, colours, logoUrl, c
 
             {undo && undo.pkg === cur.id ? <p className="rm2-undo" role="status">Removed {undo.label}. <button type="button" onClick={putBack}>Undo</button></p> : null}
             <div className="rm2-files-h"><strong>Files</strong><span className="mute">{SOURCE[cur.kind] || ''}</span></div>
-            {cur.kind !== 'colours' && !['tokens', 'guidelines', 'templates', 'team'].includes(cur.kind) ? <div className="rm2-drop" onDragOver={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.add('on'); }} onDragLeave={(e) => (e.currentTarget as HTMLElement).classList.remove('on')} onDrop={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.remove('on'); upload(cur.id, e.dataTransfer.files); }}>
+            {cur.kind !== 'colours' && !['tokens', 'guidelines', 'templates', 'team'].includes(cur.kind) ? <div className="rm2-drop" onDragOver={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.add('on'); }} onDragLeave={(e) => (e.currentTarget as HTMLElement).classList.remove('on')} onDrop={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.remove('on'); const dt = e.dataTransfer; void filesFromDrop(dt).then((fs) => upload(cur.id, fs.length ? fs : dt.files)); }}>
               <span className="mute">Drop files here, or</span>
               <label className="btn"><Upload {...I} />Choose files<input type="file" multiple hidden onChange={(e) => { upload(cur.id, e.target.files); e.target.value = ''; }} /></label>
               {FOLDERS.includes(cur.kind) ? <label className="btn"><FolderUp {...I} />Upload a folder<input type="file" multiple hidden {...{ webkitdirectory: '', directory: '' }} onChange={(e) => { upload(cur.id, e.target.files); e.target.value = ''; }} /></label> : null}

@@ -39,3 +39,12 @@ To gate a new feature:
 ## Later: a separate staging site
 
 Not needed yet. When the team grows, or a change is too risky to try on the live platform, add `staging.platform.lostproperty.studio` with its own database. Preview deploys already skip database migrations unless `MIGRATE_ON_PREVIEW=1` is set, so the groundwork is in place.
+
+## Before changing Supabase's JWT secret
+
+Stored secrets (clients' Anthropic keys, the Krea key, the Canva connection) are encrypted with a key worked out from
+Supabase's JWT secret, because `KEY_ENCRYPTION_SECRET` isn't set. If you ever change ("roll") that JWT secret in
+Supabase, those secrets become unreadable and clients have to re-enter their AI keys. So **first** add
+`KEY_ENCRYPTION_SECRET` in Vercel (Production; value from `openssl rand -base64 32`, kept in the password manager),
+redeploy, then have each stored key saved once more (a client admin re-saves their AI key in Settings), and only then
+change the JWT secret. Adding the variable on its own is safe at any time (lib/crypto.ts reads both keys).

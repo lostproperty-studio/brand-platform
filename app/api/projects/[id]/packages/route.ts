@@ -1,4 +1,5 @@
 import { teamGate } from '@/lib/studioTeam';
+import { safeRelPath } from '@/lib/filePath';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminClient, requireStaff } from '@/lib/supabase/server';
@@ -32,8 +33,8 @@ const Pkg = z.string().regex(/^(logos|motion|colours|fonts|avatars|icons|images|
 /** Refresh also covers the AI deliverables, which have no files of their own */
 const Refreshable = z.string().regex(/^(logos|colours|fonts|avatars|icons|images|graphics|tokens|guidelines|templates|team|design-system|skills|custom-[a-z0-9]{4,12})$/);
 const Body = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('sign'), pkg: Pkg, name: z.string().max(200), cover: z.boolean().optional() }),
-  z.object({ action: z.literal('add'), pkg: Pkg, name: z.string().max(200), path: z.string().max(400), bytes: z.number(), type: z.string().max(100), cover: z.boolean().optional() }),
+  z.object({ action: z.literal('sign'), pkg: Pkg, name: z.string().max(400), cover: z.boolean().optional() }),
+  z.object({ action: z.literal('add'), pkg: Pkg, name: z.string().max(400), path: z.string().max(600), bytes: z.number(), type: z.string().max(100), cover: z.boolean().optional() }),
   z.object({ action: z.literal('custom'), title: z.string().min(1).max(80), purpose: z.string().max(300).optional() }),
   z.object({ action: z.literal('patch'), pkg: Pkg, title: z.string().max(80).optional(), purpose: z.string().max(300).optional(), hidden: z.boolean().optional(), enabled: z.boolean().optional(), owner: z.string().max(300).optional(), note: z.string().max(800).optional() }),
   z.object({ action: z.literal('remove-file'), pkg: Pkg, name: z.string().max(200).optional(), path: z.string().max(400).optional() }),
@@ -54,7 +55,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const d = b.data;
 
   if (d.action === 'sign') {
-    const path = `${id}/packages/${d.pkg}/${d.cover ? 'cover-' + Date.now().toString(36) + '-' : ''}${safe(d.name)}`;
+    const path = `${id}/packages/${d.pkg}/${d.cover ? 'cover-' + Date.now().toString(36) + '-' + safe(d.name) : safeRelPath(d.name)}`;
     const { data, error } = await sb.storage.from('kits').createSignedUploadUrl(path, { upsert: true });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ path, signedUrl: data.signedUrl });
@@ -107,7 +108,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (d.pkg !== 'team') { cur.enabled = true; cur.hidden = false; }
     if (!d.path.startsWith(`${id}/packages/${d.pkg}/`)) return NextResponse.json({ error: 'Bad path' }, { status: 400 });
     if (d.cover) cur.cover = d.path;
-    else cur.files = [...(cur.files || []).filter((f) => f.name !== safe(d.name)), { name: safe(d.name), path: d.path, bytes: d.bytes, type: d.type }];
+    else cur.files = [...(cur.files || []).filter((f) => f.name !== safeRelPath(d.name)), { name: safeRelPath(d.name), path: d.path, bytes: d.bytes, type: d.type }];
     if (!d.cover && ['icons', 'images', 'graphics'].includes(d.pkg)) cur.enabled = true;
     pkgs[d.pkg] = cur;
   }
