@@ -9,8 +9,15 @@ import { LpLog, lpPlaceholder, useLpChat } from '@/components/portal/LpChat';
 import { LpAppIcon } from '@/components/panel/LpAppIcon';
 import { SessionBooking } from '@/components/portal/LpSupport';
 
-type Msg = { role: 'user' | 'assistant'; content: string; context?: string | null; failed?: boolean; images?: string[] };
+type Msg = { role: 'user' | 'assistant'; content: string; context?: string | null; failed?: boolean; images?: string[]; /** The pictures as sent, so later questions can still refer to them */ pics?: Pic[] };
 type Pic = { url: string; type: 'image/jpeg' | 'image/png'; data: string };
+/** Pictures to send with a conversation: the newest first, up to 8 and about 3MB, as the request has a size limit */
+function budget(msgs: Msg[]) {
+  let n = 8, bytes = 3_000_000;
+  const keep = new Set<Pic>();
+  for (let i = msgs.length - 1; i >= 0; i--) for (const p of [...(msgs[i].pics || [])].reverse()) { if (n <= 0 || p.data.length > bytes) continue; keep.add(p); n--; bytes -= p.data.length; }
+  return keep;
+}
 /** A picture made small enough to send (longest side 1568px), as base64 */
 async function shrink(file: File): Promise<Pic | null> {
   if (!file.type.startsWith('image/')) return null;
@@ -18,8 +25,10 @@ async function shrink(file: File): Promise<Pic | null> {
   const k = Math.min(1, 1568 / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
   const g = c.getContext('2d')!; g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height);
-  const png = file.type === 'image/png' && c.width * c.height < 1_000_000;
-  const url = c.toDataURL(png ? 'image/png' : 'image/jpeg', 0.86);
+  // PNG keeps flat graphics crisp, but only while it's small; anything bigger goes as JPEG so several fit in one question
+  let url = file.type === 'image/png' && c.width * c.height < 1_000_000 ? c.toDataURL('image/png') : '';
+  const png = !!url && url.length < 700_000;
+  if (!png) url = c.toDataURL('image/jpeg', 0.86);
   return { url, type: png ? 'image/png' : 'image/jpeg', data: url.split(',')[1] };
 }
 type Conv = { id: string; title: string; context: string | null; updated_at: string };
@@ -73,16 +82,18 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi, lpCha
   useEffect(() => { if (!lpChat) return; const f = (e: Event) => { const id = (e as CustomEvent<string>).detail; setMode('lp'); setOpen(true); if (id) lp.open(id); setTimeout(() => input.current?.focus(), 0); }; window.addEventListener('lp-chat', f); return () => window.removeEventListener('lp-chat', f); }, [lpChat, lp.open]);
   async function sendLp(q: string) { const ok = await lp.send(q); if (ok) setText(''); setOpen(true); }
   const submit = (q: string) => (isLp ? sendLp(q) : send(q));
-  async function send(q: string) {
-    if ((!q.trim() && !pics.length) || busy) return;
-    if (!q.trim()) q = 'Give me feedback on this against the guidelines.';
-    const sent = pics; setPics([]);
+  async function send(q: string, again?: Pic[]) {
+    const sent = again || pics;
+    if ((!q.trim() && !sent.length) || busy) return;
+    if (!q.trim()) q = 'Does this look on brand?';
+    setPics([]);
     setOpen(true); setView('chat'); stick.current = true;
-    const next: Msg[] = [...msgs.filter((m) => !m.failed), { role: 'user', content: q.trim(), images: sent.map((x) => x.url) }];
+    const next: Msg[] = [...msgs.filter((m) => !m.failed), { role: 'user', content: q.trim(), images: sent.map((x) => x.url), pics: sent }];
+    const keep = budget(next);
     setMsgs([...next, { role: 'assistant', content: '' }]); setText(''); setBusy(true);
     const ctl = new AbortController(); abort.current = ctl;
     try {
-      const r = await fetch(`/api/p/${slug}/chat`, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: next.map(({ role, content }) => ({ role, content })), path, conversationId: conv || undefined, images: sent.length ? sent.map((x) => ({ type: x.type, data: x.data })) : undefined }) });
+      const r = await fetch(`/api/p/${slug}/chat`, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: next.map(({ role, content, pics: ps }) => { const im = (ps || []).filter((p) => keep.has(p)).map((x) => ({ type: x.type, data: x.data })); return im.length ? { role, content, images: im } : { role, content }; }), path, conversationId: conv || undefined }) });
       if (!r.ok || !r.body) { const t = await r.text().catch(() => ''); setMsgs([...next, { role: 'assistant', content: r.status === 402 ? 'AI isn’t connected for this portal yet.' : t || 'Something went wrong. Try again.', failed: true }]); return; }
       setConv(r.headers.get('X-Conversation-Id'));
       next[next.length - 1].context = decodeURIComponent(r.headers.get('X-Context') || '');
@@ -128,7 +139,7 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi, lpCha
           {history === null ? <p className="mute">Loading…</p> : !history.length ? <p className="mute">Nothing yet. Your questions are saved here, just for you.</p> : history.map((c) => <div key={c.id} className="dock-h"><button onClick={() => openConv(c.id)}><span>{c.title || 'Untitled'}</span><span className="mute">{c.context ? `${c.context} · ` : ''}{new Date(c.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></button><button className="ak-tb" aria-label="Delete conversation" onClick={() => delConv(c.id)}><Trash2 {...I} /></button></div>)}
         </div> : <div className="ak-log" ref={log} aria-live="polite" onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
           {!aiConnected ? <div className="ak-empty"><AskMark /><p>AI isn’t connected yet.</p><p className="mute">{canConnect ? <Link href={`/p/${slug}/settings`}>Connect your Anthropic account in Settings</Link> : 'Your admin can connect it in Settings.'}</p></div>
-            : !msgs.length ? <div className="ak-empty"><AskMark /><p className="ak-hello">What do you need for {client}?</p><p className="mute">Ask about the guidelines, or for the right colours, logos and files. Answers show the real thing.</p><div className="ak-starters">{starters.map(([Ic, s]) => <button key={s} className="ak-chip" onClick={() => send(s)}><Ic {...I} />{s}</button>)}</div></div>
+            : !msgs.length ? <div className="ak-empty"><AskMark /><p className="ak-hello">What do you need for {client}?</p><p className="mute">Ask about the brand, get help writing or planning something, or add a picture of what you’re making for feedback. Answers show the real thing.</p><div className="ak-starters">{starters.map(([Ic, s]) => <button key={s} className="ak-chip" onClick={() => send(s)}><Ic {...I} />{s}</button>)}</div></div>
             : msgs.map((m, i) => m.role === 'user'
               ? <div key={i} className="ak-u">{m.images?.length ? <div className="ak-pics">{m.images.map((u, k) => <img key={k} src={u} alt="" />)}</div> : null}<div className="ak-ub">{m.content}</div>{m.context ? <span className="mute ak-ctx">on {m.context}</span> : null}</div>
               : <div key={i} className={'ak-a' + (m.failed ? ' failed' : '')}>
@@ -137,7 +148,7 @@ export function AskDock({ slug, client, aiConnected, canConnect, studioAi, lpCha
                     {!m.content && busy && i === msgs.length - 1 ? <p className="ak-step" key={step}>{STEPS[step]}<span className="ak-dots" aria-hidden><span>.</span><span>.</span><span>.</span></span></p>
                       : <AskAnswer text={m.content} cat={cat} streaming={busy && i === msgs.length - 1} />}
                     {m.content && !(busy && i === msgs.length - 1) && !m.failed ? <div className="ak-acts"><CopyAnswer text={m.content} /></div> : null}
-                    {m.failed ? <div className="ak-acts"><button className="ak-act" onClick={() => { const q = [...msgs].reverse().find((x) => x.role === 'user'); if (q) { setMsgs(msgs.slice(0, -2)); send(q.content); } }}>Try again</button></div> : null}
+                    {m.failed ? <div className="ak-acts"><button className="ak-act" onClick={() => { const q = [...msgs].reverse().find((x) => x.role === 'user'); if (q) { setMsgs(msgs.slice(0, -2)); send(q.content, q.pics); } }}>Try again</button></div> : null}
                   </div>
                 </div>)}
         </div>}

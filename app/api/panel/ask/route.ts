@@ -5,6 +5,7 @@ import { buildSnapshot, publishedSnapshot } from '@/lib/projects/snapshot';
 import { brandSystemPrompt, logUsage, NoClientKey, portalAnthropic } from '@/lib/ai/project';
 import { readPanel } from '@/lib/plugins/catalog';
 import { adminClient } from '@/lib/supabase/server';
+import { CHAT, noAnswer } from '@/lib/ai/answer';
 import { panelCaller, panelCors } from '@/lib/plugins/panelAuth';
 
 export const maxDuration = 60;
@@ -25,12 +26,12 @@ export async function POST(req: Request) {
   let ai;
   try { ({ ai } = await portalAnthropic(who.projectId, who.staff, who.userId)); } catch (e) { if (e instanceof NoClientKey) return new Response(e.message, { status: 402, headers: cors }); throw e; }
   const r = await ai.messages.create({
-    model: 'claude-sonnet-5-5', max_tokens: 700,
+    model: 'claude-sonnet-5-5', ...CHAT,
     system: `${brandSystemPrompt(snap, { cite: 'none', voice: true })}\n\nYou are answering inside a small side panel in ${body.data.where || 'a design app'}. Keep answers short: a few sentences or a short list. Give exact values. No headings.`,
     messages: body.data.messages
   });
   await logUsage(who.projectId, who.userId, 'chat', r.usage).catch(() => {});
-  const text = r.content.map((b) => (b.type === 'text' ? b.text : '')).join('').trim();
+  const text = r.content.map((b) => (b.type === 'text' ? b.text : '')).join('').trim() || noAnswer(r.stop_reason);
   return NextResponse.json({ answer: text }, { headers: cors });
 }
 export async function OPTIONS(req: Request) { return new Response(null, { status: 204, headers: panelCors(req) }); }
