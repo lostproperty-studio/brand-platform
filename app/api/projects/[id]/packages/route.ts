@@ -40,7 +40,9 @@ const Body = z.discriminatedUnion('action', [
   z.object({ action: z.literal('remove-file'), pkg: Pkg, name: z.string().max(200).optional(), path: z.string().max(400).optional() }),
   z.object({ action: z.literal('restore-file'), pkg: Pkg, name: z.string().max(200).optional(), path: z.string().max(400).optional() }),
   z.object({ action: z.literal('remove-cover'), pkg: Pkg }),
-  z.object({ action: z.literal('remove-package'), pkg: Pkg }),
+  z.object({ action: z.literal('remove-package'), pkg: Pkg, kit: z.array(z.string().max(600)).max(5000).optional() }),
+  z.object({ action: z.literal('empty'), pkg: Pkg, kit: z.array(z.string().max(600)).max(5000).optional() }),
+  z.object({ action: z.literal('set-cover'), pkg: Pkg, path: z.string().max(600) }),
   z.object({ action: z.literal('refresh'), pkg: Refreshable })
 ]);
 
@@ -128,11 +130,34 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const back = d.path || f?.name; if (back) cur.excluded = (cur.excluded || []).filter((x) => x !== back);
     pkgs[d.pkg] = cur;
   }
-  if (d.action === 'remove-cover') { if (cur.cover) await sb.storage.from('kits').remove([cur.cover]); delete cur.cover; pkgs[d.pkg] = cur; }
+  // A cover uploaded on its own is deleted with it; a cover that's one of the package's files stays as a file
+  const ownCover = (c?: string) => !!c && /\/cover-[a-z0-9]+-/.test(c) && !(cur.files || []).some((f) => f.path === c);
+  const removeStored = async (paths: string[]) => { for (let i = 0; i < paths.length; i += 100) await sb.storage.from('kits').remove(paths.slice(i, i + 100)); };
+  if (d.action === 'remove-cover') { if (ownCover(cur.cover)) await removeStored([cur.cover!]); delete cur.cover; pkgs[d.pkg] = cur; }
+  if (d.action === 'set-cover') {
+    // Any picture already in the package: one of its uploads, or a file from the kit for this project
+    const isFile = (cur.files || []).some((f) => f.path === d.path) || d.path.startsWith(`${id}/`);
+    if (!isFile) return NextResponse.json({ error: 'That picture isn’t in this package.' }, { status: 400 });
+    if (ownCover(cur.cover)) await removeStored([cur.cover!]);
+    cur.cover = d.path; pkgs[d.pkg] = cur;
+  }
+  if (d.action === 'empty') {
+    // Every file out, for good: uploads deleted from storage, kit files kept out so a rebuild doesn't refill it
+    await removeStored((cur.files || []).map((f) => f.path).concat((cur.removed || []).map((f) => f.path)));
+    const figma = (cur.files || []).filter((f) => f.fromFigma).map((f) => f.name);
+    if (cur.cover && !ownCover(cur.cover)) delete cur.cover;
+    cur.files = []; cur.removed = [];
+    cur.excluded = [...new Set([...(cur.excluded || []), ...(d.kit || []), ...figma])];
+    pkgs[d.pkg] = cur;
+  }
   if (d.action === 'remove-package') {
-    const paths = [...(cur.files || []).map((f) => f.path), ...(cur.cover ? [cur.cover] : [])];
-    if (paths.length) await sb.storage.from('kits').remove(paths);
-    if (d.pkg.startsWith('custom-')) delete pkgs[d.pkg]; else pkgs[d.pkg] = { enabled: false };
+    if (['logos', 'colours', 'fonts'].includes(d.pkg)) return NextResponse.json({ error: 'Logos, colours and fonts are in every portal.' }, { status: 400 });
+    // Deleted for good: its uploads and cover go from storage. A built-in package (avatars, icons, images, graphics…)
+    // comes back empty if it's added again: its kit files are kept out, its name and description reset.
+    await removeStored([...(cur.files || []), ...(cur.removed || [])].map((f) => f.path).concat(ownCover(cur.cover) ? [cur.cover!] : []));
+    const figma = (cur.files || []).filter((f) => f.fromFigma).map((f) => f.name);
+    if (d.pkg.startsWith('custom-')) delete pkgs[d.pkg];
+    else pkgs[d.pkg] = { enabled: false, hidden: true, excluded: [...new Set([...(cur.excluded || []), ...(d.kit || []), ...figma])] };
   }
   const { error } = await sb.from('projects').update({ content: { ...content, packages: pkgs } }).eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
